@@ -100,6 +100,8 @@ neoScreenInit(KdScreenInfo *screen)
         return FALSE;
     }
 
+    screen->driver = neos;
+
     if(!backendScreenInitialize(screen, &neos->backendScreen, &neoc->backendCard)) {
         xfree(neos);
         return FALSE;
@@ -136,8 +138,6 @@ neoScreenInit(KdScreenInfo *screen)
         neos->off_screen_size = 0;
     }
 
-    screen->driver = neos;
-
     LEAVE();
     return TRUE;
 }
@@ -149,8 +149,8 @@ neoInitScreen(ScreenPtr pScreen)
     KdScreenPriv(pScreen);
     neoCardInfo(pScreenPriv);
     
-    return neoc->backendCard.initScreen(pScreen);
     LEAVE();
+    return neoc->backendCard.initScreen(pScreen);
 }
 
 static Bool

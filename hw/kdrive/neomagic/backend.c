@@ -22,6 +22,7 @@ backendInitialize(KdCardInfo *card, BackendCard *backend)
 #ifdef KDRIVEFBDEV
     if (!success && fbdevInitialize(card, &backend->priv.fbdev)) {
         success = TRUE;
+        ErrorF("Using fbdev backend\n");
         backend->type = FBDEV;
         backend->cardfini = fbdevCardFini;
         backend->scrfini = fbdevScreenFini;
@@ -40,6 +41,7 @@ backendInitialize(KdCardInfo *card, BackendCard *backend)
 #ifdef KDRIVEVESA
     if (!success && vesaInitialize(card, &backend->priv.vesa)) {
         success = TRUE;
+        ErrorF("Using vesa backend\n");
         backend->type = VESA;
         backend->cardfini = vesaCardFini;
         backend->scrfini = vesaScreenFini;
