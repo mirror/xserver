@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.5.6.2 2004/12/11 01:50:40 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.5.6.3 2004/12/23 23:50:21 deronj Exp $ */
 /* $Xorg: dispatch.c,v 1.5 2001/02/09 02:04:40 xorgcvs Exp $ */
 /************************************************************
 
@@ -494,7 +494,7 @@ Dispatch(void)
     register int	nready;
     register HWEventQueuePtr* icheck = checkForInput;
 #ifdef SMART_SCHEDULE
-    int			start_tick;
+    long			start_tick;
 #endif
 
     nextFreeClientID = 1;
