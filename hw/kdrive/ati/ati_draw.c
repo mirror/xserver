@@ -439,6 +439,8 @@ ATIDrawFini(ScreenPtr pScreen)
 	if (atis->using_dri)
 		ATIDRICloseScreen(pScreen);
 #endif /* USE_DRI */
+
+	kaaDrawFini(pScreen);
 }
 
 void
