@@ -38,6 +38,9 @@ static RESTYPE		CursorWindowType;
 static int		CursorScreenPrivateIndex = -1;
 static int		CursorGeneration;
 static CursorPtr	CursorCurrent;
+#ifdef LG3D
+extern CursorPtr plgeDisplayServerForceThisCursor;
+#endif /* LG3D */
 
 #define VERIFY_CURSOR(pCursor, cursor, client, access) { \
     pCursor = (CursorPtr)SecurityLookupIDByType((client), (cursor), \
@@ -87,6 +90,12 @@ CursorDisplayCursor (ScreenPtr pScreen,
     Bool		ret;
 
     Unwrap (cs, pScreen, DisplayCursor);
+#ifdef LG3D
+    if (plgeDisplayServerForceThisCursor != NULL) {
+	ret = (*pScreen->DisplayCursor) (pScreen, 
+		 plgeDisplayServerForceThisCursor);        
+    } else
+#endif 
     ret = (*pScreen->DisplayCursor) (pScreen, pCursor);
     if (pCursor != CursorCurrent)
     {

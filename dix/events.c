@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/events.c,v 1.6 2004/08/09 02:08:35 kem Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/events.c,v 1.6.4.1 2004/09/16 23:37:22 deronj Exp $ */
 /* $XFree86: xc/programs/Xserver/dix/events.c,v 3.51 2004/01/12 17:04:52 tsi Exp $ */
 /************************************************************
 
@@ -678,14 +678,6 @@ XineramaConfineCursorToWindow(WindowPtr pWin, Bool generateEvents)
 static void
 XineramaChangeToCursor(CursorPtr cursor)
 {
-#ifdef LG3D
-    if (plgeDisplayServerForceThisCursor != NULL) {
-	(*sprite.hotPhys.pScreen->DisplayCursor) (sprite.hotPhys.pScreen,
-						  plgeDisplayServerForceThisCursor);
-        return;
-    }
-#endif /* LG3D */
-
     if (cursor != sprite.current)
     {
 	if ((sprite.current->bits->xhot != cursor->bits->xhot) ||
@@ -920,14 +912,6 @@ ChangeToCursor(CursorPtr cursor)
 	return;
     }
 #endif
-
-#ifdef LG3D
-    if (plgeDisplayServerForceThisCursor != NULL) {
-	(*sprite.hotPhys.pScreen->DisplayCursor) (sprite.hotPhys.pScreen,
-						  plgeDisplayServerForceThisCursor);
-        return;
-    }
-#endif /* LG3D */
 
     if (cursor != sprite.current)
     {
