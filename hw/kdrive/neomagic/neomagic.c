@@ -77,7 +77,9 @@ neoCardInit(KdCardInfo *card)
 
     iopl(3);
 
-    neoMapReg(card, neoc);
+    if (neoc->chip->caps != CAP_NONE) {
+        neoMapReg(card, neoc);
+    }
 
     card->driver = neoc;
 
@@ -97,9 +99,6 @@ neoScreenInit(KdScreenInfo *screen)
     if(neos == NULL) {
         return FALSE;
     }
-
-	memset (neos, '\0', sizeof (NeoScreenInfo));
-
 
     if(!backendScreenInitialize(screen, &neos->backendScreen, &neoc->backendCard)) {
         xfree(neos);
@@ -273,7 +272,9 @@ neoEnable(ScreenPtr pScreen)
         return FALSE;
     }
 
-    neoSetMMIO(pScreenPriv->card, neoc);
+    if (neoc->chip->caps != CAP_NONE) {
+        neoSetMMIO(pScreenPriv->card, neoc);
+    }
 
     return TRUE;
 }
@@ -284,7 +285,9 @@ neoDisable(ScreenPtr pScreen)
     KdScreenPriv(pScreen);
     neoCardInfo(pScreenPriv);
 
-    neoResetMMIO(pScreenPriv->card, neoc);
+    if (neoc->chip->caps != CAP_NONE) {
+        neoResetMMIO(pScreenPriv->card, neoc);
+    }
 
     neoc->backendCard.disable(pScreen);
 }
@@ -321,7 +324,9 @@ neoRestore(KdCardInfo *card)
 {
     NeoCardInfo *neoc = card->driver;
 
-    neoResetMMIO(card, neoc);
+    if (neoc->chip->caps != CAP_NONE) {
+        neoResetMMIO(card, neoc);
+    }
     neoc->backendCard.restore(card);
 }
 
@@ -341,7 +346,9 @@ neoCardFini(KdCardInfo *card)
 {
     NeoCardInfo *neoc = card->driver;
 
-    neoUnmapReg(card, neoc);
+    if (neoc->chip->caps != CAP_NONE) {
+        neoUnmapReg(card, neoc);
+    }
     neoc->backendCard.cardfini(card);
 }
 
@@ -351,7 +358,7 @@ neoCardFini(KdCardInfo *card)
 #define neoCursorFini 0       // finiCursor */
 #define neoRecolorCursor 0    // recolorCursor */
 
-KdCardFuncs    neoFuncs = {
+KdCardFuncs neoFuncs = {
     neoCardInit,              // cardinit
     neoScreenInit,            // scrinit
     neoInitScreen,            // initScreen

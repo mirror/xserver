@@ -22,11 +22,9 @@
 
 typedef enum _BackendType {VESA, FBDEV} BackendType;
 
-typedef struct _BackendInfo {
-    // backend info
-    BackendType type;
-
-    // backend internal structures
+typedef struct _BackendCard {
+    // backend internal structures, priv must come first for the backend
+    // routines to find it correctly
     union {
 #ifdef KDRIVEFBDEV
         FbdevPriv fbdev;
@@ -35,6 +33,9 @@ typedef struct _BackendInfo {
         VesaCardPrivRec vesa;
 #endif
     } priv;
+
+    // backend info
+    BackendType type;
 
     // pointers to helper functions for this backend
     void (*cardfini)(KdCardInfo *);
@@ -49,7 +50,7 @@ typedef struct _BackendInfo {
     void (*disable)(ScreenPtr);
     void (*getColors)(ScreenPtr, int, int, xColorItem *);
     void (*putColors)(ScreenPtr, int, int, xColorItem *);
-} BackendInfo;
+} BackendCard;
 
 typedef union _BackendScreen {
 #ifdef KDRIVEFBDEV
@@ -61,10 +62,10 @@ typedef union _BackendScreen {
 } BackendScreen;
 
 Bool
-backendInitialize(KdCardInfo *card, BackendInfo *backend);
+backendInitialize(KdCardInfo *card, BackendCard *backend);
 
 Bool
 backendScreenInitialize(KdScreenInfo *screen, BackendScreen *backendScreen,
-                        BackendInfo *backendCard);
+                        BackendCard *backendCard);
 
 #endif

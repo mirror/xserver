@@ -39,6 +39,7 @@
 #define LEAVE() DBGOUT("Leave %s\n", __FUNCTION__)
 
 #define NEO_VENDOR 0x10c8
+#define CAP_NONE    0x00 /* Disables all acceleration */
 #define CAP_NM2070  0x01 /* If it's a NM2070 series */
 #define CAP_NM2090  0x02 /* If it's a NM2090 series */
 #define CAP_NM2097  0x03 /* If it's a NM2097 series */
@@ -110,7 +111,7 @@ typedef volatile struct {
 } NeoMMIO;
 
 typedef struct _neoCardInfo {
-    BackendInfo backendCard;
+    BackendCard backendCard;
 
     CARD32 reg_base;
     NeoMMIO *mmio;

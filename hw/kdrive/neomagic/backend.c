@@ -15,28 +15,10 @@
 #include "backend.h"
 
 Bool
-backendInitialize(KdCardInfo *card, BackendInfo *backend)
+backendInitialize(KdCardInfo *card, BackendCard *backend)
 {
     Bool success = FALSE;
 
-#ifdef KDRIVEVESA
-    if (!success && vesaInitialize(card, &backend->priv.vesa)) {
-        success = TRUE;
-        backend->type = VESA;
-        backend->cardfini = vesaCardFini;
-        backend->scrfini = vesaScreenFini;
-        backend->initScreen = vesaInitScreen;
-        backend->finishInitScreen = vesaFinishInitScreen;
-        backend->createRes = vesaCreateResources;
-        backend->preserve = vesaPreserve;
-        backend->restore = vesaRestore;
-        backend->dpms = vesaDPMS;
-        backend->enable = vesaEnable;
-        backend->disable = vesaDisable;
-        backend->getColors = vesaGetColors;
-        backend->putColors = vesaPutColors;
-    }
-#endif
 #ifdef KDRIVEFBDEV
     if (!success && fbdevInitialize(card, &backend->priv.fbdev)) {
         success = TRUE;
@@ -55,12 +37,30 @@ backendInitialize(KdCardInfo *card, BackendInfo *backend)
         backend->putColors = fbdevPutColors;
     }
 #endif
+#ifdef KDRIVEVESA
+    if (!success && vesaInitialize(card, &backend->priv.vesa)) {
+        success = TRUE;
+        backend->type = VESA;
+        backend->cardfini = vesaCardFini;
+        backend->scrfini = vesaScreenFini;
+        backend->initScreen = vesaInitScreen;
+        backend->finishInitScreen = vesaFinishInitScreen;
+        backend->createRes = vesaCreateResources;
+        backend->preserve = vesaPreserve;
+        backend->restore = vesaRestore;
+        backend->dpms = vesaDPMS;
+        backend->enable = vesaEnable;
+        backend->disable = vesaDisable;
+        backend->getColors = vesaGetColors;
+        backend->putColors = vesaPutColors;
+    }
+#endif
     return success;
 }
 
 Bool
 backendScreenInitialize(KdScreenInfo *screen, BackendScreen *backendScreen,
-                        BackendInfo *backendCard)
+                        BackendCard *backendCard)
 {
     Bool success = FALSE;
 
