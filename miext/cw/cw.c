@@ -25,10 +25,6 @@
 #include "windowstr.h"
 #include "cw.h"
 
-#ifdef LG3D
-#include "../../Xext/lgeint.h"
-#endif /* LG3D */
-
 #define CW_DEBUG 1
 
 #if CW_DEBUG
@@ -447,6 +443,17 @@ cwFillRegionTiled(DrawablePtr pDrawable, RegionPtr pRegion, PixmapPtr pTile,
    FreeScratchGC(pGC);
 }
 
+#ifdef LG3D
+/* 
+** RUDE HACK: need to find a cleaner way to do this!
+** This variable is set by routines in lgwindow.c
+** in order to skip the wrappee paint window call from
+** this routine. This is necessary in order to keep the
+** DDX from preparing the DIDs, which causes visual artifaces.
+*/ 
+Bool cwPaintWindowCallWrappee = TRUE;
+#endif /* LG3D */
+
 static void
 cwPaintWindowBackground(WindowPtr pWin, RegionPtr pRegion, int what)
 {
@@ -455,7 +462,15 @@ cwPaintWindowBackground(WindowPtr pWin, RegionPtr pRegion, int what)
     SCREEN_PROLOGUE(pScreen, PaintWindowBackground);
 
     if (!cwDrawableIsRedirWindow((DrawablePtr)pWin)) {
+#ifdef LG3D
+	/* RUDE HACK: see comment above */
+	if (cwPaintWindowCallWrappee) {
+#endif /* LG3D */
 	(*pScreen->PaintWindowBackground)(pWin, pRegion, what);
+#ifdef LG3D
+	/* RUDE HACK: see comment above */
+	}
+#endif /* LG3D */
     } else {
 	DrawablePtr pBackingDrawable;
 	int x_off, y_off, x_screen, y_screen;
@@ -497,7 +512,15 @@ cwPaintWindowBorder(WindowPtr pWin, RegionPtr pRegion, int what)
     SCREEN_PROLOGUE(pScreen, PaintWindowBorder);
 
     if (!cwDrawableIsRedirWindow((DrawablePtr)pWin)) {
+#ifdef LG3D
+	/* RUDE HACK: see comment above */
+	if (cwPaintWindowCallWrappee) {
+#endif /* LG3D */
 	(*pScreen->PaintWindowBorder)(pWin, pRegion,  what);
+#ifdef LG3D
+	/* RUDE HACK: see comment above */
+	}
+#endif /* LG3D */
     } else {
 	DrawablePtr pBackingDrawable;
 	int x_off, y_off, x_screen, y_screen;
@@ -661,24 +684,6 @@ miInitializeCompositeWrapper(ScreenPtr pScreen)
 
 }
 
-#ifdef LG3D
-/*
-** This is called when the LG Display Server first notifies
-** the X server that it is alive. Note that we cannot initialize
-** these screen functions earlier than this because the composite
-** wrapper is initialized when the X server starts up and at that
-** time it is not known whether the LG Display Server will be
-** running.
-*/
-
-void
-miInitializeCompositeWrapperForLG(ScreenPtr pScreen)
-{
-    SCREEN_EPILOGUE(pScreen, MoveWindow, lg3dMoveWindow);
-    SCREEN_EPILOGUE(pScreen, ResizeWindow, lg3dSlideAndSizeWindow);
-}
-#endif /* LG3D */
-
 static Bool
 cwCloseScreen (int i, ScreenPtr pScreen)
 {
@@ -701,13 +706,6 @@ cwCloseScreen (int i, ScreenPtr pScreen)
     if (ps)
 	cwFiniRender(pScreen);
 #endif
-
-#ifdef LG3D
-    if (lgeDisplayServerIsAlive) {
-	pScreen->MoveWindow = pScreenPriv->MoveWindow;
-	pScreen->ResizeWindow = pScreenPriv->ResizeWindow;
-    }
-#endif /* LG3D */
 
     xfree((pointer)pScreenPriv);
 
