@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1 2004/09/16 23:37:22 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1.2.1 2004/12/14 00:23:59 deronj Exp $ */
 /* $Xorg: window.c,v 1.4 2001/02/09 02:04:41 xorgcvs Exp $ */
 /*
 
@@ -2839,7 +2839,7 @@ MapWindow(pWin, client)
 
 	    if (MaybeDeliverEventsToClient(pParent, &event, 1,
      	        SubstructureRedirectMask, client) == 1) {
-#ifdef LG3D
+#ifdef xLG3D
     	        /*
 		** Some clients assume that MapWindow is atomic for override redirect 
 		** windows; they fire off pairs of MapWindow and UnmapWindow requests
@@ -2867,7 +2867,7 @@ MapWindow(pWin, client)
 
 	pWin->mapped = TRUE;
 
-#ifdef LG3D
+#ifdef xLG3D
 	{ ClientPtr sleepingClient = wClientSleepingOnOvRedirMapWin(pWin);
 	  if (sleepingClient != NULL) {
 	    ClientWakeup(sleepingClient);
