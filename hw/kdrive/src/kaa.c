@@ -127,7 +127,7 @@ kaaPixmapAllocArea (PixmapPtr pPixmap)
     
     pKaaPixmap->devKind = pPixmap->devKind;
     pKaaPixmap->devPrivate = pPixmap->devPrivate;
-    pKaaPixmap->area = KdOffscreenAlloc (pScreen, pitch * h * (bpp >> 3),
+    pKaaPixmap->area = KdOffscreenAlloc (pScreen, pitch * h,
 					 pKaaScr->info->offscreenByteAlign,
 					 FALSE, 
 					 kaaPixmapSave, (pointer) pPixmap);
@@ -140,7 +140,7 @@ kaaPixmapAllocArea (PixmapPtr pPixmap)
 		  KaaGetPixmapPriv(pPixmap)->area->offset : -1,
 		  pPixmap->drawable.width,
 		  pPixmap->drawable.height));
-    pPixmap->devKind = pitch * (bpp >> 3);
+    pPixmap->devKind = pitch;
     pPixmap->devPrivate.ptr = (pointer) ((CARD8 *) pScreenPriv->screen->memory_base + pKaaPixmap->area->offset);
     pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
     return TRUE;
