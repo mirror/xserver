@@ -1,5 +1,5 @@
 /*
- * $XFree86: xc/programs/Xserver/hw/kdrive/linux/mouse.c,v 1.2 2001/11/08 09:35:08 keithp Exp $
+ * $XFree86: xc/programs/Xserver/hw/kdrive/linux/mouse.c,v 1.3 2001/11/22 23:38:21 keithp Exp $
  *
  * Copyright © 2001 Keith Packard, member of The XFree86 Project, Inc.
  *
@@ -904,6 +904,9 @@ MouseInit (void)
     KmouseProt	*mp;
     int		n = 0;
     char	*prot;
+
+    if (!MouseInputType)
+	MouseInputType = KdAllocInputType ();
 
     for (mi = kdMouseInfo; mi; mi = next)
     {
