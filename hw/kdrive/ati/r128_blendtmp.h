@@ -64,7 +64,7 @@ TAG(R128PrepareBlend)(int op, PicturePtr pSrcPicture, PicturePtr pDstPicture,
 	    !R128GetDatatype(pSrcPicture->format, &srcDatatype))
 		return FALSE;
 
-	BEGIN(9);
+	BEGIN(11);
 	OUT_REG(RADEON_REG_DP_GUI_MASTER_CNTL,
 	    (dstDatatype << 8) |
 	    RADEON_GMC_SRC_DATATYPE_COLOR |
@@ -73,6 +73,8 @@ TAG(R128PrepareBlend)(int op, PicturePtr pSrcPicture, PicturePtr pDstPicture,
 	    RADEON_GMC_AUX_CLIP_DIS |
 	    (ATIBltRop[3] << 16) |
 	    RADEON_GMC_3D_FCN_EN);
+	OUT_REG(R128_REG_TEX_CNTL_C, R128_TEX_ALPHA_EN | R128_TEX_CACHE_FLUSH);
+	OUT_REG(R128_REG_PRIM_TEXTURE_COMBINE_CNTL_C, 0);
 	OUT_REG(R128_REG_SCALE_3D_CNTL,
 	    R128_SCALE_3D_SCALE |
 	    R128BlendOp[op] |
