@@ -90,6 +90,10 @@ typedef struct _WindowOpt {
 #ifdef XINPUT
     struct _OtherInputMasks *inputMasks;   /* default: NULL */
 #endif
+#ifdef LG3D
+    /* If non-null, specifies a client sleeping until the WM maps this window */
+    ClientPtr           clientSleepingOnOvRedirMapWin;
+#endif /* LG3D */
 } WindowOptRec, *WindowOptPtr;
 
 #define BackgroundPixel	    2L
@@ -177,6 +181,10 @@ extern Mask	    DontPropagateMasks[];
 #endif
 #define wClient(w)		(clients[CLIENT_ID((w)->drawable.id)])
 #define wBorderWidth(w)		((int) (w)->borderWidth)
+
+#ifdef LG3D
+#define wClientSleepingOnOvRedirMapWin(w) wUseDefault(w, clientSleepingOnOvRedirMapWin, NULL)
+#endif /* LG3D */
 
 /* true when w needs a border drawn. */
 

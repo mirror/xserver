@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6 2004/07/31 08:24:13 anholt Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1 2004/09/16 23:37:22 deronj Exp $ */
 /* $Xorg: window.c,v 1.4 2001/02/09 02:04:41 xorgcvs Exp $ */
 /*
 
@@ -833,6 +833,7 @@ CreateWindow(wid, pParent, x, y, w, h, bw, class, vmask, vlist,
 	event.u.createNotify.override = pWin->overrideRedirect;
 	DeliverEvents(pParent, &event, 1, NullWindow);		
     }
+
     return pWin;
 }
 
@@ -2806,6 +2807,7 @@ MapWindow(pWin, client)
 	    redirToWm = RedirectSend(pParent) || (pParent->drawable.id == lgeDisplayServerPRW);
 
 	    /* Note: even send notifications for override redirect window */
+
 	} else {
 	    redirToWm =  !pWin->overrideRedirect && RedirectSend(pParent);
 	}
@@ -2836,11 +2838,44 @@ MapWindow(pWin, client)
 	    event.u.mapRequest.parent = pParent->drawable.id;
 
 	    if (MaybeDeliverEventsToClient(pParent, &event, 1,
-		SubstructureRedirectMask, client) == 1)
+     	        SubstructureRedirectMask, client) == 1) {
+#ifdef LG3D
+    	        /*
+		** Some clients assume that MapWindow is atomic for override redirect 
+		** windows; they fire off pairs of MapWindow and UnmapWindow requests
+		** in rapid succession. But by forcing override redirect windows to 
+		** send MapRequest events to the window manager (see above) we have
+		** made MapWindow no longer atomic for these windows. We need to 
+		** restore atomicity to this request by suspending request processing
+		** for the client until the window has actually been mapped, whereupon
+		** we can resume request processing for the client.
+		*/
+        	if (pWin->overrideRedirect) {
+		    if (pWin->optional == NULL) {
+			if (!MakeWindowOptional(pWin)) {
+			    ErrorF("LG3D: Warning: MapWindow is not atomic for override redirect window\n");
+			    return Success;
+			}
+		    }
+		    pWin->optional->clientSleepingOnOvRedirMapWin = client;
+		    ClientSleep(client, NULL, NULL);
+		}
+#endif /* LG3D */
 		return(Success);
+	    }
 	}
 
 	pWin->mapped = TRUE;
+
+#ifdef LG3D
+	{ ClientPtr sleepingClient = wClientSleepingOnOvRedirMapWin(pWin);
+	  if (sleepingClient != NULL) {
+	    ClientWakeup(sleepingClient);
+	    pWin->optional->clientSleepingOnOvRedirMapWin = NULL;
+	  }
+	}
+#endif /* LG3D */
+
 	if (SubStrSend(pWin, pParent))
 	{
 	    event.u.u.type = MapNotify;
@@ -3766,6 +3801,9 @@ MakeWindowOptional (pWin)
 	optional->cursor = None;
     }
     optional->colormap = parentOptional->colormap;
+#ifdef LG3D
+    optional->clientSleepingOnOvRedirMapWin = NULL;
+#endif /* LG3D */
     pWin->optional = optional;
     return TRUE;
 }
