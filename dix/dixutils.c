@@ -353,7 +353,11 @@ AlterSaveSetForClient(ClientPtr client,
 		      Bool  remap)
 {
     int numnow;
+#ifdef XFIXES
+    SaveSetElt *pTmp = NULL;
+#else
     pointer *pTmp = NULL;
+#endif
     int j;
 
     numnow = client->numSaved;
@@ -361,7 +365,7 @@ AlterSaveSetForClient(ClientPtr client,
     if (numnow)
     {
 	pTmp = client->saveSet;
-	while ((j < numnow) && (pTmp[j] != (pointer)pWin))
+	while ((j < numnow) && (SaveSetWindow(pTmp[j]) != (pointer)pWin))
 	    j++;
     }
     if (mode == SetModeInsert)
@@ -369,7 +373,11 @@ AlterSaveSetForClient(ClientPtr client,
 	if (j < numnow)         /* duplicate */
 	   return(Success);
 	numnow++;
+#ifdef XFIXES
+	pTmp = (SaveSetElt *)xrealloc(client->saveSet, sizeof(SaveSetElt) * numnow);
+#else
 	pTmp = (pointer *)xrealloc(client->saveSet, sizeof(pointer) * numnow);
+#endif
 	if (!pTmp)
 	    return(BadAlloc);
 	client->saveSet = pTmp;
@@ -389,15 +397,22 @@ AlterSaveSetForClient(ClientPtr client,
 	numnow--;
         if (numnow)
 	{
-    	    pTmp = (pointer *)xrealloc(client->saveSet,
-				       sizeof(pointer) * numnow);
+#ifdef XFIXES
+	    pTmp = (SaveSetElt *)xrealloc(client->saveSet, sizeof(SaveSetElt) * numnow);
+#else
+	    pTmp = (pointer *)xrealloc(client->saveSet, sizeof(pointer) * numnow);
+#endif
 	    if (pTmp)
 		client->saveSet = pTmp;
 	}
         else
         {
             xfree(client->saveSet);
+#ifdef XFIXES
+	    client->saveSet = (SaveSetElt *)NULL;
+#else
 	    client->saveSet = (pointer *)NULL;
+#endif
 	}
 	client->numSaved = numnow;
 	return(Success);

@@ -3179,7 +3179,11 @@ HandleSaveSet(client)
     }
     xfree(client->saveSet);
     client->numSaved = 0;
+#ifdef XFIXES
     client->saveSet = (SaveSetElt *)NULL;
+#else
+    client->saveSet = (pointer *)NULL;
+#endif
 }
 
 Bool
