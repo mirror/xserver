@@ -36,15 +36,55 @@
 #define KAA_DEBUG_FALLBACKS 0
 
 #if KAA_DEBUG_FALLBACKS
+static void kaaCompositeFallbackPictDesc(PicturePtr pict, char *string, int n)
+{
+    char format[20];
+    char size[20];
+    char loc;
+    int temp;
+
+    if (!pict) {
+	snprintf(string, n, "None");
+	return;
+    }
+
+    switch (pict->format)
+    {
+    case PICT_a8r8g8b8:
+	snprintf(format, 20, "ARGB8888");
+	break;
+    case PICT_r5g6b5:
+	snprintf(format, 20, "RGB565  ");
+	break;
+    case PICT_x1r5g5b5:
+	snprintf(format, 20, "RGB555  ");
+	break;
+    case PICT_a8:
+	snprintf(format, 20, "A8      ");
+	break;
+    default:
+	snprintf(format, 20, "0x%x", (int)pict->format);
+	break;
+    }
+
+    loc = kaaGetOffscreenPixmap(pict->pDrawable, &temp, &temp) ? 's' : 'm';
+
+    snprintf(size, 20, "%dx%d%s", pict->pDrawable->width,
+	     pict->pDrawable->height, pict->repeat ?
+	     " R" : "");
+    
+    snprintf(string, n, "0x%lx:%c fmt %s (%s)", (long)pict, loc, format, size);
+}
+
 static void
 kaaPrintCompositeFallback(CARD8 op,
 			  PicturePtr pSrc,
 			  PicturePtr pMask,
 			  PicturePtr pDst)
 {
-    char sop[20], ssfmt[20], smfmt[20], sdfmt[20];
-    char sloc, mloc, dloc;
-    int temp;
+    char sop[20];
+
+    char srcdesc[40], maskdesc[40], dstdesc[40];
 
     switch(op)
     {
@@ -58,50 +98,121 @@ kaaPrintCompositeFallback(CARD8 op,
 	sprintf(sop, "0x%x", (int)op);
 	break;
     }
-    switch(pSrc->format)
-    {
-    case PICT_a8r8g8b8:
-	sprintf(ssfmt, "ARGB8888");
-	break;
-    default:
-	sprintf(ssfmt, "0x%x", (int)pSrc->format);
-	break;
-    }
-    sprintf(smfmt, "(none)");
-    if (pMask) {
-	switch(pMask->format)
-	{
-	case PICT_a8:
-	    sprintf(smfmt, "A8");
-	    break;
-	default:
-	    sprintf(smfmt, "0x%x", (int)pMask->format);
-	    break;
-	}
-    }
-    switch(pDst->format)
-    {
-    case PICT_r5g6b5:
-	sprintf(sdfmt, "RGB565");
-	break;
-    default:
-	sprintf(sdfmt, "0x%x", (int)pDst->format);
-	break;
-    }
-    strcpy (smfmt, ("None"));
-    pMask = 0x0;
+    
+    kaaCompositeFallbackPictDesc(pSrc, srcdesc, 40);
+    kaaCompositeFallbackPictDesc(pMask, maskdesc, 40);
+    kaaCompositeFallbackPictDesc(pDst, dstdesc, 40);
 
-    sloc = kaaGetOffscreenPixmap(pSrc->pDrawable, &temp, &temp) ? 's' : 'm';
-    mloc = (pMask && kaaGetOffscreenPixmap(pMask->pDrawable, &temp, &temp)) ?
-	    's' : 'm';
-    dloc = kaaGetOffscreenPixmap(pDst->pDrawable, &temp, &temp) ? 's' : 'm';
-
-    ErrorF("Composite fallback: op %s, src 0x%x (%c), mask 0x%x (%c), "
-	   "dst 0x%x (%c)\n"
-	   "                    srcfmt %s, maskfmt %s, dstfmt %s\n",
-	   sop, pSrc, sloc, pMask, mloc, pDst, dloc, ssfmt, smfmt, sdfmt);
+    ErrorF("Composite fallback: op %s, \n"
+           "                    src  %s, \n"
+           "                    mask %s, \n"
+           "                    dst  %s, \n", 
+	   sop, srcdesc, maskdesc, dstdesc);
 }
 #endif
+
+static Bool
+kaaGetPixelFromRGBA(CARD32	*pixel,
+		    CARD16	red,
+		    CARD16	green,
+		    CARD16	blue,
+		    CARD16	alpha,
+		    CARD32	format)
+{
+    int rbits, bbits, gbits, abits;
+    int rshift, bshift, gshift, ashift;
+
+    *pixel = 0;
+
+    if (!PICT_FORMAT_COLOR(format))
+	return FALSE;
+
+    rbits = PICT_FORMAT_R(format);
+    gbits = PICT_FORMAT_G(format);
+    bbits = PICT_FORMAT_B(format);
+    abits = PICT_FORMAT_A(format);
+
+    if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ARGB) {
+	bshift = 0;
+	gshift = bbits;
+	rshift = gshift + gbits;
+	ashift = rshift + rbits;
+    } else {  /* PICT_TYPE_ABGR */
+	rshift = 0;
+	gshift = rbits;
+	bshift = gshift + gbits;
+	ashift = bshift + bbits;
+    }
+
+    *pixel |=  ( blue >> (16 - bbits)) << bshift;
+    *pixel |=  (  red >> (16 - rbits)) << rshift;
+    *pixel |=  (green >> (16 - gbits)) << gshift;
+    *pixel |=  (alpha >> (16 - abits)) << ashift;
+
+    return TRUE;
+}
+
+
+static Bool
+kaaGetRGBAFromPixel(CARD32	pixel,
+		    CARD16	*red,
+		    CARD16	*green,
+		    CARD16	*blue,
+		    CARD16	*alpha,
+		    CARD32	format)
+{
+    int rbits, bbits, gbits, abits;
+    int rshift, bshift, gshift, ashift;
+    
+    if (!PICT_FORMAT_COLOR(format))
+	return FALSE;
+
+    rbits = PICT_FORMAT_R(format);
+    gbits = PICT_FORMAT_G(format);
+    bbits = PICT_FORMAT_B(format);
+    abits = PICT_FORMAT_A(format);
+
+    if (PICT_FORMAT_TYPE(format) == PICT_TYPE_ARGB) {
+	bshift = 0;
+	gshift = bbits;
+	rshift = gshift + gbits;
+	ashift = rshift + rbits;
+    } else {  /* PICT_TYPE_ABGR */
+	rshift = 0;
+	gshift = rbits;
+	bshift = gshift + gbits;
+	ashift = bshift + bbits;
+    }
+ 
+    *red = ((pixel >> rshift ) & ((1 << rbits) - 1)) << (16 - rbits);
+    while (rbits < 16) {
+	*red |= *red >> rbits;
+	rbits <<= 1;
+    }
+
+    *green = ((pixel >> gshift ) & ((1 << gbits) - 1)) << (16 - gbits);
+    while (gbits < 16) {
+	*green |= *green >> gbits;
+	gbits <<= 1;
+    }
+ 
+    *blue = ((pixel >> bshift ) & ((1 << bbits) - 1)) << (16 - bbits);
+    while (bbits < 16) {
+	*blue |= *blue >> bbits;
+	bbits <<= 1;
+    }  
+
+    if (abits) {
+	*alpha = ((pixel >> ashift ) & ((1 << abits) - 1)) << (16 - abits);
+	while (abits < 16) {
+	    *alpha |= *alpha >> abits;
+	    abits <<= 1;
+	}     
+    } else
+	*alpha = 0xffff;
+
+    return TRUE;
+}
 
 void
 kaaComposite(CARD8	op,
@@ -124,16 +235,83 @@ kaaComposite(CARD8	op,
     {
 	if (op == PictOpSrc)
 	{
-	    /*
-	     * Check for two special cases -- solid fill and copy area
-	     */
 	    if (pSrc->pDrawable->width == 1 && pSrc->pDrawable->height == 1 &&
 		pSrc->repeat)
 	    {
-		;
+		/* Solid fill case */
+		RegionRec region;
+		BoxPtr pbox;
+		int nbox;
+		int dst_off_x, dst_off_y;
+		PixmapPtr pSrcPix, pDstPix;
+		CARD32 pixel;
+		CARD16 red, green, blue, alpha;
+
+		xDst += pDst->pDrawable->x;
+		yDst += pDst->pDrawable->y;
+		xSrc += pSrc->pDrawable->x;
+		ySrc += pSrc->pDrawable->y;
+
+		if (!miComputeCompositeRegion (&region, pSrc, pMask, pDst,
+					       xSrc, ySrc, xMask, yMask, xDst, yDst,
+					       width, height))
+		    return;
+
+		if (pSrc->pDrawable->type == DRAWABLE_PIXMAP)
+		    kaaPixmapUseMemory ((PixmapPtr) pSrc->pDrawable);
+		if (pDst->pDrawable->type == DRAWABLE_PIXMAP)
+		    kaaPixmapUseScreen ((PixmapPtr) pDst->pDrawable);
+
+		pDstPix = kaaGetOffscreenPixmap (pDst->pDrawable, &dst_off_x,
+						 &dst_off_y);
+		if (!pDstPix)
+		   goto software2;
+		
+		if (pSrc->pDrawable->type == DRAWABLE_WINDOW)
+		    pSrcPix = (*pSrc->pDrawable->pScreen->GetWindowPixmap)(
+			(WindowPtr) (pSrc->pDrawable));
+		else
+		    pSrcPix = (PixmapPtr) (pSrc->pDrawable);
+
+		/* If source is offscreen, we need to sync the accelerator
+		 * before accessing it.  We'd prefer for it to be in memory.
+		 */
+		if (kaaPixmapIsOffscreen(pSrcPix)) {
+		    KdCheckSync(pDst->pDrawable->pScreen);
+		}
+
+		pixel = *(CARD32 *)(pSrcPix->devPrivate.ptr);
+		if (!kaaGetRGBAFromPixel(pixel, &red, &green, &blue, &alpha,
+					 pSrc->format))
+		    goto software;
+		kaaGetPixelFromRGBA(&pixel, red, green, blue, alpha,
+				    pDst->format);
+
+		if (!(*pKaaScr->info->PrepareSolid) (pDstPix, GXcopy, 0xffffff,
+		                                    pixel))
+		{
+		    goto software;
+		}
+
+		nbox = REGION_NUM_RECTS(&region);
+		pbox = REGION_RECTS(&region);
+		while (nbox--)
+		{
+		    (*pKaaScr->info->Solid) (pbox->x1 + dst_off_x,
+					     pbox->y1 + dst_off_y,
+					     pbox->x2 + dst_off_x,
+					     pbox->y2 + dst_off_y);
+		    pbox++;
+		}
+	    
+		(*pKaaScr->info->DoneSolid) ();
+		KdMarkSync(pDst->pDrawable->pScreen);
+
+		return;
 	    }
 	    else if (!pSrc->repeat && pSrc->format == pDst->format)
 	    {
+		/* Copy area case */
 		RegionRec	region;
 		
 		xDst += pDst->pDrawable->x;
@@ -155,13 +333,14 @@ kaaComposite(CARD8	op,
 	    }
 	}
 
-	if (pScreenPriv->enabled && pKaaScr->info->PrepareBlend)
+	if (pScreenPriv->enabled && pKaaScr->info->PrepareBlend &&
+	    !pSrc->alphaMap && !pDst->alphaMap)
 	{
+	    /* Blend case */
 	    RegionRec region;
 	    BoxPtr pbox;
 	    int nbox;
-	    int src_off_x, src_off_y;
-	    int dst_off_x, dst_off_y;
+	    int src_off_x, src_off_y, dst_off_x, dst_off_y;
 	    PixmapPtr pSrcPix, pDstPix;
 
 	    xDst += pDst->pDrawable->x;
@@ -186,8 +365,9 @@ kaaComposite(CARD8	op,
 					     &src_off_y);
 	    pDstPix = kaaGetOffscreenPixmap (pDst->pDrawable, &dst_off_x,
 					     &dst_off_y);
-	    if (!pSrcPix || !pDstPix ||
-		!(*pKaaScr->info->PrepareBlend) (op, pSrc, pDst, pSrcPix,
+	    if (!pSrcPix || !pDstPix)
+		goto software2;
+	    if (!(*pKaaScr->info->PrepareBlend) (op, pSrc, pDst, pSrcPix,
 						 pDstPix))
 	    {
 		goto software;
@@ -218,10 +398,6 @@ kaaComposite(CARD8	op,
     }
 
 software:
-#if KAA_DEBUG_FALLBACKS
-    kaaPrintCompositeFallback (op, pSrc, pMask, pDst);
-#endif
-
     if (pSrc->pDrawable->type == DRAWABLE_PIXMAP)
 	kaaPixmapUseMemory ((PixmapPtr) pSrc->pDrawable);
     if (pMask && pMask->pDrawable->type == DRAWABLE_PIXMAP)
@@ -230,7 +406,12 @@ software:
     if (pDst->pDrawable->type == DRAWABLE_PIXMAP)
 	kaaPixmapUseMemory ((PixmapPtr) pDst->pDrawable);
 #endif
-    
+
+software2:
+#if KAA_DEBUG_FALLBACKS
+    kaaPrintCompositeFallback (op, pSrc, pMask, pDst);
+#endif
+
     KdCheckComposite (op, pSrc, pMask, pDst, xSrc, ySrc, 
 		      xMask, yMask, xDst, yDst, width, height);
 }
