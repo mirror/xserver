@@ -96,6 +96,14 @@ typedef struct _WindowOpt {
     ** Only valid for override redirect windows.
     */       
     ClientPtr           ovRedirCompRedirClient;
+
+    /* 
+    ** HACK ALERT:
+    ** Bug fix for lg3d bug 213. See comment in ProcQueryTree.
+    ** TODO: someday: it would be nice to fix the client bug and
+    ** get rid of this hack.
+    */
+    unsigned            ovRedirLieAboutRootParent : 1;
 #endif /* LG3D */
 } WindowOptRec, *WindowOptPtr;
 
@@ -187,6 +195,13 @@ extern Mask	    DontPropagateMasks[];
 
 #ifdef LG3D
 #define wOvRedirCompRedirClient(w) wUseDefault(w, ovRedirCompRedirClient, NULL)
+/* 
+** HACK ALERT:
+** Bug fix for lg3d bug 213. See comment in ProcQueryTree.
+** TODO: someday: it would be nice to fix the client bug and
+** get rid of this hack.
+*/
+#define wovRedirLieAboutRootParent(w) wUseDefault(w, ovRedirLieAboutRootParent, 0)
 #endif /* LG3D */
 
 /* true when w needs a border drawn. */

@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1.2.2 2004/12/15 18:23:07 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1.2.3 2004/12/16 20:23:36 deronj Exp $ */
 /* $Xorg: window.c,v 1.4 2001/02/09 02:04:41 xorgcvs Exp $ */
 /*
 
@@ -2643,6 +2643,28 @@ ReparentWindow(pWin, pParent, x, y, client)
     event.u.reparent.override = pWin->overrideRedirect;
     DeliverEvents(pWin, &event, 1, pParent);
 
+#ifdef LG3D
+    /* 
+    ** HACK ALERT:
+    ** Bug fix for lg3d bug 213. If the window is override redirect,
+    ** and the old parent is the root window, and the new parent is
+    ** the PRW, have QueryTree lie about the parent and say that the
+    ** parent is still the root window. For more info refer to the
+    ** comment in ProcQueryTree.
+    **
+    ** TODO: someday: it would be nice to fix the client bug and
+    ** get rid of this hack.
+    */
+    if (pWin->overrideRedirect &&
+	pWin->parent == WindowTable[pWin->drawable.pScreen->myNum] &&
+	pParent == pLgeDisplayServerPRWWin) {
+	pWin->optional->ovRedirLieAboutRootParent = 1;
+	/*ErrorF("Lying about parent for window %d\n", pWin->drawable.id);*/
+    }  else {
+	pWin->optional->ovRedirLieAboutRootParent = 0;
+    }
+#endif /* LG3D */
+
     /* take out of sibling chain */
 
     pPriorParent = pPrev = pWin->parent;
@@ -3755,6 +3777,14 @@ CheckWindowOptionalNeed (w)
 	return;
     if (optional->colormap != parentOptional->colormap)
 	return;
+#ifdef LG3D
+    if (optional->ovRedirCompRedirClient != NULL) {
+	return;
+    }
+    if (optional->ovRedirLieAboutRootParent != 0) {
+	return;
+    }
+#endif /* LG3D */
     DisposeWindowOptional (w);
 }
 
@@ -3805,6 +3835,7 @@ MakeWindowOptional (pWin)
     optional->colormap = parentOptional->colormap;
 #ifdef LG3D
     optional->ovRedirCompRedirClient = NULL;
+    optional->ovRedirLieAboutRootParent = 0;
 #endif /* LG3D */
     pWin->optional = optional;
     return TRUE;

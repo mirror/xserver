@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/events.c,v 1.6.4.1.4.1 2004/12/09 18:59:51 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/events.c,v 1.6.4.1.2.3 2004/12/11 01:50:40 deronj Exp $ */
 /* $XFree86: xc/programs/Xserver/dix/events.c,v 3.51 2004/01/12 17:04:52 tsi Exp $ */
 /************************************************************
 
@@ -1968,7 +1968,7 @@ lgeFixUpEventFromWindow(
     Window child,
     Bool calcChild)
 {
-    Window eventWindowOld;
+    Window eventWindowOld = INVALID;
 
     /*
     ErrorF("Enter FixUpEventFromWindow, event type = %d\n", xE->u.u.type);
@@ -2054,8 +2054,12 @@ lgeFixUpEventFromWindow(
 	     caching might optimize this */
 	    WindowPtr pOuterWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
 	    if (pOuterWin == NULL) {
+		/*
+		** This can happen if the window has died since the pick on the window
+		** occurred. So we don't need to be verbose about it.
 		ErrorF("Error: FixupEventFromWindow: outer window %d, not found. No XY fix up occuring.\n",
 		       eventWindowOld);
+		*/
 	    } else {
 		/* 
 		** Make the event coords relative to the destination window
@@ -5220,6 +5224,9 @@ WriteEventsToClient(pClient, count, events)
 			   ev->u.u.type, pClient->index,
 			   ev->u.keyButtonPointer.eventX, ev->u.keyButtonPointer.eventY,
 			   ev->u.keyButtonPointer.event);
+		    if (ev->u.u.type == 4 || ev->u.u.type == 5) {
+			ErrorF("Button detail = %d\n", ev->u.u.detail);
+		    }
 		}
 	    }
 	}

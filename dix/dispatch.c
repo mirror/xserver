@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.5.8.1 2004/12/09 18:59:51 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.5.6.2 2004/12/11 01:50:40 deronj Exp $ */
 /* $Xorg: dispatch.c,v 1.5 2001/02/09 02:04:40 xorgcvs Exp $ */
 /************************************************************
 
@@ -1001,6 +1001,9 @@ ProcGetGeometry(client)
     return(client->noClientException);
 }
 
+#ifdef LG3D
+#include "../Xext/lgeint.h"
+#endif /* LG3D */
 
 int
 ProcQueryTree(client)
@@ -1024,6 +1027,27 @@ ProcQueryTree(client)
 	reply.parent = pWin->parent->drawable.id;
     else
         reply.parent = (Window)None;
+
+#ifdef LG3D
+    /* 
+    ** HACK ALERT:
+    ** Bug fix for lg3d bug 213. The emacs Optional menu displays 
+    ** tooltips for its entries. The emacs code (or possibly the 
+    ** Xaw3d code which provides the tooltips) cannot handle it
+    ** when these tooltips are reparented to the PRW; emacs takes
+    ** a segv. As a short-term workaround we will lie to the client
+    ** and say that a window is still parented off the root window
+    ** if it is an override redirect window that has been reparented
+    ** to the PRW.
+    **
+    ** TODO: someday: it would be nice to fix the client bug and
+    ** get rid of this hack.
+    */
+    if (wovRedirLieAboutRootParent(pWin)) {
+	reply.parent = WindowTable[pWin->drawable.pScreen->myNum]->drawable.id;
+    }
+#endif /* LG3D */
+
     pHead = RealChildHead(pWin);
     for (pChild = pWin->lastChild; pChild != pHead; pChild = pChild->prevSib)
 	numChildren++;
