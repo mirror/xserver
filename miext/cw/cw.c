@@ -40,6 +40,9 @@
 
 int cwGCIndex;
 int cwScreenIndex;
+#ifdef RENDER
+int cwPictureIndex;
+#endif
 static unsigned long cwGeneration = 0;
 extern GCOps cwGCOps;
 
@@ -96,22 +99,10 @@ static GCFuncs cwCheapGCFuncs = {
     cwCheapCopyClip,
 };
 
-static __inline__ Bool
-DrawableIsRedirWindow(DrawablePtr pDrawable)
-{
-    if (pDrawable->type != DRAWABLE_WINDOW)
-	return FALSE;
-    if (!((WindowPtr)pDrawable)->redirectDraw)
-	return FALSE;
-
-    ErrorF("yes!\n");
-    return TRUE;
-}
-
 DrawablePtr
 cwGetBackingDrawable(DrawablePtr pDrawable, int *x_off, int *y_off)
 {
-    if (DrawableIsRedirWindow(pDrawable)) {
+    if (cwDrawableIsRedirWindow(pDrawable)) {
 	WindowPtr pWin = (WindowPtr)pDrawable;
 	PixmapPtr pPixmap = (*pDrawable->pScreen->GetWindowPixmap)(pWin);
 	*x_off = -pPixmap->screen_x;
@@ -154,22 +145,21 @@ cwCreateGCPrivate(GCPtr pGC, DrawablePtr pDrawable)
     pPriv->wrapFuncs = pGC->funcs;
     pGC->funcs = &cwGCFuncs;
     pGC->ops = &cwGCOps;
-    pGC->devPrivates[cwGCIndex].ptr = (pointer)pPriv;
+    setCwGC (pGC, pPriv);
     return TRUE;
 }
 
 static void
 cwDestroyGCPrivate(GCPtr pGC)
 {
-    cwGCRec *pPriv;
+    cwGCPtr pPriv;
 
-    pPriv = (cwGCRec *)pGC->devPrivates[cwGCIndex].ptr;
-    pGC->devPrivates[cwGCIndex].ptr = (pointer)pPriv->wrapFuncs;
+    pPriv = (cwGCPtr) getCwGC (pGC);
     pGC->funcs = &cwCheapGCFuncs;
     pGC->ops = pPriv->wrapOps;
     if (pPriv->pBackingGC)
 	FreeGC(pPriv->pBackingGC, (XID)0);
-    pGC->devPrivates[cwGCIndex].ptr = pPriv->wrapFuncs;
+    setCwGC (pGC, pPriv->wrapFuncs);
     xfree((pointer)pPriv);
 }
 
@@ -193,12 +183,12 @@ cwValidateGC(GCPtr pGC, unsigned long stateChanges, DrawablePtr pDrawable)
     DrawablePtr		pBackingDrawable;
     int			x_off, y_off;
 
-    pPriv = (cwGCPtr)pGC->devPrivates[cwGCIndex].ptr;
+    pPriv = (cwGCPtr) getCwGC (pGC);
 
     FUNC_PROLOGUE(pGC, pPriv);
 
     if (pDrawable->serialNumber != pPriv->serialNumber &&
-	!DrawableIsRedirWindow(pDrawable))
+	!cwDrawableIsRedirWindow(pDrawable))
     {
 	/* The drawable is no longer a window with backing store, so kill the
 	 * private and go back to cheap functions.
@@ -350,7 +340,7 @@ cwCheapValidateGC(GCPtr pGC, unsigned long stateChanges, DrawablePtr pDrawable)
      * re-wrap on return.
      */
     if (pDrawable->type == DRAWABLE_WINDOW &&
-	DrawableIsRedirWindow(pDrawable) &&
+cwDrawableIsRedirWindow(pDrawable) &&
 	cwCreateGCPrivate(pGC, pDrawable))
     {
 	(*pGC->funcs->ValidateGC)(pGC, stateChanges, pDrawable);
@@ -511,9 +501,6 @@ void
 miInitializeCompositeWrapper(ScreenPtr pScreen)
 {
     cwScreenPtr pScreenPriv;
-#ifdef RENDER
-    PictureScreenPtr ps = GetPictureScreen(pScreen);
-#endif
 
     if (cwGeneration != serverGeneration)
     {
@@ -521,6 +508,9 @@ miInitializeCompositeWrapper(ScreenPtr pScreen)
 	if (cwScreenIndex < 0)
 	    return;
 	cwGCIndex = AllocateGCPrivateIndex();
+#ifdef RENDER
+	cwPictureIndex = AllocatePicturePrivateIndex();
+#endif
 	cwGeneration = serverGeneration;
     }
     if (!AllocateGCPrivate(pScreen, cwGCIndex, 0))
@@ -539,19 +529,17 @@ miInitializeCompositeWrapper(ScreenPtr pScreen)
     pScreen->GetSpans = cwGetSpans;
     pScreen->CreateGC = cwCreateGC;
 
+    pScreen->devPrivates[cwScreenIndex].ptr = (pointer)pScreenPriv;
+
 #ifdef RENDER
-    if (ps)
+    if (GetPictureScreen (pScreen))
     {
-	pScreenPriv->Composite = ps->Composite;
-	ps->Composite = cwComposite;
-	pScreenPriv->Glyphs = ps->Glyphs;
-	ps->Glyphs = cwGlyphs;
+	if (!cwInitializeRender (pScreen))
+	    /* FIXME */;
     }
 #endif
 
     ErrorF("Initialized composite wrapper\n");
-
-    pScreen->devPrivates[cwScreenIndex].ptr = (pointer)pScreenPriv;
 }
 
 static Bool

@@ -25,7 +25,7 @@
 #include "cw.h"
 
 #define SETUP_BACKING_DST(_pDst, _pGC) \
-    cwGCPtr pGCPrivate = (cwGCPtr)(_pGC)->devPrivates[cwGCIndex].ptr; \
+    cwGCPtr pGCPrivate = getCwGC (_pGC); \
     GCFuncs *oldFuncs = (_pGC)->funcs; \
     GCPtr pBackingGC = pGCPrivate->pBackingGC; \
     int dst_off_x, dst_off_y; \
@@ -37,50 +37,6 @@
     DrawablePtr pBackingSrc = cwGetBackingDrawable(pSrc, &src_off_x, \
 	&src_off_y)
 
-#define CW_COPY_OFFSET_XYPOINTS(ppt_trans, ppt, npt) do { \
-    short *_origpt = (short *)(ppt); \
-    short *_transpt = (short *)(ppt_trans); \
-    int _i; \
-    for (_i = 0; _i < npt; _i++) { \
-	*_transpt++ = *_origpt++ + dst_off_x; \
-	*_transpt++ = *_origpt++ + dst_off_y; \
-    } \
-} while (0)
-
-#define CW_COPY_OFFSET_RECTS(prect_trans, prect, nrect) do { \
-    short *_origpt = (short *)(prect); \
-    short *_transpt = (short *)(prect_trans); \
-    int _i; \
-    for (_i = 0; _i < nrect; _i++) { \
-	*_transpt++ = *_origpt++ + dst_off_x; \
-	*_transpt++ = *_origpt++ + dst_off_y; \
-	_transpt += 2; \
-	_origpt += 2; \
-    } \
-} while (0)
-
-#define CW_COPY_OFFSET_ARCS(parc_trans, parc, narc) do { \
-    short *_origpt = (short *)(parc); \
-    short *_transpt = (short *)(parc_trans); \
-    int _i; \
-    for (_i = 0; _i < narc; _i++) { \
-	*_transpt++ = *_origpt++ + dst_off_x; \
-	*_transpt++ = *_origpt++ + dst_off_y; \
-	_transpt += 4; \
-	_origpt += 4; \
-    } \
-} while (0)
-
-#define CW_COPY_OFFSET_XY_DST(bx, by, x, y) do { \
-    bx = x + dst_off_x; \
-    by = y + dst_off_y; \
-} while (0)
-
-#define CW_COPY_OFFSET_XY_SRC(bx, by, x, y) do { \
-    bx = x + src_off_x; \
-    by = y + src_off_y; \
-} while (0)
-
 #define PROLOGUE(pGC) do { \
     pGC->ops = pGCPrivate->wrapOps;\
     pGC->funcs = pGCPrivate->wrapFuncs; \
@@ -91,9 +47,6 @@
     (pGC)->ops = &cwGCOps; \
     (pGC)->funcs = oldFuncs; \
 } while (0)
-
-extern int cwGCIndex;
-
 
 /*
  * GC ops -- wrap each GC operation with our own function
