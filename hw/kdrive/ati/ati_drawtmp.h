@@ -25,15 +25,15 @@
 
 #ifdef USE_DMA
 #define TAG(x)		x##DMA
-#define LOCALS		(void)atic; \
-			RING_LOCALS
+#define LOCALS		RING_LOCALS; \
+			(void)atic
 #define BEGIN(x)	BEGIN_RING(x * 2)
 #define OUT_REG(reg, val) OUT_RING_REG(reg, val)
 #define END()		ADVANCE_RING()
 #else
 #define TAG(x)		x##MMIO
-#define LOCALS		(void)atis; \
-			char *mmio = atic->reg_base
+#define LOCALS		char *mmio = atic->reg_base; \
+			(void)atis
 #define BEGIN(x)	ATIWaitAvailMMIO(x)
 #define OUT_REG(reg, val) MMIO_OUT32((mmio), (reg), (val))
 #define END()

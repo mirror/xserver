@@ -25,8 +25,8 @@
 
 #ifdef USE_DMA
 #define TAG(x)		x##DMA
-#define LOCALS		(void)atic; \
-			RING_LOCALS
+#define LOCALS		RING_LOCALS; \
+			(void)atic
 #define BEGIN(x)	BEGIN_RING(x * 2)
 #define OUT_REG(reg, val) OUT_RING_REG(reg, val)
 #define END()		ADVANCE_RING()
