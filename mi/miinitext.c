@@ -377,15 +377,12 @@ InitExtensions(argc, argv)
 #ifdef RES
     ResExtensionInit();
 #endif
-<<<<<<< miinitext.c
 #ifdef XFIXES
     XFixesExtensionInit();
 #endif
 #ifdef DAMAGE
     DamageExtensionInit();
 #endif
-=======
->>>>>>> 1.1.4.4
 }
 
 void
