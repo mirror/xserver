@@ -91,8 +91,11 @@ typedef struct _WindowOpt {
     struct _OtherInputMasks *inputMasks;   /* default: NULL */
 #endif
 #ifdef LG3D
-    /* If non-null, specifies a client sleeping until the WM maps this window */
-    ClientPtr           clientSleepingOnOvRedirMapWin;
+    /* 
+    ** Specifies the client that mapped this window.
+    ** Only valid for override redirect windows.
+    */       
+    ClientPtr           ovRedirCompRedirClient;
 #endif /* LG3D */
 } WindowOptRec, *WindowOptPtr;
 
@@ -183,7 +186,7 @@ extern Mask	    DontPropagateMasks[];
 #define wBorderWidth(w)		((int) (w)->borderWidth)
 
 #ifdef LG3D
-#define wClientSleepingOnOvRedirMapWin(w) wUseDefault(w, clientSleepingOnOvRedirMapWin, NULL)
+#define wOvRedirCompRedirClient(w) wUseDefault(w, ovRedirCompRedirClient, NULL)
 #endif /* LG3D */
 
 /* true when w needs a border drawn. */
