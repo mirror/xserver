@@ -238,6 +238,12 @@ extern void RRExtensionInit(INITARGS);
 #ifdef RES
 extern void ResExtensionInit(INITARGS);
 #endif
+#ifdef XFIXES
+extern void XFixesExtensionInit(INITARGS);
+#endif
+#ifdef DAMAGE
+extern void DamageExtensionInit(INITARGS);
+#endif
 
 #ifndef XFree86LOADER
 
@@ -460,7 +466,7 @@ ExtensionModule extension[] =
 #endif
 
 /* List of built-in (statically linked) extensions */
-/*SKKKKKKK  static*/ ExtensionModule staticExtensions[] = {
+static ExtensionModule staticExtensions[] = {
 #ifdef BEZIER
     { BezierExtensionInit, "BEZIER", NULL, NULL, NULL },
 #endif
