@@ -25,7 +25,8 @@
 
 #ifdef USE_DMA
 #define TAG(x)		x##DMA
-#define LOCALS		RING_LOCALS
+#define LOCALS		(void)atic; \
+			RING_LOCALS
 #define BEGIN(x)	BEGIN_RING(x * 2)
 #define OUT_REG(reg, val) OUT_RING_REG(reg, val)
 #define END()		ADVANCE_RING()
@@ -43,7 +44,7 @@ TAG(ATISetup)(PixmapPtr pDst, PixmapPtr pSrc)
 	KdScreenPriv(pDst->drawable.pScreen);
 	ATIScreenInfo(pScreenPriv);
 	ATICardInfo(pScreenPriv);
-	int dst_offset, dst_pitch, src_offset = 0, src_pitch = 0;
+	int dst_offset, dst_pitch;
 	int bpp = pScreenPriv->screen->fb[0].bitsPerPixel;
 	LOCALS;
 

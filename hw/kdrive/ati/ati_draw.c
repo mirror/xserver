@@ -73,9 +73,41 @@ CARD8 ATIBltRop[16] = {
     /* GXset        */      0xff,         /* 1 */
 };
 
+static CARD32 R128BlendOp[] = {
+	/* Clear */
+	R128_ALPHA_BLEND_SRC_ZERO	 | R128_ALPHA_BLEND_DST_ZERO,
+	/* Src */
+	R128_ALPHA_BLEND_SRC_ONE	 | R128_ALPHA_BLEND_DST_ZERO,
+	/* Dst */
+	R128_ALPHA_BLEND_SRC_ZERO	 | R128_ALPHA_BLEND_DST_ONE,
+	/* Over */
+	R128_ALPHA_BLEND_SRC_ONE	 | R128_ALPHA_BLEND_DST_INVSRCALPHA,
+	/* OverReverse */
+	R128_ALPHA_BLEND_SRC_INVDSTALPHA | R128_ALPHA_BLEND_DST_ONE,
+	/* In */
+	R128_ALPHA_BLEND_SRC_DSTALPHA	 | R128_ALPHA_BLEND_DST_ZERO,
+	/* InReverse */
+	R128_ALPHA_BLEND_SRC_ZERO	 | R128_ALPHA_BLEND_DST_SRCALPHA,
+	/* Out */
+	R128_ALPHA_BLEND_SRC_INVDSTALPHA | R128_ALPHA_BLEND_DST_ZERO,
+	/* OutReverse */
+	R128_ALPHA_BLEND_SRC_ZERO	 | R128_ALPHA_BLEND_DST_INVSRCALPHA,
+	/* Atop */
+	R128_ALPHA_BLEND_SRC_DSTALPHA	 | R128_ALPHA_BLEND_DST_INVSRCALPHA,
+	/* AtopReverse */
+	R128_ALPHA_BLEND_SRC_INVDSTALPHA | R128_ALPHA_BLEND_DST_SRCALPHA,
+	/* Xor */
+	R128_ALPHA_BLEND_SRC_INVDSTALPHA | R128_ALPHA_BLEND_DST_INVSRCALPHA,
+	/* Add */
+	R128_ALPHA_BLEND_SRC_ONE	 | R128_ALPHA_BLEND_DST_ONE,
+};
+
 int copydx, copydy;
 int fifo_size;
 ATIScreenInfo *accel_atis;
+int src_pitch;
+int src_offset;
+int src_bpp;
 
 static void
 ATIWaitAvailMMIO(int n)
@@ -313,14 +345,34 @@ drmBufPtr ATIDMAGetBuffer()
 	buf->used = 0;
 	return buf;
 }
+#endif /* USE_DRI */
 
+static Bool
+R128GetDatatype(CARD32 format, CARD32 *type)
+{
+	switch (format) {
+	case PICT_a8r8g8b8:
+		*type = R128_DATATYPE_ARGB_8888;
+		return TRUE;
+	case PICT_r5g6b5:
+		*type = R128_DATATYPE_RGB_565;
+		return TRUE;
+	}
+
+	ErrorF ("Unsupported format: %x\n", format);
+
+	return FALSE;
+}
+
+#ifdef USE_DRI
 #define USE_DMA
 #include "ati_drawtmp.h"
-
+#include "r128_blendtmp.h"
 #endif /* USE_DRI */
 
 #undef USE_DMA
 #include "ati_drawtmp.h"
+#include "r128_blendtmp.h"
 
 static void
 ATIDoneSolid(void)
@@ -385,6 +437,11 @@ ATIDrawInit(ScreenPtr pScreen)
 		atis->kaa.Solid = ATISolidDMA;
 		atis->kaa.PrepareCopy = ATIPrepareCopyDMA;
 		atis->kaa.Copy = ATICopyDMA;
+		if (!atic->is_radeon && !atis->is_24bpp) {
+			atis->kaa.PrepareBlend = R128PrepareBlendDMA;
+			atis->kaa.Blend = R128BlendDMA;
+			atis->kaa.DoneBlend = R128DoneBlendDMA;
+		}
 	} else {
 #else
 	{
@@ -393,6 +450,11 @@ ATIDrawInit(ScreenPtr pScreen)
 		atis->kaa.Solid = ATISolidMMIO;
 		atis->kaa.PrepareCopy = ATIPrepareCopyMMIO;
 		atis->kaa.Copy = ATICopyMMIO;
+		if (!atic->is_radeon && !atis->is_24bpp) {
+			atis->kaa.PrepareBlend = R128PrepareBlendMMIO;
+			atis->kaa.Blend = R128BlendMMIO;
+			atis->kaa.DoneBlend = R128DoneBlendMMIO;
+		}
 	}
 	atis->kaa.DoneSolid = ATIDoneSolid;
 	atis->kaa.DoneCopy = ATIDoneCopy;

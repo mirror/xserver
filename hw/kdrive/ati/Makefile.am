@@ -44,6 +44,7 @@ libati_a_SOURCES = 	\
 	ati.c		\
 	ati.h		\
 	ati_reg.h	\
+	r128_blendtmp.h	\
 	$(DRI_SOURCES)
 
 Xati_SOURCES = \
