@@ -21,7 +21,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-/* $XFree86: xc/programs/Xserver/hw/kdrive/kinput.c,v 1.21 2001/09/29 04:16:38 keithp Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/kdrive/kinput.c,v 1.22 2001/10/12 06:33:07 keithp Exp $ */
 
 #include "kdrive.h"
 #include "inputstr.h"
@@ -1085,16 +1085,16 @@ KdCheckSpecialKeys(xEvent *xE)
     /* 
      * Check for buttons 1, 2 and 3 on the iPAQ
      */
-    if (sym == XK_Pointer_Button1) {
-	KdEnqueueMouseEvent(KD_MOUSE_DELTA | KD_BUTTON_1, 0, 0);
+    if (sym == XK_Pointer_Button1 && kdMouseInfo) {
+	KdEnqueueMouseEvent(kdMouseInfo, KD_MOUSE_DELTA | KD_BUTTON_1, 0, 0);
 	return;
     }
-    if (sym == XK_Pointer_Button2) {
-	KdEnqueueMouseEvent(KD_MOUSE_DELTA | KD_BUTTON_2, 0, 0);
+    if (sym == XK_Pointer_Button2 && kdMouseInfo) {
+	KdEnqueueMouseEvent(kdMouseInfo, KD_MOUSE_DELTA | KD_BUTTON_2, 0, 0);
 	return;
     }
-    if (sym == XK_Pointer_Button3) {
-	KdEnqueueMouseEvent(KD_MOUSE_DELTA | KD_BUTTON_3, 0, 0);
+    if (sym == XK_Pointer_Button3 && kdMouseInfo) {
+	KdEnqueueMouseEvent(kdMouseInfo, KD_MOUSE_DELTA | KD_BUTTON_3, 0, 0);
 	return;
     }
 #endif
