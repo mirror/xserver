@@ -32,7 +32,8 @@
 #define END()		ADVANCE_RING()
 #else
 #define TAG(x)		x##MMIO
-#define LOCALS		char *mmio = atic->reg_base
+#define LOCALS		(void)atis; \
+			char *mmio = atic->reg_base
 #define BEGIN(x)	ATIWaitAvailMMIO(x)
 #define OUT_REG(reg, val) MMIO_OUT32((mmio), (reg), (val))
 #define END()
@@ -45,22 +46,27 @@ TAG(ATISetup)(PixmapPtr pDst, PixmapPtr pSrc)
 	ATIScreenInfo(pScreenPriv);
 	ATICardInfo(pScreenPriv);
 	int dst_offset, dst_pitch;
-	int bpp = pScreenPriv->screen->fb[0].bitsPerPixel;
+	int bpp = pDst->drawable.bitsPerPixel;
 	LOCALS;
 
 	accel_atis = atis;
 
-	/* No acceleration for other formats (yet) */
-	if (pDst->drawable.bitsPerPixel != bpp)
-		return FALSE;
-
 	dst_pitch = pDst->devKind;
 	dst_offset = ((CARD8 *)pDst->devPrivate.ptr -
 	    pScreenPriv->screen->memory_base);
+	if ((dst_pitch & (atis->kaa.offscreenPitch - 1)) != 0)
+		ATI_FALLBACK(("Bad dst pitch 0x%x\n", dst_pitch));
+	if ((dst_offset & (atis->kaa.offscreenByteAlign - 1)) != 0)
+		ATI_FALLBACK(("Bad dst offset 0x%x\n", dst_offset));
+
 	if (pSrc != NULL) {
 		src_pitch = pSrc->devKind;
 		src_offset = ((CARD8 *)pSrc->devPrivate.ptr -
 		    pScreenPriv->screen->memory_base);
+		if ((src_pitch & (atis->kaa.offscreenPitch - 1)) != 0)
+			ATI_FALLBACK(("Bad src pitch 0x%x\n", src_pitch));
+		if ((src_offset & (atis->kaa.offscreenByteAlign - 1)) != 0)
+			ATI_FALLBACK(("Bad src offset 0x%x\n", src_offset));
 	}
 
 	BEGIN((pSrc != NULL) ? 3 : 2);
@@ -72,7 +78,7 @@ TAG(ATISetup)(PixmapPtr pDst, PixmapPtr pSrc)
 			    ((src_pitch >> 6) << 22) | (src_offset >> 10));
 		}
 	} else {
-		if (atis->is_24bpp) {
+		if (is_24bpp) {
 			dst_pitch *= 3;
 			src_pitch *= 3;
 		}
@@ -97,25 +103,31 @@ TAG(ATIPrepareSolid)(PixmapPtr pPixmap, int alu, Pixel pm, Pixel fg)
 	KdScreenPriv(pPixmap->drawable.pScreen);
 	ATIScreenInfo(pScreenPriv);
 	ATICardInfo(pScreenPriv);
+	CARD32 datatype;
 	LOCALS;
 
-	if (atis->is_24bpp) {
-		if (pm != 0xffffffff)
-			return FALSE;
+	if (is_24bpp) {
 		/* Solid fills in fake-24bpp mode only work if the pixel color
-		 * is all the same byte.
+		 * and planemask are all the same byte.
 		 */
 		if ((fg & 0xffffff) != (((fg & 0xff) << 16) | ((fg >> 8) &
 		    0xffff)))
-			return FALSE;
+			ATI_FALLBACK(("Can't do solid color %d in 24bpp\n"));
+		if ((pm & 0xffffff) != (((pm & 0xff) << 16) | ((pm >> 8) &
+		    0xffff)))
+			ATI_FALLBACK(("Can't do planemask %d in 24bpp\n"));
 	}
 
+	if (!ATIGetDatatypeBpp(pPixmap->drawable.bitsPerPixel, &datatype))
+		return FALSE;
 	if (!TAG(ATISetup)(pPixmap, NULL))
 		return FALSE;
 
 	BEGIN(4);
 	OUT_REG(RADEON_REG_DP_GUI_MASTER_CNTL,
-	    atis->dp_gui_master_cntl |
+	    (datatype << 8) |
+	    RADEON_GMC_CLR_CMP_CNTL_DIS |
+	    RADEON_GMC_AUX_CLIP_DIS |
 	    RADEON_GMC_BRUSH_SOLID_COLOR |
 	    RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 	    RADEON_GMC_SRC_DATATYPE_COLOR |
@@ -136,7 +148,7 @@ TAG(ATISolid)(int x1, int y1, int x2, int y2)
 	ATICardInfo *atic = atis->atic;
 	LOCALS;
 	
-	if (atis->is_24bpp) {
+	if (is_24bpp) {
 		x1 *= 3;
 		x2 *= 3;
 	}
@@ -152,20 +164,31 @@ TAG(ATIPrepareCopy)(PixmapPtr pSrc, PixmapPtr pDst, int dx, int dy, int alu, Pix
 	KdScreenPriv(pDst->drawable.pScreen);
 	ATIScreenInfo(pScreenPriv);
 	ATICardInfo(pScreenPriv);
+	CARD32 datatype;
 	LOCALS;
+
+	/* No acceleration between different formats */
+	if (pSrc->drawable.bitsPerPixel != pDst->drawable.bitsPerPixel)
+		ATI_FALLBACK(("src bpp != dst bpp (%d vs %d)\n",
+		    pSrc->drawable.bitsPerPixel, pDst->drawable.bitsPerPixel));
 
 	copydx = dx;
 	copydy = dy;
 
-	if (atis->is_24bpp && pm != 0xffffffff)
-		return FALSE;
+	if (is_24bpp && ((pm & 0xffffff) != (((pm & 0xff) << 16) | ((pm >> 8) &
+	    0xffff))))
+		ATI_FALLBACK(("Can't do planemask %d in 24bpp\n"));
 
+	if (!ATIGetDatatypeBpp(pDst->drawable.bitsPerPixel, &datatype))
+		return FALSE;
 	if (!TAG(ATISetup)(pDst, pSrc))
 		return FALSE;
 
 	BEGIN(3);
 	OUT_REG(RADEON_REG_DP_GUI_MASTER_CNTL,
-	    atis->dp_gui_master_cntl |
+	    (datatype << 8) |
+	    RADEON_GMC_CLR_CMP_CNTL_DIS |
+	    RADEON_GMC_AUX_CLIP_DIS |
 	    RADEON_GMC_BRUSH_SOLID_COLOR |
 	    RADEON_GMC_SRC_DATATYPE_COLOR |
 	    (ATIBltRop[alu] << 16) |
@@ -188,7 +211,7 @@ TAG(ATICopy)(int srcX, int srcY, int dstX, int dstY, int w, int h)
 	ATICardInfo *atic = atis->atic;
 	LOCALS;
 
-	if (atis->is_24bpp) {
+	if (is_24bpp) {
 		srcX *= 3;
 		dstX *= 3;
 		w *= 3;

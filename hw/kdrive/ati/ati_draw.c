@@ -108,6 +108,10 @@ ATIScreenInfo *accel_atis;
 int src_pitch;
 int src_offset;
 int src_bpp;
+/* If is_24bpp is set, then we are using the accelerator in 8-bit mode due
+ * to it being broken for 24bpp, so coordinates have to be multiplied by 3.
+ */
+int is_24bpp;
 
 static void
 ATIWaitAvailMMIO(int n)
@@ -348,7 +352,7 @@ drmBufPtr ATIDMAGetBuffer()
 #endif /* USE_DRI */
 
 static Bool
-R128GetDatatype(CARD32 format, CARD32 *type)
+R128GetDatatypePict(CARD32 format, CARD32 *type)
 {
 	switch (format) {
 	case PICT_a8r8g8b8:
@@ -362,6 +366,34 @@ R128GetDatatype(CARD32 format, CARD32 *type)
 	ErrorF ("Unsupported format: %x\n", format);
 
 	return FALSE;
+}
+
+/* Assumes that depth 15 and 16 can be used as depth 16, which is okay since we
+ * require src and dest datatypes to be equal.
+ */
+static Bool
+ATIGetDatatypeBpp(int bpp, CARD32 *type)
+{
+	is_24bpp = FALSE;
+
+	switch (bpp) {
+	case 8:
+		*type = R128_DATATYPE_C8;
+		return TRUE;
+	case 16:
+		*type = R128_DATATYPE_RGB_565;
+		return TRUE;
+	case 24:
+		*type = R128_DATATYPE_C8;
+		is_24bpp = TRUE;
+		return TRUE;
+	case 32:
+		*type = R128_DATATYPE_ARGB_8888;
+		return TRUE;
+	default:
+		ErrorF("Unsupported bpp: %x\n", bpp);
+		return FALSE;
+	}
 }
 
 #ifdef USE_DRI
@@ -391,31 +423,6 @@ ATIDrawInit(ScreenPtr pScreen)
 	ATIScreenInfo(pScreenPriv);
 	ATICardInfo(pScreenPriv);
 
-	switch (pScreenPriv->screen->fb[0].depth)
-	{
-	case 8:
-		atis->datatype = 2;
-		break;
-	case 15:
-		atis->datatype = 3;
-		break;
-	case 16:
-		atis->datatype = 4;
-		break;
-	case 24:
-		if (pScreenPriv->screen->fb[0].bitsPerPixel == 24) {
-			atis->is_24bpp = TRUE;
-			atis->datatype = 2;
-		} else {
-			atis->datatype = 6;
-		}
-		break;
-	default:
-		FatalError("[ati]: depth %d unsupported\n",
-		    pScreenPriv->screen->fb[0].depth);
-		return FALSE;
-	}
-
 	ErrorF("Screen: %d/%d depth/bpp\n", pScreenPriv->screen->fb[0].depth,
 	    pScreenPriv->screen->fb[0].bitsPerPixel);
 #ifdef USE_DRI
@@ -427,9 +434,6 @@ ATIDrawInit(ScreenPtr pScreen)
 	}
 #endif /* USE_DRI */
 
-	atis->dp_gui_master_cntl = (atis->datatype << 8) |
-	    RADEON_GMC_CLR_CMP_CNTL_DIS | RADEON_GMC_AUX_CLIP_DIS;
-
 	memset(&atis->kaa, 0, sizeof(KaaScreenInfoRec));
 #ifdef USE_DRI
 	if (atis->using_dma) {
@@ -437,7 +441,7 @@ ATIDrawInit(ScreenPtr pScreen)
 		atis->kaa.Solid = ATISolidDMA;
 		atis->kaa.PrepareCopy = ATIPrepareCopyDMA;
 		atis->kaa.Copy = ATICopyDMA;
-		if (!atic->is_radeon && !atis->is_24bpp) {
+		if (!atic->is_radeon) {
 			atis->kaa.PrepareBlend = R128PrepareBlendDMA;
 			atis->kaa.Blend = R128BlendDMA;
 			atis->kaa.DoneBlend = R128DoneBlendDMA;
@@ -450,7 +454,7 @@ ATIDrawInit(ScreenPtr pScreen)
 		atis->kaa.Solid = ATISolidMMIO;
 		atis->kaa.PrepareCopy = ATIPrepareCopyMMIO;
 		atis->kaa.Copy = ATICopyMMIO;
-		if (!atic->is_radeon && !atis->is_24bpp) {
+		if (!atic->is_radeon) {
 			atis->kaa.PrepareBlend = R128PrepareBlendMMIO;
 			atis->kaa.Blend = R128BlendMMIO;
 			atis->kaa.DoneBlend = R128DoneBlendMMIO;
@@ -463,13 +467,11 @@ ATIDrawInit(ScreenPtr pScreen)
 		atis->kaa.offscreenByteAlign = 1024;
 		atis->kaa.offscreenPitch = 1024;
 	} else {
-		atis->kaa.offscreenByteAlign = 8;
-		/* Workaround for corrupation at 8 and 24bpp. Why? */
-		if (atis->datatype == 2)
-			atis->kaa.offscreenPitch = 16;
-		else
-			atis->kaa.offscreenPitch =
-			    pScreenPriv->screen->fb[0].bitsPerPixel;
+		atis->kaa.offscreenByteAlign = 32;
+		/* Pitch alignment is in sets of 8 pixels, and we need to cover
+		 * 32bpp, so 32 bytes.
+		 */
+		atis->kaa.offscreenPitch = 32;
 	}
 	if (!kaaDrawInit(pScreen, &atis->kaa))
 		return FALSE;

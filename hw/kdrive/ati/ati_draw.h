@@ -69,4 +69,14 @@ void ATIDMAStop(ScreenPtr pScreen);
 
 #endif /* USE_DRI */
 
+#if 0
+#define ATI_FALLBACK(x)		\
+do {				\
+	ErrorF x;		\
+	return FALSE;		\
+} while (0)
+#else
+#define ATI_FALLBACK(x) return FALSE
+#endif
+
 #endif /* _ATI_DRAW_H_ */

@@ -146,13 +146,6 @@ typedef struct _ATIScreenInfo {
 
 	Bool using_dri;
 	Bool using_dma;
-	/* If is_24bpp is set, then we are using the accelerator in 8-bit mode due
-	 * to it being broken for 24bpp, so coordinates have to be multiplied by 3.
-	 */
-	Bool is_24bpp;
-
-	int datatype;
-	int dp_gui_master_cntl;
 
 #ifdef USE_DRI
 	drmSize         registerSize;

@@ -56,13 +56,17 @@ TAG(R128PrepareBlend)(int op, PicturePtr pSrcPicture, PicturePtr pDstPicture,
 	src_bpp = pSrc->drawable.bitsPerPixel;
 
 	if (op >= sizeof(R128BlendOp)/sizeof(R128BlendOp[0]))
-		return FALSE;
-	if (pSrcPicture->repeat || pSrcPicture->transform != NULL)
-		return FALSE;
-
-	if (!R128GetDatatype(pDstPicture->format, &dstDatatype) ||
-	    !R128GetDatatype(pSrcPicture->format, &srcDatatype))
-		return FALSE;
+		ATI_FALLBACK(("Unsupported op 0x%x\n", op));
+	if (pSrcPicture->repeat)
+		ATI_FALLBACK(("repeat unsupported\n"));
+	if (pSrcPicture->transform != NULL)
+		ATI_FALLBACK(("transform unsupported\n"));
+	if (!R128GetDatatypePict(pDstPicture->format, &dstDatatype))
+		ATI_FALLBACK(("Unsupported dest format 0x%x\n",
+		    pDstPicture->format));
+	if (!R128GetDatatypePict(pSrcPicture->format, &srcDatatype))
+		ATI_FALLBACK(("Unsupported src format 0x%x\n",
+		    pSrcPicture->format));
 
 	BEGIN(11);
 	OUT_REG(RADEON_REG_DP_GUI_MASTER_CNTL,

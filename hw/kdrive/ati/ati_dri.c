@@ -449,7 +449,7 @@ static void ATIDRISwapContext(ScreenPtr pScreen, DRISyncType syncType,
 {
 	KdScreenPriv(pScreen);
 	ATIScreenInfo(pScreenPriv);
-	ATICardInfo(pScreenPriv);
+
 	if ((syncType==DRI_3D_SYNC) && (oldContextType==DRI_2D_CONTEXT) &&
 	    (newContextType==DRI_2D_CONTEXT)) {
 		/* Entering from Wakeup */
