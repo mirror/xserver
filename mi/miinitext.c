@@ -377,6 +377,15 @@ InitExtensions(argc, argv)
 #ifdef RES
     ResExtensionInit();
 #endif
+<<<<<<< miinitext.c
+#ifdef XFIXES
+    XFixesExtensionInit();
+#endif
+#ifdef DAMAGE
+    DamageExtensionInit();
+#endif
+=======
+>>>>>>> 1.1.4.4
 }
 
 void
@@ -454,7 +463,7 @@ ExtensionModule extension[] =
 #endif
 
 /* List of built-in (statically linked) extensions */
-static ExtensionModule staticExtensions[] = {
+/*SKKKKKKK  static*/ ExtensionModule staticExtensions[] = {
 #ifdef BEZIER
     { BezierExtensionInit, "BEZIER", NULL, NULL, NULL },
 #endif
@@ -500,6 +509,12 @@ static ExtensionModule staticExtensions[] = {
 #ifdef RANDR
     { RRExtensionInit, "RANDR", NULL, NULL, NULL },
 #endif
+#ifdef DAMAGE
+    { DamageExtensionInit, "DAMAGE", NULL, NULL },
+#endif
+#ifdef XFIXES
+    { XFixesExtensionInit, "XFIXES", NULL, NULL },
+#endif 
     { NULL, NULL, NULL, NULL, NULL }
 };
     
