@@ -1,7 +1,7 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/int10/linux.c,v 1.30 2003/03/14 13:46:06 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/int10/linux.c,v 1.32 2004/02/05 18:24:59 eich Exp $ */
 /*
  * linux specific part of the int10 module
- * Copyright 1999 Egbert Eich
+ * Copyright 1999, 2000, 2001, 2002, 2003, 2004 Egbert Eich
  */
 #include "xf86.h"
 #include "xf86_OSproc.h"
@@ -212,7 +212,9 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     } else
 	((linuxInt10Priv*)pInt->private)->base_high = NULL;
 
-    MapCurrentInt10(pInt);
+    if (!MapCurrentInt10(pInt))
+	goto error3;
+    
     Int10Current = pInt;
 
 #ifdef DEBUG
@@ -238,7 +240,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 	for (cs = V_BIOS;  cs < SYS_BIOS;  cs += V_BIOS_SIZE)
 	    if (xf86ReadBIOS(cs, 0, (pointer)cs, V_BIOS_SIZE) < V_BIOS_SIZE)
 		xf86DrvMsg(screen, X_WARNING,
-			   "Unable to retrieve all of segment 0x%06X.\n", cs);
+			   "Unable to retrieve all of segment 0x%06lX.\n", cs);
 #ifdef DEBUG
 	ErrorF("done\n");
 #endif
@@ -250,13 +252,13 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 	&& !(initPrimary(options))) {
 	if (bios.bus == BUS_ISA && bios.location.legacy) {
 	    xf86DrvMsg(screen, X_CONFIG,
-		       "Overriding BIOS location: 0x%lx\n",
+		       "Overriding BIOS location: 0x%x\n",
 		       bios.location.legacy);
 	    cs = bios.location.legacy >> 4;
 	    bios_base = (unsigned char *)(cs << 4);
 	    if (!int10_check_bios(screen, cs, bios_base)) {
 		xf86DrvMsg(screen, X_ERROR,
-			   "No V_BIOS at specified address 0x%x\n",cs << 4);
+			   "No V_BIOS at specified address 0x%lx\n",cs << 4);
 		goto error3;
 	    }
 	} else {
@@ -286,7 +288,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 	    }
 	}
 
-	xf86DrvMsg(screen, X_INFO, "Primary V_BIOS segment is: 0x%x\n", cs);
+	xf86DrvMsg(screen, X_INFO, "Primary V_BIOS segment is: 0x%lx\n", cs);
 
 	pInt->BIOSseg = cs;
 	set_return_trap(pInt);
@@ -345,7 +347,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 		bios_base = (unsigned char *)(cs << 4);
 		if (!int10_check_bios(screen, cs, bios_base)) {
 		    xf86DrvMsg(screen,X_ERROR,"No V_BIOS found "
-			       "on override address 0x%x\n",bios_base);
+			       "on override address %p\n",bios_base);
 		    goto error3;
 		}
 	    } else {
@@ -365,7 +367,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 		    }
 		}
 	    }
-	    xf86DrvMsg(screen,X_INFO,"Primary V_BIOS segment is: 0x%x\n",cs);
+	    xf86DrvMsg(screen,X_INFO,"Primary V_BIOS segment is: 0x%lx\n",cs);
 	    pInt->BIOSseg = cs;
 	    break;
 	default:
@@ -387,7 +389,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     return pInt;
 
 error4:
-    xf86DrvMsg(screen, X_ERROR, "shmat() call retruned errno %d\n", errno);
+    xf86DrvMsg(screen, X_ERROR, "shmat() call returned errno %d\n", errno);
 error3:
     if (base_high)
 	shmdt(base_high);

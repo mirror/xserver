@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/shared/libc_wrapper.c,v 1.96 2003/09/09 03:20:41 dawes Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/shared/libc_wrapper.c,v 1.102 2003/11/19 03:52:58 dawes Exp $ */
 /*
  * Copyright 1997-2003 by The XFree86 Project, Inc.
  *
@@ -254,6 +254,18 @@ xf86strlen(const char* s)
 	return (xf86size_t)strlen(s);
 }
 
+xf86size_t
+xf86strlcat(char *dest, const char *src, xf86size_t size)
+{
+	return(strlcat(dest, src, size));
+}
+
+xf86size_t
+xf86strlcpy(char *dest, const char *src, xf86size_t size)
+{
+	return strlcpy(dest, src, size);
+}
+
 char*
 xf86strncat(char* dest, const char* src, xf86size_t n)
 {
@@ -484,7 +496,7 @@ xf86mmap(void *start, xf86size_t length, int prot,
     if (flags & XF86_MAP_FIXED)		f |= MAP_FIXED;
     if (flags & XF86_MAP_SHARED)	f |= MAP_SHARED;
     if (flags & XF86_MAP_PRIVATE)	f |= MAP_PRIVATE;
-#ifdef __AMD64__
+#if defined(__amd64__) && defined(linux)
     if (flags & XF86_MAP_32BIT)	        f |= MAP_32BIT;
 #endif
     if (prot  & XF86_PROT_EXEC)		p |= PROT_EXEC;
@@ -658,7 +670,7 @@ static void _xf86checkhndl(XF86FILE_priv* f,const char *func)
 {
 	if (!f || f->magic != XF86FILE_magic ||
 	    !f->filehnd || !f->fname) {
-		FatalError("libc_wrapper error: passed invalid FILE handle to %s\n",
+		FatalError("libc_wrapper error: passed invalid FILE handle to %s",
 			func);
 		exit(42);
 	}
@@ -1091,7 +1103,7 @@ xf86setvbuf(XF86FILE* f, char *buf, int mode, xf86size_t size)
 		vbufmode = _IOLBF;
 		break;
 	default:
-		FatalError("libc_wrapper error: mode in setvbuf incorrect\n");
+		FatalError("libc_wrapper error: mode in setvbuf incorrect");
 		exit(42);
 	}
 
@@ -1301,7 +1313,7 @@ static void
 _xf86checkdirhndl(XF86DIR_priv* f,const char *func)
 {
 	if (!f || f->magic != XF86DIR_magic || !f->dir || !f->dirent) {
-		FatalError("libc_wrapper error: passed invalid DIR handle to %s\n",
+		FatalError("libc_wrapper error: passed invalid DIR handle to %s",
 			func);
 		exit(42);
 	}
@@ -1817,7 +1829,7 @@ xf86getpagesize()
 		pagesize = PAGE_SIZE;
 #endif
 	if (pagesize == -1)
-		FatalError("xf86getpagesize: Cannot determine page size\n");
+		FatalError("xf86getpagesize: Cannot determine page size");
 
 	return pagesize;
 }
@@ -1871,13 +1883,13 @@ xf86GetErrno ()
 int
 xf86shmget(xf86key_t key, int size, int xf86shmflg)
 {
-    int shmflg = xf86shmflg & 0777;
+    int shmflg;
+
+    /* This copies the permissions (SHM_R, SHM_W for u, g, o). */
+    shmflg = xf86shmflg & 0777;
 
     if (key == XF86IPC_PRIVATE) key = IPC_PRIVATE;
-    
 
-    if (xf86shmflg & XF86SHM_R) shmflg |= SHM_R;
-    if (xf86shmflg & XF86SHM_W) shmflg |= SHM_W;
     if (xf86shmflg & XF86IPC_CREAT) shmflg |= IPC_CREAT;
     if (xf86shmflg & XF86IPC_EXCL) shmflg |= IPC_EXCL;
     if (xf86shmflg & XF86IPC_NOWAIT) shmflg |= IPC_NOWAIT;
@@ -1979,7 +1991,7 @@ xf86setjmp(xf86jmp_buf env)
 int
 xf86setjmp0(xf86jmp_buf env)
 {
-    FatalError("setjmp: type 0 called instead of type %d\n", xf86getjmptype());
+    FatalError("setjmp: type 0 called instead of type %d", xf86getjmptype());
 }
 
 #if !defined(__GLIBC__) || (__GLIBC__ < 2)	/* libc5 */
@@ -1998,7 +2010,7 @@ xf86setjmp1(xf86jmp_buf env, int arg2)
 int
 xf86setjmp1(xf86jmp_buf env, int arg2)
 {
-    FatalError("setjmp: type 1 called instead of type %d\n", xf86getjmptype());
+    FatalError("setjmp: type 1 called instead of type %d", xf86getjmptype());
 }
 
 #endif  /* HAS_GLIBC_SIGSETJMP */
@@ -2012,7 +2024,7 @@ xf86setjmp1_arg2()
 int
 xf86setjmperror(xf86jmp_buf env)
 {
-    FatalError("setjmp: don't know how to handle setjmp() type %d\n",
+    FatalError("setjmp: don't know how to handle setjmp() type %d",
 	       xf86getjmptype());
 }
 

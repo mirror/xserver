@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/mi/miinitext.c,v 1.4 2004/06/30 20:06:56 kem Exp $ */
+/* $XdotOrg: xc/programs/Xserver/mi/miinitext.c,v 1.5 2004/07/29 18:49:42 stukreit Exp $ */
 /* $XFree86: xc/programs/Xserver/mi/miinitext.c,v 3.67 2003/01/12 02:44:27 dawes Exp $ */
 /***********************************************************
 
@@ -276,6 +276,9 @@ extern void XFixesExtensionInit(INITARGS);
 #ifdef DAMAGE
 extern void DamageExtensionInit(INITARGS);
 #endif
+#ifdef COMPOSITE
+extern void CompositeExtensionInit(INITARGS);
+#endif
 
 #ifndef XFree86LOADER
 
@@ -404,6 +407,10 @@ InitExtensions(argc, argv)
     DPSExtensionInit();
 #endif
 #endif
+#ifdef XFIXES
+    /* must be before Render to layer DisplayCursor correctly */
+    XFixesExtensionInit();
+#endif
 #ifdef RENDER
 #ifdef DMXSERVER
     if (!dmxNoRender)
@@ -419,11 +426,11 @@ InitExtensions(argc, argv)
 #ifdef DMXEXT
     DMXExtensionInit();
 #endif
-#ifdef XFIXES
-    XFixesExtensionInit();
-#endif
 #ifdef DAMAGE
     DamageExtensionInit();
+#endif
+#ifdef COMPOSITE
+    CompositeExtensionInit ();
 #endif
 }
 
@@ -538,6 +545,10 @@ static ExtensionModule staticExtensions[] = {
 #ifdef PANORAMIX
     { PanoramiXExtensionInit, PANORAMIX_PROTOCOL_NAME, &noPanoramiXExtension, NULL, NULL },
 #endif
+#ifdef XFIXES
+    /* must be before Render to layer DisplayCursor correctly */
+    { XFixesExtensionInit, "XFIXES", NULL, NULL, NULL },
+#endif
 #ifdef XF86BIGFONT
     { XFree86BigfontExtensionInit, XF86BIGFONTNAME, NULL, NULL, NULL },
 #endif
@@ -550,9 +561,9 @@ static ExtensionModule staticExtensions[] = {
 #ifdef DAMAGE
     { DamageExtensionInit, "DAMAGE", NULL, NULL },
 #endif
-#ifdef XFIXES
-    { XFixesExtensionInit, "XFIXES", NULL, NULL },
-#endif 
+#ifdef COMPOSITE
+    { CompositeExtensionInit, "COMPOSITE", NULL, NULL },
+#endif
     { NULL, NULL, NULL, NULL, NULL }
 };
     

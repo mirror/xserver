@@ -434,14 +434,14 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 static VisualPtr
 PictureFindVisual (ScreenPtr pScreen, VisualID visual)
 {
-    int         i;
-    VisualPtr   pVisual;
+    int		i;
+    VisualPtr	pVisual;
     for (i = 0, pVisual = pScreen->visuals;
-         i < pScreen->numVisuals;
-         i++, pVisual++)
+	 i < pScreen->numVisuals;
+	 i++, pVisual++)
     {
-        if (pVisual->vid == visual)
-            return pVisual;
+	if (pVisual->vid == visual)
+	    return pVisual;
     }
     return 0;
 }
@@ -466,9 +466,9 @@ PictureInitIndexedFormats (ScreenPtr pScreen)
 								       RT_COLORMAP);
 	    else
 	    {
-                VisualPtr   pVisual;
+		VisualPtr   pVisual;
 
-                pVisual = PictureFindVisual (pScreen, format->index.vid);
+		pVisual = PictureFindVisual (pScreen, format->index.vid);
 		if (CreateColormap (FakeClientID (0), pScreen,
 				    pVisual,
 				    &format->index.pColormap, AllocNone,
@@ -659,7 +659,7 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 	}
 	if (formats[n].type == PictTypeIndexed)
 	{
-            VisualPtr   pVisual = PictureFindVisual (pScreen, formats[n].index.vid);
+	    VisualPtr	pVisual = PictureFindVisual (pScreen, formats[n].index.vid);
 	    if ((pVisual->class | DynamicClass) == PseudoColor)
 		type = PICT_TYPE_COLOR;
 	    else
@@ -1103,48 +1103,47 @@ SetPictureClipRects (PicturePtr	pPicture,
 
 int
 SetPictureClipRegion (PicturePtr    pPicture,
-                      int           xOrigin,
-                      int           yOrigin,
-                      RegionPtr     pRegion)
+		      int	    xOrigin,
+		      int	    yOrigin,
+		      RegionPtr	    pRegion)
 {
-    ScreenPtr           pScreen = pPicture->pDrawable->pScreen;
-    PictureScreenPtr    ps = GetPictureScreen(pScreen);
-    RegionPtr           clientClip;
-    int                 result;
-    int                 type;
+    ScreenPtr		pScreen = pPicture->pDrawable->pScreen;
+    PictureScreenPtr	ps = GetPictureScreen(pScreen);
+    RegionPtr		clientClip;
+    int			result;
+    int			type;
 
     if (pRegion)
     {
-        type = CT_REGION;
-        clientClip = REGION_CREATE (pScreen,
-                                    REGION_EXTENTS(pScreen, pRegion),
-                                    REGION_NUM_RECTS(pRegion));
-        if (!clientClip)
-            return BadAlloc;
-        if (!REGION_COPY (pSCreen, clientClip, pRegion))
-        {
-            REGION_DESTROY (pScreen, clientClip);
-            return BadAlloc;
-        }
+	type = CT_REGION;
+	clientClip = REGION_CREATE (pScreen, 
+				    REGION_EXTENTS(pScreen, pRegion),
+				    REGION_NUM_RECTS(pRegion));
+	if (!clientClip)
+	    return BadAlloc;
+	if (!REGION_COPY (pSCreen, clientClip, pRegion))
+	{
+	    REGION_DESTROY (pScreen, clientClip);
+	    return BadAlloc;
+	}
     }
     else
     {
-        type = CT_NONE;
-        clientClip = 0;
+	type = CT_NONE;
+	clientClip = 0;
     }
 
-    result =(*ps->ChangePictureClip) (pPicture, type,
-                                      (pointer) clientClip, 0);
+    result =(*ps->ChangePictureClip) (pPicture, type, 
+				      (pointer) clientClip, 0);
     if (result == Success)
     {
-        pPicture->clipOrigin.x = xOrigin;
-        pPicture->clipOrigin.y = yOrigin;
-        pPicture->stateChanges |= CPClipXOrigin|CPClipYOrigin|CPClipMask;
-        pPicture->serialNumber |= GC_CHANGE_SERIAL_BIT;
+	pPicture->clipOrigin.x = xOrigin;
+	pPicture->clipOrigin.y = yOrigin;
+	pPicture->stateChanges |= CPClipXOrigin|CPClipYOrigin|CPClipMask;
+	pPicture->serialNumber |= GC_CHANGE_SERIAL_BIT;
     }
     return result;
 }
-
 
 int
 SetPictureTransform (PicturePtr	    pPicture,

@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/include/regionstr.h,v 1.1.4.8.2.1 2004/03/30 16:46:23 stukreit Exp $ */
+/* $XdotOrg: xc/programs/Xserver/include/regionstr.h,v 1.3 2004/07/29 18:16:56 stukreit Exp $ */
 /* $Xorg: regionstr.h,v 1.4 2001/02/09 02:05:15 xorgcvs Exp $ */
 /***********************************************************
 
@@ -172,7 +172,9 @@ extern RegDataRec miBrokenData;
 #else /* !NEED_SCREEN_REGIONS */
 
 /* Reference _pScreen macro argument and check its type */
-#define REGION_SCREEN(_pScreen) (void)((REG_pScreen)->myNum)
+/* XXX: Or maybe let's not --Eric Anholt */
+/*#define REGION_SCREEN(_pScreen_) (void)((_pScreen_)->myNum)*/
+#define REGION_SCREEN(_pScreen_) (void)0
 
 #define REGION_CREATE(_pScreen, _rect, _size) \
     (REGION_SCREEN(_pScreen), miRegionCreate(_rect, _size))
