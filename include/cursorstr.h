@@ -83,4 +83,13 @@ typedef struct _CursorMetric {
     unsigned short width, height, xhot, yhot;
 } CursorMetricRec;
 
+typedef struct {
+    int		x, y;
+    ScreenPtr	pScreen;
+} HotSpot;
+
+#ifdef XEVIE
+extern HotSpot xeviehot;
+#endif
+
 #endif /* CURSORSTRUCT_H */

@@ -285,6 +285,9 @@ typedef struct _DeviceIntRec {
 #ifdef XKB
     struct _XkbInterest *	xkb_interest;
 #endif
+    DevUnion		*devPrivates;
+    int			nPrivates;
+    DeviceUnwrapProc    unwrapProc;
 } DeviceIntRec;
 
 typedef struct {

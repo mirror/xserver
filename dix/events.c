@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/events.c,v 3.50 2003/11/17 22:20:34 dawes Exp $ */
+/* $XdotOrg$ */
 /* $XFree86: xc/programs/Xserver/dix/events.c,v 3.50 2003/11/17 22:20:34 dawes Exp $ */
 /************************************************************
 
@@ -68,6 +68,39 @@ SOFTWARE.
 *   or  in  FAR 52.227-19, as applicable.                       *
 *                                                               *
 *****************************************************************/
+
+/************************************************************
+
+Copyright 2003 Sun Microsystems, Inc.
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, provided that the above
+copyright notice(s) and this permission notice appear in all copies of
+the Software and that both the above copyright notice(s) and this
+permission notice appear in supporting documentation.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF THIRD PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+HOLDERS INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL
+INDIRECT OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING
+FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder
+shall not be used in advertising or otherwise to promote the sale, use
+or other dealings in this Software without prior written authorization
+of the copyright holder.
+
+************************************************************/
 
 /* $Xorg: events.c,v 1.4 2001/02/09 02:04:40 xorgcvs Exp $ */
 
@@ -174,11 +207,6 @@ static WindowPtr *spriteTrace = (WindowPtr *)NULL;
 static int spriteTraceSize = 0;
 static int spriteTraceGood;
 
-typedef struct {
-    int		x, y;
-    ScreenPtr	pScreen;
-} HotSpot;
-
 static  struct {
     CursorPtr	current;
     BoxRec	hotLimits;	/* logical constraints of hot spot */
@@ -198,6 +226,11 @@ static  struct {
     WindowPtr	confineWin;	/* confine window */ 
 #endif
 } sprite;			/* info about the cursor sprite */
+
+#ifdef XEVIE
+WindowPtr xeviewin;
+HotSpot xeviehot;
+#endif
 
 static void DoEnterLeaveEvents(
     WindowPtr /*fromWin*/,
@@ -407,7 +440,13 @@ XineramaCheckVirtualMotion(
     if (qe)
     {
 	sprite.hot.pScreen = qe->pScreen;  /* should always be Screen 0 */
+#ifdef XEVIE
+	xeviehot.x = 
+#endif
 	sprite.hot.x = qe->event->u.keyButtonPointer.rootX;
+#ifdef XEVIE
+	xeviehot.y = 
+#endif
 	sprite.hot.y = qe->event->u.keyButtonPointer.rootY;
 	pWin = inputInfo.pointer->grab ? inputInfo.pointer->grab->confineTo :
 					 NullWindow;
@@ -444,12 +483,24 @@ XineramaCheckVirtualMotion(
 	lims = *REGION_EXTENTS(sprite.screen, &sprite.Reg2);
 
         if (sprite.hot.x < lims.x1)
+#ifdef XEVIE	    
+            xeviehot.x = 
+#endif
             sprite.hot.x = lims.x1;
         else if (sprite.hot.x >= lims.x2)
+#ifdef XEVIE	    
+            xeviehot.x = 
+#endif
             sprite.hot.x = lims.x2 - 1;
         if (sprite.hot.y < lims.y1)
+#ifdef XEVIE
+            xeviehot.y = 
+#endif
             sprite.hot.y = lims.y1;
         else if (sprite.hot.y >= lims.y2)
+#ifdef XEVIE
+            xeviehot.y = 
+#endif
             sprite.hot.y = lims.y2 - 1;
 
 	if (REGION_NUM_RECTS(&sprite.Reg2) > 1) 
@@ -480,15 +531,33 @@ XineramaCheckMotion(xEvent *xE)
 	XE_KBPTR.rootY += xineramaDataPtr[sprite.screen->myNum].y -
 			  xineramaDataPtr[0].y;
 
+#ifdef XEVIE
+	xeviehot.x = 
+#endif
 	sprite.hot.x = XE_KBPTR.rootX;
+#ifdef XEVIE
+	xeviehot.y = 
+#endif
 	sprite.hot.y = XE_KBPTR.rootY;
 	if (sprite.hot.x < sprite.physLimits.x1)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = sprite.physLimits.x1;
 	else if (sprite.hot.x >= sprite.physLimits.x2)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = sprite.physLimits.x2 - 1;
 	if (sprite.hot.y < sprite.physLimits.y1)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = sprite.physLimits.y1;
 	else if (sprite.hot.y >= sprite.physLimits.y2)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = sprite.physLimits.y2 - 1;
 
 	if (sprite.hotShape) 
@@ -505,6 +574,9 @@ XineramaCheckMotion(xEvent *xE)
 	XE_KBPTR.rootY = sprite.hot.y;
     }
 
+#ifdef XEVIE
+    xeviewin = 
+#endif
     sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
 
     if (sprite.win != prevSpriteWin)
@@ -730,7 +802,13 @@ CheckVirtualMotion(
     if (qe)
     {
 	sprite.hot.pScreen = qe->pScreen;
+#ifdef XEVIE
+	xeviehot.x = 
+#endif
 	sprite.hot.x = qe->event->u.keyButtonPointer.rootX;
+#ifdef XEVIE
+	xeviehot.y = 
+#endif
 	sprite.hot.y = qe->event->u.keyButtonPointer.rootY;
 	pWin = inputInfo.pointer->grab ? inputInfo.pointer->grab->confineTo :
 					 NullWindow;
@@ -742,16 +820,31 @@ CheckVirtualMotion(
 	if (sprite.hot.pScreen != pWin->drawable.pScreen)
 	{
 	    sprite.hot.pScreen = pWin->drawable.pScreen;
+#ifdef XEVIE
+	    xeviehot.x = xeviehot.y = 0;
+#endif
 	    sprite.hot.x = sprite.hot.y = 0;
 	}
 	lims = *REGION_EXTENTS(pWin->drawable.pScreen, &pWin->borderSize);
 	if (sprite.hot.x < lims.x1)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = lims.x1;
 	else if (sprite.hot.x >= lims.x2)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = lims.x2 - 1;
 	if (sprite.hot.y < lims.y1)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = lims.y1;
 	else if (sprite.hot.y >= lims.y2)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = lims.y2 - 1;
 #ifdef SHAPE
 	if (wBoundingShape(pWin))
@@ -946,7 +1039,7 @@ EnqueueEvent(xE, device, count)
     xEvent		*qxE;
 
     NoticeTime(xE);
-
+    
 #ifdef XKB
     /* Fix for key repeating bug. */
     if (xE->u.u.type == KeyRelease)
@@ -1982,15 +2075,33 @@ CheckMotion(xEvent *xE)
 	    sprite.hot.pScreen = sprite.hotPhys.pScreen;
 	    ROOT = WindowTable[sprite.hot.pScreen->myNum];
 	}
+#ifdef XEVIE
+	xeviehot.x = 
+#endif
 	sprite.hot.x = XE_KBPTR.rootX;
+#ifdef XEVIE
+	xeviehot.y = 
+#endif
 	sprite.hot.y = XE_KBPTR.rootY;
 	if (sprite.hot.x < sprite.physLimits.x1)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = sprite.physLimits.x1;
 	else if (sprite.hot.x >= sprite.physLimits.x2)
+#ifdef XEVIE
+	    xeviehot.x = 
+#endif
 	    sprite.hot.x = sprite.physLimits.x2 - 1;
 	if (sprite.hot.y < sprite.physLimits.y1)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = sprite.physLimits.y1;
 	else if (sprite.hot.y >= sprite.physLimits.y2)
+#ifdef XEVIE
+	    xeviehot.y = 
+#endif
 	    sprite.hot.y = sprite.physLimits.y2 - 1;
 #ifdef SHAPE
 	if (sprite.hotShape)
@@ -2008,6 +2119,9 @@ CheckMotion(xEvent *xE)
 	XE_KBPTR.rootY = sprite.hot.y;
     }
 
+#ifdef XEVIE
+    xeviewin = 
+#endif
     sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
 #ifdef notyet
     if (!(sprite.win->deliverableEvents &
@@ -2048,6 +2162,9 @@ DefineInitialRootWindow(win)
     sprite.hot = sprite.hotPhys;
     sprite.hotLimits.x2 = pScreen->width;
     sprite.hotLimits.y2 = pScreen->height;
+#ifdef XEVIE
+    xeviewin = 
+#endif
     sprite.win = win;
     sprite.current = wCursor (win);
     spriteTraceGood = 1;
@@ -2803,7 +2920,7 @@ ProcessPointerEvent (xE, mouse, count)
 #endif
 				    ));
     {
-	NoticeTime(xE);
+	NoticeTime(xE); /* Hu? see above! */
 	if (DeviceEventCallback)
 	{
 	    DeviceEventInfoRec eventinfo;
@@ -3938,6 +4055,9 @@ InitEvents()
     spriteTraceGood = 0;
     lastEventMask = OwnerGrabButtonMask;
     filters[MotionNotify] = PointerMotionMask;
+#ifdef XEVIE
+    xeviewin = 
+#endif
     sprite.win = NullWindow;
     sprite.current = NullCursor;
     sprite.hotLimits.x1 = 0;

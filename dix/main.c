@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/main.c,v 3.44 2003/11/17 22:20:34 dawes Exp $ */
+/* $XdotOrg$ */
 /* $XFree86: xc/programs/Xserver/dix/main.c,v 3.44 2003/11/17 22:20:34 dawes Exp $ */
 /***********************************************************
 
@@ -351,6 +351,7 @@ main(int argc, char *argv[], char *envp[])
 #endif
 	ResetColormapPrivates();
 	ResetFontPrivateIndex();
+	ResetDevicePrivateIndex();
 	InitCallbackManager();
 	InitVisualWrap();
 	InitOutput(&screenInfo, argc, argv);

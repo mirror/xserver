@@ -39,6 +39,7 @@ from The Open Group.
 #include "colormapst.h"
 #include "servermd.h"
 #include "site.h"
+#include "inputstr.h"
 
 /*
  *  See the Wrappers and devPrivates section in "Definition of the
@@ -367,4 +368,36 @@ InitCmapPrivFunc initPrivFunc;
     }
 
     return index;
+}
+
+static int devicePrivateIndex = 0;
+
+int
+AllocateDevicePrivateIndex()
+{
+    return devicePrivateIndex++;
+}
+
+Bool
+AllocateDevicePrivate(DeviceIntPtr device, int index)
+{
+    if (device->nPrivates < ++index) {
+	 DevUnion *nprivs = (DevUnion *)xrealloc(device->devPrivates,
+					  index * sizeof(DevUnion));
+	if (!nprivs)
+	    return FALSE;
+	device->devPrivates = nprivs;
+	bzero(&nprivs[device->nPrivates], sizeof(DevUnion)
+	      * (index - device->nPrivates));
+	device->nPrivates = index;
+	return TRUE;
+    } else {
+	return TRUE;
+    }
+}
+
+void
+ResetDevicePrivateIndex(void)
+{
+    devicePrivateIndex = 0;
 }
