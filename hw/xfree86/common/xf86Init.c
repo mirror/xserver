@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86Init.c,v 3.211 2003/11/01 00:47:01 dawes Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86Init.c,v 3.212 2004/01/27 01:31:45 dawes Exp $ */
 
 /*
  * Loosely based on code bearing the following copyright:
@@ -155,7 +155,7 @@ xf86CreateRootWindow(WindowPtr pWin)
   int ret = TRUE;
   int err = Success;
   ScreenPtr pScreen = pWin->drawable.pScreen;
-  PropertyPtr pRegProp, pOldRegProp;
+  RootWinPropPtr pProp;
   CreateWindowProcPtr CreateWindow =
     (CreateWindowProcPtr)(pScreen->devPrivates[xf86CreateRootWindowIndex].ptr);
 
@@ -181,25 +181,19 @@ xf86CreateRootWindow(WindowPtr pWin)
   }
 
   /* Now do our stuff */
-
   if (xf86RegisteredPropertiesTable != NULL) {
     if (pWin->parent == NULL && xf86RegisteredPropertiesTable != NULL) {
-      for (pRegProp = xf86RegisteredPropertiesTable[pScreen->myNum];
-	   pRegProp != NULL && err==Success;
-	   pRegProp = pRegProp->next )
+      for (pProp = xf86RegisteredPropertiesTable[pScreen->myNum];
+	   pProp != NULL && err==Success;
+	   pProp = pProp->next )
 	{
-	  Atom oldNameAtom = pRegProp->propertyName;
-	  char *nameString;
-	  /* propertyName was created before the screen existed,
-	   * so the atom does not belong to any screen;
-	   * we need to create a new atom with the same name.
-	   */
-	  nameString = NameForAtom(oldNameAtom);
-	  pRegProp->propertyName = MakeAtom(nameString, strlen(nameString), TRUE);
+	  Atom prop;
+
+	  prop = MakeAtom(pProp->name, strlen(pProp->name), TRUE);
 	  err = ChangeWindowProperty(pWin,
-				     pRegProp->propertyName, pRegProp->type,
-				     pRegProp->format, PropModeReplace,
-				     pRegProp->size, pRegProp->data,
+				     prop, pProp->type,
+				     pProp->format, PropModeReplace,
+				     pProp->size, pProp->data,
 				     FALSE
 				     );
 	}
@@ -207,14 +201,6 @@ xf86CreateRootWindow(WindowPtr pWin)
       /* Look at err */
       ret &= (err==Success);
       
-      /* free memory */
-      pOldRegProp = xf86RegisteredPropertiesTable[pScreen->myNum];
-      while (pOldRegProp!=NULL) { 	
-	pRegProp = pOldRegProp->next;
-	xfree(pOldRegProp);
-	pOldRegProp = pRegProp;
-      }  
-      xf86RegisteredPropertiesTable[pScreen->myNum] = NULL;
     } else {
       xf86Msg(X_ERROR, "xf86CreateRootWindow unexpectedly called with "
 	      "non-root window %p (parent %p)\n",
@@ -303,7 +289,6 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
       xf86ScreenIndex = AllocateScreenPrivateIndex();
       xf86CreateRootWindowIndex = AllocateScreenPrivateIndex();
       xf86PixmapIndex = AllocatePixmapPrivateIndex();
-      xf86RegisteredPropertiesTable=NULL;
       generation = serverGeneration;
   }
 
@@ -748,6 +733,32 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 	}
     }
     formatsDone = TRUE;
+
+    if (xf86Info.vtno >= 0 ) {
+#define VT_ATOM_NAME         "XFree86_VT"
+      Atom VTAtom=-1;
+      CARD32  *VT = NULL;
+      int  ret;
+
+      /* This memory needs to stay available until the screen has been
+	 initialized, and we can create the property for real.
+      */
+      if ( (VT = xalloc(sizeof(CARD32)))==NULL ) {
+	FatalError("Unable to make VT property - out of memory. Exiting...\n");
+      }
+      *VT = xf86Info.vtno;
+    
+      VTAtom = MakeAtom(VT_ATOM_NAME, sizeof(VT_ATOM_NAME), TRUE);
+
+      for (i = 0, ret = Success; i < xf86NumScreens && ret == Success; i++) {
+	ret = xf86RegisterRootWindowProperty(xf86Screens[i]->scrnIndex,
+					     VTAtom, XA_INTEGER, 32, 
+					     1, VT );
+	if (ret != Success)
+	  xf86DrvMsg(xf86Screens[i]->scrnIndex, X_WARNING,
+		     "Failed to register VT property\n");
+      }
+    }
 
     /* If a screen uses depth 24, show what the pixmap format is */
     for (i = 0; i < xf86NumScreens; i++) {
@@ -1251,8 +1262,8 @@ AbortDDX()
 void
 OsVendorFatalError()
 {
-  ErrorF("\nWhen reporting a problem related to a server crash, please send\n"
-	 "the full server output, not just the last messages.\n");
+  ErrorF("\nWhen reporting a problem related to a server crash, please\n"
+	 "send the full server output, not just the last messages.\n");
   if (xf86LogFile && xf86LogFileWasOpened)
     ErrorF("This can be found in the log file \"%s\".\n", xf86LogFile);
   ErrorF("Please report problems to %s.\n", BUILDERADDR);
@@ -1703,14 +1714,15 @@ xf86PrintBanner()
 {
 #if PRE_RELEASE
   ErrorF("\n"
-    "This is a pre-release version of XFree86, and is not supported in any\n"
-    "way.  Bugs may be reported to XFree86@XFree86.Org and patches submitted\n"
-    "to fixes@XFree86.Org.  Before reporting bugs in pre-release versions,\n"
-    "please check the latest version in the XFree86 CVS repository\n"
-    "(http://www.XFree86.Org/cvs).\n");
+    "This is a pre-release version of the X.org Foundation's X11.\n"
+    "Portions of this release are based on XFree86 4.4RC2 and selected\n"
+    "files from XFree86 4.4RC3. It is not supported in any way.\n"
+    "Bugs may be filed in the bugzilla at http://bugs.freedesktop.org/.\n"
+    "Select the \"xorg\" product for bugs you find in this release.\n"
+    "Before reporting bugs in pre-release versions please check the\n"
+    "latest version in the X.org Foundation \"monolithic tree\" CVS\n"
+    "repository hosted at http://www.freedesktop.org/Software/xorg/");
 #endif
-  ErrorF("\nXFree86 Version %d.%d.%d", XF86_VERSION_MAJOR, XF86_VERSION_MINOR,
-					XF86_VERSION_PATCH);
 #if XF86_VERSION_SNAP > 0
   ErrorF(".%d", XF86_VERSION_SNAP);
 #endif

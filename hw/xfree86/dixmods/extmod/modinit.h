@@ -1,4 +1,4 @@
-/* $XdotOrg$ */
+/* $XdotOrg: xc/programs/Xserver/Xext/extmod/modinit.h,v 1.1.4.2 2004/02/25 21:46:34 kaleb Exp $ */
 /* $XFree86: xc/programs/Xserver/Xext/extmod/modinit.h,v 1.2 2003/09/13 21:33:04 dawes Exp $ */
 
 #ifndef INITARGS
@@ -137,7 +137,7 @@ extern void XpExtensionInit(INITARGS);
 #endif
 
 #if 1
-extern void XineramaExtensionInit(int argc, char *argv[]);
+extern void PanoramiXExtensionInit(int argc, char *argv[]);
 #endif
 
 #if 1

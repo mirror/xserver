@@ -1,4 +1,4 @@
-/* $XdotOrg$ */
+/* $XdotOrg: xc/programs/Xserver/hw/darwin/quartz/quartzCocoa.m,v 1.1.4.3 2004/02/25 21:46:45 kaleb Exp $ */
 /**************************************************************
  *
  * Quartz-specific support for the Darwin X Server
@@ -49,7 +49,7 @@
 
 extern void FatalError(const char *, ...);
 extern char *display;
-extern int noXineramaExtension;
+extern int noPanoramiXExtension;
 
 
 /*
@@ -69,12 +69,12 @@ void QuartzReadPreferences(void)
     // quartzRootless has already been set
     if (quartzRootless) {
         // Use Pseudorama instead of Xinerama
-        noXineramaExtension = TRUE;
+        noPanoramiXExtension = TRUE;
         noPseudoramaExtension = ![Preferences xinerama];
 
         quartzUseAGL = [Preferences useAGL];
     } else {
-        noXineramaExtension = ![Preferences xinerama];
+        noPanoramiXExtension = ![Preferences xinerama];
         noPseudoramaExtension = TRUE;
 
         // Full screen can't use AGL for GLX
