@@ -659,13 +659,25 @@ miInitializeCompositeWrapper(ScreenPtr pScreen)
 	cwInitializeRender(pScreen);
 #endif
 
-#ifdef LG3D
-    if (lgeDisplayServerIsAlive) {
-	SCREEN_EPILOGUE(pScreen, MoveWindow, lg3dMoveWindow);
-	SCREEN_EPILOGUE(pScreen, ResizeWindow, lg3dSlideAndSizeWindow);
-    }
-#endif /* LG3D */
 }
+
+#ifdef LG3D
+/*
+** This is called when the LG Display Server first notifies
+** the X server that it is alive. Note that we cannot initialize
+** these screen functions earlier than this because the composite
+** wrapper is initialized when the X server starts up and at that
+** time it is not known whether the LG Display Server will be
+** running.
+*/
+
+void
+miInitializeCompositeWrapperForLG(ScreenPtr pScreen)
+{
+    SCREEN_EPILOGUE(pScreen, MoveWindow, lg3dMoveWindow);
+    SCREEN_EPILOGUE(pScreen, ResizeWindow, lg3dSlideAndSizeWindow);
+}
+#endif /* LG3D */
 
 static Bool
 cwCloseScreen (int i, ScreenPtr pScreen)
