@@ -131,6 +131,7 @@ extern char *ConnectionInfo;
 
 Selection *CurrentSelections;
 int NumCurrentSelections;
+CallbackListPtr SelectionCallback = NULL;
 
 static ClientPtr grabClient;
 #define GrabNone 0
@@ -462,6 +463,9 @@ Dispatch(void)
 					  client->errorValue, result);
 		    break;
 	        }
+#ifdef DAMAGEEXT
+		FlushIfCriticalOutputPending ();
+#endif
 	    }
 	    FlushAllOutput();
 #ifdef SMART_SCHEDULE
@@ -1040,6 +1044,14 @@ ProcSetSelectionOwner(client)
 	CurrentSelections[i].window = stuff->window;
 	CurrentSelections[i].pWin = pWin;
 	CurrentSelections[i].client = (pWin ? client : NullClient);
+	if (SelectionCallback)
+	{
+	    SelectionInfoRec	info;
+
+	    info.selection = &CurrentSelections[i];
+	    info.kind= SelectionSetOwner;
+	    CallCallbacks(&SelectionCallback, &info);
+	}
 	return (client->noClientException);
     }
     else 
@@ -3720,7 +3732,7 @@ void InitClient(client, i, ospriv)
     client->lastGC = (GCPtr) NULL;
     client->lastGCID = INVALID;
     client->numSaved = 0;
-    client->saveSet = (pointer *)NULL;
+    client->saveSet = (SaveSetElt *)NULL;
     client->noClientException = Success;
 #ifdef DEBUG
     client->requestLogIndex = 0;
@@ -4053,6 +4065,14 @@ DeleteWindowFromAnySelections(pWin)
     for (i = 0; i< NumCurrentSelections; i++)
         if (CurrentSelections[i].pWin == pWin)
         {
+	    if (SelectionCallback)
+	    {
+		SelectionInfoRec    info;
+
+		info.selection = &CurrentSelections[i];
+		info.kind = SelectionWindowDestroy;
+		CallCallbacks(&SelectionCallback, &info);
+	    }
             CurrentSelections[i].pWin = (WindowPtr)NULL;
             CurrentSelections[i].window = None;
 	    CurrentSelections[i].client = NullClient;
@@ -4068,6 +4088,14 @@ DeleteClientFromAnySelections(client)
     for (i = 0; i< NumCurrentSelections; i++)
         if (CurrentSelections[i].client == client)
         {
+	    if (SelectionCallback)
+	    {
+		SelectionInfoRec    info;
+
+		info.selection = &CurrentSelections[i];
+		info.kind = SelectionClientClose;
+		CallCallbacks(&SelectionCallback, &info);
+	    }
             CurrentSelections[i].pWin = (WindowPtr)NULL;
             CurrentSelections[i].window = None;
 	    CurrentSelections[i].client = NullClient;
