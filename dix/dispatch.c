@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.1.4.4.2.3 2004/03/08 00:36:56 alanc Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/dispatch.c,v 1.1.4.4.2.3.6.1 2004/04/17 02:34:47 gisburn Exp $ */
 /* $Xorg: dispatch.c,v 1.5 2001/02/09 02:04:40 xorgcvs Exp $ */
 /************************************************************
 
@@ -253,14 +253,7 @@ FlushClientCaches(id)
 #define SMART_SCHEDULE_DEFAULT_INTERVAL	20	    /* ms */
 #define SMART_SCHEDULE_MAX_SLICE	200	    /* ms */
 
-#ifdef XPRINT
-/* Somehow the XF86 "smart scheduler" completely kills the Xprint DDX 
- * (see http://xprint.freedesktop.org/cgi-bin/bugzilla/show_bug.cgi?id=467
- * ("Xfree86's "smart scheduler" breaks Xprt") */
-Bool	    SmartScheduleDisable = TRUE;
-#else
 Bool	    SmartScheduleDisable = FALSE;
-#endif /* XPRINT */
 long	    SmartScheduleSlice = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long	    SmartScheduleInterval = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long	    SmartScheduleMaxSlice = SMART_SCHEDULE_MAX_SLICE;

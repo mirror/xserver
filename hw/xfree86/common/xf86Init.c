@@ -1295,6 +1295,11 @@ xf86SetLogVerbosity(int verb)
     return save;
 }
 
+/* ddxInitGlobals - called by |InitGlobals| from os/util.c */
+void ddxInitGlobals(void)
+{
+}
+
 /*
  * ddxProcessArgument --
  *	Process device-dependent command line args. Returns 0 if argument is

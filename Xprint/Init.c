@@ -287,6 +287,24 @@ static char *configFileName = (char *)NULL;
 static Bool freeDefaultFontPath = FALSE;
 static char *origFontPath = (char *)NULL;
 
+static Bool xprintInitGlobalsCalled = FALSE;
+/*
+ * This function is responsible for doing initalisation of any global
+ * variables at an very early point of server startup (even before
+ * |ProcessCommandLine()|. 
+ */
+void XprintInitGlobals(void)
+{
+    xprintInitGlobalsCalled = TRUE;
+
+#ifdef SMART_SCHEDULE
+    /* Somehow the XF86 "smart scheduler" completely kills the Xprint DDX 
+     * (see http://xprint.freedesktop.org/cgi-bin/bugzilla/show_bug.cgi?id=467
+     * ("Xfree86's "smart scheduler" breaks Xprt") */
+    SmartScheduleDisable = TRUE;
+#endif /* SMART_SCHEDULE */
+}
+
 /*
  * XprintUseMsg() prints usage for the Xprint-specific options
  */
@@ -1271,6 +1289,18 @@ PrinterInitOutput(
     int driverCount = 0, i;
     char **driverNames;
     char *configDir;
+
+    /* This should NEVER happen, but... */
+    if( !xprintInitGlobalsCalled )
+    {
+      FatalError("Internal error: XprintInitGlobals() not called.");
+    }
+#ifdef SMART_SCHEDULE
+    if( SmartScheduleDisable != TRUE )
+    {
+      FatalError("Internal error: XF86 smart scheduler incompatible to Xprint DDX.");
+    }
+#endif /* SMART_SCHEDULE */
 
     /* 
      * this little test is just a warning at startup to make sure

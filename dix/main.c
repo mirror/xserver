@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/main.c,v 1.1.4.5.2.3 2004/03/04 20:16:04 kaleb Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/main.c,v 1.1.4.5.2.4 2004/03/08 00:36:56 alanc Exp $ */
 /* $XFree86: xc/programs/Xserver/dix/main.c,v 3.43 2003/10/30 21:21:02 herrb Exp $ */
 /***********************************************************
 
@@ -250,6 +250,8 @@ main(int argc, char *argv[], char *envp[])
     HWEventQueueType	alwaysCheckForInput[2];
 
     display = "0";
+
+    InitGlobals();
 
     /* Quartz support on Mac OS X requires that the Cocoa event loop be in
      * the main thread. This allows the X server main to be called again

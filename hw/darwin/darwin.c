@@ -29,7 +29,7 @@
  * holders shall not be used in advertising or otherwise to promote the sale,
  * use or other dealings in this Software without prior written authorization.
  */
-/* $XdotOrg: xc/programs/Xserver/hw/darwin/darwin.c,v 1.1.4.2.4.2 2004/04/02 21:47:13 eich Exp $ */
+/* $XdotOrg: xc/programs/Xserver/hw/darwin/darwin.c,v 1.1.4.2.4.1.6.2 2004/04/12 12:20:59 gisburn Exp $ */
 /* $XFree86: xc/programs/Xserver/hw/darwin/darwin.c,v 1.55 2003/11/15 00:07:09 torrey Exp $ */
 
 #include "X.h"
@@ -697,6 +697,10 @@ void OsVendorInit(void)
     }
 }
 
+/* ddxInitGlobals - called by |InitGlobals| from os/util.c */
+void ddxInitGlobals(void)
+{
+}
 
 /*
  * ddxProcessArgument --

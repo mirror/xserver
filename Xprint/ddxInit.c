@@ -229,6 +229,12 @@ GetTimeInMillis(void)
 }
 #endif
 
+/* ddxInitGlobals - called by |InitGlobals| from os/util.c */
+void ddxInitGlobals(void)
+{
+    XprintInitGlobals();
+}
+
 /****************************************
 * ddxUseMsg()
 *
