@@ -39,6 +39,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #ifdef LG3D
 #include "../Xext/lgeint.h"
+extern Window GetLgPrwFromSprite();
 #endif /* LG3D */
 
 /***====================================================================***/
@@ -53,25 +54,35 @@ XkbBehavior	behavior;
 unsigned        ndx;
 
 #ifdef LG3D
-    /* TODO: bug: this doesn't handle synchronous grabs properly */
     if (lgeDisplayServerIsAlive && 
-	!lgeDisplayServerClient->clientGone &&
+	!lgePickerClient->clientGone &&
 	!lgeEventComesFromDS) {
-	xEvent *e = xE;
-	int i;
+	Window prw = GetLgPrwFromSprite();
+	if (prw != INVALID) {
+	    xEvent *e = xE;
+	    int i;
 
-	for (i = 0; i < count; i++, e++) {
-	    /*
-	    ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
-		   e->u.u.type, e->u.keyButtonPointer.rootX, 
-		   e->u.keyButtonPointer.rootY,
-		   e->u.keyButtonPointer.state);
-	    */
+	    for (i = 0; i < count; i++, e++) {
+		/*
+		  ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
+		  e->u.u.type, e->u.keyButtonPointer.rootX, 
+		  e->u.keyButtonPointer.rootY,
+		  e->u.keyButtonPointer.state);
+		  */
 			   
-	    WriteToClient(lgeDisplayServerClient, sizeof(xEvent), (char *)e);
-	}
+		/* Note: the root id of raw device events on LG screens is the prw */
+		e->u.keyButtonPointer.root = prw;
 
-	return;
+		e->u.keyButtonPointer.child = 0;
+		e->u.u.sequenceNumber = lg3dNextPickSeq++;
+		if (lg3dNextPickSeq >= LG3D_PICK_SEQ_MAX) {
+		    lg3dNextPickSeq = LG3D_PICK_SEQ_MIN;
+		}
+
+		WriteToClient(lgePickerClient, sizeof(xEvent), (char *)e);
+	    }
+	    return;
+	}
     }
 #endif /* LG3D */
 

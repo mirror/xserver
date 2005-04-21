@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.1.10.1 2005/01/10 03:45:03 deronj Exp $ */
+/* $XdotOrg: xc/programs/Xserver/dix/window.c,v 1.6.4.2 2005/01/20 23:47:25 deronj Exp $ */
 /* $Xorg: window.c,v 1.4 2001/02/09 02:04:41 xorgcvs Exp $ */
 /*
 
@@ -132,6 +132,7 @@ Equipment Corporation.
 
 #ifdef LG3D
 #include "../Xext/lgeint.h"
+extern Window GetLgPrwFromSprite();
 #endif /* LG3D */
 
 /******
@@ -1414,7 +1415,9 @@ ChangeWindowAttributes(pWin, vmask, vlist, client)
 	    pVlist++;
 #ifdef LG3D
 	    /* Nullify the cursor of the PRW */
-	    if (lgeDisplayServerIsAlive && pWin->drawable.id == lgeDisplayServerPRW) {
+	    if (lgeDisplayServerIsAlive 
+		&& (GetLgPrwFromSprite() != INVALID )
+		&& pWin->drawable.id == IsWinLgePRWOne(pWin->drawable.id)) {
 		cursorID = None;
 	    }
 #endif /* LG3D */
@@ -2657,7 +2660,7 @@ ReparentWindow(pWin, pParent, x, y, client)
     */
     if (pWin->overrideRedirect &&
 	pWin->parent == WindowTable[pWin->drawable.pScreen->myNum] &&
-	pParent == pLgeDisplayServerPRWWin) {
+	pParent == IsWinLgePRWWin(pParent)) {
 	pWin->optional->ovRedirLieAboutRootParent = 1;
 	/*ErrorF("Lying about parent for window %d\n", pWin->drawable.id);*/
     }  else {
@@ -2794,8 +2797,8 @@ compUnredirectWindow (ClientPtr pClient, WindowPtr pWin, int update);
 static void 
 lg3dMapWindowOverrideRedirect (WindowPtr pWin, ClientPtr client)
 {
-    WindowPtr pParent = pLgeDisplayServerPRWWin;
-
+    WindowPtr pParent = GetLgePRWForRoot(pWin) ;
+    
     ReparentWindow(pWin, pParent,
 		   pWin->drawable.x - wBorderWidth (pWin) - pParent->drawable.x,
 		   pWin->drawable.y - wBorderWidth (pWin) - pParent->drawable.y,
@@ -2814,6 +2817,8 @@ lg3dMapWindowOverrideRedirect (WindowPtr pWin, ClientPtr client)
 static void 
 lg3dUnmapWindowOverrideRedirect (WindowPtr pWin)
 {
+    WindowPtr pParent = GetLgePRWForRoot(pWin) ;
+    
     compUnredirectWindow(wOvRedirCompRedirClient(pWin), pWin, CompositeRedirectManual);
 }
 
@@ -2891,7 +2896,9 @@ MapWindow(pWin, client)
 	    }
 	}
 #ifdef LG3D
-	else if (lgeDisplayServerIsAlive && pWin->overrideRedirect) {
+	else if (lgeDisplayServerIsAlive 
+		&& (GetLgePRWForRoot(pWin))
+		&& pWin->overrideRedirect) {
 	    lg3dMapWindowOverrideRedirect(pWin, client);
         }
 #endif /* LG3D */
@@ -3001,7 +3008,9 @@ MapSubwindows(pParent, client)
 		    continue;
 	    }
 #ifdef LG3D
-	    else if (lgeDisplayServerIsAlive && pWin->overrideRedirect) {
+	    else if (lgeDisplayServerIsAlive 
+		     && (GetLgePRWForRoot(pWin))
+		     && pWin->overrideRedirect) {
 		lg3dMapWindowOverrideRedirect(pWin, client);
 	    }
 #endif /* LG3D */
@@ -3179,7 +3188,9 @@ UnmapWindow(pWin, fromConfigure)
     pWin->mapped = FALSE;
 
 #ifdef LG3D
-     if (lgeDisplayServerIsAlive && pWin->overrideRedirect) {
+     if (lgeDisplayServerIsAlive 
+	 && (GetLgePRWForRoot(pWin))
+	 && pWin->overrideRedirect) {
 	 lg3dUnmapWindowOverrideRedirect(pWin);
      }
 #endif /* LG3D */
@@ -3256,7 +3267,9 @@ UnmapSubwindows(pWin)
 	    }
 
 #ifdef LG3D
-	    if (lgeDisplayServerIsAlive && pWin->overrideRedirect) {
+	    if (lgeDisplayServerIsAlive 
+	    	&& (GetLgePRWForRoot(pWin))
+	    	&& pWin->overrideRedirect) {
 		lg3dUnmapWindowOverrideRedirect(pWin);
 	    }
 #endif /* LG3D */

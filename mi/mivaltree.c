@@ -1,5 +1,5 @@
 /* $Xorg: mivaltree.c,v 1.4 2001/02/09 02:05:22 xorgcvs Exp $ */
-/* $XdotOrg: xc/programs/Xserver/mi/mivaltree.c,v 1.3 2004/07/31 08:24:14 anholt Exp $ */
+/* $XdotOrg: xc/programs/Xserver/mi/mivaltree.c,v 1.3.4.1 2004/09/16 23:37:23 deronj Exp $ */
 /*
  * mivaltree.c --
  *	Functions for recalculating window clip lists. Main function
@@ -870,7 +870,8 @@ miValidateTree (pParent, pChild, kind)
     ** WID hole when some windows are unmapped (at least on some DDX's, such 
     ** as Nvidia). TODO: I'm not really sure why this works.
     */
-    if (pScreen->ClipNotify && !lgeDisplayServerIsAlive)
+    if (pScreen->ClipNotify && 
+	(!lgeDisplayServerIsAlive || GetLgePRWForRoot(pParent) == INVALID))
 #else
     if (pScreen->ClipNotify)
 #endif /* LG3D */

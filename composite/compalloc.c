@@ -507,34 +507,6 @@ compAllocPixmap (WindowPtr pWin)
 	cw->damageRegistered = TRUE;
     }
 
-#ifdef xLG3D
-    /*
-    ** Applications which use shaped windows (e.g. xeyes) don't 
-    ** always clear the entire backing pixmap. We should clear the
-    ** backing pixmap here to avoid garbage from appearing.
-    ** TODO: this can be removed with the shape extension is fully implemented.
-    */
-    if (lgeDisplayServerIsAlive) {
-	GCPtr pScratchGC = GetScratchGC(pPixmap->drawable.depth, pPixmap->drawable.pScreen);
-	ChangeGCVal v[2];
-	xRectangle  rect;
-
-        v[0].val = GXcopy;
-        v[1].val = 0;
-	DoChangeGC(pScratchGC, (GCFunction|GCForeground), (XID*)v, 2);
-	ValidateGC((DrawablePtr)pPixmap, pScratchGC);
-
-	rect.x = 0;
-	rect.y = 0;
-	rect.width  = pPixmap->drawable.width;
-	rect.height = pPixmap->drawable.height;
-
-        (*pScratchGC->ops->PolyFillRect)((DrawablePtr)pPixmap, pScratchGC, 1, &rect);
-
-	FreeScratchGC(pScratchGC);
-    }
-#endif /* LG3D */
-
     return TRUE;
 }
 

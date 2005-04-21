@@ -520,7 +520,7 @@ miMoveWindow(pWin, x, y, pNextSib, kind)
     ** Is there a better way to override this function other than
     ** just directly modifying it? 
     */
-    if (lgeDisplayServerIsAlive) {
+    if (lgeDisplayServerIsAlive && (GetLgePRWForRoot(pWin))) {
 	lg3dMoveWindow(pWin, x, y, pNextSib, kind);
 	return;
     }
@@ -666,7 +666,7 @@ miSlideAndSizeWindow(pWin, x, y, w, h, pSib)
     ** Is there a better way to override this function other than
     ** just directly modifying it? 
     */
-    if (lgeDisplayServerIsAlive) {
+    if (lgeDisplayServerIsAlive && (GetLgePRWForRoot(pWin))) {
 	lg3dSlideAndSizeWindow(pWin, x, y, w, h, pSib);
 	return;
     }

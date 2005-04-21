@@ -34,6 +34,7 @@
 #include "windowstr.h"
 #ifdef LG3D
 #include "../Xext/lgeint.h"
+extern Window GetLgPrwFromSprite();
 #endif /* LG3D */
 
 static RESTYPE		CursorClientType;
@@ -91,7 +92,7 @@ CursorDisplayCursor (ScreenPtr pScreen,
 
     Unwrap (cs, pScreen, DisplayCursor);
 #ifdef LG3D
-    if (lgeDisplayServerIsAlive) {
+    if (lgeDisplayServerIsAlive && (GetLgPrwFromSprite() != INVALID)) {
 	ret = (*pScreen->DisplayCursor) (pScreen, pInvisibleCursor);        
     } else
 #endif 

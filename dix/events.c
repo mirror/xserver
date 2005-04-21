@@ -152,12 +152,30 @@ xEvent *xeviexE;
 
 #ifdef LG3D
 
-/* Enable one or the other, but not both */
+/* For performance analysis */
 #undef LG3D_EVENT_TEST_LATENCY
-#undef LG3D_EVENT_TEST_THROUGHPUT
 
 #include "damagewire.h"
 #include "../Xext/lgeint.h"
+
+#ifdef LG3D_GRAB_VERBOSE
+
+#define GRAB_PRINT(message) \
+    ErrorF(message)
+
+#define GRAB_PRINT2(message, arg1, arg2) \
+    ErrorF((message), (arg1), (arg2))
+
+#else
+#define GRAB_PRINT(message)
+#define GRAB_PRINT2(message, arg1, arg2)
+#endif /* LG3D */
+
+/* If true, the DS has not yet been notified of an active grab change */
+static Bool lg3dNotifyActivePointerGrabStateChange = FALSE;
+static Bool lg3dNotifyActiveKeyboardGrabStateChange = FALSE;
+
+static int lg3dDeliveryGrabStateLastSent = DELIVERY_GRAB_STATE_NO_CHANGE;
 
 extern int lgeTryClientEvents (ClientPtr client, xEvent *pEvents, int count, Mask mask, 
 			       Mask filter, GrabPtr grab);
@@ -165,6 +183,8 @@ extern WindowPtr XYToSubWindow (WindowPtr pWin, int x, int y,
 				int *xWinRel, int *yWinRel);
 
 extern Bool PointInBorderSize(WindowPtr pWin, int x, int y);
+
+extern Window GetLgPrwFromSprite();
 
 #endif /* LG3D */
 
@@ -1045,11 +1065,14 @@ lgeDSCaresAboutEvent (xEvent *pEvent, Window *win)
 	dest = SEND_TO_ALLGRAB_CLIENT;
 	break;
 
+/* TODO: is this why CEP is receiving two enters and exits?
+Yes! Can we do without it? Let's try
     case EnterNotify:
     case LeaveNotify:
 	*win = pEvent->u.enterLeave.event;
 	dest = SEND_TO_ALLGRAB_CLIENT;
 	break;
+*/
 
     case FocusIn:
     case FocusOut:
@@ -1094,7 +1117,7 @@ lgeTryClientEvents (ClientPtr client, xEvent *pEvents, int count, Mask mask,
     int    status = 1;
     int    i;
 
-    if (!lgeGrabAllWindowEvents.active) {
+    if (!lgeGrabAllWindowEvents[0].active) {
 	return TryClientEvents (client, pEvents, count, mask, filter, grab);
     }
 
@@ -1104,13 +1127,13 @@ lgeTryClientEvents (ClientPtr client, xEvent *pEvents, int count, Mask mask,
 
 	 destination = lgeDSCaresAboutEvent (pEvents, &win);
        
-	 if (destination != SEND_TO_NORMAL_CLIENT && win == lgeGrabAllWindowEvents.window) {
+	 if (destination != SEND_TO_NORMAL_CLIENT && win == IsAllEventGrabbedFor(win)) {
 	     /* 
 	     ** Send events to grabbing client client. Use a null grab pointer 
 	     ** in order to sure that the event isn't eaten by any grabs; we want
 	     ** all input events to get to be sent to the all-grab client.
 	     */
-	     status =  TryClientEvents (lgeGrabAllWindowEvents.pClient, pEvents, 1,
+	     status =  TryClientEvents (GetClientForAllEventGrabbed(win), pEvents, 1,
 				       mask, filter, NULL);
 	     /*ErrorF("Sent to allgrab client, type = %d\n", pEvents->u.u.type);*/
 	     if (destination == SEND_TO_BOTH_CLIENTS) {
@@ -1726,15 +1749,25 @@ TryClientEvents (client, pEvents, count, mask, filter, grab)
 	    if ((type == DeviceMotionNotify) &&
 		MaybeSendDeviceMotionNotifyHint
 			((deviceKeyButtonPointer*)pEvents, mask) != 0)
+	    {
 		return 1;
+	    }
 	}
 #endif
 	type &= 0177;
 	if (type != KeymapNotify)
 	{
+#ifdef LG3D
+	    /* Don't override the pick sequence numbers for 3D events */
+	    if (!lgeDisplayServerIsAlive ||
+		client != lgeEventDelivererClient) {
+#endif /* LG3D */
 	    /* all extension events must have a sequence number */
-	    for (i = 0; i < count; i++)
+	    for (i = 0; i < count; i++) 
 		pEvents[i].u.u.sequenceNumber = client->sequence;
+#ifdef LG3D
+	    }
+#endif /* LG3D */
 	}
 
 	if (BitIsOn(criticalEvents, type))
@@ -1966,16 +1999,7 @@ MaybeDeliverEventsToClient(pWin, pEvents, count, filter, dontClient)
 
 /* Returns True if the event occurred above a 3D object rather than a native window */
 #define EVENT_IS_3D(e) \
-    (EVENT_IS_DEVICE_EVENT(e) && (e)->u.keyButtonPointer.event == lgeDisplayServerPRW)
-
-/*
-TODO: it's not clear whether this routine deals with grabs properly.
-Must handle the following cases:
-    2D event grabbed and forced to go to 2D win
-    2D event grabbed and forced to go to 3D win
-    3D event grabbed and forced to go to 2D win
-    3D event grabbed and forced to go to 3D win
-*/
+    (EVENT_IS_DEVICE_EVENT(e) && IsWinLgePRWOne((e)->u.keyButtonPointer.event))
 
 static void
 lgeFixUpEventFromWindow(
@@ -1998,7 +2022,10 @@ lgeFixUpEventFromWindow(
     ErrorF("old eventxy = %d, %d\n", XE_KBPTR.eventX, XE_KBPTR.eventY);
     */
     
-    /* TODO: This is merely an optimization; it is no longer functionally necessary */
+    /* 
+    ** No need to calculate child for 3D events. We use the child field of 
+    ** 3D events to communicate grab state to the DS.
+    */
     if (EVENT_IS_3D(xE)) {
 	calcChild = False;
     }
@@ -2038,6 +2065,23 @@ lgeFixUpEventFromWindow(
 	eventWindowOld = XE_KBPTR.event;
 	XE_KBPTR.event = pWin->drawable.id;
         /*ErrorF("new event window = %d\n", XE_KBPTR.event);*/
+	
+	/* 
+	** If the non-3D event is going to the DS (e.g. because 
+	** of a grab), do the fixup on its event coordinates now
+	** and skip the fixup below. Make them relative to the PRW 
+        ** (that is, screen absolute),
+	*/
+	
+	if (IsWinLgePRWOne(XE_KBPTR.event)) {
+	    WindowPtr pOldWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
+	    if (pOldWin != NULL) {
+		XE_KBPTR.eventX += pOldWin->drawable.x;
+		XE_KBPTR.eventY += pOldWin->drawable.y;
+		/* Skip the fixup below */
+		eventWindowOld = XE_KBPTR.event;
+	    }
+	}
     }
 
     if (sprite.hot.pScreen != pWin->drawable.pScreen)
@@ -2099,7 +2143,7 @@ FixUpEventFromWindow(
     Bool calcChild)
 {
 #ifdef LG3D
-    if (lgeDisplayServerIsAlive) {
+    if (GetLgePRWForRoot(pWin)) {
 	lgeFixUpEventFromWindow(xE, pWin, child, calcChild);
 	return;
     }
@@ -2164,6 +2208,9 @@ DeliverDeviceEvents(pWin, xE, grab, stopAt, dev, count)
     int type = xE->u.u.type;
     Mask filter = filters[type];
     int deliveries = 0;
+#ifdef LG3D
+    WindowPtr tmpWin;
+#endif /* LG3D */
 
     if (type & EXTENSION_EVENT_BASE)
     {
@@ -2183,6 +2230,9 @@ DeliverDeviceEvents(pWin, xE, grab, stopAt, dev, count)
 		if (deliveries > 0)
 		    return deliveries;
 	    }
+#ifdef LG3D
+	    tmpWin = (pWin->parent) ? pWin->parent : pWin;
+#endif /* LG3D */
 	    if ((deliveries < 0) ||
 		(pWin == stopAt) ||
 #ifdef LG3D
@@ -2195,8 +2245,8 @@ DeliverDeviceEvents(pWin, xE, grab, stopAt, dev, count)
 		** deal with this problem, or whether the DS or WM can do something 
 		** about it.
 		*/
-		(lgeDisplayServerIsAlive && 
-		 pWin->parent->drawable.id == lgeDisplayServerPRW) ||
+		(lgeDisplayServerIsAlive && (pWin->parent)
+		&& pWin->parent->drawable.id == IsWinLgePRWOne(tmpWin->drawable.id)) ||
 #endif /* LG3D */
 		(inputMasks &&
 		 (filter & inputMasks->dontPropagateMask[mskidx])))
@@ -2221,12 +2271,15 @@ DeliverDeviceEvents(pWin, xE, grab, stopAt, dev, count)
 		if (deliveries > 0)
 		    return deliveries;
 	    }
+#ifdef LG3D
+	    tmpWin = (pWin->parent) ? pWin->parent : pWin;
+#endif /* LG3D */
 	    if ((deliveries < 0) ||
 		(pWin == stopAt) ||
 #ifdef LG3D
-		/* See comment above */
-		(lgeDisplayServerIsAlive && 
-		 pWin->parent->drawable.id == lgeDisplayServerPRW) ||
+		/* See comment above */		
+		(lgeDisplayServerIsAlive 		
+		&& pWin->parent->drawable.id == IsWinLgePRWOne(tmpWin->drawable.id)) ||
 #endif /* LG3D */
 		(filter & wDontPropagateMask(pWin)))
 		return 0;
@@ -2394,7 +2447,8 @@ CheckMotion(xEvent *xE)
     }
 
 #ifdef LG3D
-    if (lgeDisplayServerIsAlive) {
+   if (lgeDisplayServerIsAlive
+       && (GetLgPrwFromSprite() != INVALID)) {
 
 	if (xE == NULL) {
 	    /* WindowsRestructured case */
@@ -2402,9 +2456,9 @@ CheckMotion(xEvent *xE)
 	    sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
 	    virtualSprite.hot.x = sprite.hot.x - sprite.win->drawable.x;
 	    virtualSprite.hot.y = sprite.hot.y - sprite.win->drawable.y;
-	} else if (XE_KBPTR.event == lgeDisplayServerPRW) {
+	} else if (XE_KBPTR.event == IsWinLgePRWOne(XE_KBPTR.event)) {
 	    /* 3D Event */
-	    sprite.win = pLgeDisplayServerPRWWin;
+	    sprite.win = GetLgePRWWinFor(XE_KBPTR.event);
 	    virtualSprite.hot.x = sprite.hot.x;
 	    virtualSprite.hot.y = sprite.hot.y;
 	} else {
@@ -2455,33 +2509,6 @@ void
 WindowsRestructured()
 {
     (void) CheckMotion((xEvent *)NULL);
-#ifdef xLG3D
-    /* 
-    **
-    ** Bug: this code doesn't currently work. It messes up the sprite window.
-    ** Test case: freecell: click New button. Cursor jumps to upper left hand
-    ** corner because the button ends up getting sent to the DS!
-    */
-    /*
-    ** In addition, we need to send a synthetic motion event with the 
-    ** last physical sprite position to the Display Server so that it 
-    ** will notice that something has changed and recompute the current 
-    ** pointer window.
-    **
-    ** Note: we cannot just skip the above call to CheckMotion and 
-    ** send this synthetic event alone. We must call CheckMotion(NULL)
-    ** in order to the current sprite window to a valid window. Otherwise
-    ** when the synthetic event comes back to us the prevSpriteWindow
-    ** may still point to an invalid window and this will crash the server!
-    */
-    xEvent xE;
-    xE.u.u.type = MotionNotify;
-    xE.u.keyButtonPointer.event = lgeDisplayServerPRW;
-    xE.u.keyButtonPointer.rootX = sprite.hot.x;
-    xE.u.keyButtonPointer.rootY = sprite.hot.y;
-    xE.u.keyButtonPointer.time = GetTimeInMillis();
-    (*inputInfo.pointer->public.processInputProc)(&xE, inputInfo.pointer, 1);
-#endif /* LG3D */
 }
 
 #ifdef PANORAMIX
@@ -2937,6 +2964,77 @@ CheckPassiveGrabsOnWindow(
     return FALSE;
 }
 
+#ifdef LG3D
+
+/* Derived from CheckPassiveGrabsOnWindow */
+static void
+Activate3DPassiveGrab (DeviceIntPtr device, xEvent *xE, int count)
+{
+    GrabRec tempGrab;
+    xEvent *dxE;
+
+    GRAB_PRINT2("Activate3DPassiveGrab: Passive grab has been enabled, eventType = %d, eventDetail = %d\n",
+	       xE->u.u.type, xE->u.u.detail);
+
+    tempGrab.window = GetLgePRWWinFor(xE->u.keyButtonPointer.event);
+    tempGrab.device = device;
+    tempGrab.type = xE->u.u.type;
+    tempGrab.detail.exact = xE->u.u.detail;
+    tempGrab.detail.pMask = NULL;
+    tempGrab.modifiersDetail.pMask = NULL;
+    tempGrab.modifierDevice = device;
+    if (xE->u.u.type == KeyPress) {
+	tempGrab.modifiersDetail.exact = device->key->prev_state;
+    } else {
+	tempGrab.modifiersDetail.exact = device->key->state;
+    }
+    tempGrab.cursor = NULL;
+    tempGrab.resource = lgePickerClient->clientAsMask;
+    tempGrab.ownerEvents = 0;
+    tempGrab.confineTo = NULL;
+    tempGrab.keyboardMode = GrabModeAsync;
+    tempGrab.pointerMode = GrabModeAsync;
+
+    /* 
+    ** Skip PointerHintMask because  it causes grabbed pointer events 
+    ** it causes TryClientEvents to not send 3D pointer events.
+    */
+    tempGrab.eventMask = (~0 & ~PointerMotionHintMask);
+
+    /* 
+    ** Inform the DS Event Deliverer (via the event child field) of 
+    ** that a 3D passive grab has triggered.
+    **
+    ** Assert: at this point there is no grab active.
+    */
+    xE->u.keyButtonPointer.child = DELIVERY_GRAB_STATE_PASSIVE_GRAB_ENABLED;
+    lg3dDeliveryGrabStateLastSent = xE->u.keyButtonPointer.child;
+
+    (*device->ActivateGrab)(device, &tempGrab, currentTime, TRUE);
+ 
+
+    FixUpEventFromWindow(xE, pLgeDisplayServerPRWWin, None, TRUE);
+
+    (void) lgeTryClientEvents(lgeEventDelivererClient, xE, count,
+			      filters[xE->u.u.type],
+			      filters[xE->u.u.type],  &tempGrab);
+
+    if (device->sync.state == FROZEN_NO_EVENT) {
+	if (device->sync.evcount < count) {
+	    Must_have_memory = TRUE; /* XXX */
+	    device->sync.event = (xEvent *)xrealloc(device->sync.event,
+						    count * sizeof(xEvent));
+	    Must_have_memory = FALSE; /* XXX */
+	}
+	device->sync.evcount = count;
+	for (dxE = device->sync.event; --count >= 0; dxE++, xE++) {
+	    *dxE = *xE;
+	}
+	device->sync.state = FROZEN_WITH_EVENT;
+    }	
+}
+#endif /* LG3D */
+
 /*
 "CheckDeviceGrabs" handles both keyboard and pointer events that may cause
 a passive grab to be activated.  If the event is a keyboard event, the
@@ -2961,6 +3059,42 @@ CheckDeviceGrabs(device, xE, checkFirst, count)
     register WindowPtr pWin = NULL;
     register FocusClassPtr focus = device->focus;
 
+#ifdef LG3D
+    /* 
+    ** If this is a 3D event, determine the passive grab state change
+    ** from the event child field.
+    */
+    if (lgeDisplayServerIsAlive) {
+
+	if (IsWinLgePRWOne(xE->u.keyButtonPointer.event)) {
+	    switch ((int)xE->u.keyButtonPointer.child) {
+
+	    case REQUEST_NONE:
+		/* 
+		** No 3D passive grab state change. See if there is a 
+		** 2D passive grab state change.
+		*/
+		break;
+
+	    case REQUEST_PASSIVE_GRAB_TRIGGERED:
+		GRAB_PRINT("CheckDeviceGrabs: DS requests a passive grab to be triggered\n");
+		if (xE->u.u.type == KeyPress) {
+		    Activate3DPassiveGrab(inputInfo.keyboard, xE, count);
+		} else {
+		    Activate3DPassiveGrab(inputInfo.pointer, xE, count);
+		}
+		return TRUE;
+
+	    case REQUEST_PASSIVE_GRAB_TERMINATED:
+		FatalError("CheckDeviceGrabs: Unexpected event child field: REQUEST_PASSIVE_GRAB_TERMINATED\n");
+		break;
+	    }
+	}
+
+	xE->u.keyButtonPointer.child = DELIVERY_GRAB_STATE_NO_CHANGE;
+    }
+#endif /* LG3D */
+    
     if (((xE->u.u.type == ButtonPress)
 #if defined(XINPUT) && defined(XKB)
 	 || (xE->u.u.type == DeviceButtonPress)
@@ -3121,6 +3255,42 @@ DeliverGrabbedEvent(xE, thisDev, deactivateGrab, count)
 	}
 }
 
+#ifdef LG3D
+static void
+informDSOfDeviceGrabStateChange (xEvent *xE, GrabPtr grab, Bool deactivateGrab,
+				 Bool notifyActiveGrabStateChange) 
+{
+   int grabStateChange = DELIVERY_GRAB_STATE_NO_CHANGE;
+
+   /* If device has been actively grabbed and DS has not yet been notified, notify DS */
+   if (grab != NULL && notifyActiveGrabStateChange) {
+       if (lg3dDeliveryGrabStateLastSent == DELIVERY_GRAB_STATE_ACTIVE_GRAB_ENABLED) {
+	   /* If last notification was active grab enabled, no need to resend */
+	   grabStateChange = DELIVERY_GRAB_STATE_NO_CHANGE;
+       } else {
+	   /* Tell DS that an active grab has been enabled */
+	   grabStateChange = DELIVERY_GRAB_STATE_ACTIVE_GRAB_ENABLED;
+	   GRAB_PRINT("informDSOfDeviceGrabStateChange: Active grab has been enabled\n");
+       }
+
+   /* 
+   ** If device is not grabbed and DS has not yet been notified, or if
+   ** a passive grab is being deactivated, notify DS.
+   */
+   } else if ((grab == NULL && notifyActiveGrabStateChange) || deactivateGrab) {
+       if (lg3dDeliveryGrabStateLastSent == DELIVERY_GRAB_STATE_GRAB_TERMINATED) {
+	   /* If last notification was grab terminated, no need to resend */
+	   grabStateChange = DELIVERY_GRAB_STATE_NO_CHANGE;
+       } else {
+	   /* Tell DS that an active grab has become disabled */
+	   GRAB_PRINT("informDSOfDeviceGrabStateChange: Grab has been terminated\n");
+	   grabStateChange = DELIVERY_GRAB_STATE_GRAB_TERMINATED;
+       }
+   }
+   xE->u.keyButtonPointer.child = grabStateChange;
+}
+#endif /* LG3D */
+
 void
 #ifdef XKB
 CoreProcessKeyboardEvent (xE, keybd, count)
@@ -3211,6 +3381,7 @@ drawable.id:0;
 			(xE->u.u.type==KeyPress?"down":"up"));
     }
 #endif
+
     switch (xE->u.u.type)
     {
 	case KeyPress: 
@@ -3268,6 +3439,16 @@ drawable.id:0;
 	default: 
 	    FatalError("Impossible keyboard event");
     }
+
+#ifdef LG3D
+    /* Check for 3D grab state changes */
+    if (lgeDisplayServerIsAlive && IsWinLgePRWOne(xE->u.keyButtonPointer.event)) {
+	informDSOfDeviceGrabStateChange(xE, grab, deactivateGrab, 
+					lg3dNotifyActiveKeyboardGrabStateChange);
+	lg3dNotifyActiveKeyboardGrabStateChange = FALSE;
+    }
+#endif /* LG3D */
+
     if (grab)
 	DeliverGrabbedEvent(xE, keybd, deactivateGrab, count);
     else
@@ -3314,21 +3495,13 @@ FixKeyState (xE, keybd)
 }
 #endif
 
-#if defined(LG3D_EVENT_TEST_LATENCY) || defined(LG3D_EVENT_TEST_THROUGHPUT)
+#if defined(LG3D_EVENT_TEST_LATENCY) 
 #include <sys/time.h>
-static int lg3dEventTestActive = 0;
-static struct timeval lg3dEventTestStartTV;
-#endif /* LG3D_EVENT_TEST_LATENCY || LG3D_EVENT_TEST_THROUGHPUT */
-
-#ifdef LG3D_EVENT_TEST_LATENCY
 #include "statbuf.h"
 static StatBuf *lg3dEventTestSb = NULL;
+static int lg3dFirstPointerEvent = 1;
+static struct timeval lg3dFirstPointerTV;
 #endif /* LG3D_EVENT_TEST_LATENCY */
-
-#ifdef LG3D_EVENT_TEST_THROUGHPUT
-static int lg3dEventTestReceived = 0;
-static int lg3dEventTestCount = 10000;
-#endif /* LG3D_EVENT_TEST_THROUGHPUT */
 
 void
 #ifdef XKB
@@ -3343,6 +3516,7 @@ ProcessPointerEvent (xE, mouse, count)
     register GrabPtr	grab = mouse->grab;
     Bool                deactivateGrab = FALSE;
     register ButtonClassPtr butc = mouse->button;
+
 #ifdef XKB
     XkbSrvInfoPtr xkbi= inputInfo.keyboard->key->xkbInfo;
 #endif
@@ -3353,132 +3527,92 @@ ProcessPointerEvent (xE, mouse, count)
         xevieEventSent = 0;
       else {
         xeviemouse = mouse;
-
-#ifdef LG3D_EVENT_TEST_LATENCY
-    /* For latency timing: send */
-    if (xE->u.u.type == ButtonPress) {
-
-	ErrorF("Start Test\n");
-	if (lg3dEventTestSb == NULL) {
-	    lg3dEventTestSb = statBufCreate();
-	    if (lg3dEventTestSb == NULL) {
-		FatalError("LG3D Event Test: cannot create integer statistics buffer\n");
-	    }
-	}
-	lg3dEventTestActive = 1;
-        gettimeofday(&lg3dEventTestStartTV, 0);
-	/*ErrorF("Start: sec = %d, usec = %d\n", lg3dEventTestStartTV.tv_sec, 
-	  lg3dEventTestStartTV.tv_usec);*/
-    }
-    if (lg3dEventTestActive) {
-        struct timeval tv;
-	int deltaSecs; 
-	gettimeofday(&tv, 0);
-	deltaSecs = tv.tv_sec - lg3dEventTestStartTV.tv_sec;
-	/*ErrorF("Send: deltaSecs = %d, usec = %d\n", deltaSecs, tv.tv_usec);*/
-	xE->u.keyButtonPointer.time = deltaSecs;
-	xE->u.keyButtonPointer.child = tv.tv_usec;
-    }
-#endif /* LG3D_EVENT_TEST_LATENCY */
-
-#ifdef LG3D_EVENT_TEST_THROUGHPUT
-        /* For throughput timing */
-        if (xE->u.u.type == ButtonPress) {
-            int i;
-	    ErrorF("Start Test\n");
-	    lg3dEventTestActive = 1;
-	    lg3dEventTestReceived = 0;
-	    gettimeofday(&lg3dEventTestStartTV, 0);
-	    for (i = 1; i <= lg3dEventTestCount; i++) {
-		/*ErrorF("Sending event %d\n", i);*/
-		WriteToClient(clients[xevieClientIndex], sizeof(xEvent), (char *)xE);
-	    }
-	} else
-#endif /* LG3D_EVENT_TEST_THROUGHPUT */
-
         WriteToClient(clients[xevieClientIndex], sizeof(xEvent), (char *)xE);
         return;
       }
     }
 #endif
 
-#ifdef LG3D_EVENT_TEST_LATENCY
-    /* For latency timing: receive */
-    if (lg3dEventTestActive) {
-        struct timeval tv;
-	int deltaSecs, deltaUsecs; 
-	float msecs;
-
-	gettimeofday(&tv, 0);
-	/*ErrorF("Receive: sec = %d, usec = %d\n", tv.tv_sec, tv.tv_usec);*/
-
-	tv.tv_sec -= lg3dEventTestStartTV.tv_sec;
-	/*
-	ErrorF("Receive: deltaSecs = %d, usec = %d\n", tv.tv_sec, tv.tv_usec);
-	ErrorF("Receive: ev->time = %d, ev->child = %d\n", 
-	       xE->u.keyButtonPointer.time, xE->u.keyButtonPointer.child);
-	*/	
-
-	deltaSecs = tv.tv_sec - xE->u.keyButtonPointer.time;
-	deltaUsecs = tv.tv_usec - xE->u.keyButtonPointer.child;
-
-	/*
-	ErrorF("Interval: deltaSecs = %d, deltaUsec = %d\n", 
-	       deltaSecs, deltaUsecs);
-	*/
-
-	msecs = 1000.0f * deltaSecs + deltaUsecs / 1000.0f;
-	/*ErrorF("Interval: msecs = %f\n", msecs);*/
-
-	statBufAdd(lg3dEventTestSb, msecs);
-
-	/* Discard event to avoid the additional computational load of 
-	   further processing */
-	return;
-    }
-
-#endif /* LG3D_EVENT_TEST_LATENCY */
-
-#ifdef LG3D_EVENT_TEST_THROUGHPUT
-    if (lg3dEventTestActive) {
-	lg3dEventTestReceived++;
-	/*ErrorF("Received event %d\n", lg3dEventTestReceived);*/
-	if (lg3dEventTestReceived == lg3dEventTestCount) {
-	    struct timeval stopTV;
-	    gettimeofday(&stopTV, 0);
-	    int deltaSecs = stopTV.tv_sec - lg3dEventTestStartTV.tv_sec;
-	    int deltaUsecs = stopTV.tv_usec - lg3dEventTestStartTV.tv_usec;
-	    float msecs = deltaSecs * 1000.0f + deltaUsecs / 1000.0f;
-	    float msecsPerEvent = msecs / (float)lg3dEventTestCount;
-	    ErrorF("LG3D Event Test: %d events in %f ms (%f ms/event)\n",
-		   lg3dEventTestCount, msecs, msecsPerEvent);
-	    lg3dEventTestActive = 0;
-	}
-    }
-#endif /* LG3D_EVENT_TEST_THROUGHPUT */
-
 #ifdef LG3D
     /* TODO: bug: this doesn't handle synchronous grabs properly */
     if (lgeDisplayServerIsAlive && 
-	!lgeDisplayServerClient->clientGone &&
+	!lgePickerClient->clientGone &&
 	!lgeEventComesFromDS) {
-	xEvent *e = xE;
-	int i;
+	Window prw = GetLgPrwFromSprite();
+	if (prw != INVALID) {
+	    xEvent *e = xE;
+	    int i;
 
-	for (i = 0; i < count; i++, e++) {
-	    /*
-	    ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
-		   e->u.u.type, e->u.keyButtonPointer.rootX, 
-		   e->u.keyButtonPointer.rootY,
-		   e->u.keyButtonPointer.state);
-	    */
-			   
-	    WriteToClient(lgeDisplayServerClient, sizeof(xEvent), (char *)e);
+	    for (i = 0; i < count; i++, e++) {
+		/*
+		  ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
+		  e->u.u.type, e->u.keyButtonPointer.rootX, 
+		  e->u.keyButtonPointer.rootY,
+		  e->u.keyButtonPointer.state);
+		  */
+		
+		/* Note: the root id of raw device events on LG screens is the prw */
+		e->u.keyButtonPointer.root = prw;
+
+		e->u.keyButtonPointer.child = 0;
+		e->u.u.sequenceNumber = lg3dNextPickSeq++;
+		if (lg3dNextPickSeq >= LG3D_PICK_SEQ_MAX) {
+		    lg3dNextPickSeq = LG3D_PICK_SEQ_MIN;
+		}
+
+#ifdef LG3D_EVENT_TEST_LATENCY
+		/* For latency timing: send */
+		if (lg3dEventTestSb == NULL) {
+		    lg3dEventTestSb = statBufCreate();
+		    if (lg3dEventTestSb == NULL) {
+			FatalError("LG3D Event Test: cannot create integer statistics buffer\n");
+		    }
+		}
+
+		{ struct timeval tv;
+		long usNow;
+		int *ptr = (int *) &usNow;
+		
+		gettimeofday(&tv, 0);
+		
+		if (lg3dFirstPointerEvent) {
+		    lg3dFirstPointerTV.tv_sec = tv.tv_sec;
+		    lg3dFirstPointerTV.tv_usec = tv.tv_usec;
+		    lg3dFirstPointerEvent = 0;
+		}
+
+		usNow = (tv.tv_sec - lg3dFirstPointerTV.tv_sec) * 1000000.0f + 
+		    (tv.tv_usec - lg3dFirstPointerTV.tv_usec);
+
+		e->u.keyButtonPointer.time  = *ptr;
+		e->u.keyButtonPointer.child = *(ptr+1);
+		}
+#endif /* LG3D_EVENT_TEST_LATENCY */
+
+		WriteToClient(lgePickerClient, sizeof(xEvent), (char *)e);
+	    }
+
+	    return;
 	}
-
-	return;
     }
 #endif /* LG3D */
+
+#if defined(LG3D) && defined(LG3D_EVENT_TEST_LATENCY)
+    { struct timeval tv;
+      long usNow, usStart, usDelta;
+      int *ptr = (int *) &usStart;
+
+      *ptr = xE->u.keyButtonPointer.time;
+      *(ptr+1) = xE->u.keyButtonPointer.child;
+	        
+      gettimeofday(&tv, 0);
+      usNow = (tv.tv_sec - lg3dFirstPointerTV.tv_sec) * 1000000.0f + 
+		      (tv.tv_usec - lg3dFirstPointerTV.tv_usec);
+
+      usDelta = usNow - usStart;
+      statBufAdd(lg3dEventTestSb, usDelta);
+    }
+#endif /* LG3D && LG3D_EVENT_TEST_LATENCY */
 
     if (!syncEvents.playingEvents)
 	NoticeTime(xE)
@@ -3505,6 +3639,7 @@ ProcessPointerEvent (xE, mouse, count)
 	    CallCallbacks(&DeviceEventCallback, (pointer)&eventinfo);
 	}
     }
+
     if (xE->u.u.type != MotionNotify)
     {
 	register int  key;
@@ -3558,9 +3693,36 @@ ProcessPointerEvent (xE, mouse, count)
 	default: 
 	    FatalError("bogus pointer event from ddx");
 	}
+
+#ifdef LG3D
+        /* Check for 3D grab state changes for button events */
+	if (lgeDisplayServerIsAlive && IsWinLgePRWOne(xE->u.keyButtonPointer.event)) {
+	    informDSOfDeviceGrabStateChange(xE, grab, deactivateGrab, 
+					    lg3dNotifyActivePointerGrabStateChange);
+	    lg3dNotifyActivePointerGrabStateChange = FALSE;
+	}
+#endif /* LG3D */
+
     }
+#ifdef LG3D
+    else {
+
+        /* Check for 3D grab state changes for motion events */
+	if (lgeDisplayServerIsAlive && IsWinLgePRWOne(xE->u.keyButtonPointer.event)) {
+	    informDSOfDeviceGrabStateChange(xE, grab, FALSE, 
+					    lg3dNotifyActivePointerGrabStateChange);
+	    lg3dNotifyActivePointerGrabStateChange = FALSE;
+	}
+
+	if (!CheckMotion(xE)) {
+	    return;
+	}
+    }
+#else
     else if (!CheckMotion(xE))
 	return;
+#endif /* LG3D */
+
     if (grab)
 	DeliverGrabbedEvent(xE, mouse, deactivateGrab, count);
     else
@@ -4371,6 +4533,11 @@ ProcGrabPointer(client)
 	if (oldCursor)
 	    FreeCursor (oldCursor, (Cursor)0);
 	rep.status = GrabSuccess;
+#ifdef LG3D
+	if (lgeDisplayServerIsAlive && client == lgePickerClient) {
+	    lg3dNotifyActivePointerGrabStateChange = TRUE;
+	}
+#endif /* LG3D */
     }
     WriteReplyToClient(client, sizeof(xGrabPointerReply), &rep);
     return Success;
@@ -4438,8 +4605,18 @@ ProcUngrabPointer(client)
     time = ClientTimeToServerTime(stuff->id);
     if ((CompareTimeStamps(time, currentTime) != LATER) &&
 	    (CompareTimeStamps(time, device->grabTime) != EARLIER) &&
-	    (grab) && SameClient(grab, client))
+	    (grab) && SameClient(grab, client)) 
+#ifdef LG3D
+    {
 	(*device->DeactivateGrab)(device);
+	if (lgeDisplayServerIsAlive && client == lgePickerClient) {
+	    lg3dNotifyActivePointerGrabStateChange = TRUE;
+	}
+    }
+#else
+	(*device->DeactivateGrab)(device);
+#endif /* LG3D */
+
     return Success;
 }
 
@@ -4535,6 +4712,13 @@ ProcGrabKeyboard(client)
     rep.sequenceNumber = client->sequence;
     rep.length = 0;
     WriteReplyToClient(client, sizeof(xGrabKeyboardReply), &rep);
+
+#ifdef LG3D
+    if (lgeDisplayServerIsAlive && client == lgePickerClient) {
+	lg3dNotifyActiveKeyboardGrabStateChange = TRUE;
+    }
+#endif /* LG3D */
+
     return Success;
 }
 
@@ -4554,7 +4738,16 @@ ProcUngrabKeyboard(client)
     if ((CompareTimeStamps(time, currentTime) != LATER) &&
 	(CompareTimeStamps(time, device->grabTime) != EARLIER) &&
 	(grab) && SameClient(grab, client))
+#ifdef LG3D
+    {
 	(*device->DeactivateGrab)(device);
+	if (lgeDisplayServerIsAlive && client == lgePickerClient) {
+	    lg3dNotifyActiveKeyboardGrabStateChange = TRUE;
+	}
+    }
+#else
+        (*device->DeactivateGrab)(device);
+#endif /* LG3D */
     return Success;
 }
 
@@ -4592,7 +4785,8 @@ ProcQueryPointer(client)
 	** yet figured out what the semantics should be for
 	** the case where this is not true.
 	*/
-	if (lgeDisplayServerIsAlive) {
+        if (lgeDisplayServerIsAlive
+    	    && (GetLgPrwFromSprite() != INVALID)) {
 	    rep.winX = virtualSprite.win->drawable.x + virtualSprite.hot.x -
 		       pWin->drawable.x;
             rep.winY = virtualSprite.win->drawable.y + virtualSprite.hot.y -
@@ -5250,11 +5444,11 @@ WriteEventsToClient(pClient, count, events)
 			   damev->area.x, damev->area.y,
 			   damev->area.width, damev->area.height);
 		} else if (!damageEventsOnly) {
-		    ErrorF("Send event %d to client %d, xy = %d, %d, event win = %d, state = 0x%x\n", 
+		    ErrorF("Send event %d to client %d, xy = %d, %d, event win = %d, pickSeq = %d\n", 
 			   ev->u.u.type, pClient->index,
 			   ev->u.keyButtonPointer.eventX, ev->u.keyButtonPointer.eventY,
 			   ev->u.keyButtonPointer.event,
-			   ev->u.keyButtonPointer.state);
+			   ev->u.u.sequenceNumber);
 		    if (ev->u.u.type == 4 || ev->u.u.type == 5) {
 			ErrorF("Button detail = %d\n", ev->u.u.detail);
 		    }
@@ -5280,3 +5474,17 @@ WriteEventsToClient(pClient, count, events)
 	(void)WriteToClient(pClient, count * sizeof(xEvent), (char *) events);
     }
 }
+
+#ifdef LG3D
+
+Window
+GetLgPrwFromSprite()
+{
+    WindowPtr pWin = GetLgePRWForRoot(WindowTable[sprite.hotPhys.pScreen->myNum]);
+    if (pWin == NULL) {
+	return INVALID;
+    }
+    return pWin->drawable.id;
+}
+
+#endif /* LG3D */
