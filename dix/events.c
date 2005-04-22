@@ -2143,7 +2143,7 @@ FixUpEventFromWindow(
     Bool calcChild)
 {
 #ifdef LG3D
-    if (GetLgePRWForRoot(pWin)) {
+    if (lgeDisplayServerIsAlive && GetLgePRWForRoot(pWin)) {
 	lgeFixUpEventFromWindow(xE, pWin, child, calcChild);
 	return;
     }
