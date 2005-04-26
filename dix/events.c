@@ -2465,11 +2465,20 @@ CheckMotion(xEvent *xE)
 	    /* Normal X Event */
 	    WindowPtr pEventWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW); 
 	    if (pEventWin == NULL) {
+		/* 
+		** TODO: this may not be the best way to handle this case,
+		** but it's better than doing an XYToWindow, because XYToWindow
+		** may return the PRW, and if we send a native window event to 
+		** the PRW there won't be a corresponding evinfo, so the DS will crash.
+		*/
+		return FALSE;
+#if 0
 		/* This might happen if the window has been destroyed */
 		sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
 		virtualSprite.hot.x = sprite.hot.x - sprite.win->drawable.x;
 		virtualSprite.hot.y = sprite.hot.y - sprite.win->drawable.y;
 		return TRUE;
+#endif
 	    }
 	    sprite.win = XYToSubWindow(pEventWin, 
 				       XE_KBPTR.eventX, XE_KBPTR.eventY,
@@ -2968,7 +2977,8 @@ CheckPassiveGrabsOnWindow(
 
 /* Derived from CheckPassiveGrabsOnWindow */
 static void
-Activate3DPassiveGrab (DeviceIntPtr device, xEvent *xE, int count)
+Activate3DPassiveGrab (DeviceIntPtr device, DeviceIntPtr modifierDevice,
+	 xEvent *xE, int count)
 {
     GrabRec tempGrab;
     xEvent *dxE;
@@ -2982,11 +2992,35 @@ Activate3DPassiveGrab (DeviceIntPtr device, xEvent *xE, int count)
     tempGrab.detail.exact = xE->u.u.detail;
     tempGrab.detail.pMask = NULL;
     tempGrab.modifiersDetail.pMask = NULL;
-    tempGrab.modifierDevice = device;
-    if (xE->u.u.type == KeyPress) {
-	tempGrab.modifiersDetail.exact = device->key->prev_state;
-    } else {
-	tempGrab.modifiersDetail.exact = device->key->state;
+	
+    {
+#ifdef XKB
+	DeviceIntPtr	gdev;
+	XkbSrvInfoPtr	xkbi;
+
+	gdev= modifierDevice;
+	xkbi= gdev->key->xkbInfo;
+#endif
+	tempGrab.modifierDevice = modifierDevice;
+	if ((device == modifierDevice) &&
+	    ((xE->u.u.type == KeyPress)
+#if defined(XINPUT) && defined(XKB)
+	     || (xE->u.u.type == DeviceKeyPress)
+#endif
+	     ))
+	    tempGrab.modifiersDetail.exact =
+#ifdef XKB
+		(noXkbExtension?gdev->key->prev_state:xkbi->state.grab_mods);
+#else
+		tempGrab.modifierDevice->key->prev_state;
+#endif
+	else
+	    tempGrab.modifiersDetail.exact =
+#ifdef XKB
+		(noXkbExtension ? gdev->key->state : xkbi->state.grab_mods);
+#else
+		tempGrab.modifierDevice->key->state;
+#endif
     }
     tempGrab.cursor = NULL;
     tempGrab.resource = lgePickerClient->clientAsMask;
@@ -3013,7 +3047,7 @@ Activate3DPassiveGrab (DeviceIntPtr device, xEvent *xE, int count)
     (*device->ActivateGrab)(device, &tempGrab, currentTime, TRUE);
  
 
-    FixUpEventFromWindow(xE, pLgeDisplayServerPRWWin, None, TRUE);
+    FixUpEventFromWindow(xE, tempGrab.window, None, TRUE);
 
     (void) lgeTryClientEvents(lgeEventDelivererClient, xE, count,
 			      filters[xE->u.u.type],
@@ -3079,9 +3113,9 @@ CheckDeviceGrabs(device, xE, checkFirst, count)
 	    case REQUEST_PASSIVE_GRAB_TRIGGERED:
 		GRAB_PRINT("CheckDeviceGrabs: DS requests a passive grab to be triggered\n");
 		if (xE->u.u.type == KeyPress) {
-		    Activate3DPassiveGrab(inputInfo.keyboard, xE, count);
+		    Activate3DPassiveGrab(inputInfo.keyboard, inputInfo.keyboard, xE, count);
 		} else {
-		    Activate3DPassiveGrab(inputInfo.pointer, xE, count);
+		    Activate3DPassiveGrab(inputInfo.pointer, inputInfo.keyboard, xE, count);
 		}
 		return TRUE;
 
