@@ -1871,6 +1871,11 @@ DeliverEventsToWindow(pWin, pEvents, count, filter, grab, mskidx)
     }
     if ((type == ButtonPress) && deliveries && (!grab))
     {
+#ifdef LG3D
+	if (!lgeDisplayServerIsAlive ||
+	    !IsWinLgePRWWin(pWin) ||
+	    (pEvents->u.u.detail < 4)) {
+#endif /* LG3D */
 	GrabRec tempGrab;
 
 	tempGrab.device = inputInfo.pointer;
@@ -1884,6 +1889,9 @@ DeliverEventsToWindow(pWin, pEvents, count, filter, grab, mskidx)
 	tempGrab.cursor = NullCursor;
 	(*inputInfo.pointer->ActivateGrab)(inputInfo.pointer, &tempGrab,
 					   currentTime, TRUE);
+#ifdef LG3D
+	}
+#endif /* LG3D */
     }
     else if ((type == MotionNotify) && deliveries)
 	inputInfo.pointer->valuator->motionHintWindow = pWin;
@@ -3378,7 +3386,7 @@ drawable.id:0;
           xE->u.keyButtonPointer.rootX = xeviehot.x;
           xE->u.keyButtonPointer.rootY = xeviehot.y;
           xE->u.keyButtonPointer.state = keyc->state;
-          WriteToClient(clients[xevieClientIndex], sizeof(xEvent), (char *)xE);
+          WriteToClient(clients[xevieClientIndex], 1, (char *)xE);
 #ifdef XKB
           if(noXkbExtension)
 #endif
@@ -3623,7 +3631,7 @@ ProcessPointerEvent (xE, mouse, count)
 		}
 #endif /* LG3D_EVENT_TEST_LATENCY */
 
-		WriteToClient(lgePickerClient, sizeof(xEvent), (char *)e);
+		WriteEventsToClient(lgePickerClient, 1, e);
 	    }
 
 	    return;

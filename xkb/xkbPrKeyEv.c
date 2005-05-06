@@ -79,7 +79,7 @@ unsigned        ndx;
 		    lg3dNextPickSeq = LG3D_PICK_SEQ_MIN;
 		}
 
-		WriteToClient(lgePickerClient, sizeof(xEvent), (char *)e);
+		WriteEventsToClient(lgePickerClient, 1, xE);
 	    }
 	    return;
 	}
