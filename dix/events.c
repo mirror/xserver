@@ -186,6 +186,10 @@ extern Bool PointInBorderSize(WindowPtr pWin, int x, int y);
 
 extern Window GetLgPrwFromSprite();
 
+static int
+lg3dDeliverDeviceEvents (WindowPtr pSpriteWin, xEvent *xE, GrabPtr grab, 
+			 WindowPtr stopAt, DeviceIntPtr dev, int count);
+
 #endif /* LG3D */
 
 #define EXTENSION_EVENT_BASE  64
@@ -1317,8 +1321,13 @@ ComputeFreezes()
 		    if (replayDev->focus)
 			DeliverFocusedEvent(replayDev, xE, w, count);
 		    else
+#ifdef LG3D
+			lg3dDeliverDeviceEvents(w, xE, NullGrab, NullWindow,
+					        replayDev, count);
+#else
 			DeliverDeviceEvents(w, xE, NullGrab, NullWindow,
 					        replayDev, count);
+#endif /* LG3D */
 		}
 		goto playmore;
 	    }
@@ -1327,7 +1336,11 @@ ComputeFreezes()
 	if (replayDev->focus)
 	    DeliverFocusedEvent(replayDev, xE, w, count);
 	else
+#ifdef LG3D
+	    lg3dDeliverDeviceEvents(w, xE, NullGrab, NullWindow, replayDev, count);
+#else
 	    DeliverDeviceEvents(w, xE, NullGrab, NullWindow, replayDev, count);
+#endif /* LG3D */
     }
 playmore:
     for (dev = inputInfo.devices; dev; dev = dev->next)
@@ -2521,6 +2534,72 @@ CheckMotion(xEvent *xE)
     }
     return TRUE;
 }
+
+#ifdef LG3D
+
+/* 
+** Fix LG3D bug 293.
+** This is similar to CheckMotion, but for button events 
+*/
+
+static WindowPtr
+lg3dDetermineButtonDestWindow (xEvent *xE, WindowPtr spriteWin)
+{
+   WindowPtr pEventWin;
+   WindowPtr pDestWin;
+   int       xDummy, yDummy;
+
+   if (!lgeDisplayServerIsAlive) {
+       /* Backwards compatibility: the LG DS isn't running */
+       return spriteWin;
+   } 
+
+   if (IsWinLgePRWOne(XE_KBPTR.event)) {
+       /* This is a 3D event. Always send these to the PRW */
+       return GetLgePRWWinFor(XE_KBPTR.event);
+   }
+
+   /* 
+   ** At this point, we know that it is a 2D native window event.
+   ** Determine the appropriate subwindow to which the event should be sent.
+   */
+   pEventWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW); 
+   if (pEventWin == NULL) {
+       /* 
+       ** This may happen if the top-level destination window has been destroyed
+       ** since the pick was performed. So just make sure that the event is discarded.
+       */
+       return NULL;
+   }
+
+   pDestWin = XYToSubWindow(pEventWin, XE_KBPTR.eventX, XE_KBPTR.eventY,
+			    &xDummy, &yDummy);
+
+   return pDestWin;
+}
+
+static int
+lg3dDeliverDeviceEvents (WindowPtr pSpriteWin, xEvent *xE, GrabPtr grab, 
+			 WindowPtr stopAt, DeviceIntPtr dev, int count) 
+{
+    int ret;
+
+    /* 
+    ** Fix LG3D bug 293: make sure that we send button events for
+    ** 2D to a subwindow of the top-level window that the DS Picker
+    ** has chosen.
+    */
+    if (xE->u.u.type == ButtonPress || xE->u.u.type == ButtonRelease) {
+	WindowPtr pDestWin = lg3dDetermineButtonDestWindow(xE, pSpriteWin);
+	if (pDestWin == NULL) return 0;
+	ret = DeliverDeviceEvents(pDestWin, xE, grab, stopAt, dev, count);
+    } else {
+	ret = DeliverDeviceEvents(pSpriteWin, xE, grab, stopAt, dev, count);
+    }
+
+    return ret;
+}
+#endif /* LG3D */
 
 void
 WindowsRestructured()
@@ -3744,7 +3823,6 @@ ProcessPointerEvent (xE, mouse, count)
 	    lg3dNotifyActivePointerGrabStateChange = FALSE;
 	}
 #endif /* LG3D */
-
     }
 #ifdef LG3D
     else {
@@ -3768,8 +3846,13 @@ ProcessPointerEvent (xE, mouse, count)
     if (grab)
 	DeliverGrabbedEvent(xE, mouse, deactivateGrab, count);
     else
+#ifdef LG3D
+	lg3dDeliverDeviceEvents(sprite.win, xE, NullGrab, NullWindow,
+				mouse, count);
+#else
 	DeliverDeviceEvents(sprite.win, xE, NullGrab, NullWindow,
 			    mouse, count);
+#endif /* LG3D */
     if (deactivateGrab)
         (*mouse->DeactivateGrab)(mouse);
 }
@@ -5469,7 +5552,6 @@ WriteEventsToClient(pClient, count, events)
     }
 
 #if defined(LG3D) && defined (DEBUG)
-
 	if (print_events_all ||
 	    /* TODO: these indices are now out of date; update them */
 	    (print_events_to_ds && pClient->index == 4) ||
