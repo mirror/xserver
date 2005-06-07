@@ -2097,8 +2097,8 @@ lgeFixUpEventFromWindow(
 	if (IsWinLgePRWOne(XE_KBPTR.event)) {
 	    WindowPtr pOldWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
 	    if (pOldWin != NULL) {
-		XE_KBPTR.eventX += pOldWin->drawable.x;
-		XE_KBPTR.eventY += pOldWin->drawable.y;
+		XE_KBPTR.eventX = XE_KBPTR.rootX;
+		XE_KBPTR.eventY = XE_KBPTR.rootY;
 		/* Skip the fixup below */
 		eventWindowOld = XE_KBPTR.event;
 	    }
