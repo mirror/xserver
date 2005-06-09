@@ -3655,7 +3655,6 @@ ProcessPointerEvent (xE, mouse, count)
 #endif
 
 #ifdef LG3D
-    /* TODO: bug: this doesn't handle synchronous grabs properly */
     if (lgeDisplayServerIsAlive && 
 	!lgePickerClient->clientGone &&
 	!lgeEventComesFromDS) {
