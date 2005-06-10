@@ -50,7 +50,7 @@ copyright holders.
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <pwd.h>
-#if (defined(sun) && defined(SVR4)) || (defined(SCO))
+#if (defined(sun) && defined(SVR4)) || defined(__SCO__) || defined(__UNIXWARE__)
 #include <wchar.h>
 #endif
 #include "scrnintstr.h"
@@ -1122,7 +1122,11 @@ void Tailf(int fd_in, int fd_out, pid_t child, int *child_status)
          * same file pointer (|dup(2)| and |fork(2)| just duplicate the
          * file handle but not the pointer)).
          */
+#if defined(__SCO__)
+        while ((sz = read(fd_in, b, sizeof(b))) > 0)
+#else
         while ((sz = pread(fd_in, b, sizeof(b), fpos)) > 0)
+#endif
         {
             fpos += sz;
             write(fd_out, b, sz);
@@ -1283,7 +1287,12 @@ SendFileToCommand(
             buf = xalloc(bufSize+1);
             if (buf != NULL)
             {
+#if defined(__SCO__)
+		lseek (resfd, 0, SEEK_SET);
+                bufSize = read(resfd, buf, bufSize);
+#else
                 bufSize = pread(resfd, buf, bufSize, 0);
+#endif
                 buf[bufSize]='\0';
 
                 /* XXX: This should be converted from local multibyte encoding to
@@ -1366,7 +1375,7 @@ ReplaceAllKeywords(
     defined(linux) || \
     defined(__CYGWIN__) || \
     (defined(sun) && !defined(SVR4)) || \
-    (defined(SVR4) && !defined(sun) && !defined(USL)) || \
+    (defined(SVR4) && !defined(sun) && !defined(__UNIXWARE__)) || \
     defined(__UNIXOS2__) || \
     defined(ISC) || \
     defined(Lynx) || \

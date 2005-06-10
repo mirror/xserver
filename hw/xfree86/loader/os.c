@@ -46,7 +46,7 @@
 #define OSNAME "lynxos"
 #elif defined(__GNU__)
 #define OSNAME "hurd"
-#elif defined(SCO)
+#elif defined(__SCO__)
 #define OSNAME "sco"
 #elif defined(DGUX)
 #define OSNAME "dgux"

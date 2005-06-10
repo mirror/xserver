@@ -65,7 +65,7 @@ SOFTWARE.
 #endif
 #endif
 
-#if defined(Lynx) || defined(SCO) || defined(SCO325)
+#if defined(Lynx) || defined(__SCO__)
 #include <sys/wait.h>
 #endif
 
@@ -110,7 +110,7 @@ OsInit(void)
 #ifdef XFree86LOADER
 	xf86WrapperInit();
 #endif
-#if !defined(SCO) && !defined(__CYGWIN__)
+#if !defined(__CYGWIN__) && !defined(__SCO__) && !defined(__UNIXWARE__) 
 	fclose(stdin);
 	fclose(stdout);
 #endif
@@ -119,7 +119,7 @@ OsInit(void)
 	 * then writing to stderr failed, and we'll write somewhere else 
 	 * instead. (Apparently this never happens in the Real World.)
 	 */
-	if (write (2, fname, 0) == -1) 
+	if (write (2, fname, 0) == -1)
 	{
 	    FILE *err;
 

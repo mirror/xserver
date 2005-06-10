@@ -1,20 +1,21 @@
 /* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/sco/sco_io.c,v 3.9 2002/10/11 01:40:36 dawes Exp $ */
+/* $XdotOrg$ */
 /*
- * Copyright 2001 by J. Kean Johnston <jkj@sco.com>
+ * Copyright 2001 by Kean Johnston <kean.johnston@x.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
  * the above copyright notice appear in all copies and that both that
  * copyright notice and this permission notice appear in supporting
- * documentation, and that the name J. Kean Johnston not be used in
+ * documentation, and that the name Kean Johnston not be used in
  * advertising or publicity pertaining to distribution of the software without
- * specific, written prior permission.  J. Kean Johnston makes no
+ * specific, written prior permission.  Kean Johnston makes no
  * representations about the suitability of this software for any purpose.
  * It is provided "as is" without express or implied warranty.
  *
- * J. KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL J. KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
  * USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -69,7 +70,7 @@ xf86SetKbdLeds(int leds)
 }
 
 int
-xf86GetKbdLeds()
+xf86GetKbdLeds(void)
 {
   int leds;
 
@@ -136,7 +137,7 @@ static uchar_t *sc_mapbuf;
 static uchar_t *sc_mapbuf2;
 
 void
-xf86KbdInit()
+xf86KbdInit(void)
 {
   orig_getsc = 0;
   if (ioctl (xf86Info.consoleFd, TCGETSC, &orig_getsc) < 0)
@@ -262,12 +263,4 @@ xf86KbdOff()
   ioctl(xf86Info.consoleFd, XCSETA, &orig_termios);
 
   return(xf86Info.consoleFd);
-}
-
-#include "xf86OSKbd.h"
-
-Bool
-xf86OSKbdPreInit(InputInfoPtr pInfo)
-{
-    return FALSE;
 }

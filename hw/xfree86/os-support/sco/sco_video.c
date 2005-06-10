@@ -1,26 +1,26 @@
 /* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/sco/sco_video.c,v 3.8tsi Exp $ */
+/* $XdotOrg$ */
 /*
- * Copyright 2001 by J. Kean Johnston <jkj@sco.com>
+ * Copyright 2001 by Kean Johnston <kean.johnston@x.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
  * the above copyright notice appear in all copies and that both that
  * copyright notice and this permission notice appear in supporting
- * documentation, and that the name J. Kean Johnston not be used in
+ * documentation, and that the name Kean Johnston not be used in
  * advertising or publicity pertaining to distribution of the software without
- * specific, written prior permission.  J. Kean Johnston makes no
+ * specific, written prior permission.  Kean Johnston makes no
  * representations about the suitability of this software for any purpose.
  * It is provided "as is" without express or implied warranty.
  *
- * J. KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL J. KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
  * USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-/* $XConsortium$ */
 
 /* Re-written May 2001 to represent the current state of reality */
 
@@ -28,8 +28,8 @@
  * This file contains the completely re-written SCO OpenServer video
  * routines for XFree86 4.x. Much of this is based on the SCO X server
  * code (which is an X11R5 server) and will probably only work on
- * OpenServer versions 5.0.5, 5.0.6 and later. Please send me (jkj@sco.com)
- * email if you have any questions.
+ * OpenServer versions 5.0.5, 5.0.6 and later. Please send me
+ * (kean.johnston@x.org) email if you have any questions.
  *
  * Ideally, you should use OSR5.0.6A or later, with the updated console
  * driver for 5.0.6A (its the default driver in 5.0.7 and later).

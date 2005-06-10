@@ -1,20 +1,20 @@
-/* $XFree86$ */
+/* $XdotOrg$ */
 /*
- * Copyright 2001 by J. Kean Johnston <jkj@caldera.com>
+ * Copyright 2001 by Kean Johnston <kean.johnston@x.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
  * the above copyright notice appear in all copies and that both that
  * copyright notice and this permission notice appear in supporting
- * documentation, and that the name J. Kean Johnston not be used in
+ * documentation, and that the name Kean Johnston not be used in
  * advertising or publicity pertaining to distribution of the software without
- * specific, written prior permission.  J. Kean Johnston makes no
+ * specific, written prior permission.  Kean Johnston makes no
  * representations about the suitability of this software for any purpose.
  * It is provided "as is" without express or implied warranty.
  *
- * J. KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL J. KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
  * USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR

@@ -795,7 +795,8 @@ InitializeDevices(void)
 		    mouse_x = work->core.width - (work->core.width >> 2);
 		}
 	    }
-	    else if (strcasecmp(input->inp_driver, "keyboard") == 0) {
+	    else if ((strcasecmp(input->inp_driver, "keyboard") == 0) ||
+		     (strcasecmp(input->inp_driver, "kbd") == 0)) {
 		device = AddDevice(KEYBOARD, (XtPointer)input, keyboard_x, keyboard_y);
 		SetTip(device);
 		if ((keyboard_x += DEFAULT_KEYBOARD_WIDTH) >
@@ -1644,8 +1645,9 @@ EnableDeviceCallback(Widget w, XtPointer user_data, XtPointer call_data)
 	    while (nex != NULL) {
 		if (strcasecmp(nex->iref_inputdev->inp_driver, "mouse") == 0)
 		    ++nmouses;
-		else if (strcasecmp(nex->iref_inputdev->inp_driver,
-				    "keyboard") == 0)
+		else if ((strcasecmp(nex->iref_inputdev->inp_driver,
+				    "keyboard") == 0) ||
+			 (!strcasecmp(nex->iref_inputdev->inp_driver, "kbd")))
 		    ++nkeyboards;
 		iref = nex;
 		nex = (XF86ConfInputrefPtr)(nex->list.next);

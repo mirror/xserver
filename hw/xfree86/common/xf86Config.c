@@ -1086,6 +1086,11 @@ configInputKbd(IDevPtr inputp)
   MessageType from = X_DEFAULT;
   Bool customKeycodesDefault = FALSE;
   int verb = 0;
+#if defined(__UNIXWARE__) || defined(XQUEUE)
+  char *kbdproto = "Xqueue";
+#else
+  char *kbdproto = "standard";
+#endif
 
   /* Initialize defaults */
   xf86Info.xleds         = 0L;
@@ -1126,7 +1131,7 @@ configInputKbd(IDevPtr inputp)
   xf86Info.xkbgeometry   = NULL;
 #endif
 
-  s = xf86SetStrOption(inputp->commonOptions, "Protocol", "standard");
+  s = xf86SetStrOption(inputp->commonOptions, "Protocol", kbdproto);
   if (xf86NameCmp(s, "standard") == 0) {
      xf86Info.kbdProc    = xf86KbdProc;
      xf86Info.kbdEvents  = xf86KbdEvents;

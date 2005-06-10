@@ -46,7 +46,7 @@ void
 xf86SetKbdRepeat(char rad)
 {
 #ifdef KDSETRAD
-	ioctl(xf86Info.consoleFd, KDSETRAD, rad);
+  ioctl(xf86Info.consoleFd, KDSETRAD, rad);
 #endif
 }
 
@@ -61,7 +61,7 @@ xf86KbdInit()
 	ioctl (xf86Info.consoleFd, KDGKBMODE, &kbdtrans);
 #endif
 	ioctl (xf86Info.consoleFd, TCGETA, &kbdtty);
-#if defined(E_TABSZ) && !defined(SCO325)
+#if defined(E_TABSZ)
 	kbdemap = xalloc(E_TABSZ);
 	if (ioctl(xf86Info.consoleFd, LDGMAP, kbdemap) < 0)
 	{

@@ -1,4 +1,3 @@
-/* $Xorg: access.c,v 1.5 2001/02/09 02:05:23 xorgcvs Exp $ */
 /* $XdotOrg: xc/programs/Xserver/os/access.c,v 1.7 2004/11/15 15:06:50 ago Exp $ */
 /***********************************************************
 
@@ -80,9 +79,9 @@ SOFTWARE.
 #include <sys/ioctl.h>
 #include <ctype.h>
 
-#if defined(TCPCONN) || defined(STREAMSCONN) || defined(ISC) || defined(SCO)
+#if defined(TCPCONN) || defined(STREAMSCONN) || defined(ISC) || defined(__SCO__)
 #include <netinet/in.h>
-#endif /* TCPCONN || STREAMSCONN || ISC || SCO */
+#endif /* TCPCONN || STREAMSCONN || ISC || __SCO__ */
 #ifdef DNETCONN
 #include <netdnet/dn.h>
 #include <netdnet/dnetdb.h>
@@ -134,9 +133,7 @@ SOFTWARE.
 #endif /* hpux */
 
 #ifdef SVR4
-#ifndef SCO
 #include <sys/sockio.h>
-#endif
 #include <sys/stropts.h>
 #endif
 
@@ -188,6 +185,11 @@ SOFTWARE.
 #endif
 #endif
 #endif 
+
+#ifdef __SCO__
+/* The system defined value is wrong. MAXPATHLEN is set in sco5.cf. */
+#undef PATH_MAX
+#endif
 
 #define X_INCLUDE_NETDB_H
 #include <X11/Xos_r.h>

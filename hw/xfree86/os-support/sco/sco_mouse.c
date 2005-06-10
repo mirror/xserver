@@ -1,27 +1,26 @@
 /* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/sco/sco_mouse.c,v 3.12 2001/06/30 22:41:49 tsi Exp $ */
+/* $XdotOrg$ */
 /*
- * Copyright 2001 by J. Kean Johnston <jkj@sco.com>
+ * Copyright 2001 by Kean Johnston <kean.johnston@x.org>
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
  * the above copyright notice appear in all copies and that both that
  * copyright notice and this permission notice appear in supporting
- * documentation, and that the name J. Kean Johnston not be used in
+ * documentation, and that the name Kean Johnston not be used in
  * advertising or publicity pertaining to distribution of the software without
- * specific, written prior permission.  J. Kean Johnston makes no
+ * specific, written prior permission.  Kean Johnston makes no
  * representations about the suitability of this software for any purpose.
  * It is provided "as is" without express or implied warranty.
  *
- * J. KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * KEAN JOHNSTON DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL J. KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL KEAN JOHNSTON BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
  * USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
-
-/* $XConsortium$ */
 
 #include <X11/X.h>
 #include "compiler.h"
@@ -38,8 +37,7 @@
 static int
 SupportedInterfaces (void)
 {
-  /* FIXME: Is this correct? Should we just return MSE_MISC? */
-  return MSE_SERIAL | MSE_BUS | MSE_PS2 | MSE_XPS2 | MSE_MISC | MSE_AUTO;
+  return MSE_MISC;
 }
 
 static const char *internalNames[] = {
@@ -104,7 +102,7 @@ OsMouseProc (DeviceIntPtr pPointer, int what)
     pPointer->public.on = FALSE;
 
     dmask = D_REL | D_BUTTON;
-    if ((evi = ev_init()) < 0) {
+    if ((evi = ev_initf(xf86Info.consoleFd)) < 0) {
       FatalError ("OsMouseProc: Event driver initialization failed (%s)\n",
           evtErrStr(evi));
     }
@@ -213,7 +211,7 @@ OsMousePreInit(InputInfoPtr pInfo, const char *protocol, int flags)
   xf86ProcessCommonOptions(pInfo, pInfo->options);
 
   /* Check if the device can be opened. */
-  pInfo->fd = ev_init();
+  pInfo->fd = ev_initf(xf86Info.consoleFd);
   if (pInfo->fd != -1) {
     dmask_t dmask = (D_REL | D_BUTTON);
     pInfo->fd = ev_open(&dmask);

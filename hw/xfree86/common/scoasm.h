@@ -31,7 +31,7 @@
  * scoasm.h - used to define inline versions of certain functions which
  * do NOT appear in sys/inline.h.
  */
-#ifdef SCO325
+#if defined(__SCO__) && defined(__USLC__)
 #ifndef _SCOASM_HDR_INC
 #define _SCOASM_HDR_INC
 

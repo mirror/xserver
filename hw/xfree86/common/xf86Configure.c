@@ -72,8 +72,11 @@ Bool foundMouse = FALSE;
 #if defined(__UNIXOS2__)
 #define DFLT_MOUSE_DEV "mouse$"
 #define DFLT_MOUSE_PROTO "OS2Mouse"
-#elif defined(SCO)
+#elif defined(__SCO__)
 static char *DFLT_MOUSE_PROTO = "OSMouse";
+#elif defined(__UNIXWARE__)
+static char *DFLT_MOUSE_PROTO = "Xqueue";
+static char *DFLT_MOUSE_DEV = "/dev/mouse";
 #elif defined(QNX4)
 static char *DFLT_MOUSE_PROTO = "OSMouse";
 static char *DFLT_MOUSE_DEV = "/dev/mouse";
@@ -290,7 +293,7 @@ configureInputSection (void)
 	}
 #endif
 
-#ifndef SCO
+#ifndef __SCO__
 	fd = open(DFLT_MOUSE_DEV, 0);
 	if (fd != -1) {
 	    foundMouse = TRUE;
@@ -307,7 +310,7 @@ configureInputSection (void)
     mouse->inp_driver = "mouse";
     mouse->inp_option_lst = 
 		xf86addNewOption(mouse->inp_option_lst, "Protocol", DFLT_MOUSE_PROTO);
-#ifndef SCO
+#ifndef __SCO__
     mouse->inp_option_lst = 
 		xf86addNewOption(mouse->inp_option_lst, "Device", DFLT_MOUSE_DEV);
 #endif
@@ -879,7 +882,7 @@ DoConfigure()
 #ifdef __UNIXOS2__
 #define PATH_MAX 2048
 #endif
-#if defined(SCO) || defined(SCO325)
+#if defined(__SCO__)
 #define PATH_MAX 1024
 #endif
         const char* configfile = XF86CONFIGFILE".new";
@@ -1003,13 +1006,13 @@ DoConfigure()
 
     ErrorF("\n");
 
-#ifdef SCO
+#ifdef __SCO__
     ErrorF("\n"__XSERVERNAME__
 	   " is using the kernel event driver to access the mouse.\n"
 	    "If you wish to use the internal "__XSERVERNAME__
 	   "mouse drivers, please\n"
 	    "edit the file and correct the Device.\n");
-#else /* !SCO */
+#else /* !__SCO__ */
     if (!foundMouse) {
 	ErrorF("\n"__XSERVERNAME__" is not able to detect your mouse.\n"
 		"Edit the file and correct the Device.\n");
@@ -1022,7 +1025,7 @@ DoConfigure()
 		"the protocol.\n",DFLT_MOUSE_DEV);
 #endif
     }
-#endif /* !SCO */
+#endif /* !__SCO__ */
 
     if (xf86NumScreens > 1) {
 	ErrorF("\n"__XSERVERNAME__

@@ -2066,7 +2066,11 @@ static char *XF86Config_fontpathchunk_text =
 "# When using XQUEUE (only for SVR3 and SVR4, but not Solaris),\n"
 "# uncomment the following line.\n"
 "\n"
+#if defined(__UNIXWARE__) || defined(XQUEUE)
+"    Option     \"Protocol\"      \"Xqueue\"\n"
+#else
 "#    Option     \"Protocol\"      \"Xqueue\"\n"
+#endif
 "\n"
 "    Option \"AutoRepeat\" \"500 30\"\n"
 "\n"
@@ -2119,8 +2123,13 @@ static char *pointersection_text1 =
 "\n"
 "# Identifier and driver\n"
 "\n"
+#if defined(__UNIXWARE__) || defined(XQUEUE)
+"#    Identifier	\"Mouse1\"\n"
+"#    Driver	\"mouse\"\n"
+#else
 "    Identifier	\"Mouse1\"\n"
 "    Driver	\"mouse\"\n"
+#endif
 ;
 
 static char *pointersection_text2 =
@@ -2132,7 +2141,11 @@ static char *pointersection_text2 =
 "# When using XQUEUE, comment out the above two lines, and uncomment\n"
 "# the following line.\n"
 "\n"
+#if defined(__UNIXWARE__) || defined(XQUEUE)
+"    Option \"Protocol\"	\"Xqueue\"\n"
+#else
 "#    Option \"Protocol\"	\"Xqueue\"\n"
+#endif
 "\n"
 "# Baudrate and SampleRate are only for some Logitech mice. In\n"
 "# almost every case these lines should be omitted.\n"
