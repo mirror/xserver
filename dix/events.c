@@ -1125,6 +1125,22 @@ lgeTryClientEvents (ClientPtr client, xEvent *pEvents, int count, Mask mask,
 	return TryClientEvents (client, pEvents, count, mask, filter, grab);
     }
 
+#ifdef LG3D
+    /* 
+    ** Fix for 353: When a 2D grab is enabled the CEP all-grab should be 
+    ** disabled. If we don't do this then if you drag outside a native window
+    ** during a grab, the DS will receive events even though a 2D grab is
+    ** active, which is very, very bad.
+    **
+    ** TODO: KLUDGE: this is a kludgey way to fix this problem. It may be that 
+    ** the way to solve the problem is to eliminate all-grab entirely. But we
+    ** are not quite ready to do this yet.
+    */
+    if (lgeDisplayServerIsAlive && grab && !IsWinLgePRWWin(grab->window)) {
+	return TryClientEvents (client, pEvents, count, mask, filter, grab);
+    }
+#endif /* LG3D */
+
      for (i = 0; i < count; i++) { 
 	 Window win;
 	 int destination;
