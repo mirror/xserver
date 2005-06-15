@@ -49,10 +49,6 @@
 #endif
 #include "compint.h"
 
-#ifdef xLG3D
-#include "../Xext/lgeint.h"
-#endif /* LG3D */
-
 void
 compReportDamage (DamagePtr pDamage, RegionPtr pRegion, void *closure)
 {
