@@ -2034,12 +2034,44 @@ MaybeDeliverEventsToClient(pWin, pEvents, count, filter, dontClient)
      (e)->u.u.type == ButtonRelease || \
      (e)->u.u.type == MotionNotify)
 
-/* Returns True if the event occurred above a 3D object rather than a native window */
-#define EVENT_IS_3D(e) \
-    (EVENT_IS_DEVICE_EVENT(e) && IsWinLgePRWOne((e)->u.keyButtonPointer.event))
+static void
+lgeFixUpEventFromPRW(
+    xEvent *xE,
+    WindowPtr pWin,
+    Window child,
+    Bool calcChild)
+{
+    XE_KBPTR.root = ROOT->drawable.id;
+
+    /* 
+    ** If the non-3D event is going to the DS (e.g. because 
+    ** of a grab) make the the coordinates relative to the PRW 
+    ** (that is, screen absolute),
+    */
+
+    if (!IsWinLgePRWOne(XE_KBPTR.event)) {
+	WindowPtr pOldWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW);
+	if (pOldWin != NULL) {
+	    XE_KBPTR.eventX = XE_KBPTR.rootX;
+	    XE_KBPTR.eventY = XE_KBPTR.rootY;
+	}
+    }
+
+    XE_KBPTR.event = pWin->drawable.id;
+
+    if (sprite.hot.pScreen != pWin->drawable.pScreen)
+    {
+	XE_KBPTR.sameScreen = xFalse;
+	XE_KBPTR.child = None;
+	XE_KBPTR.eventX = 0;
+	XE_KBPTR.eventY = 0;
+    } else {
+	XE_KBPTR.sameScreen = xTrue;
+    }
+}
 
 static void
-lgeFixUpEventFromWindow(
+lgeFixUpEventFromXWindow(
     xEvent *xE,
     WindowPtr pWin,
     Window child,
@@ -2047,34 +2079,13 @@ lgeFixUpEventFromWindow(
 {
     Window eventWindowOld = INVALID;
 
-    /*
-    ErrorF("Enter FixUpEventFromWindow, event type = %d\n", xE->u.u.type);
-    if (EVENT_IS_3D(xE)) {
-	ErrorF("Event is 3D\n");
-    } else {
-	ErrorF("Event is 2D\n");
-    }
-    ErrorF("old event window = %d\n", XE_KBPTR.event);
-    ErrorF("old child window = %d\n", XE_KBPTR.child);
-    ErrorF("old eventxy = %d, %d\n", XE_KBPTR.eventX, XE_KBPTR.eventY);
-    */
-    
-    /* 
-    ** No need to calculate child for 3D events. We use the child field of 
-    ** 3D events to communicate grab state to the DS.
-    */
-    if (EVENT_IS_3D(xE)) {
-	calcChild = False;
-    }
-
     if (calcChild)
     {
-	/*ErrorF("Calculating child\n");*/
         WindowPtr w=spriteTrace[spriteTraceGood-1];
 	/* If the search ends up past the root should the child field be 
-	 	set to none or should the value in the argument be passed 
-		through. It probably doesn't matter since everyone calls 
-		this function with child == None anyway. */
+	   set to none or should the value in the argument be passed 
+	   through. It probably doesn't matter since everyone calls 
+	   this function with child == None anyway. */
 
         while (w) 
         {
@@ -2095,31 +2106,10 @@ lgeFixUpEventFromWindow(
  	    w = w->parent;
         } 	    
     }
-    XE_KBPTR.root = ROOT->drawable.id;
 
-    /* Set event field (only for non-3D events) */
-    if (!EVENT_IS_3D(xE)) {
-	eventWindowOld = XE_KBPTR.event;
-	XE_KBPTR.event = pWin->drawable.id;
-        /*ErrorF("new event window = %d\n", XE_KBPTR.event);*/
-	
-	/* 
-	** If the non-3D event is going to the DS (e.g. because 
-	** of a grab), do the fixup on its event coordinates now
-	** and skip the fixup below. Make them relative to the PRW 
-        ** (that is, screen absolute),
-	*/
-	
-	if (IsWinLgePRWOne(XE_KBPTR.event)) {
-	    WindowPtr pOldWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
-	    if (pOldWin != NULL) {
-		XE_KBPTR.eventX = XE_KBPTR.rootX;
-		XE_KBPTR.eventY = XE_KBPTR.rootY;
-		/* Skip the fixup below */
-		eventWindowOld = XE_KBPTR.event;
-	    }
-	}
-    }
+    XE_KBPTR.root = ROOT->drawable.id;
+    eventWindowOld = XE_KBPTR.event;
+    XE_KBPTR.event = pWin->drawable.id;
 
     if (sprite.hot.pScreen != pWin->drawable.pScreen)
     {
@@ -2132,41 +2122,36 @@ lgeFixUpEventFromWindow(
 
     XE_KBPTR.sameScreen = xTrue;
 
-    /* Set various fields (only for non-3D events) */
-    if (!EVENT_IS_3D(xE)) {
+    XE_KBPTR.child = child;
 
-	XE_KBPTR.child = child;
-	/*ErrorF("new child window = %d\n", XE_KBPTR.child);*/
+    /* 
+    ** The only events needing fixup at this point are mouse events
+    ** where the event window has been changed.
+    */
+    if ((xE->u.u.type == ButtonPress   ||
+	 xE->u.u.type == ButtonRelease  ||
+	 xE->u.u.type == MotionNotify)  &&
+	eventWindowOld != XE_KBPTR.event) {
 
-	/* 
-	** The only events needing fixup at this point are mouse events
-        ** where the event window has been changed.
-	*/
-	if ((xE->u.u.type == ButtonPress   ||
-	    xE->u.u.type == ButtonRelease  ||
-	    xE->u.u.type == MotionNotify)  &&
-	    eventWindowOld != XE_KBPTR.event) {
-
-	    /* TODO: it would be good to avoid a resource lookup here. Some sort of 
-	     caching might optimize this */
-	    WindowPtr pOuterWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
-	    if (pOuterWin == NULL) {
-		/*
-		** This can happen if the window has died since the pick on the window
-		** occurred. So we don't need to be verbose about it.
-		ErrorF("Error: FixupEventFromWindow: outer window %d, not found. No XY fix up occuring.\n",
-		       eventWindowOld);
-		*/
-	    } else {
-		/* 
-		** Make the event coords relative to the destination window
-		** instead of relative to the outer window.
-		*/
-		XE_KBPTR.eventX -= pWin->drawable.x - pOuterWin->drawable.x;
-		XE_KBPTR.eventY -= pWin->drawable.y - pOuterWin->drawable.y;
-		/*ErrorF("new eventxy = %d, %d", XE_KBPTR.eventX, XE_KBPTR.eventY);*/
-	    }		    
-	}
+	/* TODO: it would be good to avoid a resource lookup here. Some sort of 
+	   caching might optimize this */
+	WindowPtr pOuterWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
+	if (pOuterWin == NULL) {
+	    /*
+	    ** This can happen if the window has died since the pick on the window
+	    ** occurred. So we don't need to be verbose about it.
+	    ErrorF("Error: FixupEventFromWindow: outer window %d, not found. No XY fix up occuring.\n",
+	           eventWindowOld);
+	    */
+	} else {
+	    /* 
+	    ** Make the event coords relative to the destination window
+	    ** instead of relative to the outer window.
+	    */
+	    XE_KBPTR.eventX -= pWin->drawable.x - pOuterWin->drawable.x;
+	    XE_KBPTR.eventY -= pWin->drawable.y - pOuterWin->drawable.y;
+	    /*ErrorF("new eventxy = %d, %d", XE_KBPTR.eventX, XE_KBPTR.eventY);*/
+	}		    
     }
 }
 
@@ -2181,7 +2166,11 @@ FixUpEventFromWindow(
 {
 #ifdef LG3D
     if (lgeDisplayServerIsAlive && GetLgePRWForRoot(pWin)) {
-	lgeFixUpEventFromWindow(xE, pWin, child, calcChild);
+	if (EVENT_IS_DEVICE_EVENT(xE) && IsWinLgePRWOne(pWin->drawable.id)) {
+	    lgeFixUpEventFromPRW(xE, pWin, child, calcChild);
+	} else {
+	    lgeFixUpEventFromXWindow(xE, pWin, child, calcChild);
+	}
 	return;
     }
 #endif /* LG3D */
@@ -5569,7 +5558,7 @@ WriteEventsToClient(pClient, count, events)
 #if defined(LG3D) && defined (DEBUG)
 	if (print_events_all ||
 	    /* TODO: these indices are now out of date; update them */
-	    (print_events_to_ds && pClient->index == 4) ||
+	    (print_events_to_ds && pClient->index == 5) ||
 	    (print_events_to_wm && pClient->index == 9) ||
 	    (print_events_to_app && pClient->index == 6)) {
 	    xEvent *ev;

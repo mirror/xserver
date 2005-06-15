@@ -78,6 +78,7 @@ Equipment Corporation.
 
 /* $XFree86: xc/programs/Xserver/dix/dispatch.c,v 3.32 2003/11/10 18:21:45 tsi Exp $ */
 
+#define DISPATCH_DEBUG
 #if defined(LG3D) && defined(DISPATCH_DEBUG)
 int printprocs = 0;
 int proc_num = 0;
