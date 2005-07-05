@@ -734,8 +734,7 @@ winTopLevelWindowProc (HWND hwnd, UINT message,
 #endif
       
       /* Pass the message to the root window */
-      SendMessage (hwndScreen, message, wParam, lParam);
-      return 0;
+      return winWindowProc(hwndScreen, message, wParam, lParam);
 
     case WM_SYSKEYUP:
     case WM_KEYUP:
@@ -745,8 +744,7 @@ winTopLevelWindowProc (HWND hwnd, UINT message,
 #endif
 
       /* Pass the message to the root window */
-      SendMessage (hwndScreen, message, wParam, lParam);
-      return 0;
+      return winWindowProc(hwndScreen, message, wParam, lParam);
 
     case WM_HOTKEY:
 #if CYGMULTIWINDOW_DEBUG
