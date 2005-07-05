@@ -41,6 +41,12 @@
 #include "winmessages.h"
 #endif
 
+#ifdef XKB
+extern BOOL winCheckKeyPressed(WPARAM wParam, LPARAM lParam);
+#endif
+extern void winFixShiftKeys (int iScanCode);
+
+
 /*
  * Global variables
  */
@@ -1020,11 +1026,22 @@ winWindowProc (HWND hwnd, UINT message,
        * Discard presses generated from Windows auto-repeat
        * ago: Only discard them if XKB is not disabled 
        */
-      if (!g_winInfo.xkb.disable) 
-        {  
-          if (lParam & (1<<30))
-	    return 0;
-        } 
+      if (!g_winInfo.xkb.disable && (lParam & (1<<30)))
+      {
+        switch (wParam)
+        {
+          /* ago: Pressing LControl while RControl is pressed is 
+           * Indicated as repeat. Fix this!
+           */
+          case VK_CONTROL:
+          case VK_SHIFT:
+            if (winCheckKeyPressed(wParam, lParam))
+              return 0;
+            break;
+          default:
+            return 0;
+        }
+      } 
 #endif 
       
       /* Discard fake Ctrl_L presses that precede AltGR on non-US keyboards */
@@ -1063,6 +1080,10 @@ winWindowProc (HWND hwnd, UINT message,
       /* Enqueue a keyup event */
       winTranslateKey (wParam, lParam, &iScanCode);
       winSendKeyEvent (iScanCode, FALSE);
+
+      /* Release all pressed shift keys */
+      if (wParam == VK_SHIFT) 
+        winFixShiftKeys (iScanCode);
       return 0;
 
     case WM_HOTKEY:
