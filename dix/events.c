@@ -257,6 +257,7 @@ static struct {
  */
 #ifdef LG3D
 WindowPtr *spriteTrace = (WindowPtr *)NULL;
+WindowPtr *lgeCurrentRootWin;
 #define ROOT spriteTrace[0]
 int spriteTraceSize = 0;
 int spriteTraceGood;
@@ -1141,6 +1142,22 @@ lgeTryClientEvents (ClientPtr client, xEvent *pEvents, int count, Mask mask,
     }
 #endif /* LG3D */
 
+#ifdef LG3D
+    /* 
+    ** Fix for 353: When a 2D grab is enabled the CEP all-grab should be 
+    ** disabled. If we don't do this then if you drag outside a native window
+    ** during a grab, the DS will receive events even though a 2D grab is
+    ** active, which is very, very bad.
+    **
+    ** TODO: KLUDGE: this is a kludgey way to fix this problem. It may be that 
+    ** the way to solve the problem is to eliminate all-grab entirely. But we
+    ** are not quite ready to do this yet.
+    */
+    if (lgeDisplayServerIsAlive && grab && !IsWinLgePRWWin(grab->window)) {
+	return TryClientEvents (client, pEvents, count, mask, filter, grab);
+    }
+#endif /* LG3D */
+
      for (i = 0; i < count; i++) { 
 	 Window win;
 	 int destination;
@@ -1327,8 +1344,31 @@ ComputeFreezes()
 	xE = replayDev->sync.event;
 	count = replayDev->sync.evcount;
 	syncEvents.replayDev = (DeviceIntPtr)NULL;
-
-        w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);
+#ifdef LG3D	
+	WindowPtr pWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW);
+	if (lgeDisplayServerIsAlive && GetLgePRWForRoot(pWin)) {
+	    if (sprite.hotPhys.pScreen != pWin->drawable.pScreen)
+    	    {   		
+    		w = XYToSubWindow(pWin, 
+				       xE->u.keyButtonPointer.eventX, xE->u.keyButtonPointer.eventY,
+				       &virtualSprite.hot.x, &virtualSprite.hot.y);
+	        if(IsWinLgePRWOne(w->drawable.id))
+		{
+			ErrorF("ComputeFreezes %d %d seq %d\n",xE->u.keyButtonPointer.event,
+			w->drawable.id, xE->u.u.sequenceNumber);
+		}
+    	    }else 
+    	    {
+    	    	w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);	
+    	    }
+	}else 
+	{
+	    w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);	
+	}
+#else
+	w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);
+#endif /* LG3D */
+        
 	for (i = 0; i < spriteTraceGood; i++)
 	{
 	    if (syncEvents.replayWin == spriteTrace[i])
@@ -2062,9 +2102,9 @@ lgeFixUpEventFromPRW(
     if (sprite.hot.pScreen != pWin->drawable.pScreen)
     {
 	XE_KBPTR.sameScreen = xFalse;
-	XE_KBPTR.child = None;
+	/*XE_KBPTR.child = None;
 	XE_KBPTR.eventX = 0;
-	XE_KBPTR.eventY = 0;
+	XE_KBPTR.eventY = 0;*/
     } else {
 	XE_KBPTR.sameScreen = xTrue;
     }
@@ -2106,22 +2146,24 @@ lgeFixUpEventFromXWindow(
  	    w = w->parent;
         } 	    
     }
-
-    XE_KBPTR.root = ROOT->drawable.id;
+    
+    XE_KBPTR.root = WindowTable[sprite.hotPhys.pScreen->myNum]->drawable.id;    
     eventWindowOld = XE_KBPTR.event;
     XE_KBPTR.event = pWin->drawable.id;
 
+    XE_KBPTR.sameScreen = xTrue;
     if (sprite.hot.pScreen != pWin->drawable.pScreen)
     {
 	XE_KBPTR.sameScreen = xFalse;
+       /*
 	XE_KBPTR.child = None;
 	XE_KBPTR.eventX = 0;
 	XE_KBPTR.eventY = 0;
 	return;
+	*/
     }
 
-    XE_KBPTR.sameScreen = xTrue;
-
+    
     XE_KBPTR.child = child;
 
     /* 
@@ -2506,6 +2548,8 @@ CheckMotion(xEvent *xE)
 		return TRUE;
 #endif
 	    }
+	     
+	    lgeCurrentRootWin = WindowTable[sprite.hotPhys.pScreen->myNum];
 	    sprite.win = XYToSubWindow(pEventWin, 
 				       XE_KBPTR.eventX, XE_KBPTR.eventY,
 				       &virtualSprite.hot.x, &virtualSprite.hot.y);
@@ -3315,18 +3359,34 @@ DeliverGrabbedEvent(xE, thisDev, deactivateGrab, count)
 	else
 	    focus = PointerRootWin;
 	if (focus == PointerRootWin)
+#ifdef LG3D
+	    deliveries = lg3dDeliverDeviceEvents(sprite.win, xE, grab, NullWindow,
+					     thisDev, count);
+#else
 	    deliveries = DeliverDeviceEvents(sprite.win, xE, grab, NullWindow,
 					     thisDev, count);
+#endif /* LG3D */					     
 	else if (focus && (focus == sprite.win || IsParent(focus, sprite.win)))
+#ifdef LG3D
+	    deliveries = lg3dDeliverDeviceEvents(sprite.win, xE, grab, focus,
+					     thisDev, count);
+#else
 	    deliveries = DeliverDeviceEvents(sprite.win, xE, grab, focus,
 					     thisDev, count);
-	else if (focus)
+#endif /* LG3D */	    
+	else if (focus)		
 	    deliveries = DeliverDeviceEvents(focus, xE, grab, focus,
 					     thisDev, count);
     }
     if (!deliveries)
     {
+#ifdef LG3D
+    	isGrabactivated = 1;
+#endif
 	FixUpEventFromWindow(xE, grab->window, None, TRUE);
+#ifdef LG3D
+    	isGrabactivated = 0;
+#endif
 #ifdef LG3D
 	deliveries = lgeTryClientEvents(rClient(grab), xE, count,
 				     (Mask)grab->eventMask,
