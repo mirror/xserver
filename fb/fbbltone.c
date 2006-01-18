@@ -267,7 +267,7 @@ fbBltOne (FbStip    *src,
 	srcinc++;
     if (endmask)
     {
-	endNeedsLoad = nDst % unitsPerSrc == 0;
+	endNeedsLoad = nmiddle % unitsPerSrc == 0;
 	if (endNeedsLoad)
 	    srcinc++;
     }

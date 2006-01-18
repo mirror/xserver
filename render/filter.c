@@ -271,11 +271,18 @@ PictureResetFilters (ScreenPtr pScreen)
 int
 SetPictureFilter (PicturePtr pPicture, char *name, int len, xFixed *params, int nparams)
 {
-    ScreenPtr		pScreen = pPicture->pDrawable->pScreen;
-    PictureScreenPtr	ps = GetPictureScreen(pScreen);
-    PictFilterPtr	pFilter = PictureFindFilter (pScreen, name, len);
+    ScreenPtr		pScreen;
+    PictureScreenPtr	ps;
+    PictFilterPtr	pFilter;
     xFixed		*new_params;
     int			i, result;
+
+    if (!pPicture->pDrawable)
+       return Success;
+
+    pScreen = pPicture->pDrawable->pScreen;
+    ps = GetPictureScreen(pScreen);
+    pFilter = PictureFindFilter (pScreen, name, len);
 
     if (!pFilter)
 	return BadName;

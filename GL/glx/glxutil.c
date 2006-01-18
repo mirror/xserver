@@ -505,3 +505,14 @@ __glXResizeDrawableBuffers(__GLXdrawablePrivate *glxPriv)
 
 /************************************************************************/
 
+GLuint __glFloorLog2(GLuint val)
+{
+    int c = 0;
+
+    while (val > 1) {
+        c++;
+        val >>= 1;
+    }
+    return c;
+}
+

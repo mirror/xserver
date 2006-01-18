@@ -875,6 +875,8 @@ fbComposite (CARD8      op,
     if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
         && !pSrc->transform && !(pMask && pMask->transform)
         && !maskAlphaMap && !srcAlphaMap && !dstAlphaMap
+	&& (!pSrc->repeat || srcRepeat)
+	&& (!pMask || (!pMask->repeat || maskRepeat))
         && (pSrc->filter != PictFilterConvolution)
         && (!pMask || pMask->filter != PictFilterConvolution))
     switch (op) {

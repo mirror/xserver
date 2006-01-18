@@ -48,6 +48,7 @@ typedef struct {
     __GLXscreenInfo *pGlxScreen;
     ScreenPtr pScreen;
     Bool idExists;
+    __GLXdrawablePrivate *glxPriv;
     int refcnt;
 
 } __GLXpixmap;
@@ -97,6 +98,13 @@ struct __GLXdrawablePrivateRec {
     void (*freeBuffers)(struct __GLXdrawablePrivateRec *);
     void (*updatePalette)(struct __GLXdrawablePrivateRec *);
     GLboolean (*swapBuffers)(struct __GLXdrawablePrivateRec *);
+    int (*bindBuffers)(struct __GLXdrawablePrivateRec *, int);
+    int (*releaseBuffers)(struct __GLXdrawablePrivateRec *, int);
+
+    /*
+    ** Used by EXT_render_texture.
+    */
+    GLenum texTarget;
 
     /*
     ** The GL drawable (information shared between GLX and the GL core)

@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/render/render.c,v 1.8 2005/07/01 10:05:43 lars Exp $ */
+/* $XdotOrg: xserver/xorg/render/render.c,v 1.12 2005/08/28 19:47:39 ajax Exp $ */
 /*
  * $XFree86: xc/programs/Xserver/render/render.c,v 1.27tsi Exp $
  *
@@ -389,7 +389,14 @@ ProcRenderQueryPictFormats (ClientPtr client)
 	}
 	ps = GetPictureScreenIfSet(pScreen);
 	if (ps)
-	    nformat += ps->nformats;
+	{
+	    for (d = 0; d < ps->nformats; d++)
+	    {
+		if (ps->formats[d].type == PictTypeIndexed ||
+		    ps->formats[d].type == PictTypeDirect)
+		    nformat++;
+	    }
+	}
     }
     if (pRenderClient->major_version == 0 && pRenderClient->minor_version < 6)
 	numSubpixel = 0;
@@ -426,6 +433,10 @@ ProcRenderQueryPictFormats (ClientPtr client)
 		 nformat < ps->nformats;
 		 nformat++, pFormat++)
 	    {
+	        if (pFormat->type != PictTypeIndexed &&
+		    pFormat->type != PictTypeDirect)
+		    continue;
+
 		pictForm->id = pFormat->id;
 		pictForm->type = pFormat->type;
 		pictForm->depth = pFormat->depth;
@@ -749,8 +760,8 @@ ProcRenderComposite (ClientPtr client)
 		    RenderErrBase + BadPicture);
     VERIFY_ALPHA (pMask, stuff->mask, client, SecurityReadAccess, 
 		  RenderErrBase + BadPicture);
-    if ((pSrc->pDrawable && pSrc->pDrawable->pScreen != pDst->pDrawable->pScreen) ||
-	(pMask && pMask->pDrawable && pSrc->pDrawable->pScreen != pMask->pDrawable->pScreen))
+    if (pSrc->pDrawable && ((pSrc->pDrawable->pScreen != pDst->pDrawable->pScreen) ||
+        (pMask && pMask->pDrawable && pSrc->pDrawable->pScreen != pMask->pDrawable->pScreen)))
 	return BadMatch;
     CompositePicture (stuff->op,
 		      pSrc,

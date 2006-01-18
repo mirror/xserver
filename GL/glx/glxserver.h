@@ -65,6 +65,15 @@
 #include <GL/glxproto.h>
 #include <GL/glxint.h>
 
+/* XXX: should go into glxext.h */
+#ifndef GLX_EXT_render_texture
+#define GLX_TEXTURE_TARGET_EXT	  0x6001
+#define GLX_TEXTURE_2D_EXT	  0x6002
+#define GLX_TEXTURE_RECTANGLE_EXT 0x6003
+#define GLX_NO_TEXTURE_EXT	  0x6004
+#define GLX_FRONT_LEFT_EXT	  0x6005
+#endif
+
 /* For glxscreens.h */
 typedef struct __GLXdrawablePrivateRec __GLXdrawablePrivate;
 
@@ -130,6 +139,13 @@ struct __GLXclientStateRec {
     */
     GLbyte *returnBuf;
     GLint returnBufSize;
+
+    /*
+    ** Begin/End buffer.
+    */
+    GLbyte *beBuf;
+    GLint beBufLen;
+    GLint beBufSize;
 
     /*
     ** Keep track of large rendering commands, which span multiple requests.

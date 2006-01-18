@@ -36,7 +36,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
 #endif
-
+#define GL_GLEXT_PROTOTYPES
 #include <regionstr.h>
 #include <resource.h>
 #include <GL/gl.h>
@@ -257,6 +257,79 @@ static __GLXvisualConfig FallbackConfigs[NUM_FALLBACK_CONFIGS] = {
     0                   /* transparentIndex */
   },
 };
+
+void *__glXMalloc(size_t size) __attribute__((weak));
+void *__glXCalloc(size_t numElements, size_t elementSize) __attribute__((weak));void *__glXRealloc(void *addr, size_t newSize) __attribute__((weak));
+void __glXFree(void *addr) __attribute__((weak));
+
+void *
+__glXMalloc(size_t size)
+{
+    void *addr;
+
+    if (size == 0) {
+        return NULL;
+    }
+    addr = (void *) xalloc(size);
+    if (addr == NULL) {
+        /* XXX: handle out of memory error */
+        return NULL;
+    }
+    return addr;
+}
+
+void *
+__glXCalloc(size_t numElements, size_t elementSize)
+{
+    void *addr;
+    size_t size;
+
+    if ((numElements == 0) || (elementSize == 0)) {
+        return NULL;
+    }
+    size = numElements * elementSize;
+    addr = (void *) xalloc(size);
+    if (addr == NULL) {
+        /* XXX: handle out of memory error */
+        return NULL;
+    }
+    __glXMemset(addr, 0, size);
+    return addr;
+}
+
+void *
+__glXRealloc(void *addr, size_t newSize)
+{
+    void *newAddr;
+
+    if (addr) {
+        if (newSize == 0) {
+            xfree(addr);
+            return NULL;
+        } else {
+            newAddr = xrealloc(addr, newSize);
+        }
+    } else {
+        if (newSize == 0) {
+            return NULL;
+        } else {
+            newAddr = xalloc(newSize);
+        }
+    }
+    if (newAddr == NULL) {
+        return NULL;    /* XXX: out of memory */
+    }
+
+    return newAddr;
+}
+
+void
+__glXFree(void *addr)
+{
+    if (addr) {
+        xfree(addr);
+    }
+}
 
 
 static Bool init_visuals(int *nvisualp, VisualPtr *visualp,
@@ -693,15 +766,9 @@ void __MESA_createBuffer(__GLXdrawablePrivate *glxPriv)
 	       glxPriv->modes->visualID);
     }
     buf = (__MESA_buffer)__glXMalloc(sizeof(struct __MESA_bufferRec));
-
-    /* Create Mesa's buffers */
-    if (glxPriv->type == DRAWABLE_WINDOW) {
-	buf->xm_buf = (void *)XMesaCreateWindowBuffer(xm_vis,
-						      (WindowPtr)pDraw);
-    } else {
-	buf->xm_buf = (void *)XMesaCreatePixmapBuffer(xm_vis,
-						      (PixmapPtr)pDraw, 0);
-    }
+    buf->xm_buf = 0;
+    buf->pDraw = pDraw;
+    buf->xm_vis = xm_vis;
 
     /* Wrap the front buffer's resize routine */
     buf->fbresize = glPriv->frontBuffer.resize;
@@ -711,9 +778,38 @@ void __MESA_createBuffer(__GLXdrawablePrivate *glxPriv)
     buf->fbswap = glxPriv->swapBuffers;
     glxPriv->swapBuffers = __MESA_swapBuffers;
 
+    /* Wrap the render texture routines */
+    buf->fbbind = glxPriv->bindBuffers;
+    glxPriv->bindBuffers = __MESA_bindBuffers;
+    buf->fbrelease = glxPriv->releaseBuffers;
+    glxPriv->releaseBuffers = __MESA_releaseBuffers;
+
+    /* Mesa doesn't support render texture on its own */
+    glxPriv->texTarget = GLX_NO_TEXTURE_EXT;
+
     /* Save Mesa's private buffer structure */
     glPriv->private = (void *)buf;
     glPriv->freePrivate = __MESA_destroyBuffer;
+}
+
+static void __MESA_allocateBuffer (__GLdrawablePrivate *glPriv)
+{
+    __MESA_buffer buf = glPriv->private;
+
+    if (!buf->xm_buf)
+    {
+	/* Create Mesa's buffers */
+	if (buf->pDraw->type == DRAWABLE_WINDOW)
+	{
+	    buf->xm_buf = (void *)
+		XMesaCreateWindowBuffer (buf->xm_vis, (WindowPtr) buf->pDraw);
+	}
+	else
+	{
+	    buf->xm_buf = (void *)
+		XMesaCreatePixmapBuffer (buf->xm_vis, (PixmapPtr) buf->pDraw, 0);
+	}
+    }
 }
 
 GLboolean __MESA_resizeBuffers(__GLdrawableBuffer *buffer,
@@ -741,6 +837,18 @@ GLboolean __MESA_swapBuffers(__GLXdrawablePrivate *glxPriv)
     XMesaSwapBuffers(buf->xm_buf);
 
     return GL_TRUE;
+}
+
+int __MESA_bindBuffers(__GLXdrawablePrivate *glxPriv,
+		       int		    buffer)
+{
+    return FALSE;
+}
+
+int __MESA_releaseBuffers(__GLXdrawablePrivate *glxPriv,
+			  int		       buffer)
+{
+    return FALSE;
 }
 
 void __MESA_destroyBuffer(__GLdrawablePrivate *glPriv)
@@ -815,7 +923,7 @@ GLboolean __MESA_loseCurrent(__GLcontext *gc)
 {
     XMesaContext xmesa = (XMesaContext) gc->DriverCtx;
     MESA_CC = NULL;
-    __glXLastContext = NULL;
+    GlxFlushContextCache();
     return XMesaLoseCurrent(xmesa);
 }
 
@@ -826,6 +934,12 @@ GLboolean __MESA_makeCurrent(__GLcontext *gc)
     __GLdrawablePrivate *readPriv = gc->imports.getReadablePrivate( gc );
     __MESA_buffer readBuf = (__MESA_buffer)readPriv->private;
     XMesaContext xmesa = (XMesaContext) gc->DriverCtx;
+
+    if (!drawBuf->xm_buf)
+	__MESA_allocateBuffer (drawPriv);
+
+    if (!readBuf->xm_buf)
+	__MESA_allocateBuffer (readPriv);
 
     MESA_CC = gc;
     return XMesaMakeCurrent2(xmesa, drawBuf->xm_buf, readBuf->xm_buf);
@@ -852,6 +966,7 @@ GLboolean __MESA_forceCurrent(__GLcontext *gc)
 {
     XMesaContext xmesa = (XMesaContext) gc->DriverCtx;
     MESA_CC = gc;
+    GlxSetRenderTables (gc->CurrentDispatch);
     return XMesaForceCurrent(xmesa);
 }
 

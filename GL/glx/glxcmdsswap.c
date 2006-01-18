@@ -389,6 +389,66 @@ int __glXSwapQueryContextInfoEXT(__GLXclientState *cl, GLbyte *pc)
     return __glXQueryContextInfoEXT(cl, pc);
 }
 
+int __glXSwapGetDrawableAttributesSGIX(__GLXclientState *cl, char *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    GLXDrawable		 *drawId;
+    
+    __GLX_DECLARE_SWAP_VARIABLES;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = ((GLXDrawable *) (pc));
+    
+    __GLX_SWAP_SHORT(&req->length);
+    __GLX_SWAP_INT(&req->contextTag);
+    __GLX_SWAP_INT(drawId);
+
+    return __glXGetDrawableAttributesSGIX(cl, (GLbyte *)pc);
+}
+
+int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLchar *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    GLXDrawable		 *drawId;
+    int			 *buffer;
+    
+    __GLX_DECLARE_SWAP_VARIABLES;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = ((GLXDrawable *) (pc));
+    buffer = ((int *)	      (pc + 4));
+    
+    __GLX_SWAP_SHORT(&req->length);
+    __GLX_SWAP_INT(&req->contextTag);
+    __GLX_SWAP_INT(drawId);
+    __GLX_SWAP_INT(buffer);
+
+    return __glXBindTexImageEXT(cl, (GLbyte *)pc);
+}
+
+int __glXSwapReleaseTexImageEXT(__GLXclientState *cl, GLchar *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    GLXDrawable		 *drawId;
+    int			 *buffer;
+    
+    __GLX_DECLARE_SWAP_VARIABLES;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = ((GLXDrawable *) (pc));
+    buffer = ((int *)	      (pc + 4));
+    
+    __GLX_SWAP_SHORT(&req->length);
+    __GLX_SWAP_INT(&req->contextTag);
+    __GLX_SWAP_INT(drawId);
+    __GLX_SWAP_INT(buffer);
+
+    return __glXReleaseTexImageEXT(cl, (GLbyte *)pc);
+}
+
 /************************************************************************/
 
 /*
@@ -463,8 +523,198 @@ void __glXSwapQueryContextInfoEXTReply(ClientPtr client, xGLXQueryContextInfoEXT
     WriteToClient(client, length << 2, (char *)buf);
 }
 
+void __glXSwapGetDrawableAttributesReply(ClientPtr client, xGLXGetDrawableAttributesReply *reply, int *buf)
+{
+    int length = reply->length;
+    __GLX_DECLARE_SWAP_VARIABLES;
+    __GLX_DECLARE_SWAP_ARRAY_VARIABLES;
+    __GLX_SWAP_SHORT(&reply->sequenceNumber);
+    __GLX_SWAP_INT(&reply->length);
+    __GLX_SWAP_INT(&reply->numAttribs);
+    WriteToClient(client, sz_xGLXGetDrawableAttributesReply, (char *)reply);
+    __GLX_SWAP_INT_ARRAY((int *)buf, length);
+    WriteToClient(client, length << 2, (char *)buf);
+}
 
 /************************************************************************/
+
+static int
+__glXSwapRenderBeginEnd (__GLXclientState *cl,
+			 int		  *commandsDone,
+			 GLbyte		  **ppc,
+			 int		  *pleft)
+{
+    ClientPtr	        client = cl->client;
+    int		        left, cmdlen;
+    CARD16	        opcode;
+    __GLXrenderHeader   *hdr;
+    GLbyte	        *pc;
+    __GLXrenderSizeData *entry;
+    int			extra;
+    void		(*proc) (GLbyte *);
+
+   __GLX_DECLARE_SWAP_VARIABLES;
+
+    pc = *ppc;
+    left = *pleft;
+    opcode = 0;
+
+    while (left > 0 && opcode != X_GLrop_End)
+    {
+	/*
+	** Verify that the header length and the overall length agree.
+	** Also, each command must be word aligned.
+	*/
+	hdr = (__GLXrenderHeader *) pc;
+	__GLX_SWAP_SHORT(&hdr->length);
+	__GLX_SWAP_SHORT(&hdr->opcode);
+	cmdlen = hdr->length;
+	opcode = hdr->opcode;
+
+	if ( (opcode >= __GLX_MIN_RENDER_OPCODE) &&
+	     (opcode <= __GLX_MAX_RENDER_OPCODE) ) {
+	    entry = &__glXRenderSizeTable[opcode];
+	    proc = __glXSwapRenderTable[opcode];
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	} else if ( (opcode >= __GLX_MIN_RENDER_OPCODE_EXT) &&
+		    (opcode <= __GLX_MAX_RENDER_OPCODE_EXT) ) {
+	    int index = opcode - __GLX_MIN_RENDER_OPCODE_EXT;
+	    entry = &__glXRenderSizeTable_EXT[index];
+	    proc = __glXSwapRenderTable_EXT[index];
+#endif /* __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT */
+	} else {
+	    client->errorValue = *commandsDone;
+	    cl->beBufLen = 0;
+	    return __glXBadRenderRequest;
+	}
+
+	if (!entry->bytes) {
+	    /* unused opcode */
+	    client->errorValue = *commandsDone;
+	    cl->beBufLen = 0;
+	    return __glXBadRenderRequest;
+	}
+	if (entry->varsize) {
+	    /* variable size command */
+	    extra = (*entry->varsize)(pc + __GLX_RENDER_HDR_SIZE, True);
+	    if (extra < 0) {
+		extra = 0;
+	    }
+	    if (cmdlen != __GLX_PAD(entry->bytes + extra)) {
+		cl->beBufLen = 0;
+		return BadLength;
+	    }
+	} else {
+	    /* constant size command */
+	    if (cmdlen != __GLX_PAD(entry->bytes)) {
+		cl->beBufLen = 0;
+		return BadLength;
+	    }
+	}
+	if (left < cmdlen) {
+	    cl->beBufLen = 0;
+	    return BadLength;
+	}
+
+	(*commandsDone)++;
+
+	pc += cmdlen;
+	left -= cmdlen;
+    }
+
+    if (opcode == X_GLrop_End)
+    {
+	pc = cl->beBuf;
+	left = cl->beBufLen;
+	opcode = 0;
+
+	while (left > 0 && opcode != X_GLrop_End)
+	{
+	    hdr = (__GLXrenderHeader *) pc;
+	    cmdlen = hdr->length;
+	    opcode = hdr->opcode;
+
+	    if ((opcode >= __GLX_MIN_RENDER_OPCODE) &&
+		(opcode <= __GLX_MAX_RENDER_OPCODE))
+	    {
+		entry = &__glXRenderSizeTable[opcode];
+		proc = __glXSwapRenderTable[opcode];
+	    }
+
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	    else
+	    {
+		int index = opcode - __GLX_MIN_RENDER_OPCODE_EXT;
+
+		entry = &__glXRenderSizeTable_EXT[index];
+		proc = __glXSwapRenderTable_EXT[index];
+	    }
+#endif
+
+	    (*proc) (pc + __GLX_RENDER_HDR_SIZE);
+
+	    pc += cmdlen;
+	    left -= cmdlen;
+	}
+
+	cl->beBufLen = 0;
+
+	pc = *ppc;
+	left = *pleft;
+	opcode = 0;
+
+	while (opcode != X_GLrop_End)
+	{
+	    hdr = (__GLXrenderHeader *) pc;
+	    cmdlen = hdr->length;
+	    opcode = hdr->opcode;
+
+	    if ((opcode >= __GLX_MIN_RENDER_OPCODE) &&
+		(opcode <= __GLX_MAX_RENDER_OPCODE))
+	    {
+		entry = &__glXRenderSizeTable[opcode];
+		proc = __glXRenderTable[opcode];
+	    }
+
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	    else
+	    {
+		int index = opcode - __GLX_MIN_RENDER_OPCODE_EXT;
+
+		entry = &__glXRenderSizeTable_EXT[index];
+		proc = __glXRenderTable_EXT[index];
+	    }
+#endif
+
+	    (*proc) (pc + __GLX_RENDER_HDR_SIZE);
+
+	    pc += cmdlen;
+	    left -= cmdlen;
+	}
+    }
+    else
+    {
+	int size;
+
+	size = pc - *ppc;
+	if (cl->beBufSize < cl->beBufLen + size)
+	{
+	    cl->beBuf = (GLbyte *) Xrealloc (cl->beBuf, cl->beBufLen + size);
+	    if (!cl->beBuf)
+		cl->beBufLen = size = 0;
+
+	    cl->beBufSize = cl->beBufLen + size;
+	}
+
+	if (size)
+	    memcpy (cl->beBuf + cl->beBufLen, *ppc, size);
+    }
+
+    *ppc = pc;
+    *pleft = left;
+
+    return Success;
+}
 
 /*
 ** Render and Renderlarge are not in the GLX API.  They are used by the GLX
@@ -554,17 +804,26 @@ int __glXSwapRender(__GLXclientState *cl, GLbyte *pc)
 	    return BadLength;
 	}
 
-	/*
-	** Skip over the header and execute the command.  We allow the
-	** caller to trash the command memory.  This is useful especially
-	** for things that require double alignment - they can just shift
-	** the data towards lower memory (trashing the header) by 4 bytes
-	** and achieve the required alignment.
-	*/
-	(*proc)(pc + __GLX_RENDER_HDR_SIZE);
-	pc += cmdlen;
-	left -= cmdlen;
-	commandsDone++;
+	if (opcode == X_GLrop_Begin || cl->beBufLen > 0)
+	{
+	    error = __glXSwapRenderBeginEnd (cl, &commandsDone, &pc, &left);
+	    if (error != Success)
+		return error;
+	}
+	else
+	{
+	    /*
+	    ** Skip over the header and execute the command.  We allow the
+	    ** caller to trash the command memory.  This is useful especially
+	    ** for things that require double alignment - they can just shift
+	    ** the data towards lower memory (trashing the header) by 4 bytes
+	    ** and achieve the required alignment.
+	    */
+	    (*proc)(pc + __GLX_RENDER_HDR_SIZE);
+	    pc += cmdlen;
+	    left -= cmdlen;
+	    commandsDone++;
+	}
     }
     __GLX_NOTE_UNFLUSHED_CMDS(cx);
     return Success;
@@ -824,6 +1083,10 @@ int __glXSwapVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	__GLX_SWAP_INT(pc + 4);
 	CALL_SamplePatternSGIS( GET_DISPATCH(), (*(GLenum *)(pc + 4)) );
 	return Success;
+    case X_GLXvop_BindTexImageMESA:
+	return __glXSwapBindTexImageEXT(cl, pc);
+    case X_GLXvop_ReleaseTexImageMESA:
+	return __glXSwapReleaseTexImageEXT(cl, pc);  
     }
 #endif
 
@@ -861,6 +1124,8 @@ int __glXSwapVendorPrivateWithReply(__GLXclientState *cl, GLbyte *pc)
 	return __glXSwapCreateContextWithConfigSGIX(cl, pc);
       case X_GLXvop_CreateGLXPixmapWithConfigSGIX:
 	return __glXSwapCreateGLXPixmapWithConfigSGIX(cl, pc);
+    case X_GLXvop_GetDrawableAttributesSGIX:
+	return __glXGetDrawableAttributesSGIX(cl, pc);
       default:
 	break;
     }

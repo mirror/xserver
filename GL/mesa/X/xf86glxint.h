@@ -54,10 +54,17 @@ struct __MESA_screenRec {
 typedef struct __MESA_bufferRec *__MESA_buffer;
 struct __MESA_bufferRec {
     XMesaBuffer xm_buf;
+    DrawablePtr pDraw;
+    XMesaVisual xm_vis;
     GLboolean (*fbresize)(__GLdrawableBuffer *buf,
 			  GLint x, GLint y, GLuint width, GLuint height, 
 			  __GLdrawablePrivate *glPriv, GLuint bufferMask);
     GLboolean (*fbswap)(__GLXdrawablePrivate *glxPriv);
+    int (*fbbind)(__GLXdrawablePrivate *glxPriv, int buffer);
+    int (*fbrelease)(__GLXdrawablePrivate *glxPriv, int buffer);
+    int (*fbquery)(__GLXdrawablePrivate *glxPriv, int attribute,
+                   unsigned int *value);
+
 };
 
 extern void __MESA_setVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
@@ -77,6 +84,10 @@ extern GLboolean __MESA_resizeBuffers(__GLdrawableBuffer *buf,
 				      __GLdrawablePrivate *glPriv,
 				      GLuint bufferMask);
 extern GLboolean __MESA_swapBuffers(__GLXdrawablePrivate *glxPriv);
+extern int __MESA_bindBuffers(__GLXdrawablePrivate *glxPriv, int buffer);
+extern int __MESA_releaseBuffers(__GLXdrawablePrivate *glxPriv, int buffer);
+extern int __MESA_queryBuffers(__GLXdrawablePrivate *glxPriv, int attribute,
+                               unsigned int *value);
 extern void __MESA_destroyBuffer(__GLdrawablePrivate *glPriv);
 
 extern __GLinterface *__MESA_createContext(__GLimports *imports,

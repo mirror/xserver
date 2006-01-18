@@ -59,6 +59,11 @@
 
 /************************************************************************/
 
+void GlxSetRenderTables (struct _glapi_table *table)
+{
+  _glapi_set_dispatch(table);
+}
+
 static __GLimports imports = {
     __glXImpMalloc,
     __glXImpCalloc,
@@ -1212,9 +1217,27 @@ int DoCreateGLXPixmap(__GLXclientState *cl, VisualID visual,
     pGlxPixmap->modes = modes;
 
     /*
+    ** Allocate buffers. 
+    */
+    pGlxPixmap->glxPriv = __glXCreateDrawablePrivate (pDraw, glxpixmapId,
+						      modes);
+    if (!pGlxPixmap->glxPriv)
+    {
+	FreeResource(glxpixmapId, FALSE);
+	return BadAlloc;
+    }
+
+    __glXRefDrawablePrivate (pGlxPixmap->glxPriv);
+    /*
     ** Bump the ref count on the X pixmap so it won't disappear.
     */
     ((PixmapPtr) pDraw)->refcnt++;
+
+    /*
+    ** XXX: Reset refcnt. Ignores references to this pixmap made by
+    ** __glXCreateDrawablePrivate. Need to fix this.
+    */
+    pGlxPixmap->refcnt = 0;
 
     return Success;
 }
@@ -1319,6 +1342,7 @@ int __glXSwapBuffers(__GLXclientState *cl, GLbyte *pc)
 	if (!glxc) {
 	    return __glXBadContextTag;
 	}
+#if 0 //XGL
 	/*
 	** The calling thread is swapping its current drawable.  In this case,
 	** glxSwapBuffers is in both GL and X streams, in terms of
@@ -1334,6 +1358,7 @@ int __glXSwapBuffers(__GLXclientState *cl, GLbyte *pc)
 	} else {
 	    return error;
 	}
+#endif
     }
 
     if (pDraw) {
@@ -1409,8 +1434,288 @@ int __glXQueryContextInfoEXT(__GLXclientState *cl, GLbyte *pc)
     return Success;
 }
 
+int __glXGetDrawableAttributesSGIX(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXGetDrawableAttributesReply reply;
+    ClientPtr			   client = cl->client;
+    GLXDrawable			   drawId;
+    __GLXdrawablePrivate	   *glxPriv;
+    int				   numAttribs;
+    int				   sendBuf[2];
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = *((GLXDrawable *) (pc));
+
+    glxPriv = __glXFindDrawablePrivate (drawId);
+    if (!glxPriv)
+    {
+	client->errorValue = drawId;
+	return __glXBadDrawable;
+    }
+
+    numAttribs = 1; /* XXX: Only GLX_TEXTURE_TARGET_EXT right now */
+    reply.length = numAttribs << 1;
+    reply.type = X_Reply;
+    reply.sequenceNumber = client->sequence;
+    reply.numAttribs = numAttribs;
+
+    sendBuf[0] = GLX_TEXTURE_TARGET_EXT;
+    sendBuf[1] = (int) (glxPriv->texTarget);
+
+    if (client->swapped)
+    {
+	__glXSwapGetDrawableAttributesReply (client, &reply, sendBuf);
+    }
+    else
+    {
+	WriteToClient (client, sz_xGLXGetDrawableAttributesReply,
+		       (char *) &reply);
+	WriteToClient (client, sizeof (sendBuf), (char *) sendBuf);
+    }
+
+    return Success;
+}
+
+int __glXBindTexImageEXT(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    ClientPtr		 client = cl->client;
+    __GLXdrawablePrivate *glxPriv;
+    __GLXcontext	 *cx;
+    GLXDrawable		 drawId;
+    int			 buffer;
+    int			 error;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = *((CARD32 *) (pc));
+    buffer = *((INT32 *)  (pc + 4));
+
+    cx = __glXForceCurrent (cl, req->contextTag, &error);
+    if (!cx)
+	return error;
+
+    glxPriv = __glXFindDrawablePrivate (drawId);
+    if (!glxPriv)
+    {
+	client->errorValue = drawId;
+	return __glXBadDrawable;
+    }
+    
+    return (*glxPriv->bindBuffers) (glxPriv, buffer);
+}
+
+int __glXReleaseTexImageEXT(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    ClientPtr		 client = cl->client;
+    __GLXdrawablePrivate *glxPriv;
+    __GLXcontext	 *cx;
+    GLXDrawable		 drawId;
+    int			 buffer;
+    int			 error;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = *((CARD32 *) (pc));
+    buffer = *((INT32 *)  (pc + 4));
+    
+    cx = __glXForceCurrent (cl, req->contextTag, &error);
+    if (!cx)
+	return error;
+
+    glxPriv = __glXFindDrawablePrivate (drawId);
+    if (!glxPriv)
+    {
+	client->errorValue = drawId;
+	return __glXBadDrawable;
+    }
+    
+    return (*glxPriv->releaseBuffers) (glxPriv, buffer);
+}
 
 /************************************************************************/
+
+static int
+__glXRenderBeginEnd (__GLXclientState *cl,
+		     int	      *commandsDone,
+		     GLbyte	      **ppc,
+		     int	      *pleft)
+{
+    ClientPtr	        client = cl->client;
+    int		        left, cmdlen;
+    CARD16	        opcode;
+    __GLXrenderHeader   *hdr;
+    GLbyte	        *pc;
+    __GLXrenderSizeData *entry;
+    int			extra;
+    void		(*proc) (GLbyte *);
+
+    pc = *ppc;
+    left = *pleft;
+    opcode = 0;
+
+    while (left > 0 && opcode != X_GLrop_End)
+    {
+	/*
+	** Verify that the header length and the overall length agree.
+	** Also, each command must be word aligned.
+	*/
+	hdr = (__GLXrenderHeader *) pc;
+	cmdlen = hdr->length;
+	opcode = hdr->opcode;
+
+	/*
+	** Check for core opcodes and grab entry data.
+	*/
+	if ( (opcode >= __GLX_MIN_RENDER_OPCODE) &&
+	     (opcode <= __GLX_MAX_RENDER_OPCODE) ) {
+	    entry = &__glXRenderSizeTable[opcode];
+	    proc = __glXRenderTable[opcode];
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	} else if ( (opcode >= __GLX_MIN_RENDER_OPCODE_EXT) &&
+		    (opcode <= __GLX_MAX_RENDER_OPCODE_EXT) ) {
+	    entry =
+		&__glXRenderSizeTable_EXT[opcode -
+					  __GLX_MIN_RENDER_OPCODE_EXT];
+	    proc = __glXRenderTable_EXT[opcode -
+					__GLX_MIN_RENDER_OPCODE_EXT];
+#endif /* __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT */
+	} else {
+	    client->errorValue = *commandsDone;
+	    cl->beBufLen = 0;
+	    return __glXBadRenderRequest;
+	}
+
+	if (!entry->bytes) {
+	    /* unused opcode */
+	    client->errorValue = *commandsDone;
+	    cl->beBufLen = 0;
+	    return __glXBadRenderRequest;
+	}
+	if (entry->varsize) {
+	    /* variable size command */
+	    extra = (*entry->varsize)(pc + __GLX_RENDER_HDR_SIZE, False);
+	    if (extra < 0) {
+		extra = 0;
+	    }
+	    if (cmdlen != __GLX_PAD(entry->bytes + extra)) {
+		cl->beBufLen = 0;
+		return BadLength;
+	    }
+	} else {
+	    /* constant size command */
+	    if (cmdlen != __GLX_PAD(entry->bytes)) {
+		cl->beBufLen = 0;
+		return BadLength;
+	    }
+	}
+	if (left < cmdlen) {
+	    cl->beBufLen = 0;
+	    return BadLength;
+	}
+
+	(*commandsDone)++;
+
+	pc += cmdlen;
+	left -= cmdlen;
+    }
+
+    if (opcode == X_GLrop_End)
+    {
+	pc = cl->beBuf;
+	left = cl->beBufLen;
+	opcode = 0;
+
+	while (left > 0 && opcode != X_GLrop_End)
+	{
+	    hdr = (__GLXrenderHeader *) pc;
+	    cmdlen = hdr->length;
+	    opcode = hdr->opcode;
+
+	    if ((opcode >= __GLX_MIN_RENDER_OPCODE) &&
+		(opcode <= __GLX_MAX_RENDER_OPCODE))
+	    {
+		entry = &__glXRenderSizeTable[opcode];
+		proc = __glXRenderTable[opcode];
+	    }
+
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	    else
+	    {
+		int index = opcode - __GLX_MIN_RENDER_OPCODE_EXT;
+
+		entry = &__glXRenderSizeTable_EXT[index];
+		proc = __glXRenderTable_EXT[index];
+	    }
+#endif
+
+	    (*proc) (pc + __GLX_RENDER_HDR_SIZE);
+
+	    pc += cmdlen;
+	    left -= cmdlen;
+	}
+
+	cl->beBufLen = 0;
+
+	pc = *ppc;
+	left = *pleft;
+	opcode = 0;
+
+	while (opcode != X_GLrop_End)
+	{
+	    hdr = (__GLXrenderHeader *) pc;
+	    cmdlen = hdr->length;
+	    opcode = hdr->opcode;
+
+	    if ((opcode >= __GLX_MIN_RENDER_OPCODE) &&
+		(opcode <= __GLX_MAX_RENDER_OPCODE))
+	    {
+		entry = &__glXRenderSizeTable[opcode];
+		proc = __glXRenderTable[opcode];
+	    }
+
+#if __GLX_MAX_RENDER_OPCODE_EXT > __GLX_MIN_RENDER_OPCODE_EXT
+	    else
+	    {
+		int index = opcode - __GLX_MIN_RENDER_OPCODE_EXT;
+		entry = &__glXRenderSizeTable_EXT[index];
+		proc = __glXRenderTable_EXT[index];
+	    }
+#endif
+
+	    (*proc) (pc + __GLX_RENDER_HDR_SIZE);
+
+	    pc += cmdlen;
+	    left -= cmdlen;
+	}
+    }
+    else
+    {
+	int size;
+
+	size = pc - *ppc;
+	if (cl->beBufSize < cl->beBufLen + size)
+	{
+	    cl->beBuf = (GLbyte *) Xrealloc (cl->beBuf, cl->beBufLen + size);
+	    if (!cl->beBuf)
+		cl->beBufLen = size = 0;
+
+	    cl->beBufSize = cl->beBufLen + size;
+	}
+
+	if (size)
+	    memcpy (cl->beBuf + cl->beBufLen, *ppc, size);
+
+	cl->beBufLen += size;
+    }
+
+    *ppc = pc;
+    *pleft = left;
+
+    return Success;
+}
 
 /*
 ** Render and Renderlarge are not in the GLX API.  They are used by the GLX
@@ -1503,17 +1808,26 @@ int __glXRender(__GLXclientState *cl, GLbyte *pc)
 	    return BadLength;
 	}
 
-	/*
-	** Skip over the header and execute the command.  We allow the
-	** caller to trash the command memory.  This is useful especially
-	** for things that require double alignment - they can just shift
-	** the data towards lower memory (trashing the header) by 4 bytes
-	** and achieve the required alignment.
-	*/
-	(*proc)(pc + __GLX_RENDER_HDR_SIZE);
-	pc += cmdlen;
-	left -= cmdlen;
-	commandsDone++;
+	if (opcode == X_GLrop_Begin || cl->beBufLen > 0)
+	{
+	    error = __glXRenderBeginEnd (cl, &commandsDone, &pc, &left);
+	    if (error != Success)
+		return error;
+	}
+	else
+	{
+	    /*
+	    ** Skip over the header and execute the command.  We allow the
+	    ** caller to trash the command memory.  This is useful especially
+	    ** for things that require double alignment - they can just shift
+	    ** the data towards lower memory (trashing the header) by 4 bytes
+	    ** and achieve the required alignment.
+	    */
+	    (*proc)(pc + __GLX_RENDER_HDR_SIZE);
+	    pc += cmdlen;
+	    left -= cmdlen;
+	    commandsDone++;
+	}
     }
     __GLX_NOTE_UNFLUSHED_CMDS(glxc);
     return Success;
@@ -1983,6 +2297,10 @@ int __glXVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	return Success;
     case X_GLXvop_BindSwapBarrierSGIX:
         return __glXBindSwapBarrierSGIX(cl, pc);
+    case X_GLXvop_BindTexImageMESA:
+      return __glXBindTexImageEXT(cl, pc);
+    case X_GLXvop_ReleaseTexImageMESA:
+      return __glXReleaseTexImageEXT(cl, pc);
     }
 #endif
 
@@ -2028,6 +2346,8 @@ int __glXVendorPrivateWithReply(__GLXclientState *cl, GLbyte *pc)
 	return __glXCreateContextWithConfigSGIX(cl, pc);
       case X_GLXvop_CreateGLXPixmapWithConfigSGIX:
 	return __glXCreateGLXPixmapWithConfigSGIX(cl, pc);
+      case X_GLXvop_GetDrawableAttributesSGIX:
+	return __glXGetDrawableAttributesSGIX(cl, pc);
       default:
 	break;
     }
