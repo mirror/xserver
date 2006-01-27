@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26 2005/12/09 18:35:20 ajax Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.1 2006/01/18 07:21:42 airlied Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -3025,7 +3025,7 @@ static void fbFetchSourcePict(PicturePtr pict, int x, int y, int width, CARD32 *
 	    {
 		register CARD32 color;
 
-		color = gradientPixel (pGradient, t, pict->repeat);
+		color = gradientPixel (pGradient, t, pict->repeatType);
 		while (buffer < end)
 		    *buffer++ = color;
 	    }
@@ -3034,7 +3034,7 @@ static void fbFetchSourcePict(PicturePtr pict, int x, int y, int width, CARD32 *
 		while (buffer < end) {
 		    if (!mask || *mask++ & maskBits)
 		    {
-			*buffer = gradientPixel (pGradient, t, pict->repeat);
+			*buffer = gradientPixel (pGradient, t, pict->repeatType);
 		    }
 		    ++buffer;
 		    t += inc;
@@ -3062,7 +3062,7 @@ static void fbFetchSourcePict(PicturePtr pict, int x, int y, int width, CARD32 *
 		    t = ((a * x + b * y) >> 16) + off;
 		}
 
-		color = gradientPixel (pGradient, t, pict->repeat);
+		color = gradientPixel (pGradient, t, pict->repeatType);
 		while (buffer < end)
 		    *buffer++ = color;
 	    }
@@ -3080,7 +3080,7 @@ static void fbFetchSourcePict(PicturePtr pict, int x, int y, int width, CARD32 *
 			    y = ((xFixed_48_16)v.vector[1] << 16) / v.vector[2];
 			    t = ((a*x + b*y) >> 16) + off;
 			}
-			*buffer = gradientPixel(pGradient, t, pict->repeat);
+			*buffer = gradientPixel(pGradient, t, pict->repeatType);
 		    }
 		    ++buffer;
 		    v.vector[0] += unit.vector[0];
@@ -3132,7 +3132,7 @@ static void fbFetchSourcePict(PicturePtr pict, int x, int y, int width, CARD32 *
 		      s = (-b + sqrt(det))/(2. * pGradient->radial.a);
 		      *buffer = gradientPixel(pGradient,
 					      (xFixed_48_16)((s*pGradient->radial.m + pGradient->radial.b)*65536),
-					      pict->repeat);
+					      pict->repeatType);
 		    }
 		    ++buffer;
                     rx += cx;
@@ -3264,17 +3264,17 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
 			    if (!affine) {
 				y = fbRepeat (DIV (v.vector[1], v.vector[2]),
 					      pict->pDrawable->height,
-					      pict->repeat);
+					      pict->repeatType);
 				x = fbRepeat (DIV (v.vector[0], v.vector[2]),
 					      pict->pDrawable->width,
-					      pict->repeat);
+					      pict->repeatType);
 			    } else {
 				y = fbRepeat (v.vector[1] >> 16,
 					      pict->pDrawable->height,
-					      pict->repeat);
+					      pict->repeatType);
 				x = fbRepeat (v.vector[0] >> 16,
 					      pict->pDrawable->width,
-					      pict->repeat);
+					      pict->repeatType);
 			    }
 			    buffer[i] = fetch(bits, stride, x + pict->pDrawable->x, y + pict->pDrawable->y, &op);
 			}
@@ -3293,17 +3293,17 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
 			    if (!affine) {
 				y = fbRepeat (DIV (v.vector[1], v.vector[2]),
 					      pict->pDrawable->height,
-					      pict->repeat);
+					      pict->repeatType);
 				x = fbRepeat (DIV (v.vector[0], v.vector[2]),
 					      pict->pDrawable->width,
-					      pict->repeat);
+					      pict->repeatType);
 			    } else {
 				y = fbRepeat (v.vector[1] >> 16,
 					      pict->pDrawable->height,
-					      pict->repeat);
+					      pict->repeatType);
 				x = fbRepeat (v.vector[0] >> 16,
 					      pict->pDrawable->width,
-					      pict->repeat);
+					      pict->repeatType);
 			    }
 			    if (POINT_IN_REGION (0, pict->pCompositeClip, x, y, &box))
 				buffer[i] = fetch(bits, stride, x + pict->pDrawable->x, y + pict->pDrawable->y, &op);
@@ -3402,13 +3402,13 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
                           idisty = 256 - disty;
 
 			  x1 = fbRepeat (x1, pict->pDrawable->width,
-					 pict->repeat);
+					 pict->repeatType);
 			  x2 = fbRepeat (x2, pict->pDrawable->width,
-					 pict->repeat);
+					 pict->repeatType);
 			  y1 = fbRepeat (y1, pict->pDrawable->height,
-					 pict->repeat);
+					 pict->repeatType);
 			  y2 = fbRepeat (y2, pict->pDrawable->height,
-					 pict->repeat);
+					 pict->repeatType);
 
 
 			    tl = fetch(bits, stride, x1 + pict->pDrawable->x,
@@ -3471,13 +3471,13 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
                         idisty = 256 - disty;
 
 			x1 = fbRepeat (x1, pict->pDrawable->width,
-				       pict->repeat);
+				       pict->repeatType);
 			x2 = fbRepeat (x2, pict->pDrawable->width,
-				       pict->repeat);
+				       pict->repeatType);
 			y1 = fbRepeat (y1, pict->pDrawable->height,
-				       pict->repeat);
+				       pict->repeatType);
 			y2 = fbRepeat (y2, pict->pDrawable->height,
-				       pict->repeat);
+				       pict->repeatType);
 
 			    tl = POINT_IN_REGION(0, pict->pCompositeClip, x1, y1, &box)
 				? fetch(bits, stride, x1 + pict->pDrawable->x, y1 + pict->pDrawable->y, &op) : 0;
@@ -3674,11 +3674,11 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
 
                 for (y = y1; y < y2; y++) {
 		  int ty = fbRepeat (y, pict->pDrawable->height,
-				     pict->repeat);
+				     pict->repeatType);
                     for (x = x1; x < x2; x++) {
                         if (*p) {
                             int tx = fbRepeat (x, pict->pDrawable->width,
-						   pict->repeat);
+						   pict->repeatType);
                             if (POINT_IN_REGION (0, pict->pCompositeClip, tx, ty, &box)) {
                                 CARD32 c = fetch(bits, stride, tx + pict->pDrawable->x, ty + pict->pDrawable->y, &op);
 
@@ -3830,12 +3830,12 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	}
     } else if (data->src->alphaMap)
         fetchSrc = fbFetchExternalAlpha;
-    else if (data->src->repeat == RepeatNormal &&
+    else if (data->src->repeatType == RepeatNormal &&
              data->src->pDrawable->width == 1 && data->src->pDrawable->height == 1) {
         fetchSrc = fbFetchSolid;
 	srcClass = SourcePictClassHorizontal;
     }
-    else if (!data->src->transform && data->src->filter != PictFilterConvolution && (data->src->repeat == RepeatNone || data->src->repeat == RepeatNormal))
+    else if (!data->src->transform && data->src->filter != PictFilterConvolution && (data->src->repeatType == RepeatNone || data->src->repeatType == RepeatNormal))
         fetchSrc = fbFetch;
     else
         fetchSrc = fbFetchTransformed;
@@ -3851,12 +3851,12 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	    }
         } else if (data->mask->alphaMap)
             fetchMask = fbFetchExternalAlpha;
-        else if (data->mask->repeat == RepeatNormal
+        else if (data->mask->repeatType == RepeatNormal
                  && data->mask->pDrawable->width == 1 && data->mask->pDrawable->height == 1) {
             fetchMask = fbFetchSolid;
 	    maskClass = SourcePictClassHorizontal;
 	}
-        else if (!data->mask->transform && data->mask->filter != PictFilterConvolution && (data->mask->repeat == RepeatNone || data->mask->repeat == RepeatNormal))
+        else if (!data->mask->transform && data->mask->filter != PictFilterConvolution && (data->mask->repeatType == RepeatNone || data->mask->repeatType == RepeatNormal))
             fetchMask = fbFetch;
         else
             fetchMask = fbFetchTransformed;

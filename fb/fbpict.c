@@ -842,7 +842,7 @@ fbComposite (CARD8      op,
     int		    n;
     BoxPtr	    pbox;
     CompositeFunc   func = NULL;
-    Bool	    srcRepeat = pSrc->pDrawable && pSrc->repeat == RepeatNormal;
+    Bool	    srcRepeat = pSrc->pDrawable && pSrc->repeatType == RepeatNormal;
     Bool	    maskRepeat = FALSE;
     Bool	    srcAlphaMap = pSrc->alphaMap != 0;
     Bool	    maskAlphaMap = FALSE;
@@ -868,15 +868,15 @@ fbComposite (CARD8      op,
     {
 	xMask += pMask->pDrawable->x;
 	yMask += pMask->pDrawable->y;
-	maskRepeat = pMask->repeat == RepeatNormal;
+	maskRepeat = pMask->repeatType == RepeatNormal;
 	maskAlphaMap = pMask->alphaMap != 0;
     }
 
     if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
         && !pSrc->transform && !(pMask && pMask->transform)
         && !maskAlphaMap && !srcAlphaMap && !dstAlphaMap
-	&& (!pSrc->repeat || srcRepeat)
-	&& (!pMask || (!pMask->repeat || maskRepeat))
+	&& (!pSrc->repeatType || srcRepeat)
+	&& (!pMask || (!pMask->repeatType || maskRepeat))
         && (pSrc->filter != PictFilterConvolution)
         && (!pMask || pMask->filter != PictFilterConvolution))
     switch (op) {
