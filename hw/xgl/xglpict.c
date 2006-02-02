@@ -272,7 +272,7 @@ xglUpdatePicture (PicturePtr pPicture)
 
     if (pPixmapPriv->pictureMask & xglPCFillMask)
     {
-	glitz_surface_set_fill (surface, fillMode[pPicture->repeat]);
+	glitz_surface_set_fill (surface, fillMode[pPicture->repeatType]);
     }
 
     if (pPixmapPriv->pictureMask & xglPCFilterMask)
@@ -463,7 +463,7 @@ xglSyncPicture (ScreenPtr  pScreen,
 		break;
 	    }
 
-	    glitz_surface_set_fill (surface, fillMode[pPicture->repeat]);
+	    glitz_surface_set_fill (surface, fillMode[pPicture->repeatType]);
 	    glitz_surface_set_transform (surface, (glitz_transform_t *)
 					 pPicture->transform);
 
