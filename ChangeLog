@@ -1,5 +1,8 @@
 2006-02-01  David Reveman  <davidr@novell.com>
 
+	* fb/fbcompose.c (fbCompositeRect): Add a chunk of code that somehow
+	got lost when moving code from the xserver tree.
+
 	* fb/fbbltone.c: Negative stride fix.
 
 	* hw/xgl/xglglx.h:

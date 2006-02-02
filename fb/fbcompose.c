@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.1 2006/01/18 07:21:42 airlied Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.2 2006/01/27 04:34:28 airlied Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -3872,6 +3872,34 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	if (data->op == PictOpClear || data->op == PictOpSrc)
 	    fetchDest = NULL;
     } 
+    else
+    {
+	fetchDest = fbFetch;
+	store = fbStore;
+
+	switch (data->op) {
+	case PictOpClear:
+	case PictOpSrc:
+	    fetchDest = NULL;
+	    /* fall-through */
+	case PictOpAdd:
+	case PictOpOver:
+	    switch (data->dest->format) {
+	    case PICT_a8r8g8b8:
+	    case PICT_x8r8g8b8:
+		store = NULL;
+		break;
+	    }
+	    break;
+	}
+    }
+
+    if (!store)
+    {
+	int bpp;
+
+	fbGetDrawable (data->dest->pDrawable, bits, stride, bpp, xoff, yoff);
+    }
     else
     {
 	bits = NULL;
