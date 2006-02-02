@@ -32,32 +32,32 @@
 #include "glxext.h"
 #include "glapitable.h"
 
-
 typedef struct _xglGLXFunc {
-    void (*extensionInit)     (void);
-    void (*setVisualConfigs)  (int		    nconfigs,
-			       __GLXvisualConfig    *configs,
-			       void                 **privates);
-    void (*wrapInitVisuals)   (miInitVisualsProcPtr *initVisuals);
-    int  (*initVisuals)	      (VisualPtr	    *visualp,
-			       DepthPtr		    *depthp,
-			       int		    *nvisualp,
-			       int		    *ndepthp,
-			       int		    *rootDepthp,
-			       VisualID		    *defaultVisp,
-			       unsigned long	    sizes,
-			       int		    bitsPerRGB,
-			       int		    preferredVis);
-
+    void (*extensionInit) (void);
+    void (*setVisualConfigs) (int		nconfigs,
+			      __GLXvisualConfig *configs,
+			      void              **privates);
+    void (*wrapInitVisuals) (miInitVisualsProcPtr *initVisuals);
+    int  (*initVisuals)	(VisualPtr     *visualp,
+			 DepthPtr      *depthp,
+			 int	       *nvisualp,
+			 int	       *ndepthp,
+			 int	       *rootDepthp,
+			 VisualID      *defaultVisp,
+			 unsigned long sizes,
+			 int	       bitsPerRGB,
+			 int	       preferredVis);
     void (*flushContextCache) (void);
     void *(*DDXExtensionInfo) (void);
     void *(*DDXScreenInfo) (void);
-  void (*setRenderTables)   (struct _glapi_table	*table);
-    void (*copy_visual_to_context_mode)( __GLcontextModes *mode, const __GLXvisualConfig *config );
-    __GLcontextModes *(*context_modes_create)( unsigned count, size_t minimum_size );
-    void (*context_modes_destroy)( __GLcontextModes * modes );
-    GLint (*convert_from_x_visual_type)( int visualType );
-    GLint (*convert_to_x_visual_type)( int visualType );
+    void (*setRenderTables) (struct _glapi_table *table);
+    void (*copy_visual_to_context_mode) (__GLcontextModes	 *mode,
+					 const __GLXvisualConfig *config);
+    __GLcontextModes *(*context_modes_create) (unsigned count,
+					       size_t   minimumSize);
+    void (*context_modes_destroy) (__GLcontextModes *modes);
+    GLint (*convert_from_x_visual_type) (int visualType);
+    GLint (*convert_to_x_visual_type) (int visualType);
 } xglGLXFuncRec, *xglGLXFuncPtr;
 
 extern xglGLXFuncRec __xglGLXFunc;

@@ -43,7 +43,10 @@ static void *glCoreHandle = 0;
 #define SYM(ptr, name) { (void **) &(ptr), (name) }
 
 __GLXextensionInfo *__xglExtensionInfo;
-__GLXscreenInfo *__xglScreenInfoPtr;
+__GLXscreenInfo	   *__xglScreenInfo;
+
+void *(*__glcore_DDXScreenInfo) (void);
+void *(*__glcore_DDXExtensionInfo) (void);
 
 void
 GlxSetVisualConfigs (int	       nconfigs,
@@ -96,52 +99,52 @@ GlxFlushContextCache (void)
 void
 GlxSetRenderTables (struct _glapi_table *table)
 {
-  (*__xglGLXFunc.setRenderTables) (table);
+    (*__xglGLXFunc.setRenderTables) (table);
 }
 
-struct _glapi_table *_mglapi_Dispatch;
-
-void *(*__glcore_DDXScreenInfo)(void);
-
-void *__glXglDDXScreenInfo(void)
+void *
+__glXglDDXScreenInfo (void)
 {
-  return __xglScreenInfoPtr;
+    return __xglScreenInfo;
 }
 
-void *(*__glcore_DDXExtensionInfo)(void);
-
-void *__glXglDDXExtensionInfo(void)
+void *
+__glXglDDXExtensionInfo( void)
 {
-  return __xglExtensionInfo;
-}	
-
-void _gl_copy_visual_to_context_mode( __GLcontextModes * mode,
-                                 const __GLXvisualConfig * config )
-{
-	(*__xglGLXFunc.copy_visual_to_context_mode)(mode, config);
+    return __xglExtensionInfo;
 }
 
-__GLcontextModes *_gl_context_modes_create( unsigned count, size_t minimum_size )
+void
+_gl_copy_visual_to_context_mode (__GLcontextModes	 *mode,
+				 const __GLXvisualConfig *config)
 {
-	return (*__xglGLXFunc.context_modes_create)(count, minimum_size);
+    (*__xglGLXFunc.copy_visual_to_context_mode) (mode, config);
 }
 
-void _gl_context_modes_destroy( __GLcontextModes * modes )
+__GLcontextModes *
+_gl_context_modes_create (unsigned count,
+			  size_t   minimumSize)
 {
-	(*__xglGLXFunc.context_modes_destroy)(modes);
+    return (*__xglGLXFunc.context_modes_create) (count, minimumSize);
 }
 
-GLint _gl_convert_from_x_visual_type( int visualType )
+void
+_gl_context_modes_destroy (__GLcontextModes *modes)
 {
-	return (*__xglGLXFunc.convert_from_x_visual_type)(visualType);
+    (*__xglGLXFunc.context_modes_destroy) (modes);
 }
 
-GLint _gl_convert_to_x_visual_type( int visualType )
+GLint
+_gl_convert_from_x_visual_type (int visualType)
 {
-	return (*__xglGLXFunc.convert_to_x_visual_type)(visualType);
+    return (*__xglGLXFunc.convert_from_x_visual_type) (visualType);
 }
 
-
+GLint
+_gl_convert_to_x_visual_type (int visualType)
+{
+    return (*__xglGLXFunc.convert_to_x_visual_type) (visualType);
+}
 
 Bool
 xglLoadGLXModules (void)
@@ -157,11 +160,16 @@ xglLoadGLXModules (void)
 	    SYM (__xglGLXFunc.initVisuals,	 "GlxInitVisuals"),
 	    SYM (__xglGLXFunc.flushContextCache, "__glXFlushContextCache"),
 	    SYM (__xglGLXFunc.setRenderTables,   "GlxSetRenderTables"),
-	    SYM (__xglGLXFunc.copy_visual_to_context_mode, "_gl_copy_visual_to_context_mode"),
-	    SYM (__xglGLXFunc.context_modes_create, "_gl_context_modes_create"),
-	    SYM (__xglGLXFunc.context_modes_destroy, "_gl_context_modes_destroy"),
-	    SYM (__xglGLXFunc.convert_from_x_visual_type, "_gl_convert_from_x_visual_type"),
-	    SYM (__xglGLXFunc.convert_to_x_visual_type, "_gl_convert_to_x_visual_type"),
+	    SYM (__xglGLXFunc.copy_visual_to_context_mode,
+		 "_gl_copy_visual_to_context_mode"),
+	    SYM (__xglGLXFunc.context_modes_create,
+		 "_gl_context_modes_create"),
+	    SYM (__xglGLXFunc.context_modes_destroy,
+		 "_gl_context_modes_destroy"),
+	    SYM (__xglGLXFunc.convert_from_x_visual_type,
+		 "_gl_convert_from_x_visual_type"),
+	    SYM (__xglGLXFunc.convert_to_x_visual_type,
+		 "_gl_convert_to_x_visual_type")
 	};
 
 	glXHandle = xglLoadModule ("glx", RTLD_NOW | RTLD_LOCAL);
@@ -179,54 +187,63 @@ xglLoadGLXModules (void)
 
     if (!glCoreHandle)
     {
-        xglSymbolRec ddxsym[] = {
+	xglSymbolRec ddxSym[] = {
 	    SYM (__glcore_DDXExtensionInfo, "__glXglDDXExtensionInfo"),
-	    SYM (__glcore_DDXScreenInfo, "__glXglDDXScreenInfo")
-        };	
+	    SYM (__glcore_DDXScreenInfo,    "__glXglDDXScreenInfo")
+	};
 
 	glCoreHandle = xglLoadModule ("glcore", RTLD_NOW | RTLD_LOCAL);
 	if (!glCoreHandle)
 	    return FALSE;
 
-	if (!xglLookupSymbols (glCoreHandle, ddxsym,
-			       sizeof (ddxsym) / sizeof(ddxsym[0])))
+	if (!xglLookupSymbols (glCoreHandle, ddxSym,
+			       sizeof (ddxSym) / sizeof(ddxSym[0])))
 	{
-	  xglUnloadModule (glCoreHandle);
-	  glCoreHandle = 0;
-	  
-	  return FALSE;
-	}
-
-	__xglScreenInfoPtr = __glcore_DDXScreenInfo();
-	__xglExtensionInfo = __glcore_DDXExtensionInfo();
-	{
-	  xglSymbolRec sym[] = {
-	      SYM (__xglScreenInfoPtr->screenProbe,    "__MESA_screenProbe"),
-  	    SYM (__xglScreenInfoPtr->createContext,  "__MESA_createContext"),
-	    SYM (__xglScreenInfoPtr->createBuffer,   "__MESA_createBuffer"),
-	    SYM (__xglExtensionInfo->resetExtension,
-		 "__MESA_resetExtension"),
-	    SYM (__xglExtensionInfo->initVisuals, "__MESA_initVisuals"),
-	    SYM (__xglExtensionInfo->setVisualConfigs,
-		 "__MESA_setVisualConfigs"),
-
-	  };
-
-
-	  if (!xglLookupSymbols (glCoreHandle, sym,
-				 sizeof (sym) / sizeof (sym[0])))
-	  {
 	    xglUnloadModule (glCoreHandle);
 	    glCoreHandle = 0;
-	    
+
 	    return FALSE;
-	  }
+	}
+
+	__xglScreenInfo    = __glcore_DDXScreenInfo ();
+	__xglExtensionInfo = __glcore_DDXExtensionInfo ();
+
+	if (__xglScreenInfo && __xglExtensionInfo)
+	{
+	    xglSymbolRec sym[] = {
+		SYM (__xglScreenInfo->screenProbe,    "__MESA_screenProbe"),
+		SYM (__xglScreenInfo->createContext,  "__MESA_createContext"),
+		SYM (__xglScreenInfo->createBuffer,   "__MESA_createBuffer"),
+		SYM (__xglExtensionInfo->resetExtension,
+		     "__MESA_resetExtension"),
+		SYM (__xglExtensionInfo->initVisuals, "__MESA_initVisuals"),
+		SYM (__xglExtensionInfo->setVisualConfigs,
+		     "__MESA_setVisualConfigs")
+	    };
+
+	    if (!xglLookupSymbols (glCoreHandle, sym,
+				   sizeof (sym) / sizeof (sym[0])))
+	    {
+		xglUnloadModule (glCoreHandle);
+		glCoreHandle = 0;
+
+		return FALSE;
+	    }
+	}
+	else
+	{
+	    xglUnloadModule (glCoreHandle);
+	    glCoreHandle = 0;
+
+	    return FALSE;
 	}
 
 	if (!xglLoadHashFuncs (glCoreHandle))
 	{
 	    xglUnloadModule (glCoreHandle);
 	    glCoreHandle = 0;
+
+	    return FALSE;
 	}
     }
 

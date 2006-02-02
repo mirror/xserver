@@ -67,11 +67,9 @@ typedef struct _xglGLXScreenInfo {
     GLXCreateBufferProc  createBuffer;
 } xglGLXScreenInfoRec, *xglGLXScreenInfoPtr;
 
-extern __GLXscreenInfo *__xglScreenInfoPtr;
+extern __GLXscreenInfo *__xglScreenInfo;
 
 static xglGLXScreenInfoRec screenInfoPriv;
-
-//extern __GLXscreenInfo __glDDXScreenInfo;
 
 typedef GLboolean (*GLResizeBuffersProc) (__GLdrawableBuffer   *buffer,
 					  GLint		       x,
@@ -5489,10 +5487,10 @@ xglScreenProbe (int screen)
 
     status = (*screenInfoPriv.screenProbe) (screen);
 
-    modes = __xglScreenInfoPtr->modes;
+    modes = __xglScreenInfo->modes;
 
     /* Create Xgl GLX visuals */
-    for (i = 0; i < __xglScreenInfoPtr->numVisuals; i++)
+    for (i = 0; i < __xglScreenInfo->numVisuals; i++)
     {
 	pVisual = xglFindVisualWithId (pScreen, pScreen->visuals[i].vid);
 	if (pVisual)
@@ -5584,17 +5582,17 @@ xglScreenProbe (int screen)
     }
 
     /* Wrap createBuffer */
-    if (__xglScreenInfoPtr->createBuffer != xglCreateBuffer)
+    if (__xglScreenInfo->createBuffer != xglCreateBuffer)
     {
-	screenInfoPriv.createBuffer    = __xglScreenInfoPtr->createBuffer;
-	__xglScreenInfoPtr->createBuffer = xglCreateBuffer;
+	screenInfoPriv.createBuffer   = __xglScreenInfo->createBuffer;
+	__xglScreenInfo->createBuffer = xglCreateBuffer;
     }
 
     /* Wrap createContext */
-    if (__xglScreenInfoPtr->createContext != xglCreateContext)
+    if (__xglScreenInfo->createContext != xglCreateContext)
     {
-	screenInfoPriv.createContext    = __xglScreenInfoPtr->createContext;
-	__xglScreenInfoPtr->createContext = xglCreateContext;
+	screenInfoPriv.createContext   = __xglScreenInfo->createContext;
+	__xglScreenInfo->createContext = xglCreateContext;
     }
 
     return status;
@@ -5722,10 +5720,10 @@ xglInitVisualConfigs (ScreenPtr pScreen)
     GlxSetVisualConfigs (numConfig, pConfig, (void **) ppConfigPriv);
 
     /* Wrap screenProbe */
-    if (__xglScreenInfoPtr->screenProbe != xglScreenProbe)
+    if (__xglScreenInfo->screenProbe != xglScreenProbe)
     {
-	screenInfoPriv.screenProbe    = __xglScreenInfoPtr->screenProbe;
-	__xglScreenInfoPtr->screenProbe = xglScreenProbe;
+	screenInfoPriv.screenProbe   = __xglScreenInfo->screenProbe;
+	__xglScreenInfo->screenProbe = xglScreenProbe;
     }
 
     visuals    = pScreen->visuals;
