@@ -1,3 +1,8 @@
+2006-02-02  David Reveman  <davidr@novell.com>
+
+	* GL/glx/glxscreens.c: Allow support for GL_NV_texture_env_combine4 and
+	GL_ARB_texture_non_power_of_two.
+
 2006-02-01  David Reveman  <davidr@novell.com>
 
 	* GL/mesa/X/xf86glx.c (init_screen_visuals): Pass the correct visual
