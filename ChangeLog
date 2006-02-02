@@ -1,5 +1,9 @@
 2006-02-01  David Reveman  <davidr@novell.com>
 
+	* GL/mesa/X/xf86glx.c (init_screen_visuals): Pass the correct visual
+	to XMesaCreateVisual.
+	Allow ARGB visuals when building with COMPOSITE.
+
 	* fb/fbcompose.c (fbCompositeRect): Add a chunk of code that somehow
 	got lost when moving code from the xserver tree.
 	(fbCompositeRect):

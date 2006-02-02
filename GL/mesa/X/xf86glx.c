@@ -498,6 +498,12 @@ static Bool init_visuals(int *nvisualp, VisualPtr *visualp,
 		    ? (modes->redBits + modes->greenBits +
 		       modes->blueBits + modes->alphaBits)
 		    : rootDepth;
+
+#ifdef COMPOSITE
+		if (pVisual[i].nplanes == 32)
+		    modes->visualRating = GLX_NON_CONFORMANT_CONFIG;
+#endif
+
 	    }
 
 	    /* Save the device-dependent private for this visual */
@@ -596,7 +602,13 @@ static void fixup_visuals(int screen)
 	/* Find a visual that matches the GLX visual's class and size */
 	for (j = 0; j < pScreen->numVisuals; j++) {
 	    if (pVis[j].class == vis_class &&
-		pVis[j].nplanes == nplanes) {
+		(pVis[j].nplanes == nplanes
+
+#ifdef COMPOSITE
+		 || (pVis[j].nplanes == 32 && pVis[j].nplanes == modes->rgbBits)
+#endif
+
+		)) {
 
 		/* Fixup the masks */
 		modes->redMask   = pVis[j].redMask;
@@ -645,7 +657,13 @@ static void init_screen_visuals(int screen)
 
 	for (j = 0; j < pScreen->numVisuals; j++) {
 	    if (pVis[j].class     == vis_class &&
-		pVis[j].nplanes   == nplanes &&
+		(pVis[j].nplanes  == nplanes
+
+#ifdef COMPOSITE
+		 || (pVis[j].nplanes == 32 && pVis[j].nplanes == modes->rgbBits)
+#endif
+
+		    ) &&
 		pVis[j].redMask   == modes->redMask &&
 		pVis[j].greenMask == modes->greenMask &&
 		pVis[j].blueMask  == modes->blueMask &&
@@ -654,7 +672,7 @@ static void init_screen_visuals(int screen)
 		/* Create the XMesa visual */
 		pXMesaVisual[i] =
 		    XMesaCreateVisual(pScreen,
-				      pVis,
+				      &pVis[j],
 				      modes->rgbMode,
 				      (modes->alphaBits > 0),
 				      modes->doubleBufferMode,
