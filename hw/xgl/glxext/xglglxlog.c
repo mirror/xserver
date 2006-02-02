@@ -4458,9 +4458,7 @@ static struct _glapi_table __logRenderTable = {
     logGenerateMipmapEXT,
     0, /* glStencilFuncSeparate */
     0, /* glStencilOpSeparate */
-    0, /* glStencilMaskSeparate */
-    0, /* glGetQueryObjecti64vEXT */
-    0  /* glGetQueryObjectui64vEXT */
+    0  /* glStencilMaskSeparate */
 };
 
 static Bool isCurrent = FALSE;

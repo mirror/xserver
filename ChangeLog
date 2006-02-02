@@ -1,5 +1,10 @@
 2006-02-01  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glxext/xglglxlog.c:
+	* hw/xgl/glxext/xglglxext.c: Match _glapi_table in mesa 6.4.1.
+	(xglScreenProbe): __xglScreenInfo -> __xglScreenInfoPtr.
+
+	* hw/xgl/glxext/xglglxlog.c: 
 	* hw/xgl/glxext/xglglxext.c (xglScreenProbe): modes are no longer
 	necessarily in an array.
 

@@ -4059,9 +4059,7 @@ static struct _glapi_table __glNativeRenderTable = {
     xglNoOpGenerateMipmapEXT,
     0, /* glStencilFuncSeparate */
     0, /* glStencilOpSeparate */
-    0, /* glStencilMaskSeparate */
-    0, /* glGetQueryObjecti64vEXT */
-    0  /* glGetQueryObjectui64vEXT */
+    0  /* glStencilMaskSeparate */
 };
 
 static void
@@ -5491,10 +5489,10 @@ xglScreenProbe (int screen)
 
     status = (*screenInfoPriv.screenProbe) (screen);
 
-    modes = __xglScreenInfo->modes;
+    modes = __xglScreenInfoPtr->modes;
 
     /* Create Xgl GLX visuals */
-    for (i = 0; i < __xglScreenInfo->numVisuals; i++)
+    for (i = 0; i < __xglScreenInfoPtr->numVisuals; i++)
     {
 	pVisual = xglFindVisualWithId (pScreen, pScreen->visuals[i].vid);
 	if (pVisual)
