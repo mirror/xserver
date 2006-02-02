@@ -2,6 +2,8 @@
 
 	* fb/fbcompose.c (fbCompositeRect): Add a chunk of code that somehow
 	got lost when moving code from the xserver tree.
+	(fbCompositeRect):
+	(fbFetchTransformed): Repeat type correction.
 
 	* fb/fbbltone.c: Negative stride fix.
 

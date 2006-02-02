@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.2 2006/01/27 04:34:28 airlied Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.3 2006/02/02 02:20:24 davidr Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -3252,7 +3252,7 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
 
     if (pict->filter == PictFilterNearest)
     {
-        if (pict->repeatType == RepeatNormal) {
+        if (pict->repeatType != RepeatNone) {
             if (REGION_NUM_RECTS(pict->pCompositeClip) == 1) {
                 box = pict->pCompositeClip->extents;
                 for (i = 0; i < width; ++i) {
@@ -3367,7 +3367,7 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
             }
         }
     } else if (pict->filter == PictFilterBilinear) {
-        if (pict->repeatType == RepeatNormal) {
+        if (pict->repeatType != RepeatNone) {
             if (REGION_NUM_RECTS(pict->pCompositeClip) == 1) {
                 box = pict->pCompositeClip->extents;
                 for (i = 0; i < width; ++i) {
@@ -3830,7 +3830,7 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	}
     } else if (data->src->alphaMap)
         fetchSrc = fbFetchExternalAlpha;
-    else if (data->src->repeatType == RepeatNormal &&
+    else if (data->src->repeatType != RepeatNone &&
              data->src->pDrawable->width == 1 && data->src->pDrawable->height == 1) {
         fetchSrc = fbFetchSolid;
 	srcClass = SourcePictClassHorizontal;
@@ -3851,7 +3851,7 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	    }
         } else if (data->mask->alphaMap)
             fetchMask = fbFetchExternalAlpha;
-        else if (data->mask->repeatType == RepeatNormal
+        else if (data->mask->repeatType != RepeatNone
                  && data->mask->pDrawable->width == 1 && data->mask->pDrawable->height == 1) {
             fetchMask = fbFetchSolid;
 	    maskClass = SourcePictClassHorizontal;
@@ -4090,7 +4090,7 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	}
     } else if (data->src->alphaMap)
         fetchSrc = fbFetchExternalAlpha;
-    else if (data->src->repeatType == RepeatNormal &&
+    else if (data->src->repeatType != RepeatNone &&
              data->src->pDrawable->width == 1 && data->src->pDrawable->height == 1) {
         fetchSrc = fbFetchSolid;
 	srcClass = SourcePictClassHorizontal;
@@ -4111,7 +4111,7 @@ fbCompositeRect (const FbComposeData *data, CARD32 *scanline_buffer)
 	    }
         } else if (data->mask->alphaMap)
             fetchMask = fbFetchExternalAlpha;
-        else if (data->mask->repeatType == RepeatNormal
+        else if (data->mask->repeatType != RepeatNone
                  && data->mask->pDrawable->width == 1 && data->mask->pDrawable->height == 1) {
             fetchMask = fbFetchSolid;
 	    maskClass = SourcePictClassHorizontal;
