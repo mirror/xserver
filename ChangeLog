@@ -1,5 +1,8 @@
 2006-02-01  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glxext/xglglxext.c (xglScreenProbe): modes are no longer
+	necessarily in an array.
+
 	* hw/xgl/xglcompose.c (xglCompositeGeneral):
 	* hw/xgl/xglpict.c (xglUpdatePicture): repeat -> repeatType.
 

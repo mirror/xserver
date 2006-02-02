@@ -5481,17 +5481,20 @@ xglCreateBuffer (__GLXdrawablePrivate *glxPriv)
 static Bool
 xglScreenProbe (int screen)
 {
-    ScreenPtr    pScreen = screenInfo.screens[screen];
-    xglVisualPtr pVisual;
-    Bool         status;
-    int          i;
+    ScreenPtr	     pScreen = screenInfo.screens[screen];
+    __GLcontextModes *modes;
+    xglVisualPtr     pVisual;
+    Bool	     status;
+    int		     i;
 
     XGL_SCREEN_PRIV (pScreen);
 
     status = (*screenInfoPriv.screenProbe) (screen);
 
+    modes = __xglScreenInfo->modes;
+
     /* Create Xgl GLX visuals */
-    for (i = 0; i < __xglScreenInfoPtr->numVisuals; i++)
+    for (i = 0; i < __xglScreenInfo->numVisuals; i++)
     {
 	pVisual = xglFindVisualWithId (pScreen, pScreen->visuals[i].vid);
 	if (pVisual)
@@ -5500,9 +5503,9 @@ xglScreenProbe (int screen)
 	    unsigned long	    mask;
 
 	    templ.color        = pVisual->format.surface->color;
-	    templ.depth_size   = __xglScreenInfoPtr->modes[i].depthBits;
-	    templ.stencil_size = __xglScreenInfoPtr->modes[i].stencilBits;
-	    templ.doublebuffer = __xglScreenInfoPtr->modes[i].doubleBufferMode;
+	    templ.depth_size   = modes->depthBits;
+	    templ.stencil_size = modes->stencilBits;
+	    templ.doublebuffer = modes->doubleBufferMode;
 	    templ.samples      = 1;
 
 	    mask =
@@ -5578,6 +5581,8 @@ xglScreenProbe (int screen)
 		}
 	    }
 	}
+
+	modes = modes->next;
     }
 
     /* Wrap createBuffer */
