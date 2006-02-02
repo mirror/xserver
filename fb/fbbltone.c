@@ -52,12 +52,12 @@
 
 #define LoadBits {\
     if (leftShift) { \
-	bitsRight = (src < srcEnd ? *src++ : 0); \
+	bitsRight = (src != srcEnd ? *src++ : 0); \
 	bits = (FbStipLeft (bitsLeft, leftShift) | \
 		FbStipRight(bitsRight, rightShift)); \
 	bitsLeft = bitsRight; \
     } else \
-	bits = (src < srcEnd ? *src++ : 0); \
+	bits = (src != srcEnd ? *src++ : 0); \
 }
     
 #ifndef FBNOPIXADDR
@@ -538,7 +538,7 @@ const FbBits	fbStipple24Bits[3][1 << FbStip24Len] = {
 	stip = FbLeftStipBits(bits, len); \
     } else { \
 	stip = FbLeftStipBits(bits, remain); \
-	bits = (src < srcEnd ? *src++ : 0); \
+	bits = (src != srcEnd ? *src++ : 0); \
 	__len = (len) - remain; \
 	stip = FbMergePartStip24Bits(stip, FbLeftStipBits(bits, __len), \
 				     remain, __len); \

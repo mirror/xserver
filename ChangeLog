@@ -1,5 +1,7 @@
 2006-02-01  David Reveman  <davidr@novell.com>
 
+	* fb/fbbltone.c: Negative stride fix.
+
 	* hw/xgl/xglglx.h:
 	* hw/xgl/xglglx.c:
 	* hw/xgl/glxext/xglglxext.c: Some GLX code cleanups.
