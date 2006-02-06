@@ -2297,9 +2297,9 @@ int __glXVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	return Success;
     case X_GLXvop_BindSwapBarrierSGIX:
         return __glXBindSwapBarrierSGIX(cl, pc);
-    case X_GLXvop_BindTexImageMESA:
+    case X_GLXvop_BindTexImageEXT:
       return __glXBindTexImageEXT(cl, pc);
-    case X_GLXvop_ReleaseTexImageMESA:
+    case X_GLXvop_ReleaseTexImageEXT:
       return __glXReleaseTexImageEXT(cl, pc);
     }
 #endif

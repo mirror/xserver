@@ -142,7 +142,7 @@ static char GLXServerExtensions[] =
                         "GLX_SGIX_swap_barrier "
 #endif
 			"GLX_SGIX_fbconfig "
-			"GLX_MESA_render_texture "
+			"GLX_EXT_texture_from_pixmap "
 			;
 
 /*

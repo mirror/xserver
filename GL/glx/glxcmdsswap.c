@@ -410,15 +410,15 @@ int __glXSwapGetDrawableAttributesSGIX(__GLXclientState *cl, char *pc)
 int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLchar *pc)
 {
     xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
-    GLXDrawable		 *drawId;
-    int			 *buffer;
+    CARD32		 *drawId;
+    INT32		 *buffer;
     
     __GLX_DECLARE_SWAP_VARIABLES;
 
     pc += __GLX_VENDPRIV_HDR_SIZE;
 
-    drawId = ((GLXDrawable *) (pc));
-    buffer = ((int *)	      (pc + 4));
+    drawId = ((CARD32 *) (pc));
+    buffer = ((INT32 *)  (pc + 4));
     
     __GLX_SWAP_SHORT(&req->length);
     __GLX_SWAP_INT(&req->contextTag);
@@ -431,15 +431,15 @@ int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLchar *pc)
 int __glXSwapReleaseTexImageEXT(__GLXclientState *cl, GLchar *pc)
 {
     xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
-    GLXDrawable		 *drawId;
-    int			 *buffer;
+    CARD32		 *drawId;
+    INT32		 *buffer;
     
     __GLX_DECLARE_SWAP_VARIABLES;
 
     pc += __GLX_VENDPRIV_HDR_SIZE;
 
-    drawId = ((GLXDrawable *) (pc));
-    buffer = ((int *)	      (pc + 4));
+    drawId = ((CARD32 *) (pc));
+    buffer = ((INT32 *)  (pc + 4));
     
     __GLX_SWAP_SHORT(&req->length);
     __GLX_SWAP_INT(&req->contextTag);
@@ -1083,9 +1083,9 @@ int __glXSwapVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	__GLX_SWAP_INT(pc + 4);
 	CALL_SamplePatternSGIS( GET_DISPATCH(), (*(GLenum *)(pc + 4)) );
 	return Success;
-    case X_GLXvop_BindTexImageMESA:
+    case X_GLXvop_BindTexImageEXT:
 	return __glXSwapBindTexImageEXT(cl, pc);
-    case X_GLXvop_ReleaseTexImageMESA:
+    case X_GLXvop_ReleaseTexImageEXT:
 	return __glXSwapReleaseTexImageEXT(cl, pc);  
     }
 #endif

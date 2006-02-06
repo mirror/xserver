@@ -1,3 +1,16 @@
+2006-02-06  David Reveman  <davidr@novell.com>
+
+	* GL/glx/glxscreens.c: GLX_MESA_render_texture ->
+	GLX_EXT_texture_from_pixmap.
+
+	* GL/glx/glxcmdsswap.c (__glXSwapVendorPrivate):
+	* GL/glx/glxcmds.c (__glXVendorPrivate): X_GLXvop_BindTexImageMESA ->
+	X_GLXvop_BindTexImageEXT and X_GLXvop_ReleaseTexImageMESA ->
+	X_GLXvop_ReleaseTexImageEXT.
+
+	* GL/glx/glxcmdsswap.c (__glXSwapBindTexImageEXT):
+	(__glXSwapReleaseTexImageEXT): Correct types for drawId and buffer.
+
 2006-02-02  David Reveman  <davidr@novell.com>
 
 	* GL/glx/glxscreens.c: Allow support for GL_NV_texture_env_combine4 and
