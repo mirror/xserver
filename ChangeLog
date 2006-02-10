@@ -1,3 +1,7 @@
+2006-02-10  David Reveman  <davidr@novell.com>
+
+	* GL/symlink-mesa.sh: Add glapi.c to symlink_mesa_glapi.
+
 2006-02-06  David Reveman  <davidr@novell.com>
 
 	* GL/glx/glxscreens.c: GLX_MESA_render_texture ->

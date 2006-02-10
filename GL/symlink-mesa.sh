@@ -64,6 +64,7 @@ symlink_mesa_glapi() {
 
     action dispatch.h
     action glapi.h
+    action glapi.c
     action glapioffsets.h
     action glapitable.h
     action glapitemp.h
