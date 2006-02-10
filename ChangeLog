@@ -1,5 +1,7 @@
 2006-02-10  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/xglscreen.c (xglScreenInit): Remove warning.
+
 	* configure.ac:
 	* hw/xgl/Makefile.am:
 	* hw/xgl/egl/Makefile.am:

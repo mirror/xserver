@@ -260,7 +260,6 @@ xglScreenInit (ScreenPtr pScreen)
 	return FALSE;
 
 #ifdef COMPOSITE
-#warning "composite building"
     if (!compScreenInit (pScreen))
 	return FALSE;
 #endif
