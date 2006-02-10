@@ -432,7 +432,7 @@ compUnredirectOneSubwindow (WindowPtr pParent, WindowPtr pWin)
 }
 
 static PixmapPtr
-compNewPixmap (WindowPtr pWin, int x, int y, int w, int h)
+compNewPixmap (WindowPtr pWin, int x, int y, int w, int h, Bool backfill)
 {
     ScreenPtr	    pScreen = pWin->drawable.pScreen;
     WindowPtr	    pParent = pWin->parent;
@@ -446,7 +446,10 @@ compNewPixmap (WindowPtr pWin, int x, int y, int w, int h)
     
     pPixmap->screen_x = x;
     pPixmap->screen_y = y;
-    
+
+    if (!backfill)
+        return pPixmap;
+
     pGC = GetScratchGC (pWin->drawable.depth, pScreen);
     
     /*
@@ -467,6 +470,7 @@ compNewPixmap (WindowPtr pWin, int x, int y, int w, int h)
 			       w, h, 0, 0);
 	FreeScratchGC (pGC);
     }
+
     return pPixmap;
 }
 
@@ -478,7 +482,7 @@ compAllocPixmap (WindowPtr pWin)
     int		    y = pWin->drawable.y - bw;
     int		    w = pWin->drawable.width + (bw << 1);
     int		    h = pWin->drawable.height + (bw << 1);
-    PixmapPtr	    pPixmap = compNewPixmap (pWin, x, y, w, h);
+    PixmapPtr	    pPixmap = compNewPixmap (pWin, x, y, w, h, TRUE);
     CompWindowPtr   cw = GetCompWindow (pWin);
 
     if (!pPixmap)
@@ -548,7 +552,7 @@ compReallocPixmap (WindowPtr pWin, int draw_x, int draw_y,
     pix_h = h + (bw << 1);
     if (pix_w != pOld->drawable.width || pix_h != pOld->drawable.height)
     {
-	pNew = compNewPixmap (pWin, pix_x, pix_y, pix_w, pix_h);
+	pNew = compNewPixmap (pWin, pix_x, pix_y, pix_w, pix_h, FALSE);
 	if (!pNew)
 	    return FALSE;
 	cw->pOldPixmap = pOld;

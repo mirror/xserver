@@ -257,4 +257,7 @@ compCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc);
 void
 compWindowUpdate (WindowPtr pWin);
 
+int
+compRedirectMode(WindowPtr pWin);
+
 #endif /* _COMPINT_H_ */

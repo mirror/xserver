@@ -1,5 +1,11 @@
 2006-02-10  David Reveman  <davidr@novell.com>
 
+	* composite/compwindow.c:
+	* composite/compint.h:
+	* composite/compinit.c:
+	* composite/compext.c:
+	* composite/compalloc.c: Merge some changes from redhat-xdc2006 branch.
+
 	* Xext/Makefile.am (MITSHM_SRCS): Add shmint.h.
 
 	* GL/symlink-mesa.sh: Add glapi.c to symlink_mesa_glapi.

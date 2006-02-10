@@ -296,6 +296,34 @@ compImplicitRedirect (WindowPtr pWin, WindowPtr pParent)
     return FALSE;
 }
 
+/*
+ * We're lazy about creating window privates, since redirecting a window
+ * implicitly redirects its children.  So we have to walk up towards the
+ * root to find out how we're being redirected.
+ */
+int
+compRedirectMode(WindowPtr pWin)
+{
+    CompWindowPtr cw = NULL;
+
+    if (CompWindowPrivateIndex == -1) {
+        return -1;
+    }
+
+    for (; pWin; pWin = pWin->parent) {
+        if (pWin->parent == pWin || pWin->parent == NULL)
+            break; /* failure */
+        if ((cw = GetCompWindow(pWin)))
+            break; /* success */
+    }
+
+    if (!cw) {
+        return -1;
+    }
+
+    return cw->update;
+}
+
 void
 compMoveWindow (WindowPtr pWin, int x, int y, WindowPtr pSib, VTKind kind)
 {
@@ -548,7 +576,9 @@ compCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 	REGION_TRANSLATE (prgnSrc, prgnSrc,
 			  pWin->drawable.x - ptOldOrg.x,
 			  pWin->drawable.y - ptOldOrg.y);
-	DamageDamageRegion (&pWin->drawable, prgnSrc);
+#if 0
+   DamageDamageRegion (&pWin->drawable, prgnSrc);
+#endif
     }
     cs->CopyWindow = pScreen->CopyWindow;
     pScreen->CopyWindow = compCopyWindow;
@@ -627,7 +657,9 @@ compSetRedirectBorderClip (WindowPtr pWin, RegionPtr pRegion)
     /*
      * Report that as damaged so it will be redrawn
      */
+#if 0
     DamageDamageRegion (&pWin->drawable, &damage);
+#endif
     REGION_UNINIT (pScreen, &damage);
     /*
      * Save the new border clip region

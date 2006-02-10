@@ -28,10 +28,10 @@
 
 #include "compint.h"
 
-int	CompScreenPrivateIndex;
-int	CompWindowPrivateIndex;
-int	CompSubwindowsPrivateIndex;
-int	CompGeneration;
+int	CompScreenPrivateIndex = -1;
+int	CompWindowPrivateIndex= -1;
+int	CompSubwindowsPrivateIndex = -1;
+int	CompGeneration = -1;
 
 static Bool
 compCloseScreen (int index, ScreenPtr pScreen)
