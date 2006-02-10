@@ -1,5 +1,7 @@
 2006-02-10  David Reveman  <davidr@novell.com>
 
+	* Xext/Makefile.am (MITSHM_SRCS): Add shmint.h.
+
 	* GL/symlink-mesa.sh: Add glapi.c to symlink_mesa_glapi.
 
 2006-02-06  David Reveman  <davidr@novell.com>
