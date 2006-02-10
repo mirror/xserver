@@ -1,7 +1,7 @@
-AM_CFLAGS = \
-	@SERVER_DEFINES@    \
-	-DHAVE_XGL_CONFIG_H \
-	-DHAVE_DIX_CONFIG_H \
+AM_CFLAGS =		     \
+	@SERVER_DEFINES@     \
+	-DHAVE_XGL_CONFIG_H  \
+	-DHAVE_DIX_CONFIG_H  \
 	$(XGLMODULES_CFLAGS) \
 	-I$(top_srcdir)/hw/xgl 
 

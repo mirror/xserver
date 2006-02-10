@@ -4,20 +4,20 @@ endif
 
 DIST_SUBDIRS = module
 
-SUBDIRS =		  \
-	.		  \
+SUBDIRS =		   \
+	.		   \
 	$(XGL_MODULE_DIRS)
 
-AM_CFLAGS = \
-	-I$(srcdir)/.. \
-	-I$(srcdir)/../glxext \
-	-I$(top_srcdir)/GL/glx \
-	-I$(top_srcdir)/GL/include \
-	-I@MESA_SOURCE@/include \
+AM_CFLAGS =			       \
+	-I$(top_srcdir)/hw/xgl	       \
+	-I$(top_srcdir)/hw/xgl/glxext  \
+	-I$(top_srcdir)/GL/glx	       \
+	-I$(top_srcdir)/GL/include     \
+	-I@MESA_SOURCE@/include	       \
 	-I@MESA_SOURCE@/src/mesa/glapi \
-	@SERVER_DEFINES@ \
-	-DHAVE_XGL_CONFIG_H \
-	-DHAVE_DIX_CONFIG_H \
+	@SERVER_DEFINES@	       \
+	-DHAVE_XGL_CONFIG_H	       \
+	-DHAVE_DIX_CONFIG_H	       \
 	$(XGLXMODULES_CFLAGS)
 
 noinst_LTLIBRARIES = libxglx.la

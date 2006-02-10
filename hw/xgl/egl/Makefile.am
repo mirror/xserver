@@ -4,12 +4,12 @@ endif
 
 DIST_SUBDIRS = module
 
-SUBDIRS =		  \
-	.		  \
+SUBDIRS =		   \
+	.		   \
 	$(XGL_MODULE_DIRS)
 
-AM_CFLAGS = \
-	@SERVER_DEFINES@ \
+AM_CFLAGS =		    \
+	@SERVER_DEFINES@    \
 	-DHAVE_XGL_CONFIG_H \
 	-DHAVE_DIX_CONFIG_H \
 	$(XEGLMODULES_CFLAGS)
@@ -26,20 +26,20 @@ libxegl_la_SOURCES = \
 
 Xegl_DEPENDENCIES = @XEGL_LIBS@
 Xegl_LDFLAGS	  = -export-dynamic
-Xegl_SOURCES	  = \
-	xeglinit.c \
-	$(top_srcdir)/mi/miinitext.c \
+Xegl_SOURCES	  =		       \
+	xeglinit.c		       \
+	$(top_srcdir)/mi/miinitext.c   \
 	$(top_srcdir)/Xext/dpmsstubs.c \
-	$(top_srcdir)/Xi/stubs.c \
+	$(top_srcdir)/Xi/stubs.c       \
 	$(top_srcdir)/fb/fbcmap.c
-Xegl_LDADD = \
-	libxegl.la \
-	../libxgl.a \
-	$(XORG_CORE_LIBS) \
-	$(XEGL_LIBS) \
-	$(XSERVER_LIBS) \
-	$(EXTENSION_LIBS) \
+Xegl_LDADD =				\
+	libxegl.la			\
+	$(top_builddir)/hw/xgl/libxgl.a \
+	$(XORG_CORE_LIBS)		\
+	$(XEGL_LIBS)			\
+	$(XSERVER_LIBS)			\
+	$(EXTENSION_LIBS)		\
 	$(XGLXMODULES_LIBS)
-Xegl_programs	  = Xegl
+Xegl_programs = Xegl
 
 bin_PROGRAMS = $(Xegl_programs)

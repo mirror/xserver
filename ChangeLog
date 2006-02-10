@@ -1,5 +1,15 @@
 2006-02-10  David Reveman  <davidr@novell.com>
 
+	* configure.ac:
+	* hw/xgl/Makefile.am:
+	* hw/xgl/egl/Makefile.am:
+	* hw/xgl/egl/module/Makefile.am:
+	* hw/xgl/glx/Makefile.am:
+	* hw/xgl/glx/module/Makefile.am:
+	* hw/xgl/glxext/Makefile.am:
+	* hw/xgl/glxext/module/Makefile.am: Fix and cleanup (_DEPENDENCIES and
+	_LIBS should now be correct).
+
 	* composite/compwindow.c:
 	* composite/compint.h:
 	* composite/compinit.c:

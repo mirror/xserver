@@ -18,13 +18,13 @@ SUBDIRS = 		\
 	$(XGLX_SUBDIRS) \
 	$(XEGL_SUBDIRS)
 
-AM_CFLAGS = \
-	@SERVER_DEFINES@ \
-	-DHAVE_XGL_CONFIG_H \
-	-DHAVE_DIX_CONFIG_H \
-	-I$(top_srcdir)/GL/glx			\
-	-I$(top_srcdir)/GL/include		\
-	-I@MESA_SOURCE@/include \
+AM_CFLAGS =			       \
+	@SERVER_DEFINES@	       \
+	-DHAVE_XGL_CONFIG_H	       \
+	-DHAVE_DIX_CONFIG_H	       \
+	-I$(top_srcdir)/GL/glx	       \
+	-I$(top_srcdir)/GL/include     \
+	-I@MESA_SOURCE@/include	       \
 	-I@MESA_SOURCE@/src/mesa/glapi \
 	$(XGLMODULES_CFLAGS)
 
@@ -56,7 +56,7 @@ libxgl_a_SOURCES =     \
 	xglpict.c      \
 	xglglyph.c     \
 	xgltrap.c      \
-	xglloader.c     \
+	xglloader.c    \
 	xglhash.c      \
 	xglglx.c       \
 	xglxv.c
@@ -64,19 +64,24 @@ libxgl_a_SOURCES =     \
 EXTRA_DIST = \
 	xglmodule.h
 
-Xgl_LDFLAGS = -export-dynamic
-Xgl_SOURCES = \
-	xglinit.c \
-	$(top_srcdir)/mi/miinitext.c \
-	$(top_srcdir)/Xext/dpmsstubs.c \
-	$(top_srcdir)/Xi/stubs.c \
-	$(top_srcdir)/fb/fbcmap.c
-Xgl_LDADD = \
-	libxgl.a \
+Xgl_DEPENDENCIES =	  \
 	$(XORG_CORE_LIBS) \
-	$(XGL_LIBS) \
-	$(XSERVER_LIBS) \
-	$(EXTENSION_LIBS) -lglitz -ldl
+	$(XGL_LIBS)
+Xgl_LDFLAGS = -export-dynamic
+Xgl_SOURCES =			       \
+	xglinit.c		       \
+	$(top_srcdir)/mi/miinitext.c   \
+	$(top_srcdir)/Xext/dpmsstubs.c \
+	$(top_srcdir)/Xi/stubs.c       \
+	$(top_srcdir)/fb/fbcmap.c
+Xgl_LDADD =		   \
+	libxgl.a	   \
+	$(XORG_CORE_LIBS)  \
+	$(XSERVER_LIBS)	   \
+	$(XGL_LIBS)	   \
+	$(XGLMODULES_LIBS) \
+	-ldl
+
 Xgl_programs = Xgl
 
 bin_PROGRAMS = $(Xgl_programs)
