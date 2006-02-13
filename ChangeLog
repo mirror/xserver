@@ -1,3 +1,11 @@
+2006-02-13  Eric Anholt  <anholt@FreeBSD.org>
+
+	* GL/glx/indirect_dispatch.c:
+	* GL/glx/indirect_dispatch_swap.c:
+	* GL/glx/indirect_reqsize.c:
+	* GL/glx/indirect_util.c:
+	Merge glx-on-FreeBSD fixes from trunk.
+
 2006-02-13  David Reveman  <davidr@novell.com>
 
 	* GL/mesa/swrast/Makefile.am: Mesa CVS sources.
