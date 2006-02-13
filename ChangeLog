@@ -1,3 +1,7 @@
+2006-02-13  David Reveman  <davidr@novell.com>
+
+	* GL/mesa/swrast/Makefile.am: Mesa CVS sources.
+
 2006-02-10  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/xglscreen.c (xglScreenInit): Remove warning.
