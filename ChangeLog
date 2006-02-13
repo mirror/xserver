@@ -1,5 +1,11 @@
 2006-02-13  Eric Anholt  <anholt@FreeBSD.org>
 
+	* configure.ac:
+	* hw/xgl/Makefile.am:
+	Only use -ldl if it exists.
+
+2006-02-13  Eric Anholt  <anholt@FreeBSD.org>
+
 	* GL/glx/indirect_dispatch.c:
 	* GL/glx/indirect_dispatch_swap.c:
 	* GL/glx/indirect_reqsize.c:

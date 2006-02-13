@@ -79,8 +79,7 @@ Xgl_LDADD =		   \
 	$(XORG_CORE_LIBS)  \
 	$(XSERVER_LIBS)	   \
 	$(XGL_LIBS)	   \
-	$(XGLMODULES_LIBS) \
-	-ldl
+	$(XGLMODULES_LIBS)
 
 Xgl_programs = Xgl
 
