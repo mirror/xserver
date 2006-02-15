@@ -1,3 +1,21 @@
+2006-02-15  David Reveman  <davidr@novell.com>
+
+	* GL/mesa/tnl/Makefile.am (AM_CFLAGS):
+	* GL/mesa/swrast_setup/Makefile.am (AM_CFLAGS):
+	* GL/mesa/swrast/Makefile.am (AM_CFLAGS):
+	* GL/mesa/shader/slang/Makefile.am (AM_CFLAGS):
+	* GL/mesa/shader/grammar/Makefile.am (AM_CFLAGS):
+	* GL/mesa/shader/Makefile.am (AM_CFLAGS):
+	* GL/mesa/math/Makefile.am (AM_CFLAGS):
+	* GL/mesa/main/Makefile.am (AM_CFLAGS):
+	* GL/mesa/glapi/Makefile.am (AM_CFLAGS):
+	* GL/mesa/array_cache/Makefile.am (AM_CFLAGS):
+	* GL/mesa/X/Makefile.am (AM_CFLAGS):
+	* GL/mesa/Makefile.am (libGLcore_la_CFLAGS):
+	* GL/glx/Makefile.am (AM_CFLAGS): Add GLX_CFLAGS. (#5835)
+
+	* configure.ac: Add -D_XSERVER64 to GLX_CFLAGS if 64bit. (#5835)
+
 2006-02-13  Eric Anholt  <anholt@FreeBSD.org>
 
 	* configure.ac:
