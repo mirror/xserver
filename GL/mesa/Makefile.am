@@ -2,7 +2,7 @@ SUBDIRS = main math array_cache swrast swrast_setup tnl shader X glapi
 
 noinst_LTLIBRARIES = libGLcore.la
 
-libGLcore_la_CFLAGS = @GLX_CFLAGS@ -DUSE_MGL_NAMESPACE -UHAVE_CONFIG_H -DGLXEXT \
+libGLcore_la_CFLAGS = @DIX_CFLAGS@ -DUSE_MGL_NAMESPACE -UHAVE_CONFIG_H -DGLXEXT \
 		-DXF86DRI -DGLX_DIRECT_RENDERING -DGLX_USE_DLOPEN -DGLX_USE_MESA
 
 libGLcore_la_SOURCES = dummy.c

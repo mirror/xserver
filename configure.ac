@@ -535,11 +535,6 @@ if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
 	PKG_CHECK_MODULES([XLIB], [x11])
 	AC_SUBST(XLIB_CFLAGS)
 
-	if test "$ac_cv_sizeof_unsigned_long" = 8; then
-		GLX_CFLAGS=-D_XSERVER64
-	fi
-	AC_SUBST(GLX_CFLAGS)
-
 	AC_DEFINE(GLXEXT, 1, [Build GLX extension])
 	GLX_LIBS='$(top_builddir)/GL/glx/libglx.la $(top_builddir)/GL/mesa/libGLcore.la'
 	test -d GL || mkdir GL

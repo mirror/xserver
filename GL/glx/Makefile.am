@@ -3,7 +3,6 @@ noinst_LTLIBRARIES = libglx.la
 AM_CFLAGS = \
 	@DIX_CFLAGS@ \
 	@GL_CFLAGS@ \
-	@GLX_CFLAGS@ \
 	@XLIB_CFLAGS@ \
 	-I@MESA_SOURCE@/include \
 	-I@MESA_SOURCE@/src/mesa/glapi \
