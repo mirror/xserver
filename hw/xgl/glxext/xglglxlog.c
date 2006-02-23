@@ -3293,12 +3293,10 @@ logPointParameterfvEXT (GLenum	      pname,
 /* GL_MESA_window_pos */
 
 static void
-logWindowPos3fMESA (GLfloat x,
-		    GLfloat y,
-		    GLfloat z)
+logWindowPos3fvMESA (const GLfloat *v)
 {
-    fprintf (logFp, "glWindowPos3fMESA (%f, %f, %f)\n", x, y, z);
-    (*nativeRenderTable->WindowPos3fMESA) (x, y, z);
+    fprintf (logFp, "glWindowPos3fvMESA (%p)\n", v);
+    (*nativeRenderTable->WindowPos3fvMESA) (v);
 }
 
 
@@ -4166,8 +4164,8 @@ static struct _glapi_table __logRenderTable = {
     0, /* glWindowPos2svMESA */
     0, /* glWindowPos3dMESA */
     0, /* glWindowPos3dvMESA */
-    logWindowPos3fMESA,
-    0, /* glWindowPos3fvMESA */
+    0, /* glWindowPos3fMESA */
+    logWindowPos3fvMESA,
     0, /* glWindowPos3iMESA */
     0, /* glWindowPos3ivMESA */
     0, /* glWindowPos3sMESA */

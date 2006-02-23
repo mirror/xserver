@@ -1,3 +1,22 @@
+2006-02-23  David Reveman  <davidr@novell.com>
+
+	* configure.ac: Require version 0.5.4 of glitz.
+
+	* hw/xgl/glxext/xglglxext.c: 
+	* hw/xgl/glxext/xglglxlog.c: WindowPos3fvMESA is used not
+	WindowPos3fMESA.
+
+	* hw/xgl/glxext/xglglxext.c:
+	* GL/glx/rensizetab.c:
+	* GL/glx/glxscreens.c:
+	* GL/glx/glxcmdsswap.c (__glXSwapVendorPrivateWithReply):
+	* GL/glx/glxcmds.c (__glXVendorPrivateWithReply):
+	* GL/glx/g_disptab_EXT.h (__GLX_MAX_RENDER_OPCODE_EXT):
+	* GL/glx/g_disptab_EXT.c: GL_EXT_framebuffer_object support.
+
+	* GL/mesa/shader/slang/Makefile.am:
+	* GL/symlink-mesa.sh: Update to build against mesa head.
+
 2006-02-20  David Reveman  <davidr@novell.com>
 
 	* GL/mesa/shader/slang/Makefile.am:

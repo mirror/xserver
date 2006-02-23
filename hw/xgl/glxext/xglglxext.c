@@ -122,8 +122,8 @@ typedef struct _xglGLOp {
 	} rect;
 	struct {
 	    GLenum target;
-	    GLuint texture;
-	} bind_texture;
+	    GLuint object;
+	} bind_object;
 	struct {
 	    GLenum  target;
 	    GLenum  pname;
@@ -269,8 +269,25 @@ typedef struct _xglGLContext {
     struct _xglGLContext      *shared;
     glitz_context_t	      *context;
     struct _glapi_table	      glRenderTable;
+
     PFNGLACTIVETEXTUREARBPROC ActiveTextureARB;
-    PFNGLWINDOWPOS3FMESAPROC  WindowPos3fMESA;
+    PFNGLWINDOWPOS3FMESAPROC WindowPos3fMESA;
+    PFNGLISRENDERBUFFEREXTPROC IsRenderbufferEXT;
+    PFNGLBINDRENDERBUFFEREXTPROC BindRenderbufferEXT;
+    PFNGLDELETERENDERBUFFERSEXTPROC DeleteRenderbuffersEXT;
+    PFNGLGENRENDERBUFFERSEXTPROC GenRenderbuffersEXT;
+    PFNGLISFRAMEBUFFEREXTPROC IsFramebufferEXT;
+    PFNGLBINDFRAMEBUFFEREXTPROC BindFramebufferEXT;
+    PFNGLDELETEFRAMEBUFFERSEXTPROC DeleteFramebuffersEXT;
+    PFNGLGENFRAMEBUFFERSEXTPROC GenFramebuffersEXT;
+    PFNGLFRAMEBUFFERTEXTURE1DEXTPROC FramebufferTexture1DEXT;
+    PFNGLFRAMEBUFFERTEXTURE2DEXTPROC FramebufferTexture2DEXT;
+    PFNGLFRAMEBUFFERTEXTURE3DEXTPROC FramebufferTexture3DEXT;
+    PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC FramebufferRenderbufferEXT;
+    PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC
+    GetFramebufferAttachmentParameterivEXT;
+    PFNGLGENERATEMIPMAPEXTPROC GenerateMipmapEXT;
+
     Bool		      needInit;
     xglGLBufferPtr	      pDrawBuffer;
     xglGLBufferPtr	      pReadBuffer;
@@ -283,6 +300,10 @@ typedef struct _xglGLContext {
     GLint		      depthBits;
     GLint		      stencilBits;
     xglHashTablePtr	      texObjects;
+    xglHashTablePtr	      renderbufferObjects;
+    GLuint		      renderbuffer;
+    xglHashTablePtr	      framebufferObjects;
+    GLuint		      framebuffer;
     xglHashTablePtr	      displayLists;
     GLuint		      list;
     GLenum		      listMode;
@@ -549,6 +570,12 @@ xglDrawBufferProc (xglGLOpPtr pOp)
 {
     glitz_drawable_buffer_t buffers[2];
 
+    if (cctx->framebuffer)
+    {
+	glDrawBuffer (pOp->u.enumeration);
+	return;
+    }
+
     switch (pOp->u.enumeration) {
     case GL_FRONT:
 	buffers[0] = GLITZ_DRAWABLE_BUFFER_FRONT_COLOR;
@@ -596,6 +623,12 @@ xglDrawBuffer (GLenum mode)
 static void
 xglReadBufferProc (xglGLOpPtr pOp)
 {
+    if (cctx->framebuffer)
+    {
+	glReadBuffer (pOp->u.enumeration);
+	return;
+    }
+
     switch (pOp->u.enumeration) {
     case GL_FRONT:
 	glitz_context_read_buffer (cctx->context,
@@ -1265,7 +1298,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 {
     xglTexObjPtr *ppTexObj;
 
-    switch (pOp->u.bind_texture.target) {
+    switch (pOp->u.bind_object.target) {
     case GL_TEXTURE_1D:
 	ppTexObj = &cctx->attrib.texUnits[cctx->activeTexUnit].p1D;
 	break;
@@ -1286,15 +1319,15 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	return;
     }
 
-    if (pOp->u.bind_texture.texture)
+    if (pOp->u.bind_object.object)
     {
-	if (!*ppTexObj || pOp->u.bind_texture.texture != (*ppTexObj)->key)
+	if (!*ppTexObj || pOp->u.bind_object.object != (*ppTexObj)->key)
 	{
 	    xglTexObjPtr pTexObj;
 
 	    pTexObj = (xglTexObjPtr)
 		xglHashLookup (cctx->shared->texObjects,
-			       pOp->u.bind_texture.texture);
+			       pOp->u.bind_object.object);
 	    if (!pTexObj)
 	    {
 		pTexObj = xalloc (sizeof (xglTexObjRec));
@@ -1304,7 +1337,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 		    return;
 		}
 
-		pTexObj->key     = pOp->u.bind_texture.texture;
+		pTexObj->key     = pOp->u.bind_object.object;
 		pTexObj->pPixmap = NULL;
 		pTexObj->object  = NULL;
 		pTexObj->refcnt  = 1;
@@ -1312,7 +1345,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 		glGenTextures (1, &pTexObj->name);
 
 		xglHashInsert (cctx->shared->texObjects,
-			       pOp->u.bind_texture.texture,
+			       pOp->u.bind_object.object,
 			       pTexObj);
 	    }
 
@@ -1320,7 +1353,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	    xglUnrefTexObj (*ppTexObj);
 	    *ppTexObj = pTexObj;
 
-	    glBindTexture (pOp->u.bind_texture.target, pTexObj->name);
+	    glBindTexture (pOp->u.bind_object.target, pTexObj->name);
 	}
     }
     else
@@ -1328,7 +1361,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	xglUnrefTexObj (*ppTexObj);
 	*ppTexObj = NULL;
 
-	glBindTexture (pOp->u.bind_texture.target, 0);
+	glBindTexture (pOp->u.bind_object.target, 0);
     }
 }
 
@@ -1340,8 +1373,8 @@ xglBindTexture (GLenum target,
 
     gl.glProc = xglBindTextureProc;
 
-    gl.u.bind_texture.target  = target;
-    gl.u.bind_texture.texture = texture;
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = texture;
 
     xglGLOp (&gl);
 }
@@ -1529,7 +1562,27 @@ xglPrioritizeTextures (GLsizei	      n,
 }
 
 static glitz_texture_filter_t
-xglTextureFilter (GLenum param)
+xglTextureMinFilter (GLenum param)
+{
+    switch (param) {
+    case GL_LINEAR:
+	return GLITZ_TEXTURE_FILTER_LINEAR;
+    case GL_NEAREST_MIPMAP_NEAREST:
+	return GLITZ_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+    case GL_LINEAR_MIPMAP_NEAREST:
+	return GLITZ_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    case GL_NEAREST_MIPMAP_LINEAR:
+	return GLITZ_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+    case GL_LINEAR_MIPMAP_LINEAR:
+	return GLITZ_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+    case GL_NEAREST:
+    default:
+	return GLITZ_TEXTURE_FILTER_NEAREST;
+    }
+}
+
+static glitz_texture_filter_t
+xglTextureMagFilter (GLenum param)
 {
     switch (param) {
     case GL_LINEAR:
@@ -1587,12 +1640,12 @@ xglTexParameterfvProc (xglGLOpPtr pOp)
 	case GL_TEXTURE_MIN_FILTER:
 	    glitz_texture_object_set_filter (pTexObj->object,
 					     GLITZ_TEXTURE_FILTER_TYPE_MIN,
-					     xglTextureFilter (params[0]));
+					     xglTextureMinFilter (params[0]));
 	    break;
 	case GL_TEXTURE_MAG_FILTER:
 	    glitz_texture_object_set_filter (pTexObj->object,
 					     GLITZ_TEXTURE_FILTER_TYPE_MAG,
-					     xglTextureFilter (params[0]));
+					     xglTextureMagFilter (params[0]));
 	    break;
 	case GL_TEXTURE_WRAP_S:
 	    glitz_texture_object_set_wrap (pTexObj->object,
@@ -3116,7 +3169,7 @@ xglNoOpPointParameterfvEXT (GLenum pname, const GLfloat *params) {}
 
 /* GL_MESA_window_pos */
 static void
-xglNoOpWindowPos3fMESA (GLfloat x, GLfloat y, GLfloat z) {}
+xglNoOpWindowPos3fvMESA (const GLfloat *v) {}
 static void
 xglWindowPos3fMESAProc (xglGLOpPtr pOp)
 {
@@ -3125,15 +3178,15 @@ xglWindowPos3fMESAProc (xglGLOpPtr pOp)
 			      pOp->u.window_pos_3f.z);
 }
 static void
-xglWindowPos3fMESA (GLfloat x, GLfloat y, GLfloat z)
+xglWindowPos3fvMESA (const GLfloat *v)
 {
     xglGLOpRec gl;
 
     gl.glProc = xglWindowPos3fMESAProc;
 
-    gl.u.window_pos_3f.x = x;
-    gl.u.window_pos_3f.y = y;
-    gl.u.window_pos_3f.z = z;
+    gl.u.window_pos_3f.x = v[0];
+    gl.u.window_pos_3f.y = v[1];
+    gl.u.window_pos_3f.z = v[2];
 
     xglGLOp (&gl);
 }
@@ -3189,12 +3242,113 @@ xglNoOpIsRenderbufferEXT (GLuint renderbuffer)
 {
     return FALSE;
 }
+static GLboolean
+xglIsRenderbufferEXT (GLuint renderbuffer)
+{
+    if (!renderbuffer)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->renderbufferObjects, renderbuffer))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
 static void
 xglNoOpBindRenderbufferEXT (GLenum target, GLuint renderbuffer) {}
 static void
+xglBindRenderbufferEXTProc (xglGLOpPtr pOp)
+{
+    GLuint rbo;
+
+    switch (pOp->u.bind_object.target) {
+    case GL_RENDERBUFFER_EXT:
+	rbo = cctx->renderbuffer;
+	break;
+    default:
+	xglRecordError (GL_INVALID_ENUM);
+	return;
+    }
+
+    if (pOp->u.bind_object.object)
+    {
+	if (!rbo || pOp->u.bind_object.object != rbo)
+	{
+	    rbo = (GLuint)
+		xglHashLookup (cctx->shared->renderbufferObjects,
+			       pOp->u.bind_object.object);
+	    if (!rbo)
+	    {
+		(*cctx->GenRenderbuffersEXT) (1, &rbo);
+
+		xglHashInsert (cctx->shared->renderbufferObjects,
+			       pOp->u.bind_object.object,
+			       (void *) rbo);
+	    }
+
+	    (*cctx->BindRenderbufferEXT) (GL_RENDERBUFFER_EXT, rbo);
+	}
+    }
+    else
+    {
+	(*cctx->BindRenderbufferEXT) (GL_RENDERBUFFER_EXT, 0);
+    }
+
+    cctx->renderbuffer = pOp->u.bind_object.object;
+}
+static void
+xglBindRenderbufferEXT (GLenum target,
+			GLuint renderbuffer)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindRenderbufferEXTProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = renderbuffer;
+
+    xglGLOp (&gl);
+}
+static void
 xglNoOpDeleteRenderbuffersEXT (GLsizei n, const GLuint *renderbuffers) {}
 static void
+xglDeleteRenderbuffersEXT (GLsizei n, const GLuint *renderbuffers)
+{
+    GLuint rbo;
+
+    while (n--)
+    {
+	if (!*renderbuffers)
+	    continue;
+
+	rbo = (GLuint) xglHashLookup (cctx->shared->renderbufferObjects,
+				      *renderbuffers);
+	if (rbo)
+	{
+	    (*cctx->DeleteRenderbuffersEXT) (1, &rbo);
+	    xglHashRemove (cctx->shared->renderbufferObjects, *renderbuffers);
+	}
+	renderbuffers++;
+    }
+}
+static void
 xglNoOpGenRenderbuffersEXT (GLsizei n, GLuint *renderbuffers) {}
+static void
+xglGenRenderbuffersEXT (GLsizei n, GLuint *renderbuffers)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->renderbufferObjects, n);
+
+    (cctx->GenRenderbuffersEXT) (n, renderbuffers);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->renderbufferObjects, name,
+		       (void *) *renderbuffers);
+
+	*renderbuffers++ = name++;
+    }
+}
 static void
 xglNoOpRenderbufferStorageEXT (GLenum target, GLenum internalformat,
 			       GLsizei width, GLsizei height) {}
@@ -3206,40 +3360,283 @@ xglNoOpIsFramebufferEXT (GLuint framebuffer)
 {
     return FALSE;
 }
+static GLboolean
+xglIsFramebufferEXT (GLuint framebuffer)
+{
+    if (!framebuffer)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->framebufferObjects, framebuffer))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
 static void
 xglNoOpBindFramebufferEXT (GLenum target, GLuint framebuffer) {}
 static void
+xglBindFramebufferEXTProc (xglGLOpPtr pOp)
+{
+    GLuint fbo;
+
+    switch (pOp->u.bind_object.target) {
+    case GL_FRAMEBUFFER_EXT:
+	fbo = cctx->framebuffer;
+	break;
+    default:
+	xglRecordError (GL_INVALID_ENUM);
+	return;
+    }
+
+    if (pOp->u.bind_object.object)
+    {
+	if (!fbo || pOp->u.bind_object.object != fbo)
+	{
+	    fbo = (GLuint)
+		xglHashLookup (cctx->shared->framebufferObjects,
+			       pOp->u.bind_object.object);
+	    if (!fbo)
+	    {
+		(*cctx->GenFramebuffersEXT) (1, &fbo);
+
+		xglHashInsert (cctx->shared->framebufferObjects,
+			       pOp->u.bind_object.object,
+			       (void *) fbo);
+	    }
+
+	    (*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, fbo);
+	}
+    }
+    else
+    {
+	/* window-system drawable */
+	glitz_context_make_current (cctx->context, cctx->pDrawBuffer->drawable);
+    }
+
+    cctx->framebuffer = pOp->u.bind_object.object;
+}
+static void
+xglBindFramebufferEXT (GLenum target,
+		       GLuint framebuffer)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindFramebufferEXTProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = framebuffer;
+
+    xglGLOp (&gl);
+}
+static void
 xglNoOpDeleteFramebuffersEXT (GLsizei n, const GLuint *framebuffers) {}
 static void
+xglDeleteFramebuffersEXT (GLsizei n, const GLuint *framebuffers)
+{
+    GLuint fbo;
+
+    while (n--)
+    {
+	if (!*framebuffers)
+	    continue;
+
+	fbo = (GLuint) xglHashLookup (cctx->shared->framebufferObjects,
+				      *framebuffers);
+	if (fbo)
+	{
+	    (*cctx->DeleteFramebuffersEXT) (1, &fbo);
+	    xglHashRemove (cctx->shared->framebufferObjects, *framebuffers);
+	}
+	framebuffers++;
+    }
+}
+static void
 xglNoOpGenFramebuffersEXT (GLsizei n, GLuint *framebuffers) {}
+static void
+xglGenFramebuffersEXT (GLsizei n, GLuint *framebuffers)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->framebufferObjects, n);
+
+    (cctx->GenFramebuffersEXT) (n, framebuffers);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->framebufferObjects, name,
+		       (void *) *framebuffers);
+
+	*framebuffers++ = name++;
+    }
+}
 static GLenum
 xglNoOpCheckFramebufferStatusEXT (GLenum target)
 {
     return GL_FRAMEBUFFER_UNSUPPORTED_EXT;
 }
 static void
-xglNoOpFramebufferTexture1DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level) {}
+xglNoOpFramebufferTexture1DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level) {}
 static void
-xglNoOpFramebufferTexture2DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level) {}
+xglFramebufferTexture1DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->FramebufferTexture1DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level);
+}
 static void
-xglNoOpFramebufferTexture3DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level, GLint zoffset) {}
+xglNoOpFramebufferTexture2DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level) {}
 static void
-xglNoOpFramebufferRenderbufferEXT (GLenum target, GLenum attachment,
+xglFramebufferTexture2DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->FramebufferTexture2DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level);
+}
+static void
+xglNoOpFramebufferTexture3DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level,
+				GLint  zoffset) {}
+static void
+xglFramebufferTexture3DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level,
+			    GLint  zoffset)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->FramebufferTexture3DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level,
+				      zoffset);
+}
+static void
+xglNoOpFramebufferRenderbufferEXT (GLenum target,
+				   GLenum attachment,
 				   GLenum renderbuffertarget,
 				   GLuint renderbuffer) {}
+static void
+xglFramebufferRenderbufferEXT (GLenum target,
+			       GLenum attachment,
+			       GLenum renderbuffertarget,
+			       GLuint renderbuffer)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->FramebufferRenderbufferEXT) (target,
+					 attachment,
+					 renderbuffertarget,
+					 renderbuffer);
+}
 static void
 xglNoOpGetFramebufferAttachmentParameterivEXT (GLenum target,
 					       GLenum attachment,
 					       GLenum pname,
 					       GLint *params) {}
 static void
+xglGetFramebufferAttachmentParameterivEXT (GLenum target,
+					   GLenum attachment,
+					   GLenum pname,
+					   GLint *params)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->GetFramebufferAttachmentParameterivEXT) (target,
+						     attachment,
+						     pname,
+						     params);
+}
+static void
 xglNoOpGenerateMipmapEXT (GLenum target) {}
+
+static void
+xglGenerateMipmapEXT (GLenum target)
+{
+    xglTexObjPtr pTexObj = NULL;
+
+    switch (target) {
+    case GL_TEXTURE_2D:
+	pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
+    default:
+	break;
+    }
+
+    if (pTexObj)
+    {
+	if (pTexObj->pPixmap)
+	{
+	    xglGLContextPtr pContext = cctx;
+
+	    if (xglSyncSurface (&pTexObj->pPixmap->drawable))
+	    {
+		if (pContext != cctx)
+		{
+		    XGL_SCREEN_PRIV (pContext->pDrawBuffer->pGC->pScreen);
+
+		    glitz_drawable_finish (pScreenPriv->drawable);
+
+		    xglSetCurrentContext (pContext);
+		}
+
+		glitz_context_bind_texture (cctx->context, pTexObj->object);
+	    }
+	    else
+		pTexObj = NULL;
+	}
+
+	if (pTexObj)
+	    (*cctx->GenerateMipmapEXT) (target);
+    }
+}
 
 static struct _glapi_table __glNativeRenderTable = {
     xglNewList,
@@ -3765,8 +4162,8 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glWindowPos2svMESA */
     0, /* glWindowPos3dMESA */
     0, /* glWindowPos3dvMESA */
-    xglNoOpWindowPos3fMESA,
-    0, /* glWindowPos3fvMESA */
+    0, /* glWindowPos3fMESA */
+    xglNoOpWindowPos3fvMESA,
     0, /* glWindowPos3iMESA */
     0, /* glWindowPos3ivMESA */
     0, /* glWindowPos3sMESA */
@@ -4198,7 +4595,7 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glWindowPos3fMESA");
 
-	pContext->glRenderTable.WindowPos3fMESA = xglWindowPos3fMESA;
+	pContext->glRenderTable.WindowPos3fvMESA = xglWindowPos3fvMESA;
     }
 
     if (strstr (extensions, "GL_EXT_blend_func_separate"))
@@ -4287,19 +4684,19 @@ xglInitExtensions (xglGLContextPtr pContext)
 
     if (strstr (extensions, "GL_EXT_framebuffer_object"))
     {
-	pContext->glRenderTable.IsRenderbufferEXT =
+	pContext->IsRenderbufferEXT =
 	    (PFNGLISRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glIsRenderbufferEXT");
-	pContext->glRenderTable.BindRenderbufferEXT =
+	pContext->BindRenderbufferEXT =
 	    (PFNGLBINDRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glBindRenderbufferEXT");
-	pContext->glRenderTable.DeleteRenderbuffersEXT =
+	pContext->DeleteRenderbuffersEXT =
 	    (PFNGLDELETERENDERBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glDeleteRenderbuffersEXT");
-	pContext->glRenderTable.GenRenderbuffersEXT =
+	pContext->GenRenderbuffersEXT =
 	    (PFNGLGENRENDERBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenRenderbuffersEXT");
@@ -4311,19 +4708,19 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    (PFNGLGETRENDERBUFFERPARAMETERIVEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGetRenderbufferParameterivEXT");
-	pContext->glRenderTable.IsFramebufferEXT =
+	pContext->IsFramebufferEXT =
 	    (PFNGLISFRAMEBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glIsFramebufferEXT");
-	pContext->glRenderTable.BindFramebufferEXT =
+	pContext->BindFramebufferEXT =
 	    (PFNGLBINDFRAMEBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glBindFramebufferEXT");
-	pContext->glRenderTable.DeleteFramebuffersEXT =
+	pContext->DeleteFramebuffersEXT =
 	    (PFNGLDELETEFRAMEBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glDeleteFramebuffersEXT");
-	pContext->glRenderTable.GenFramebuffersEXT =
+	pContext->GenFramebuffersEXT =
 	    (PFNGLGENFRAMEBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenFramebuffersEXT");
@@ -4331,31 +4728,52 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    (PFNGLCHECKFRAMEBUFFERSTATUSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glCheckFramebufferStatusEXT");
-	pContext->glRenderTable.FramebufferTexture1DEXT =
+	pContext->FramebufferTexture1DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE1DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture1DEXT");
-	pContext->glRenderTable.FramebufferTexture2DEXT =
+	pContext->FramebufferTexture2DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE2DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture2DEXT");
-	pContext->glRenderTable.FramebufferTexture3DEXT =
+	pContext->FramebufferTexture3DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE3DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture3DEXT");
-	pContext->glRenderTable.FramebufferRenderbufferEXT =
+	pContext->FramebufferRenderbufferEXT =
 	    (PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferRenderbufferEXT");
-	pContext->glRenderTable.GetFramebufferAttachmentParameterivEXT =
+	pContext->GetFramebufferAttachmentParameterivEXT =
 	    (PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGetFramebufferAttachment"
 					    "ParameterivEXT");
-	pContext->glRenderTable.GenerateMipmapEXT =
+	pContext->GenerateMipmapEXT =
 	    (PFNGLGENERATEMIPMAPEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenerateMipmapEXT");
+
+	pContext->glRenderTable.IsRenderbufferEXT = xglIsRenderbufferEXT;
+	pContext->glRenderTable.BindRenderbufferEXT = xglBindRenderbufferEXT;
+	pContext->glRenderTable.DeleteRenderbuffersEXT =
+	    xglDeleteRenderbuffersEXT;
+	pContext->glRenderTable.GenRenderbuffersEXT = xglGenRenderbuffersEXT;
+	pContext->glRenderTable.IsFramebufferEXT = xglIsFramebufferEXT;
+	pContext->glRenderTable.BindFramebufferEXT = xglBindFramebufferEXT;
+	pContext->glRenderTable.DeleteFramebuffersEXT = xglDeleteFramebuffersEXT;
+	pContext->glRenderTable.GenFramebuffersEXT = xglGenFramebuffersEXT;
+	pContext->glRenderTable.FramebufferTexture1DEXT =
+	    xglFramebufferTexture1DEXT;
+	pContext->glRenderTable.FramebufferTexture2DEXT =
+	    xglFramebufferTexture2DEXT;
+	pContext->glRenderTable.FramebufferTexture3DEXT =
+	    xglFramebufferTexture3DEXT;
+	pContext->glRenderTable.FramebufferRenderbufferEXT =
+	    xglFramebufferRenderbufferEXT;
+	pContext->glRenderTable.GetFramebufferAttachmentParameterivEXT =
+	    xglGetFramebufferAttachmentParameterivEXT;
+	pContext->glRenderTable.GenerateMipmapEXT = xglGenerateMipmapEXT;
     }
 }
 
@@ -4403,6 +4821,48 @@ xglFreeContext (xglGLContextPtr pContext)
 	} while (key);
 
 	xglDeleteHashTable (pContext->texObjects);
+    }
+
+    if (pContext->renderbufferObjects)
+    {
+	GLuint rbo;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->renderbufferObjects);
+	    if (key)
+	    {
+		rbo = (GLuint) xglHashLookup (pContext->renderbufferObjects,
+					      key);
+		if (rbo)
+		    (*pContext->DeleteRenderbuffersEXT) (1, &rbo);
+
+		xglHashRemove (pContext->renderbufferObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->renderbufferObjects);
+    }
+
+    if (pContext->framebufferObjects)
+    {
+	GLuint fbo;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->framebufferObjects);
+	    if (key)
+	    {
+		fbo = (GLuint) xglHashLookup (pContext->framebufferObjects,
+					      key);
+		if (fbo)
+		    (*pContext->DeleteFramebuffersEXT) (1, &fbo);
+
+		xglHashRemove (pContext->framebufferObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->framebufferObjects);
     }
 
     if (pContext->displayLists)
@@ -4885,8 +5345,21 @@ xglForceCurrent (__GLcontext *gc)
 		cctx->drawYoff = cctx->pDrawBuffer->yOff;
 	    }
 
-	    xglDrawBuffer (cctx->attrib.drawBuffer);
-	    xglReadBuffer (cctx->attrib.readBuffer);
+	    if (cctx->framebuffer)
+	    {
+		GLuint fbo;
+
+		fbo = (GLuint)
+		    xglHashLookup (cctx->shared->framebufferObjects,
+				   cctx->framebuffer);
+		if (fbo)
+		    (*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, fbo);
+	    }
+	    else
+	    {
+		xglDrawBuffer (cctx->attrib.drawBuffer);
+		xglReadBuffer (cctx->attrib.readBuffer);
+	    }
 	}
 	else
 	{
@@ -5024,6 +5497,8 @@ xglCreateContext (__GLimports      *imports,
     pContext->drawXoff	    = 0;
     pContext->drawYoff	    = 0;
     pContext->maxTexUnits   = 0;
+    pContext->renderbuffer  = 0;
+    pContext->framebuffer   = 0;
 
     if (pContext->doubleBuffer)
     {
@@ -5040,8 +5515,10 @@ xglCreateContext (__GLimports      *imports,
 
     if (shareGC)
     {
-	pContext->texObjects   = NULL;
-	pContext->displayLists = NULL;
+	pContext->texObjects	      = NULL;
+	pContext->renderbufferObjects = NULL;
+	pContext->framebufferObjects  = NULL;
+	pContext->displayLists	      = NULL;
 
 	pContext->shared = pShareContext->shared;
 	shareIface = pShareContext->mIface;
@@ -5050,6 +5527,20 @@ xglCreateContext (__GLimports      *imports,
     {
 	pContext->texObjects = xglNewHashTable ();
 	if (!pContext->texObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->renderbufferObjects = xglNewHashTable ();
+	if (!pContext->renderbufferObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->framebufferObjects = xglNewHashTable ();
+	if (!pContext->framebufferObjects)
 	{
 	    xglFreeContext (pContext);
 	    return NULL;

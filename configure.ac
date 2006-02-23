@@ -909,7 +909,7 @@ AC_MSG_RESULT([$XORG])
 
 dnl Xgl DDX
 
-XGL_REQUIRED_GLITZ_VERSION=0.5.3
+XGL_REQUIRED_GLITZ_VERSION=0.5.4
 
 AC_MSG_CHECKING([whether to build Xgl DDX])
 if test "x$XGL" != xno; then

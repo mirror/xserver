@@ -2348,6 +2348,20 @@ int __glXVendorPrivateWithReply(__GLXclientState *cl, GLbyte *pc)
 	return __glXCreateGLXPixmapWithConfigSGIX(cl, pc);
       case X_GLXvop_GetDrawableAttributesSGIX:
 	return __glXGetDrawableAttributesSGIX(cl, pc);
+      case X_GLvop_IsRenderbufferEXT:
+	return __glXDisp_IsRenderbufferEXT(cl, pc);
+      case X_GLvop_GenRenderbuffersEXT:
+	return __glXDisp_GenRenderbuffersEXT(cl, pc);
+      case X_GLvop_GetRenderbufferParameterivEXT:
+	return __glXDisp_GetRenderbufferParameterivEXT(cl, pc);
+      case X_GLvop_IsFramebufferEXT:
+	return __glXDisp_IsFramebufferEXT(cl, pc);
+      case X_GLvop_GenFramebuffersEXT:
+	return __glXDisp_GenFramebuffersEXT(cl, pc);
+      case X_GLvop_CheckFramebufferStatusEXT:
+	return __glXDisp_CheckFramebufferStatusEXT(cl, pc);
+      case X_GLvop_GetFramebufferAttachmentParameterivEXT:
+	return __glXDisp_GetFramebufferAttachmentParameterivEXT(cl, pc);
       default:
 	break;
     }

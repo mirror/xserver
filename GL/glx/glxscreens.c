@@ -102,6 +102,7 @@ static const char GLServerExtensions[] =
 			"GL_EXT_texture_object "
 			"GL_EXT_texture_rectangle "
 			"GL_EXT_vertex_array "
+			"GL_EXT_framebuffer_object "
 			"GL_APPLE_packed_pixels "
 			"GL_ATI_texture_mirror_once "
 			"GL_ATI_texture_env_combine3 "
