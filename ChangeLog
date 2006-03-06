@@ -1,5 +1,10 @@
 2006-03-06  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glxext/xglglxext.c (xglLoseCurrentContext): Make sure that
+	all preceding drawing commands are finished before switching context.
+	This should fix GL compositing manager flickering and drawing errors
+	on some drivers.
+
 	* GL/mesa/swrast/Makefile.am: Update to build against mesa head.
 
 2006-02-23  David Reveman  <davidr@novell.com>

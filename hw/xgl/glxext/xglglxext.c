@@ -5453,6 +5453,10 @@ xglLoseCurrentContext (void *closure)
     {
 	cctx = NULL;
 
+	/* make sure that all preceding drawing commands are finished
+	   before switching context */
+	glFinish ();
+
 	GlxFlushContextCache ();
 	GlxSetRenderTables (0);
     }
