@@ -1,5 +1,7 @@
 2006-03-06  David Reveman  <davidr@novell.com>
 
+	* GL/symlink-mesa.sh: Add s_blit.c.
+
 	* hw/xgl/glxext/xglglxext.c (xglLoseCurrentContext): Make sure that
 	all preceding drawing commands are finished before switching context.
 	This should fix GL compositing manager flickering and drawing errors
