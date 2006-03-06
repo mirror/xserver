@@ -1,3 +1,7 @@
+2006-03-06  David Reveman  <davidr@novell.com>
+
+	* GL/mesa/swrast/Makefile.am: Update to build against mesa head.
+
 2006-02-23  David Reveman  <davidr@novell.com>
 
 	* configure.ac: Require version 0.5.4 of glitz.
