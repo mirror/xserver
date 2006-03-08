@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES = libmain.la
 
-AM_CFLAGS = @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE @DIX_CFLAGS@
+AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I../X \
@@ -34,7 +34,7 @@ nodist_libmain_la_SOURCES = accum.c \
                     convolve.c \
                     debug.c \
                     depth.c \
-                    depthstencil.c \
+		    depthstencil.c \
                     dlist.c \
                     drawpix.c \
                     enable.c \

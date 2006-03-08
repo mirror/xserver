@@ -1,3 +1,46 @@
+2006-03-08  David Reveman  <davidr@novell.com>
+
+	* GL/symlink-mesa.sh:
+	* GL/glx/Makefile.am:
+	* GL/glx/g_disptab.h:
+	* GL/glx/global.c:
+	* GL/glx/glxcmds.c:
+	* GL/glx/glxcmdsswap.c:
+	* GL/glx/glxcontext.h:
+	* GL/glx/glxdrawable.h:
+	* GL/glx/glxext.c:
+	* GL/glx/glximports.c:
+	* GL/glx/glxscreens.c:
+	* GL/glx/glxscreens.h:
+	* GL/glx/glxserver.h:
+	* GL/glx/glxutil.c:
+	* GL/glx/glxutil.h:
+	* GL/glx/indirect_util.c:
+	* GL/glx/render2swap.c:
+	* GL/glx/single2.c:
+	* GL/include/GL/glx_ansic.h:
+	* GL/include/GL/xf86glx.h:
+	* GL/mesa/Makefile.am:
+	* GL/mesa/X/Makefile.am:
+	* GL/mesa/X/xf86glx.c:
+	* GL/mesa/X/xf86glx_util.c:
+	* GL/mesa/X/xf86glxint.h:
+	* GL/mesa/array_cache/Makefile.am:
+	* GL/mesa/glapi/Makefile.am:
+	* GL/mesa/main/Makefile.am:
+	* GL/mesa/math/Makefile.am:
+	* GL/mesa/shader/Makefile.am:
+	* GL/mesa/shader/grammar/Makefile.am:
+	* GL/mesa/shader/slang/Makefile.am:
+	* GL/mesa/swrast/Makefile.am:
+	* GL/mesa/swrast_setup/Makefile.am:
+	* GL/mesa/tnl/Makefile.am:
+	* hw/xgl/xglglx.c:
+	* hw/xgl/xglglx.h:
+	* hw/xgl/glxext/xglglxext.c:
+	* hw/xgl/glxext/module/Makefile.am:
+	Update to new GLX interface.
+
 2006-03-06  David Reveman  <davidr@novell.com>
 
 	* GL/symlink-mesa.sh: Add s_blit.c.

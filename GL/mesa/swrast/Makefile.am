@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES = libswrast.la
 
-AM_CFLAGS = @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE @DIX_CFLAGS@
+AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I../X \
@@ -9,7 +9,7 @@ INCLUDES = -I@MESA_SOURCE@/include \
            -I../main \
            -I../math \
            -I../shader \
-           -I../shader/slang \
+	   -I../shader/slang \
            -I../swrast \
            -I../swrast_setup \
            -I../tnl \
@@ -41,8 +41,8 @@ nodist_libswrast_la_SOURCES = s_aaline.c \
                       s_readpix.c \
                       s_span.c \
                       s_stencil.c \
-                      s_texcombine.c \
-                      s_texfilter.c \
+		      s_texcombine.c \
+		      s_texfilter.c \
                       s_texstore.c \
                       s_triangle.c \
                       s_zoom.c

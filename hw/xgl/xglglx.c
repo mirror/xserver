@@ -38,36 +38,33 @@ FILE *__xglGLXLogFp;
 #endif
 
 static void *glXHandle = 0;
-static void *glCoreHandle = 0;
 
 #define SYM(ptr, name) { (void **) &(ptr), (name) }
 
-__GLXextensionInfo *__xglExtensionInfo;
-__GLXscreenInfo	   *__xglScreenInfo;
+__GLXprovider *__xglMesaProvider;
 
-void *(*__glcore_DDXScreenInfo) (void);
-void *(*__glcore_DDXExtensionInfo) (void);
+void *(*__GlxGetMesaProvider) (void);
 
 void
 GlxSetVisualConfigs (int	       nconfigs,
 		     __GLXvisualConfig *configs,
 		     void              **privates)
 {
-    if (glXHandle && glCoreHandle)
+    if (glXHandle)
 	(*__xglGLXFunc.setVisualConfigs) (nconfigs, configs, privates);
 }
 
 void
 GlxExtensionInit (void)
 {
-    if (glXHandle && glCoreHandle)
+    if (glXHandle)
 	(*__xglGLXFunc.extensionInit) ();
 }
 
 void
 GlxWrapInitVisuals (miInitVisualsProcPtr *initVisuals)
 {
-    if (glXHandle && glCoreHandle)
+    if (glXHandle)
 	(*__xglGLXFunc.wrapInitVisuals) (initVisuals);
 }
 
@@ -82,7 +79,7 @@ GlxInitVisuals (VisualPtr     *visualp,
 		int	      bitsPerRGB,
 		int	      preferredVis)
 {
-    if (glXHandle && glCoreHandle)
+    if (glXHandle)
 	return (*__xglGLXFunc.initVisuals) (visualp, depthp, nvisualp, ndepthp,
 					    rootDepthp, defaultVisp, sizes,
 					    bitsPerRGB, preferredVis);
@@ -93,57 +90,49 @@ GlxInitVisuals (VisualPtr     *visualp,
 void
 GlxFlushContextCache (void)
 {
-    (*__xglGLXFunc.flushContextCache) ();
+    if (glXHandle)
+	(*__xglGLXFunc.flushContextCache) ();
 }
 
 void
 GlxSetRenderTables (struct _glapi_table *table)
 {
-    (*__xglGLXFunc.setRenderTables) (table);
-}
-
-void *
-__glXglDDXScreenInfo (void)
-{
-    return __xglScreenInfo;
-}
-
-void *
-__glXglDDXExtensionInfo( void)
-{
-    return __xglExtensionInfo;
+    if (glXHandle)
+	(*__xglGLXFunc.setRenderTables) (table);
 }
 
 void
-_gl_copy_visual_to_context_mode (__GLcontextModes	 *mode,
-				 const __GLXvisualConfig *config)
+GlxPushProvider (__GLXprovider *provider)
 {
-    (*__xglGLXFunc.copy_visual_to_context_mode) (mode, config);
-}
-
-__GLcontextModes *
-_gl_context_modes_create (unsigned count,
-			  size_t   minimumSize)
-{
-    return (*__xglGLXFunc.context_modes_create) (count, minimumSize);
+    if (glXHandle)
+	(*__xglGLXFunc.pushProvider) (provider);
 }
 
 void
-_gl_context_modes_destroy (__GLcontextModes *modes)
+GlxScreenInit (__GLXscreen *screen,
+	       ScreenPtr   pScreen)
 {
-    (*__xglGLXFunc.context_modes_destroy) (modes);
+    if (glXHandle)
+	(*__xglGLXFunc.screenInit) (screen, pScreen);
 }
 
-GLint
-_gl_convert_from_x_visual_type (int visualType)
+void
+GlxScreenDestroy (__GLXscreen *screen)
 {
-    return (*__xglGLXFunc.convert_from_x_visual_type) (visualType);
+    if (glXHandle)
+	(*__xglGLXFunc.screenDestroy) (screen);
 }
 
-GLint
-_gl_convert_to_x_visual_type (int visualType)
+GLboolean
+GlxDrawableInit (__GLXdrawable *drawable,
+		 __GLXcontext  *ctx,
+		 DrawablePtr   pDrawable,
+		 XID	       drawId)
 {
-    return (*__xglGLXFunc.convert_to_x_visual_type) (visualType);
+    if (glXHandle)
+	return (*__xglGLXFunc.drawableInit) (drawable, ctx, pDrawable, drawId);
+
+    return GL_FALSE;
 }
 
 Bool
@@ -160,16 +149,12 @@ xglLoadGLXModules (void)
 	    SYM (__xglGLXFunc.initVisuals,	 "GlxInitVisuals"),
 	    SYM (__xglGLXFunc.flushContextCache, "__glXFlushContextCache"),
 	    SYM (__xglGLXFunc.setRenderTables,   "GlxSetRenderTables"),
-	    SYM (__xglGLXFunc.copy_visual_to_context_mode,
-		 "_gl_copy_visual_to_context_mode"),
-	    SYM (__xglGLXFunc.context_modes_create,
-		 "_gl_context_modes_create"),
-	    SYM (__xglGLXFunc.context_modes_destroy,
-		 "_gl_context_modes_destroy"),
-	    SYM (__xglGLXFunc.convert_from_x_visual_type,
-		 "_gl_convert_from_x_visual_type"),
-	    SYM (__xglGLXFunc.convert_to_x_visual_type,
-		 "_gl_convert_to_x_visual_type")
+	    SYM (__xglGLXFunc.pushProvider,      "GlxPushProvider"),
+	    SYM (__xglGLXFunc.screenInit,        "__glXScreenInit"),
+	    SYM (__xglGLXFunc.screenDestroy,     "__glXScreenDestroy"),
+	    SYM (__xglGLXFunc.drawableInit,      "__glXDrawableInit"),
+
+	    SYM (__GlxGetMesaProvider, "GlxGetMesaProvider")
 	};
 
 	glXHandle = xglLoadModule ("glx", RTLD_NOW | RTLD_LOCAL);
@@ -183,65 +168,13 @@ xglLoadGLXModules (void)
 
 	    return FALSE;
 	}
-    }
 
-    if (!glCoreHandle)
-    {
-	xglSymbolRec ddxSym[] = {
-	    SYM (__glcore_DDXExtensionInfo, "__glXglDDXExtensionInfo"),
-	    SYM (__glcore_DDXScreenInfo,    "__glXglDDXScreenInfo")
-	};
+	__xglMesaProvider = __GlxGetMesaProvider ();
 
-	glCoreHandle = xglLoadModule ("glcore", RTLD_NOW | RTLD_LOCAL);
-	if (!glCoreHandle)
-	    return FALSE;
-
-	if (!xglLookupSymbols (glCoreHandle, ddxSym,
-			       sizeof (ddxSym) / sizeof(ddxSym[0])))
+	if (!xglLoadHashFuncs (glXHandle))
 	{
-	    xglUnloadModule (glCoreHandle);
-	    glCoreHandle = 0;
-
-	    return FALSE;
-	}
-
-	__xglScreenInfo    = __glcore_DDXScreenInfo ();
-	__xglExtensionInfo = __glcore_DDXExtensionInfo ();
-
-	if (__xglScreenInfo && __xglExtensionInfo)
-	{
-	    xglSymbolRec sym[] = {
-		SYM (__xglScreenInfo->screenProbe,    "__MESA_screenProbe"),
-		SYM (__xglScreenInfo->createContext,  "__MESA_createContext"),
-		SYM (__xglScreenInfo->createBuffer,   "__MESA_createBuffer"),
-		SYM (__xglExtensionInfo->resetExtension,
-		     "__MESA_resetExtension"),
-		SYM (__xglExtensionInfo->initVisuals, "__MESA_initVisuals"),
-		SYM (__xglExtensionInfo->setVisualConfigs,
-		     "__MESA_setVisualConfigs")
-	    };
-
-	    if (!xglLookupSymbols (glCoreHandle, sym,
-				   sizeof (sym) / sizeof (sym[0])))
-	    {
-		xglUnloadModule (glCoreHandle);
-		glCoreHandle = 0;
-
-		return FALSE;
-	    }
-	}
-	else
-	{
-	    xglUnloadModule (glCoreHandle);
-	    glCoreHandle = 0;
-
-	    return FALSE;
-	}
-
-	if (!xglLoadHashFuncs (glCoreHandle))
-	{
-	    xglUnloadModule (glCoreHandle);
-	    glCoreHandle = 0;
+	    xglUnloadModule (glXHandle);
+	    glXHandle = 0;
 
 	    return FALSE;
 	}
@@ -263,12 +196,6 @@ xglUnloadGLXModules (void)
     {
 	xglUnloadModule (glXHandle);
 	glXHandle = 0;
-    }
-
-    if (glCoreHandle)
-    {
-	xglUnloadModule (glCoreHandle);
-	glCoreHandle = 0;
     }
 #endif
 

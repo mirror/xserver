@@ -40,6 +40,7 @@
 #include <dix-config.h>
 #endif
 
+#include <string.h>
 #include "glxserver.h"
 #include "glxutil.h"
 #include <GL/glxtokens.h>
@@ -389,36 +390,18 @@ int __glXSwapQueryContextInfoEXT(__GLXclientState *cl, GLbyte *pc)
     return __glXQueryContextInfoEXT(cl, pc);
 }
 
-int __glXSwapGetDrawableAttributesSGIX(__GLXclientState *cl, char *pc)
+int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
     GLXDrawable		 *drawId;
+    int			 *buffer;
     
     __GLX_DECLARE_SWAP_VARIABLES;
 
     pc += __GLX_VENDPRIV_HDR_SIZE;
 
     drawId = ((GLXDrawable *) (pc));
-    
-    __GLX_SWAP_SHORT(&req->length);
-    __GLX_SWAP_INT(&req->contextTag);
-    __GLX_SWAP_INT(drawId);
-
-    return __glXGetDrawableAttributesSGIX(cl, (GLbyte *)pc);
-}
-
-int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLchar *pc)
-{
-    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
-    CARD32		 *drawId;
-    INT32		 *buffer;
-    
-    __GLX_DECLARE_SWAP_VARIABLES;
-
-    pc += __GLX_VENDPRIV_HDR_SIZE;
-
-    drawId = ((CARD32 *) (pc));
-    buffer = ((INT32 *)  (pc + 4));
+    buffer = ((int *)	      (pc + 4));
     
     __GLX_SWAP_SHORT(&req->length);
     __GLX_SWAP_INT(&req->contextTag);
@@ -428,18 +411,18 @@ int __glXSwapBindTexImageEXT(__GLXclientState *cl, GLchar *pc)
     return __glXBindTexImageEXT(cl, (GLbyte *)pc);
 }
 
-int __glXSwapReleaseTexImageEXT(__GLXclientState *cl, GLchar *pc)
+int __glXSwapReleaseTexImageEXT(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
-    CARD32		 *drawId;
-    INT32		 *buffer;
+    GLXDrawable		 *drawId;
+    int			 *buffer;
     
     __GLX_DECLARE_SWAP_VARIABLES;
 
     pc += __GLX_VENDPRIV_HDR_SIZE;
 
-    drawId = ((CARD32 *) (pc));
-    buffer = ((INT32 *)  (pc + 4));
+    drawId = ((GLXDrawable *) (pc));
+    buffer = ((int *)	      (pc + 4));
     
     __GLX_SWAP_SHORT(&req->length);
     __GLX_SWAP_INT(&req->contextTag);
@@ -448,6 +431,22 @@ int __glXSwapReleaseTexImageEXT(__GLXclientState *cl, GLchar *pc)
 
     return __glXReleaseTexImageEXT(cl, (GLbyte *)pc);
 }
+
+int __glXSwapGetDrawableAttributesSGIX(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXVendorPrivateWithReplyReq *req = (xGLXVendorPrivateWithReplyReq *)pc;
+    CARD32 *data;
+    
+    __GLX_DECLARE_SWAP_VARIABLES;
+
+    data = (CARD32 *) (req + 1);
+    __GLX_SWAP_SHORT(&req->length);
+    __GLX_SWAP_INT(&req->contextTag);
+    __GLX_SWAP_INT(data);
+
+    return __glXGetDrawableAttributesSGIX(cl, (GLbyte *)pc);
+}
+
 
 /************************************************************************/
 
@@ -523,7 +522,8 @@ void __glXSwapQueryContextInfoEXTReply(ClientPtr client, xGLXQueryContextInfoEXT
     WriteToClient(client, length << 2, (char *)buf);
 }
 
-void __glXSwapGetDrawableAttributesReply(ClientPtr client, xGLXGetDrawableAttributesReply *reply, int *buf)
+void __glXSwapGetDrawableAttributesReply(ClientPtr client,
+					 xGLXGetDrawableAttributesReply *reply, CARD32 *buf)
 {
     int length = reply->length;
     __GLX_DECLARE_SWAP_VARIABLES;
@@ -1124,8 +1124,8 @@ int __glXSwapVendorPrivateWithReply(__GLXclientState *cl, GLbyte *pc)
 	return __glXSwapCreateContextWithConfigSGIX(cl, pc);
       case X_GLXvop_CreateGLXPixmapWithConfigSGIX:
 	return __glXSwapCreateGLXPixmapWithConfigSGIX(cl, pc);
-    case X_GLXvop_GetDrawableAttributesSGIX:
-	return __glXGetDrawableAttributesSGIX(cl, pc);
+      case X_GLXvop_GetDrawableAttributesSGIX:
+	return __glXSwapGetDrawableAttributesSGIX(cl, pc);
       case X_GLvop_IsRenderbufferEXT:
 	return __glXDispSwap_IsRenderbufferEXT(cl, pc);
       case X_GLvop_GenRenderbuffersEXT:

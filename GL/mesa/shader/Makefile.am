@@ -2,7 +2,7 @@ SUBDIRS = grammar slang
 
 noinst_LTLIBRARIES = libshader.la
 
-AM_CFLAGS = @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE @DIX_CFLAGS@
+AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DUSE_MGL_NAMESPACE
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I../X \
@@ -26,7 +26,7 @@ nodist_libshader_la_SOURCES = \
                       nvfragparse.c \
                       nvprogram.c \
                       nvvertexec.c \
-                      nvvertparse.c \
+		      nvvertparse.c \
                       program.c \
                       shaderobjects.c \
 		      shaderobjects_3dlabs.c

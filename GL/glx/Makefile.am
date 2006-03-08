@@ -1,22 +1,40 @@
-noinst_LTLIBRARIES = libglx.la
+if DRI
+GLXDRI_LIBRARY=libglxdri.la
+endif
+
+noinst_LTLIBRARIES = libglx.la $(GLXDRI_LIBRARY)
 
 AM_CFLAGS = \
+	-I@MESA_SOURCE@/include \
 	@DIX_CFLAGS@ \
 	@GL_CFLAGS@ \
 	@XLIB_CFLAGS@ \
-	-I@MESA_SOURCE@/include \
+	@LIBDRM_CFLAGS@ \
+	@DRIPROTO_CFLAGS@ \
 	-I@MESA_SOURCE@/src/mesa/glapi \
 	-I@MESA_SOURCE@/src/mesa/main \
 	@SERVER_DEFINES@ \
 	@MODULE_DEFINES@ \
-	@LOADER_DEFINES@ -DUSE_MGL_NAMESPACE
+	@LOADER_DEFINES@ \
+	-DNO_LIBCWRAPPER \
+	-DUSE_MGL_NAMESPACE
 
 # none yet
 #sdk_HEADERS =
 
-INCLUDES = -I$(top_srcdir)/GL/include -I$(top_srcdir)/hw/xfree86/os-support
+INCLUDES = \
+	-I$(top_srcdir)/GL/include \
+	-I$(top_srcdir)/hw/xfree86/os-support \
+	-I$(top_srcdir)/hw/xfree86/os-support/bus \
+	-I$(top_srcdir)/hw/xfree86/common \
+	-I$(top_srcdir)/hw/xfree86/dri \
+	-I$(top_srcdir)/mi
+
 
 nodist_libglx_la_SOURCES = indirect_size.h
+
+libglxdri_la_SOURCES = \
+        glxdri.c
 
 libglx_la_SOURCES = \
         g_disptab.c \
@@ -28,8 +46,6 @@ libglx_la_SOURCES = \
         glcontextmodes.h \
         global.c \
         glthread.c \
-        glxbuf.c \
-        glxbuf.h \
         glxcmds.c \
         glxcmdsswap.c \
         glxcontext.h \
@@ -37,14 +53,7 @@ libglx_la_SOURCES = \
         glxerror.h \
         glxext.c \
         glxext.h \
-        glxfb.c \
-        glxfb.h \
-        glximports.c \
-        glximports.h \
-        glxmem.c \
-        glxmem.h \
-        glxpix.c \
-        glxpix.h \
+	glxvisuals.c \
         glxscreens.c \
         glxscreens.h \
         glxserver.h \

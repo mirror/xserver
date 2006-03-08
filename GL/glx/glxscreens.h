@@ -51,28 +51,25 @@
 ** and DDX layers of the GLX server extension.  The methods provide an
 ** interface for context management on a screen.
 */
-typedef struct {
-    /*
-    ** Probe the screen and see if it supports GL rendering.  It will
-    ** return GL_FALSE if it doesn't, GL_TRUE otherwise.
-    */
-    Bool (*screenProbe)(int screen);
 
-    /*
-    ** Create a context using configuration information from modes.
-    ** Use imports as callbacks back to the OS. Return an opaque handle
-    ** on the context (NULL if failure).
-    */
-    __GLinterface *(*createContext)(__GLimports *imports,
-				    __GLcontextModes *modes,
-				    __GLinterface *shareGC);
+typedef struct __GLXscreen __GLXscreen;
+typedef struct __GLXtextureFromPixmapScreen __GLXtextureFromPixmapScreen;
 
-    /*
-    ** Create a buffer using information from glxPriv.  This routine
-    ** sets up any wrappers necessary to resize, swap or destroy the
-    ** buffer.
-    */
-    void (*createBuffer)(__GLXdrawablePrivate *glxPriv);
+#include "glxdrawable.h"
+
+struct __GLXtextureFromPixmapScreen {
+    int (*getTexTarget) (__GLXscreen *screen,
+			 __GLXpixmap *pixmap);
+};
+
+struct __GLXscreen {
+    void          (*destroy)(__GLXscreen *screen);
+
+    __GLXcontext *(*createContext)(__GLXscreen *screen,
+				   __GLcontextModes *modes,
+				   __GLXcontext *shareContext);
+
+    ScreenPtr pScreen;
 
     /**
      * Linked list of valid context modes for this screen.
@@ -94,10 +91,14 @@ typedef struct {
     */
     Bool (*WrappedPositionWindow)(WindowPtr pWin, int x, int y);
 
-} __GLXscreenInfo;
+    __GLXtextureFromPixmapScreen *textureFromPixmap;
+};
 
 
-extern void __glXScreenInit(GLint);
-extern void __glXScreenReset(void);
+void __glXScreenInit(__GLXscreen *screen, ScreenPtr pScreen);
+void __glXScreenDestroy(__GLXscreen *screen);
+
+void __glXInitScreens(void);
+extern void __glXResetScreens(void);
 
 #endif /* !__GLX_screens_h__ */

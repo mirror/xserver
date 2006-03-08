@@ -41,6 +41,15 @@
 #include "glxext.h"
 #include "micmap.h"
 
+#ifndef GLX_TEXTURE_TARGET_EXT
+#define GLX_TEXTURE_TARGET_EXT    0x6001
+#define GLX_TEXTURE_2D_EXT        0x6002
+#define GLX_TEXTURE_RECTANGLE_EXT 0x6003
+#define GLX_NO_TEXTURE_EXT        0x6004
+#define GLX_FRONT_LEFT_EXT        0x6005
+#define GLX_Y_INVERTED_EXT        0x6006
+#endif
+
 #define XGL_MAX_TEXTURE_UNITS      8
 #define XGL_MAX_ATTRIB_STACK_DEPTH 16
 
@@ -50,54 +59,29 @@
 #define XGL_TEXTURE_RECTANGLE_BIT (1 << 3)
 #define XGL_TEXTURE_CUBE_MAP_BIT  (1 << 4)
 
-typedef Bool	      (*GLXScreenProbeProc)    (int screen);
-typedef __GLinterface *(*GLXCreateContextProc) (__GLimports      *imports,
-						__GLcontextModes *modes,
-						__GLinterface    *shareGC);
-typedef void	      (*GLXCreateBufferProc)   (__GLXdrawablePrivate *glxPriv);
-typedef GLboolean     (*GLXSwapBuffersProc)    (__GLXdrawablePrivate *glxPriv);
-typedef int	      (*GLXBindBuffersProc)    (__GLXdrawablePrivate *glxPriv,
-						int		     buffer);
-typedef int	      (*GLXReleaseBuffersProc) (__GLXdrawablePrivate *glxPriv,
-						int		     buffer);
+extern __GLXprovider *__xglMesaProvider;
 
-typedef struct _xglGLXScreenInfo {
-    GLXScreenProbeProc   screenProbe;
-    GLXCreateContextProc createContext;
-    GLXCreateBufferProc  createBuffer;
-} xglGLXScreenInfoRec, *xglGLXScreenInfoPtr;
-
-extern __GLXscreenInfo *__xglScreenInfo;
-
-static xglGLXScreenInfoRec screenInfoPriv;
-
-typedef GLboolean (*GLResizeBuffersProc) (__GLdrawableBuffer   *buffer,
-					  GLint		       x,
-					  GLint		       y,
-					  GLuint	       width,
-					  GLuint	       height,
-					  __GLdrawablePrivate  *glPriv,
-					  GLuint	       bufferMask);
-typedef void	  (*GLFreeBuffersProc)   (__GLdrawablePrivate  *glPriv);
+typedef struct _xglGLScreen {
+    __GLXscreen base;
+    __GLXscreen *mesaScreen;
+} xglGLScreenRec, *xglGLScreenPtr;
 
 typedef struct _xglGLBuffer {
-    GLXSwapBuffersProc    swapBuffers;
-    GLXBindBuffersProc    bindBuffers;
-    GLXReleaseBuffersProc releaseBuffers;
-    GLResizeBuffersProc   resizeBuffers;
-    GLFreeBuffersProc     freeBuffers;
-    ScreenPtr		  pScreen;
-    DrawablePtr		  pDrawable;
-    xglVisualPtr	  pVisual;
-    glitz_drawable_t	  *drawable;
-    glitz_surface_t	  *backSurface;
-    PixmapPtr		  pPixmap;
-    GCPtr		  pGC;
-    RegionRec		  damage;
-    void	          *private;
-    int			  screenX, screenY;
-    int			  xOff, yOff;
-    int			  yFlip;
+    __GLXdrawable base;
+    __GLXdrawable *mesaDrawable;
+
+    ScreenPtr	     pScreen;
+    DrawablePtr	     pDrawable;
+    xglVisualPtr     pVisual;
+    glitz_drawable_t *drawable;
+    glitz_surface_t  *backSurface;
+    PixmapPtr	     pPixmap;
+    GCPtr	     pGC;
+    RegionRec	     damage;
+    void	     *private;
+    int		     screenX, screenY;
+    int		     xOff, yOff;
+    int		     yFlip;
 } xglGLBufferRec, *xglGLBufferPtr;
 
 typedef int xglGLXVisualConfigRec, *xglGLXVisualConfigPtr;
@@ -263,12 +247,13 @@ typedef struct _xglGLAttributes {
 } xglGLAttributesRec, *xglGLAttributesPtr;
 
 typedef struct _xglGLContext {
-    __GLinterface	      iface;
-    __GLinterface	      *mIface;
-    int			      refcnt;
-    struct _xglGLContext      *shared;
-    glitz_context_t	      *context;
-    struct _glapi_table	      glRenderTable;
+    __GLXcontext base;
+    __GLXcontext *mesaContext;
+
+    int			 refcnt;
+    struct _xglGLContext *shared;
+    glitz_context_t	 *context;
+    struct _glapi_table	 glRenderTable;
 
     PFNGLACTIVETEXTUREARBPROC ActiveTextureARB;
     PFNGLWINDOWPOS3FMESAPROC WindowPos3fMESA;
@@ -288,35 +273,33 @@ typedef struct _xglGLContext {
     GetFramebufferAttachmentParameterivEXT;
     PFNGLGENERATEMIPMAPEXTPROC GenerateMipmapEXT;
 
-    Bool		      needInit;
-    xglGLBufferPtr	      pDrawBuffer;
-    xglGLBufferPtr	      pReadBuffer;
-    int			      drawXoff, drawYoff;
-    __GLdrawablePrivate	      *readPriv;
-    __GLdrawablePrivate	      *drawPriv;
-    char		      *versionString;
-    GLenum		      errorValue;
-    GLboolean		      doubleBuffer;
-    GLint		      depthBits;
-    GLint		      stencilBits;
-    xglHashTablePtr	      texObjects;
-    xglHashTablePtr	      renderbufferObjects;
-    GLuint		      renderbuffer;
-    xglHashTablePtr	      framebufferObjects;
-    GLuint		      framebuffer;
-    xglHashTablePtr	      displayLists;
-    GLuint		      list;
-    GLenum		      listMode;
-    GLuint		      beginCnt;
-    xglDisplayListPtr	      pList;
-    GLuint		      groupList;
-    xglGLAttributesRec	      attrib;
-    xglGLAttributesRec	      attribStack[XGL_MAX_ATTRIB_STACK_DEPTH];
-    int			      nAttribStack;
-    int			      activeTexUnit;
-    GLint		      maxTexUnits;
-    GLint		      maxListNesting;
-    GLint		      maxAttribStackDepth;
+    Bool		 needInit;
+    xglGLBufferPtr	 pDrawBuffer;
+    xglGLBufferPtr	 pReadBuffer;
+    int			 drawXoff, drawYoff;
+    char		 *versionString;
+    GLenum		 errorValue;
+    GLboolean		 doubleBuffer;
+    GLint		 depthBits;
+    GLint		 stencilBits;
+    xglHashTablePtr	 texObjects;
+    xglHashTablePtr	 renderbufferObjects;
+    GLuint		 renderbuffer;
+    xglHashTablePtr	 framebufferObjects;
+    GLuint		 framebuffer;
+    xglHashTablePtr	 displayLists;
+    GLuint		 list;
+    GLenum		 listMode;
+    GLuint		 beginCnt;
+    xglDisplayListPtr	 pList;
+    GLuint		 groupList;
+    xglGLAttributesRec	 attrib;
+    xglGLAttributesRec	 attribStack[XGL_MAX_ATTRIB_STACK_DEPTH];
+    int			 nAttribStack;
+    int			 activeTexUnit;
+    GLint		 maxTexUnits;
+    GLint		 maxListNesting;
+    GLint		 maxAttribStackDepth;
 } xglGLContextRec, *xglGLContextPtr;
 
 static xglGLContextPtr cctx = NULL;
@@ -1425,7 +1408,7 @@ xglSetupTextures (void)
 	{
 	    if (i != activeTexUnit)
 	    {
-		cctx->ActiveTextureARB (GL_TEXTURE0_ARB + i);
+		(*cctx->ActiveTextureARB) (GL_TEXTURE0_ARB + i);
 		activeTexUnit = i;
 	    }
 	    glitz_context_bind_texture (cctx->context, pTexObj[i]->object);
@@ -1433,7 +1416,7 @@ xglSetupTextures (void)
     }
 
     if (activeTexUnit != cctx->activeTexUnit)
-	cctx->ActiveTextureARB (cctx->activeTexUnit);
+	(*cctx->ActiveTextureARB) (cctx->activeTexUnit);
 }
 
 static GLboolean
@@ -4777,6 +4760,411 @@ xglInitExtensions (xglGLContextPtr pContext)
     }
 }
 
+static GLboolean
+xglResizeBuffer (xglGLBufferPtr pBufferPriv)
+{
+    DrawablePtr pDrawable = pBufferPriv->pDrawable;
+
+    XGL_SCREEN_PRIV (pDrawable->pScreen);
+    XGL_DRAWABLE_PIXMAP (pBufferPriv->pDrawable);
+
+    if (pPixmap != pScreenPriv->pScreenPixmap)
+    {
+	if (!xglCreatePixmapSurface (pPixmap))
+	    return FALSE;
+
+	if (pBufferPriv->drawable == pScreenPriv->drawable)
+	{
+	    if (pBufferPriv->backSurface)
+		glitz_surface_destroy (pBufferPriv->backSurface);
+
+	    glitz_drawable_destroy (pBufferPriv->drawable);
+
+	    pBufferPriv->drawable    = NULL;
+	    pBufferPriv->backSurface = NULL;
+	}
+
+	if (pBufferPriv->drawable)
+	{
+	    glitz_drawable_update_size (pBufferPriv->drawable,
+					pPixmap->drawable.width,
+					pPixmap->drawable.height);
+	}
+	else
+	{
+	    glitz_drawable_format_t *format;
+
+	    format = pBufferPriv->pVisual->format.drawable;
+	    if (pBufferPriv->pVisual->pbuffer)
+	    {
+		pBufferPriv->drawable =
+		    glitz_create_pbuffer_drawable (pScreenPriv->drawable,
+						   format,
+						   pPixmap->drawable.width,
+						   pPixmap->drawable.height);
+	    }
+	    else
+	    {
+		pBufferPriv->drawable =
+		    glitz_create_drawable (pScreenPriv->drawable, format,
+					   pPixmap->drawable.width,
+					   pPixmap->drawable.height);
+
+		if (!pBufferPriv->drawable)
+		    return FALSE;
+
+		if (format->doublebuffer)
+		{
+		    glitz_format_t *backFormat;
+
+		    backFormat = pBufferPriv->pVisual->format.surface;
+
+		    pBufferPriv->backSurface =
+			glitz_surface_create (pScreenPriv->drawable, backFormat,
+					      pPixmap->drawable.width,
+					      pPixmap->drawable.height,
+					      0, NULL);
+		    if (pBufferPriv->backSurface)
+			glitz_surface_attach (pBufferPriv->backSurface,
+					      pBufferPriv->drawable,
+					      GLITZ_DRAWABLE_BUFFER_BACK_COLOR);
+		}
+	    }
+	}
+    }
+    else
+    {
+	glitz_drawable_reference (pScreenPriv->drawable);
+
+	if (pBufferPriv->backSurface)
+	    glitz_surface_destroy (pBufferPriv->backSurface);
+
+	if (pBufferPriv->drawable)
+	    glitz_drawable_destroy (pBufferPriv->drawable);
+
+	pBufferPriv->drawable    = pScreenPriv->drawable;
+	pBufferPriv->backSurface = NULL;
+    }
+
+    ValidateGC (pDrawable, pBufferPriv->pGC);
+
+    return TRUE;
+}
+
+static GLboolean
+xglSwapBuffers (__GLXdrawable *drawable)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr	   pDrawable = pBufferPriv->pDrawable;
+    GLboolean	   status = GL_TRUE;
+
+    if (pDrawable)
+    {
+	glitz_surface_t *surface;
+	int		xOff, yOff;
+	GCPtr		pGC = pBufferPriv->pGC;
+	BoxPtr		pBox = REGION_RECTS (pGC->pCompositeClip);
+	int		nBox = REGION_NUM_RECTS (pGC->pCompositeClip);
+
+	XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
+
+	glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
+					   xOff, yOff,
+					   (glitz_box_t *) pBox, nBox);
+
+	xglAddBitDamage (pDrawable, pGC->pCompositeClip);
+	DamageDamageRegion (pDrawable, pGC->pCompositeClip);
+	REGION_EMPTY (pGC->pScreen, &pBufferPriv->damage);
+    }
+    else if (mesaDrawable)
+    {
+	status = (*mesaDrawable->swapBuffers) (mesaDrawable);
+    }
+
+    return status;
+}
+
+static GLboolean
+xglResizeDrawable (__GLXdrawable *drawable)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
+    GLboolean	   status = GL_TRUE;
+
+    if (pDrawable)
+    {
+	if (!xglResizeBuffer (pBufferPriv))
+	    return GL_FALSE;
+    }
+    else if (mesaDrawable)
+    {
+	status = (*mesaDrawable->resize) (mesaDrawable);
+    }
+
+    return status;
+}
+
+static int
+xglBindTexImage (__GLXcontext *context,
+		 int	      buffer,
+		 __GLXpixmap  *pixmap)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    if (cctx)
+    {
+	xglTexUnitPtr pTexUnit = &cctx->attrib.texUnits[cctx->activeTexUnit];
+	ScreenPtr     pScreen = pixmap->pDraw->pScreen;
+
+	XGL_SCREEN_PRIV (pScreen);
+	XGL_DRAWABLE_PIXMAP (pixmap->pDraw);
+
+	/* XXX: front left buffer is only supported so far */
+	if (buffer != GLX_FRONT_LEFT_EXT)
+	    return BadMatch;
+
+	if (xglCreatePixmapSurface (pPixmap))
+	{
+	    glitz_texture_object_t *texture;
+
+	    XGL_PIXMAP_PRIV (pPixmap);
+
+	    texture = glitz_texture_object_create (pPixmapPriv->surface);
+	    if (texture)
+	    {
+		xglTexObjPtr pTexObj;
+
+		switch (glitz_texture_object_get_target (texture)) {
+		case GLITZ_TEXTURE_TARGET_2D:
+		    pTexObj = pTexUnit->p2D;
+		    break;
+		case GLITZ_TEXTURE_TARGET_RECT:
+		    pTexObj = pTexUnit->pRect;
+		default:
+		    pTexObj = NULL;
+		    break;
+		}
+
+		if (pTexObj)
+		{
+		    pPixmap->refcnt++;
+
+		    if (pTexObj->pPixmap)
+			(*pScreen->DestroyPixmap) (pTexObj->pPixmap);
+
+		    if (pTexObj->object)
+			glitz_texture_object_destroy (pTexObj->object);
+
+		    pTexObj->pPixmap = pPixmap;
+		    pTexObj->object  = texture;
+		}
+		else
+		    glitz_texture_object_destroy (texture);
+
+		return Success;
+	    }
+	}
+    }
+    else
+    {
+	return (*mesaContext->textureFromPixmap->bindTexImage) (mesaContext,
+								buffer,
+								pixmap);
+    }
+
+    return BadDrawable;
+}
+
+static int
+xglReleaseTexImage (__GLXcontext *context,
+		    int		 buffer,
+		    __GLXpixmap  *pixmap)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    if (cctx)
+    {
+	DrawablePtr  pDrawable = pixmap->pDraw;
+	xglTexObjPtr pTexObj;
+
+	XGL_DRAWABLE_PIXMAP (pDrawable);
+
+	/* XXX: front left buffer is only supported so far */
+	if (buffer != GLX_FRONT_LEFT_EXT)
+	    return BadMatch;
+
+	pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
+	if (pTexObj && pTexObj->pPixmap == pPixmap)
+	{
+	    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
+	    pTexObj->pPixmap = NULL;
+	    glitz_texture_object_destroy (pTexObj->object);
+	    pTexObj->object = NULL;
+
+	    return Success;
+	}
+	else
+	{
+	    pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].pRect;
+	    if (pTexObj && pTexObj->pPixmap == pPixmap)
+	    {
+		(*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
+		pTexObj->pPixmap = NULL;
+		glitz_texture_object_destroy (pTexObj->object);
+		pTexObj->object = NULL;
+
+		return Success;
+	    }
+	}
+    }
+    else
+    {
+	return (*mesaContext->textureFromPixmap->releaseTexImage) (mesaContext,
+								   buffer,
+								   pixmap);
+    }
+
+    return BadDrawable;
+}
+
+static __GLXtextureFromPixmapContext __xglTextureFromPixmapContext = {
+    xglBindTexImage,
+    xglReleaseTexImage
+};
+
+static void
+xglDestroyDrawable (__GLXdrawable *drawable)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable *mesaDrawable = pBufferPriv->mesaDrawable;
+
+    if (mesaDrawable)
+	(*mesaDrawable->destroy) (mesaDrawable);
+
+    if (pBufferPriv->pGC)
+	FreeGC (pBufferPriv->pGC, (GContext) 0);
+
+    if (pBufferPriv->backSurface)
+	glitz_surface_destroy (pBufferPriv->backSurface);
+
+    if (pBufferPriv->drawable)
+	glitz_drawable_destroy (pBufferPriv->drawable);
+
+    xfree (pBufferPriv);
+}
+
+static __GLXdrawable *
+xglCreateDrawable (__GLXcontext *context,
+		   DrawablePtr  pDrawable,
+		   XID	        drawId)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+    ScreenPtr	    pScreen = pDrawable->pScreen;
+    xglGLBufferPtr  pBufferPriv;
+    xglVisualPtr    v;
+
+    XGL_SCREEN_PRIV (pScreen);
+    XGL_DRAWABLE_PIXMAP (pDrawable);
+
+    pBufferPriv = xalloc (sizeof (xglGLBufferRec));
+    if (!pBufferPriv)
+	return NULL;
+
+    memset (pBufferPriv, 0, sizeof (xglGLBufferRec));
+
+    if (!GlxDrawableInit (&pBufferPriv->base, context, pDrawable, drawId))
+    {
+	xfree (pBufferPriv);
+	return NULL;
+    }
+
+    pBufferPriv->mesaDrawable = NULL;
+
+    pBufferPriv->pScreen   = pScreen;
+    pBufferPriv->pDrawable = NULL;
+    pBufferPriv->pPixmap   = NULL;
+    pBufferPriv->pGC	   = NULL;
+
+    pBufferPriv->base.destroy     = xglDestroyDrawable;
+    pBufferPriv->base.resize      = xglResizeDrawable;
+    pBufferPriv->base.swapBuffers = xglSwapBuffers;
+
+    pBufferPriv->drawable    = NULL;
+    pBufferPriv->backSurface = NULL;
+
+    REGION_INIT (pScreen, &pBufferPriv->damage, NullBox, 0);
+
+    pBufferPriv->pVisual = 0;
+
+    /* glx acceleration */
+    if (pScreenPriv->accel.glx.enabled &&
+	xglCheckPixmapSize (pPixmap, &pScreenPriv->accel.glx.size))
+    {
+	for (v = pScreenPriv->pGlxVisual; v; v = v->next)
+	{
+	    glitz_drawable_format_t *format;
+
+	    if (pScreenPriv->accel.glx.pbuffer != v->pbuffer)
+		continue;
+
+	    format = v->format.drawable;
+	    if (!format)
+		continue;
+
+	    if (format->color.red_size   != context->modes->redBits   ||
+		format->color.green_size != context->modes->greenBits ||
+		format->color.blue_size  != context->modes->blueBits)
+		continue;
+
+	    if (format->color.alpha_size < context->modes->alphaBits   ||
+		format->depth_size	 < context->modes->depthBits   ||
+		format->stencil_size     < context->modes->stencilBits ||
+		format->doublebuffer     < context->modes->doubleBufferMode)
+		continue;
+
+	    /* this is good enought for pbuffers */
+	    if (v->pbuffer)
+		break;
+
+	    /* we want an exact match for non-pbuffer formats */
+	    if (format->color.alpha_size == context->modes->alphaBits   &&
+		format->depth_size	 == context->modes->depthBits   &&
+		format->stencil_size     == context->modes->stencilBits &&
+		format->doublebuffer     == context->modes->doubleBufferMode)
+		break;
+	}
+
+	pBufferPriv->pVisual = v;
+    }
+
+    if ((pDrawable->type == DRAWABLE_WINDOW)
+
+#ifdef COMPOSITE
+	&& (pBufferPriv->pVisual
+
+	    /* this is a root window, can't be redirected */
+	    || (!((WindowPtr) pDrawable)->parent))
+#endif
+
+	)
+    {
+	pBufferPriv->pDrawable = pDrawable;
+    }
+    else
+    {
+	pBufferPriv->mesaDrawable = (*mesaContext->createDrawable) (mesaContext,
+								    pDrawable,
+								    drawId);
+    }
+
+    return &pBufferPriv->base;
+}
+
 static void
 xglSetCurrentContext (xglGLContextPtr pContext)
 {
@@ -4907,46 +5295,41 @@ xglFreeContext (xglGLContextPtr pContext)
     xfree (pContext);
 }
 
-static GLboolean
-xglDestroyContext (__GLcontext *gc)
+static void
+xglDestroyContext (__GLXcontext *context)
 {
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
 
     xglFreeContext (pContext);
 
-    if (!iface)
-	return GL_TRUE;
-
-    return (*iface->exports.destroyContext) ((__GLcontext *) iface);
+    if (mesaContext)
+	(*mesaContext->destroy) (mesaContext);
 }
 
-static GLboolean
-xglLoseCurrent (__GLcontext *gc)
+static int
+xglLoseCurrent (__GLXcontext *context)
 {
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
 
     GlxFlushContextCache ();
     GlxSetRenderTables (0);
 
-    if (!iface)
-	return GL_TRUE;
+    if (!mesaContext)
+	return TRUE;
 
-    return (*iface->exports.loseCurrent) ((__GLcontext *) iface);
+    return (*mesaContext->loseCurrent) (mesaContext);
 }
 
-static GLboolean
-xglMakeCurrent (__GLcontext *gc)
+static int
+xglMakeCurrent (__GLXcontext *context)
 {
-    xglGLContextPtr	pContext = (xglGLContextPtr) gc;
-    __GLinterface	*iface = &pContext->iface;
-    __GLinterface	*mIface = pContext->mIface;
-    __GLdrawablePrivate *drawPriv = iface->imports.getDrawablePrivate (gc);
-    __GLdrawablePrivate *readPriv = iface->imports.getReadablePrivate (gc);
-    xglGLBufferPtr	pDrawBufferPriv = drawPriv->private;
-    xglGLBufferPtr	pReadBufferPriv = readPriv->private;
-    GLboolean		status = GL_TRUE;
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+    xglGLBufferPtr  pDrawBufferPriv = (xglGLBufferPtr) context->drawPriv;
+    xglGLBufferPtr  pReadBufferPriv = (xglGLBufferPtr) context->readPriv;
+    int		    status = TRUE;
 
     if (pReadBufferPriv->pDrawable && pDrawBufferPriv->pDrawable)
     {
@@ -4964,11 +5347,11 @@ xglMakeCurrent (__GLcontext *gc)
 	/* this happens if client previously used this context with a buffer
 	   not supported by the native GL stack */
 	if (!pContext->context)
-	    return GL_FALSE;
+	    return FALSE;
 
 	/* XXX: GLX_SGI_make_current_read disabled for now */
 	if (pDrawBufferPriv != pReadBufferPriv)
-	    return GL_FALSE;
+	    return FALSE;
 
 	if (!pReadBufferPriv->pGC)
 	    pReadBufferPriv->pGC =
@@ -4992,30 +5375,24 @@ xglMakeCurrent (__GLcontext *gc)
 	pContext->pReadBuffer = pReadBufferPriv;
 	pContext->pDrawBuffer = pDrawBufferPriv;
 
-	pContext->readPriv = readPriv;
-	pContext->drawPriv = drawPriv;
-
 	/* from now on this context can only be used with native GL stack */
-	if (mIface)
+	if (mesaContext)
 	{
-	    (*mIface->exports.destroyContext) ((__GLcontext *) mIface);
-	    pContext->mIface = NULL;
+	    (*mesaContext->destroy) (mesaContext);
+	    pContext->mesaContext = NULL;
 	}
     }
     else
     {
 	/* this happens if client previously used this context with a buffer
 	   supported by the native GL stack */
-	if (!mIface)
+	if (!mesaContext)
 	    return GL_FALSE;
 
-	drawPriv->private = pDrawBufferPriv->private;
-	readPriv->private = pReadBufferPriv->private;
+	mesaContext->drawPriv = pDrawBufferPriv->mesaDrawable;
+	mesaContext->readPriv = pDrawBufferPriv->mesaDrawable;
 
-	status = (*mIface->exports.makeCurrent) ((__GLcontext *) mIface);
-
-	drawPriv->private = pDrawBufferPriv;
-	readPriv->private = pReadBufferPriv;
+	status = (*mesaContext->makeCurrent) (mesaContext);
 
 	/* from now on this context can not be used with native GL stack */
 	if (status == GL_TRUE && pContext->context)
@@ -5028,160 +5405,37 @@ xglMakeCurrent (__GLcontext *gc)
     return status;
 }
 
-static GLboolean
-xglShareContext (__GLcontext *gc,
-		 __GLcontext *gcShare)
+static int
+xglCopyContext (__GLXcontext  *dst,
+		__GLXcontext  *src,
+		unsigned long mask)
 {
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    xglGLContextPtr pContextShare = (xglGLContextPtr) gcShare;
-    __GLinterface   *iface = pContext->mIface;
-    __GLinterface   *ifaceShare = pContextShare->mIface;
-
-    if (!iface || !ifaceShare)
-	return GL_TRUE;
-
-    return (*iface->exports.shareContext) ((__GLcontext *) iface,
-					   (__GLcontext *) ifaceShare);
-}
-
-static GLboolean
-xglCopyContext (__GLcontext	  *dst,
-		const __GLcontext *src,
-		GLuint		  mask)
-{
-    xglGLContextPtr   pDst = (xglGLContextPtr) dst;
-    xglGLContextPtr   pSrc = (xglGLContextPtr) src;
-    const __GLcontext *srcCtx = (const __GLcontext *) pSrc->mIface;
-    __GLinterface     *dstIface = (__GLinterface *) pDst->mIface;
-    GLboolean	      status = GL_TRUE;
+    xglGLContextPtr pDst = (xglGLContextPtr) dst;
+    xglGLContextPtr pSrc = (xglGLContextPtr) src;
+    __GLXcontext    *mesaDst = pDst->mesaContext;
+    __GLXcontext    *mesaSrc = pSrc->mesaContext;
+    int		    status = TRUE;
 
     if (pSrc->context && pDst->context)
 	glitz_context_copy (pSrc->context, pDst->context, mask);
     else
-	status = GL_FALSE;
+	status = FALSE;
 
-    if (dstIface && srcCtx)
-	status = (*dstIface->exports.copyContext) ((__GLcontext *) dstIface,
-						   srcCtx,
-						   mask);
+    if (mesaDst && mesaSrc)
+	status = (*mesaDst->copy) (mesaDst, mesaSrc, mask);
 
     return status;
 }
 
-static Bool
-xglResizeBuffer (__GLdrawablePrivate *glPriv,
-		 int		      x,
-		 int		      y,
-		 unsigned int	      width,
-		 unsigned int	      height)
+static int
+xglForceCurrent (__GLXcontext *context)
 {
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
-
-    XGL_SCREEN_PRIV (pDrawable->pScreen);
-    XGL_DRAWABLE_PIXMAP (pBufferPriv->pDrawable);
-
-    if (pPixmap != pScreenPriv->pScreenPixmap)
-    {
-	if (!xglCreatePixmapSurface (pPixmap))
-	    return FALSE;
-
-	if (pBufferPriv->drawable == pScreenPriv->drawable)
-	{
-	    if (pBufferPriv->backSurface)
-		glitz_surface_destroy (pBufferPriv->backSurface);
-
-	    glitz_drawable_destroy (pBufferPriv->drawable);
-
-	    pBufferPriv->drawable    = NULL;
-	    pBufferPriv->backSurface = NULL;
-	}
-
-	if (pBufferPriv->drawable)
-	{
-	    glitz_drawable_update_size (pBufferPriv->drawable,
-					pPixmap->drawable.width,
-					pPixmap->drawable.height);
-	}
-	else
-	{
-	    glitz_drawable_format_t *format;
-
-	    format = pBufferPriv->pVisual->format.drawable;
-	    if (pBufferPriv->pVisual->pbuffer)
-	    {
-		pBufferPriv->drawable =
-		    glitz_create_pbuffer_drawable (pScreenPriv->drawable,
-						   format,
-						   pPixmap->drawable.width,
-						   pPixmap->drawable.height);
-	    }
-	    else
-	    {
-		pBufferPriv->drawable =
-		    glitz_create_drawable (pScreenPriv->drawable, format,
-					   pPixmap->drawable.width,
-					   pPixmap->drawable.height);
-
-		if (!pBufferPriv->drawable)
-		    return FALSE;
-
-		if (format->doublebuffer)
-		{
-		    glitz_format_t *backFormat;
-
-		    backFormat = pBufferPriv->pVisual->format.surface;
-
-		    pBufferPriv->backSurface =
-			glitz_surface_create (pScreenPriv->drawable, backFormat,
-					      pPixmap->drawable.width,
-					      pPixmap->drawable.height,
-					      0, NULL);
-		    if (pBufferPriv->backSurface)
-			glitz_surface_attach (pBufferPriv->backSurface,
-					      pBufferPriv->drawable,
-					      GLITZ_DRAWABLE_BUFFER_BACK_COLOR);
-		}
-	    }
-	}
-    }
-    else
-    {
-	glitz_drawable_reference (pScreenPriv->drawable);
-
-	if (pBufferPriv->backSurface)
-	    glitz_surface_destroy (pBufferPriv->backSurface);
-
-	if (pBufferPriv->drawable)
-	    glitz_drawable_destroy (pBufferPriv->drawable);
-
-	pBufferPriv->drawable    = pScreenPriv->drawable;
-	pBufferPriv->backSurface = NULL;
-    }
-
-    ValidateGC (pDrawable, pBufferPriv->pGC);
-
-    return TRUE;
-}
-
-static GLboolean
-xglForceCurrent (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-    GLboolean	    status = GL_TRUE;
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+    int		    status = TRUE;
 
     if (pContext && pContext->context)
     {
-	__GLdrawablePrivate *readPriv, *drawPriv;
-
-	readPriv = pContext->readPriv;
-	drawPriv = pContext->drawPriv;
-
-	drawPriv->lockDP (drawPriv, gc);
-	if (readPriv != drawPriv)
-	    readPriv->lockDP (readPriv, gc);
-
 	cctx = pContext;
 
 	if (cctx->pReadBuffer->pDrawable && cctx->pDrawBuffer->pDrawable)
@@ -5236,44 +5490,18 @@ xglForceCurrent (__GLcontext *gc)
 	    if (cctx->pDrawBuffer->pPixmap != pDrawPixmap ||
 		cctx->pReadBuffer->pPixmap != pReadPixmap)
 	    {
-		if (!xglResizeBuffer (drawPriv,
-				      pDrawable->x,
-				      pDrawable->y,
-				      pDrawable->width,
-				      pDrawable->height))
-		{
-		    drawPriv->unlockDP (drawPriv);
-		    if (readPriv != drawPriv)
-			readPriv->unlockDP (readPriv);
-
+		if (!xglResizeBuffer (cctx->pDrawBuffer))
 		    return FALSE;
-		}
 
-		if (!xglResizeBuffer (readPriv,
-				      cctx->pReadBuffer->pDrawable->x,
-				      cctx->pReadBuffer->pDrawable->y,
-				      cctx->pReadBuffer->pDrawable->width,
-				      cctx->pReadBuffer->pDrawable->height))
-		{
-		    drawPriv->unlockDP (drawPriv);
-		    if (readPriv != drawPriv)
-			readPriv->unlockDP (readPriv);
-
+		if (!xglResizeBuffer (cctx->pReadBuffer))
 		    return FALSE;
-		}
 
 		cctx->pReadBuffer->pPixmap = pReadPixmap;
 		cctx->pDrawBuffer->pPixmap = pDrawPixmap;
 	    }
 
 	    if (!xglSyncSurface (pContext->pDrawBuffer->pDrawable))
-	    {
-		drawPriv->unlockDP (drawPriv);
-		if (readPriv != drawPriv)
-		    readPriv->unlockDP (readPriv);
-
 		return FALSE;
-	    }
 
 	    if (pDrawPixmap != pScreenPriv->pScreenPixmap)
 	    {
@@ -5365,85 +5593,14 @@ xglForceCurrent (__GLcontext *gc)
 	{
 	    xglSetCurrentContext (pContext);
 	}
-
-	drawPriv->unlockDP (drawPriv);
-	if (readPriv != drawPriv)
-	    readPriv->unlockDP (readPriv);
     }
     else
     {
 	cctx = NULL;
-	status = (*iface->exports.forceCurrent) ((__GLcontext *) iface);
+	status = (*mesaContext->forceCurrent) (mesaContext);
     }
 
     return status;
-}
-
-static GLboolean
-xglNotifyResize (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (!iface)
-	return GL_TRUE;
-
-    return (*iface->exports.notifyResize) ((__GLcontext *) iface);
-}
-
-static void
-xglNotifyDestroy (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    pContext->pReadBuffer->pDrawable = 0;
-    pContext->pDrawBuffer->pDrawable = 0;
-
-    if (iface)
-	(*iface->exports.notifyDestroy) ((__GLcontext *) iface);
-}
-
-static void
-xglNotifySwapBuffers (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.notifySwapBuffers) ((__GLcontext *) iface);
-}
-
-static struct __GLdispatchStateRec *
-xglDispatchExec (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (!iface)
-	return NULL;
-
-    return (*iface->exports.dispatchExec) ((__GLcontext *) iface);
-}
-
-static void
-xglBeginDispatchOverride (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.beginDispatchOverride) ((__GLcontext *) iface);
-}
-
-static void
-xglEndDispatchOverride (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.endDispatchOverride) ((__GLcontext *) iface);
 }
 
 static void
@@ -5462,23 +5619,25 @@ xglLoseCurrentContext (void *closure)
     }
 }
 
-static __GLinterface *
-xglCreateContext (__GLimports      *imports,
+static __GLXcontext *
+xglCreateContext (__GLXscreen	   *screen,
 		  __GLcontextModes *modes,
-		  __GLinterface    *shareGC)
+		  __GLXcontext	   *shareContext)
 {
     glitz_drawable_format_t *format;
-    xglGLContextPtr	    pShareContext = (xglGLContextPtr) shareGC;
+    xglGLScreenPtr	    pGLScreen = (xglGLScreenPtr) screen;
+    __GLXscreen		    *mesaScreen = pGLScreen->mesaScreen;
+    xglGLContextPtr	    pShareContext = (xglGLContextPtr) shareContext;
     xglGLContextPtr	    pContext;
-    __GLinterface	    *shareIface = NULL;
-    __GLinterface	    *iface;
-    __GLXcontext	    *glxCtx = (__GLXcontext *) imports->other;
+    __GLXcontext	    *shareMesaContext = NULL;
 
-    XGL_SCREEN_PRIV (glxCtx->pScreen);
+    XGL_SCREEN_PRIV (screen->pScreen);
 
     pContext = xalloc (sizeof (xglGLContextRec));
     if (!pContext)
 	return NULL;
+
+    memset (pContext, 0, sizeof (xglGLContextRec));
 
     format = glitz_drawable_get_format (pScreenPriv->drawable);
     pContext->context = glitz_context_create (pScreenPriv->drawable, format);
@@ -5495,9 +5654,9 @@ xglCreateContext (__GLimports      *imports,
     pContext->beginCnt	    = 0;
     pContext->nAttribStack  = 0;
     pContext->refcnt	    = 1;
-    pContext->doubleBuffer  = glxCtx->modes->doubleBufferMode;
-    pContext->depthBits     = glxCtx->modes->depthBits;
-    pContext->stencilBits   = glxCtx->modes->stencilBits;
+    pContext->doubleBuffer  = modes->doubleBufferMode;
+    pContext->depthBits     = modes->depthBits;
+    pContext->stencilBits   = modes->stencilBits;
     pContext->drawXoff	    = 0;
     pContext->drawYoff	    = 0;
     pContext->maxTexUnits   = 0;
@@ -5517,7 +5676,7 @@ xglCreateContext (__GLimports      *imports,
 
     pContext->attrib.scissorTest = GL_FALSE;
 
-    if (shareGC)
+    if (shareContext)
     {
 	pContext->texObjects	      = NULL;
 	pContext->renderbufferObjects = NULL;
@@ -5525,7 +5684,7 @@ xglCreateContext (__GLimports      *imports,
 	pContext->displayLists	      = NULL;
 
 	pContext->shared = pShareContext->shared;
-	shareIface = pShareContext->mIface;
+	shareMesaContext = pShareContext->mesaContext;
     }
     else
     {
@@ -5562,417 +5721,79 @@ xglCreateContext (__GLimports      *imports,
 
     pContext->shared->refcnt++;
 
-    iface = (*screenInfoPriv.createContext) (imports, modes, shareIface);
-    if (!iface)
+    pContext->base.destroy        = xglDestroyContext;
+    pContext->base.makeCurrent    = xglMakeCurrent;
+    pContext->base.loseCurrent    = xglLoseCurrent;
+    pContext->base.copy           = xglCopyContext;
+    pContext->base.forceCurrent   = xglForceCurrent;
+    pContext->base.createDrawable = xglCreateDrawable;
+
+    pContext->base.textureFromPixmap = &__xglTextureFromPixmapContext;
+
+    pContext->mesaContext = (*mesaScreen->createContext) (mesaScreen,
+							  modes,
+							  shareMesaContext);
+    if (!pContext->mesaContext)
     {
 	xglFreeContext (pContext);
 	return NULL;
     }
 
-    pContext->mIface = iface;
-    pContext->iface.imports = *imports;
-
-    pContext->iface.exports.destroyContext	  = xglDestroyContext;
-    pContext->iface.exports.loseCurrent		  = xglLoseCurrent;
-    pContext->iface.exports.makeCurrent		  = xglMakeCurrent;
-    pContext->iface.exports.shareContext	  = xglShareContext;
-    pContext->iface.exports.copyContext		  = xglCopyContext;
-    pContext->iface.exports.forceCurrent	  = xglForceCurrent;
-    pContext->iface.exports.notifyResize	  = xglNotifyResize;
-    pContext->iface.exports.notifyDestroy	  = xglNotifyDestroy;
-    pContext->iface.exports.notifySwapBuffers     = xglNotifySwapBuffers;
-    pContext->iface.exports.dispatchExec	  = xglDispatchExec;
-    pContext->iface.exports.beginDispatchOverride = xglBeginDispatchOverride;
-    pContext->iface.exports.endDispatchOverride   = xglEndDispatchOverride;
-
-    return (__GLinterface *) pContext;
-}
-
-static GLboolean
-xglSwapBuffers (__GLXdrawablePrivate *glxPriv)
-{
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
-    DrawablePtr		pDrawable = pBufferPriv->pDrawable;
-    GLboolean		status = GL_TRUE;
-
-    if (pDrawable)
-    {
-	if (glPriv->modes->doubleBufferMode)
-	{
-	    glitz_surface_t *surface;
-	    int		    xOff, yOff;
-	    GCPtr	    pGC = pBufferPriv->pGC;
-	    BoxPtr	    pBox = REGION_RECTS (pGC->pCompositeClip);
-	    int		    nBox = REGION_NUM_RECTS (pGC->pCompositeClip);
-
-	    XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
-
-	    glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
-					       xOff, yOff,
-					       (glitz_box_t *) pBox, nBox);
-
-	    xglAddBitDamage (pDrawable, pGC->pCompositeClip);
-	    DamageDamageRegion (pDrawable, pGC->pCompositeClip);
-	    REGION_EMPTY (pGC->pScreen, &pBufferPriv->damage);
-	}
-    }
-    else if (pBufferPriv->private)
-    {
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->swapBuffers) (glxPriv);
-	glPriv->private = pBufferPriv;
-    }
-
-    return status;
-}
-
-static GLboolean
-xglResizeBuffers (__GLdrawableBuffer  *buffer,
-		  GLint		      x,
-		  GLint		      y,
-		  GLuint	      width,
-		  GLuint	      height,
-		  __GLdrawablePrivate *glPriv,
-		  GLuint	      bufferMask)
-{
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
-    GLboolean	   status = GL_TRUE;
-
-    if (pDrawable)
-    {
-	if (!xglResizeBuffer (glPriv, x, y, width, height))
-	    return GL_FALSE;
-    }
-    else if (pBufferPriv->private)
-    {
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->resizeBuffers) (buffer,
-						x, y, width, height,
-						glPriv,
-						bufferMask);
-	glPriv->private = pBufferPriv;
-    }
-
-    return status;
+    return &pContext->base;
 }
 
 static int
-xglBindBuffers (__GLXdrawablePrivate *glxPriv,
-		int		     buffer)
+xglGetTexTarget (__GLXscreen *screen,
+		 __GLXpixmap *pixmap)
 {
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
+    int target = GLX_NO_TEXTURE_EXT;
 
-    if (cctx)
+    XGL_DRAWABLE_PIXMAP (pixmap->pDraw);
+
+    if (xglCreatePixmapSurface (pPixmap))
     {
-	xglTexUnitPtr pTexUnit = &cctx->attrib.texUnits[cctx->activeTexUnit];
-	xglTexObjPtr  pTexObj = NULL;
-	DrawablePtr   pDrawable;
+	glitz_texture_object_t *texture;
 
-	/* XXX: front left buffer is only supported so far */
-	if (buffer != GLX_FRONT_LEFT_EXT)
-	    return BadMatch;
+	XGL_PIXMAP_PRIV (pPixmap);
 
-	/* Must be a GLXpixmap */
-	if (!glxPriv->pGlxPixmap)
-	    return BadDrawable;
-
-	pDrawable = glxPriv->pGlxPixmap->pDraw;
-
-	switch (glxPriv->texTarget) {
-	case GLX_TEXTURE_RECTANGLE_EXT:
-	    pTexObj = pTexUnit->pRect;
-	    break;
-	case GLX_TEXTURE_2D_EXT:
-	    pTexObj = pTexUnit->p2D;
-	    break;
-	default:
-	    break;
-	}
-
-	if (pTexObj)
+	texture = glitz_texture_object_create (pPixmapPriv->surface);
+	if (texture)
 	{
-	    glitz_texture_object_t *object;
-
-	    XGL_SCREEN_PRIV (pDrawable->pScreen);
-	    XGL_DRAWABLE_PIXMAP (pDrawable);
-	    XGL_PIXMAP_PRIV (pPixmap);
-
-	    if (pPixmap == pScreenPriv->pScreenPixmap)
-		return BadDrawable;
-
-	    object = glitz_texture_object_create (pPixmapPriv->surface);
-	    if (object)
-	    {
-		pPixmap->refcnt++;
-
-		if (pTexObj->pPixmap)
-		    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-
-		if (pTexObj->object)
-		    glitz_texture_object_destroy (pTexObj->object);
-
-		pTexObj->pPixmap = pPixmap;
-		pTexObj->object  = object;
-
-		return Success;
+	    switch (glitz_texture_object_get_target (texture)) {
+	    case GLITZ_TEXTURE_TARGET_2D:
+		target = GLX_TEXTURE_2D_EXT;
+		break;
+	    case GLITZ_TEXTURE_TARGET_RECT:
+		target = GLX_TEXTURE_RECTANGLE_EXT;
+		break;
 	    }
+
+	    glitz_texture_object_destroy (texture);
 	}
     }
-    else if (pBufferPriv->private)
-    {
-	int status;
 
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->bindBuffers) (glxPriv, buffer);
-	glPriv->private = pBufferPriv;
-
-	return status;
-    }
-
-    return BadDrawable;
+    return target;
 }
 
-static int
-xglReleaseBuffers (__GLXdrawablePrivate *glxPriv,
-		   int		        buffer)
-{
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
-
-    if (cctx)
-    {
-	xglTexObjPtr pTexObj;
-
-	/* XXX: front left buffer is only supported so far */
-	if (buffer != GLX_FRONT_LEFT_EXT)
-	    return BadMatch;
-
-	/* Must be a GLXpixmap */
-	if (glxPriv->pGlxPixmap)
-	{
-	    DrawablePtr pDrawable = glxPriv->pGlxPixmap->pDraw;
-
-	    XGL_DRAWABLE_PIXMAP (pDrawable);
-
-	    pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
-	    if (pTexObj && pTexObj->pPixmap == pPixmap)
-	    {
-		(*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-		pTexObj->pPixmap = NULL;
-		glitz_texture_object_destroy (pTexObj->object);
-		pTexObj->object = NULL;
-
-		return Success;
-	    }
-	    else
-	    {
-		pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].pRect;
-		if (pTexObj && pTexObj->pPixmap == pPixmap)
-		{
-		    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-		    pTexObj->pPixmap = NULL;
-		    glitz_texture_object_destroy (pTexObj->object);
-		    pTexObj->object = NULL;
-
-		    return Success;
-		}
-	    }
-	}
-    }
-    else if (pBufferPriv->private)
-    {
-	int status;
-
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->releaseBuffers) (glxPriv, buffer);
-	glPriv->private = pBufferPriv;
-
-	return status;
-    }
-
-    return BadDrawable;
-}
-static void
-xglFreeBuffers (__GLdrawablePrivate *glPriv)
-{
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-
-    glPriv->private = pBufferPriv->private;
-
-    if (pBufferPriv->freeBuffers)
-	(*pBufferPriv->freeBuffers) (glPriv);
-
-    if (pBufferPriv->pGC)
-	FreeGC (pBufferPriv->pGC, (GContext) 0);
-
-    if (pBufferPriv->backSurface)
-	glitz_surface_destroy (pBufferPriv->backSurface);
-
-    if (pBufferPriv->drawable)
-	glitz_drawable_destroy (pBufferPriv->drawable);
-
-    xfree (pBufferPriv);
-}
+static __GLXtextureFromPixmapScreen __xglTextureFromPixmapScreen = {
+    xglGetTexTarget,
+};
 
 static void
-xglCreateBuffer (__GLXdrawablePrivate *glxPriv)
+xglScreenDestroy (__GLXscreen *screen)
 {
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    DrawablePtr	        pDrawable = glxPriv->pDraw;
-    ScreenPtr		pScreen = pDrawable->pScreen;
-    xglGLBufferPtr	pBufferPriv;
-    xglVisualPtr	v;
+    xglGLScreenPtr pScreen = (xglGLScreenPtr) screen;
+    __GLXscreen    *mesaScreen = pScreen->mesaScreen;
 
-    XGL_SCREEN_PRIV (pScreen);
-    XGL_DRAWABLE_PIXMAP (pDrawable);
+    GlxScreenDestroy (screen);
 
-    pBufferPriv = xalloc (sizeof (xglGLBufferRec));
-    if (!pBufferPriv)
-	FatalError ("xglCreateBuffer: No memory\n");
-
-    pBufferPriv->pScreen   = pScreen;
-    pBufferPriv->pDrawable = NULL;
-    pBufferPriv->pPixmap   = NULL;
-    pBufferPriv->pGC	   = NULL;
-
-    pBufferPriv->swapBuffers = NULL;
-
-    pBufferPriv->bindBuffers    = NULL;
-    pBufferPriv->releaseBuffers = NULL;
-
-    pBufferPriv->resizeBuffers = NULL;
-    pBufferPriv->private       = NULL;
-    pBufferPriv->freeBuffers   = NULL;
-
-    pBufferPriv->drawable    = NULL;
-    pBufferPriv->backSurface = NULL;
-
-    REGION_INIT (pScreen, &pBufferPriv->damage, NullBox, 0);
-
-    pBufferPriv->pVisual = 0;
-
-    /* glx acceleration */
-    if (pScreenPriv->accel.glx.enabled &&
-	xglCheckPixmapSize (pPixmap, &pScreenPriv->accel.glx.size))
-    {
-	for (v = pScreenPriv->pGlxVisual; v; v = v->next)
-	{
-	    glitz_drawable_format_t *format;
-
-	    if (pScreenPriv->accel.glx.pbuffer != v->pbuffer)
-		continue;
-
-	    format = v->format.drawable;
-	    if (!format)
-		continue;
-
-	    if (format->color.red_size   != glxPriv->modes->redBits   ||
-		format->color.green_size != glxPriv->modes->greenBits ||
-		format->color.blue_size  != glxPriv->modes->blueBits)
-		continue;
-
-	    if (format->color.alpha_size < glxPriv->modes->alphaBits   ||
-		format->depth_size	 < glxPriv->modes->depthBits   ||
-		format->stencil_size     < glxPriv->modes->stencilBits ||
-		format->doublebuffer     < glxPriv->modes->doubleBufferMode)
-		continue;
-
-	    /* this is good enought for pbuffers */
-	    if (v->pbuffer)
-		break;
-
-	    /* we want an exact match for non-pbuffer formats */
-	    if (format->color.alpha_size == glxPriv->modes->alphaBits   &&
-		format->depth_size	 == glxPriv->modes->depthBits   &&
-		format->stencil_size     == glxPriv->modes->stencilBits &&
-		format->doublebuffer     == glxPriv->modes->doubleBufferMode)
-		break;
-	}
-
-	pBufferPriv->pVisual = v;
-    }
-
-    if ((pDrawable->type == DRAWABLE_WINDOW)
-
-#ifdef COMPOSITE
-	&& (pBufferPriv->pVisual
-
-	    /* this is a root window, can't be redirected */
-	    || (!((WindowPtr) pDrawable)->parent))
-#endif
-
-	)
-    {
-	pBufferPriv->pDrawable = pDrawable;
-    }
-    else
-    {
-	(*screenInfoPriv.createBuffer) (glxPriv);
-
-	/* Wrap the swap buffers routine */
-	pBufferPriv->swapBuffers = glxPriv->swapBuffers;
-
-	/* Wrap the render texture routines */
-	pBufferPriv->bindBuffers    = glxPriv->bindBuffers;
-	pBufferPriv->releaseBuffers = glxPriv->releaseBuffers;
-
-	/* Wrap the front buffer's resize routine */
-	pBufferPriv->resizeBuffers = glPriv->frontBuffer.resize;
-
-	/* Save Xgl's private buffer structure */
-	pBufferPriv->freeBuffers = glPriv->freePrivate;
-	pBufferPriv->private	 = glPriv->private;
-    }
-
-    glxPriv->texTarget = GLX_NO_TEXTURE_EXT;
-
-    /* We enable render texture for all GLXPixmaps right now. Eventually, this
-       should only be enabled when fbconfig attribute GLX_RENDER_TEXTURE_RGB or
-       GLX_RENDER_TEXTURE_RGBA is set to TRUE. */
-    if (pDrawable->type != DRAWABLE_WINDOW)
-    {
-	XGL_DRAWABLE_PIXMAP (pDrawable);
-
-	if (xglCreatePixmapSurface (pPixmap))
-	{
-	    glitz_texture_object_t *texture;
-
-	    XGL_PIXMAP_PRIV (pPixmap);
-
-	    texture = glitz_texture_object_create (pPixmapPriv->surface);
-	    if (texture)
-	    {
-		switch (glitz_texture_object_get_target (texture)) {
-		case GLITZ_TEXTURE_TARGET_2D:
-		    glxPriv->texTarget = GLX_TEXTURE_2D_EXT;
-		    break;
-		case GLITZ_TEXTURE_TARGET_RECT:
-		    glxPriv->texTarget = GLX_TEXTURE_RECTANGLE_EXT;
-		    break;
-		}
-
-		glitz_texture_object_destroy (texture);
-	    }
-	}
-    }
-
-    glxPriv->swapBuffers = xglSwapBuffers;
-
-    glxPriv->bindBuffers    = xglBindBuffers;
-    glxPriv->releaseBuffers = xglReleaseBuffers;
-    glPriv->frontBuffer.resize = xglResizeBuffers;
-
-    glPriv->private	= (void *) pBufferPriv;
-    glPriv->freePrivate	= xglFreeBuffers;
+    xfree (pScreen);
 }
 
-static Bool
-xglScreenProbe (int screen)
+static __GLXscreen *
+xglScreenProbe (ScreenPtr pScreen)
 {
-    ScreenPtr	     pScreen = screenInfo.screens[screen];
+    xglGLScreenPtr   screen;
     __GLcontextModes *modes;
     xglVisualPtr     pVisual;
     Bool	     status;
@@ -5980,12 +5801,26 @@ xglScreenProbe (int screen)
 
     XGL_SCREEN_PRIV (pScreen);
 
-    status = (*screenInfoPriv.screenProbe) (screen);
+    screen = (xglGLScreenPtr) xalloc (sizeof (xglGLScreenRec));
+    if (!screen)
+	return NULL;
 
-    modes = __xglScreenInfo->modes;
+    memset (screen, 0, sizeof (xglGLScreenRec));
+
+    screen->base.destroy       = xglScreenDestroy;
+    screen->base.createContext = xglCreateContext;
+    screen->base.pScreen       = pScreen;
+
+    screen->base.textureFromPixmap = &__xglTextureFromPixmapScreen;
+
+    GlxScreenInit (&screen->base, pScreen);
+
+    screen->mesaScreen = (*__xglMesaProvider->screenProbe) (pScreen);
+
+    modes = screen->base.modes;
 
     /* Create Xgl GLX visuals */
-    for (i = 0; i < __xglScreenInfo->numVisuals; i++)
+    for (i = 0; i < pScreen->numVisuals; i++)
     {
 	pVisual = xglFindVisualWithId (pScreen, pScreen->visuals[i].vid);
 	if (pVisual)
@@ -6076,22 +5911,14 @@ xglScreenProbe (int screen)
 	modes = modes->next;
     }
 
-    /* Wrap createBuffer */
-    if (__xglScreenInfo->createBuffer != xglCreateBuffer)
-    {
-	screenInfoPriv.createBuffer   = __xglScreenInfo->createBuffer;
-	__xglScreenInfo->createBuffer = xglCreateBuffer;
-    }
-
-    /* Wrap createContext */
-    if (__xglScreenInfo->createContext != xglCreateContext)
-    {
-	screenInfoPriv.createContext   = __xglScreenInfo->createContext;
-	__xglScreenInfo->createContext = xglCreateContext;
-    }
-
-    return status;
+    return &screen->base;
 }
+
+__GLXprovider __glXXGLProvider = {
+    xglScreenProbe,
+    "XGL",
+    NULL
+};
 
 Bool
 xglInitVisualConfigs (ScreenPtr pScreen)
@@ -6212,14 +6039,8 @@ xglInitVisualConfigs (ScreenPtr pScreen)
 	pConfig[i].transparentIndex = 0;
     }
 
+    GlxPushProvider (&__glXXGLProvider);
     GlxSetVisualConfigs (numConfig, pConfig, (void **) ppConfigPriv);
-
-    /* Wrap screenProbe */
-    if (__xglScreenInfo->screenProbe != xglScreenProbe)
-    {
-	screenInfoPriv.screenProbe   = __xglScreenInfo->screenProbe;
-	__xglScreenInfo->screenProbe = xglScreenProbe;
-    }
 
     visuals    = pScreen->visuals;
     nvisuals   = pScreen->numVisuals;

@@ -48,16 +48,14 @@ typedef struct _xglGLXFunc {
 			 int	       bitsPerRGB,
 			 int	       preferredVis);
     void (*flushContextCache) (void);
-    void *(*DDXExtensionInfo) (void);
-    void *(*DDXScreenInfo) (void);
     void (*setRenderTables) (struct _glapi_table *table);
-    void (*copy_visual_to_context_mode) (__GLcontextModes	 *mode,
-					 const __GLXvisualConfig *config);
-    __GLcontextModes *(*context_modes_create) (unsigned count,
-					       size_t   minimumSize);
-    void (*context_modes_destroy) (__GLcontextModes *modes);
-    GLint (*convert_from_x_visual_type) (int visualType);
-    GLint (*convert_to_x_visual_type) (int visualType);
+    void (*pushProvider) (__GLXprovider *provider);
+    void (*screenInit) (__GLXscreen *screen, ScreenPtr pScreen);
+    void (*screenDestroy) (__GLXscreen *screen);
+    GLboolean (*drawableInit) (__GLXdrawable *drawable,
+			       __GLXcontext  *ctx,
+			       DrawablePtr   pDrawable,
+			       XID	     drawId);
 } xglGLXFuncRec, *xglGLXFuncPtr;
 
 extern xglGLXFuncRec __xglGLXFunc;
