@@ -1,3 +1,19 @@
+2006-03-09  David Reveman  <davidr@novell.com>
+
+	* Makefile.am:
+	* configure.ac:
+	* include/dix-config.h.in:
+	* hw/xfree86/dixmods/Makefile.am: Update configure.ac.
+
+	* GL/glx/glxdri.c (__glXDRIscreenProbe): Reference
+	__glXDRItextureFromPixmapScreen.
+
+	* GL/glx/Makefile.am: Always build libglxdri.
+
+	* hw/xgl/glxext/xglglxext.c:
+	* GL/glx/glxserver.h:
+	* GL/glx/glxcmds.c: Move EXT_tfp enums to glxserver.h.
+
 2006-03-08  David Reveman  <davidr@novell.com>
 
 	* GL/symlink-mesa.sh:

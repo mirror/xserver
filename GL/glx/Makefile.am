@@ -1,8 +1,4 @@
-if DRI
-GLXDRI_LIBRARY=libglxdri.la
-endif
-
-noinst_LTLIBRARIES = libglx.la $(GLXDRI_LIBRARY)
+noinst_LTLIBRARIES = libglx.la libglxdri.la
 
 AM_CFLAGS = \
 	-I@MESA_SOURCE@/include \

@@ -41,15 +41,6 @@
 #include "glxext.h"
 #include "micmap.h"
 
-#ifndef GLX_TEXTURE_TARGET_EXT
-#define GLX_TEXTURE_TARGET_EXT    0x6001
-#define GLX_TEXTURE_2D_EXT        0x6002
-#define GLX_TEXTURE_RECTANGLE_EXT 0x6003
-#define GLX_NO_TEXTURE_EXT        0x6004
-#define GLX_FRONT_LEFT_EXT        0x6005
-#define GLX_Y_INVERTED_EXT        0x6006
-#endif
-
 #define XGL_MAX_TEXTURE_UNITS      8
 #define XGL_MAX_ATTRIB_STACK_DEPTH 16
 

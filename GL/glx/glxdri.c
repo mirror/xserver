@@ -742,7 +742,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     screen->base.createContext = __glXDRIscreenCreateContext;
     screen->base.pScreen       = pScreen;
 
-    screen->base.textureFromPixmap = __glXDRItextureFromPixmapScreen;
+    screen->base.textureFromPixmap = &__glXDRItextureFromPixmapScreen;
 
     /* DRI protocol version. */
     dri_version.major = XF86DRI_MAJOR_VERSION;

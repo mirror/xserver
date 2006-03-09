@@ -168,7 +168,6 @@ dnl hw/xfree86/os-support/bus/Makefile.am, among others.
 dnl ---------------------------------------------------------------------------
 DEFAULT_INT10="x86emu"
 use_x86_asm="no"
-build_xf8_32wid="yes"
 
 dnl Override defaults as needed for specific platforms:
 
@@ -199,7 +198,6 @@ case $host_cpu in
 	esac
 	;;
   sparc*)
-	build_xf8_32wid="yes"   # used by sunffb driver
 	xorg_loader_sparcmuldiv="yes"
 	SPARC64_VIDEO=yes
 	BSD_ARCH_SOURCES="sparc64_video.c ioperm_noop.c"
@@ -215,8 +213,6 @@ case $host_cpu in
 	;;
 esac
 
-AM_CONDITIONAL(BUILD_XF8_32WID, [test x$build_xf8_32wid = xyes])
-
 dnl BSD *_video.c selection
 AM_CONDITIONAL(ALPHA_VIDEO, [test "x$ALPHA_VIDEO" = xyes])
 AM_CONDITIONAL(ARM_VIDEO, [test "x$ARM_VIDEO" = xyes])
@@ -225,6 +221,7 @@ AM_CONDITIONAL(PPC_VIDEO, [test "x$PPC_VIDEO" = xyes])
 AM_CONDITIONAL(SPARC64_VIDEO, [test "x$SPARC64_VIDEO" = xyes])
 
 DRI=no
+KDRIVE_HW=no
 dnl it would be nice to autodetect these *CONS_SUPPORTs
 case $host_os in
   *freebsd*)
@@ -247,8 +244,10 @@ case $host_os in
 	;;
   *linux*)
 	DRI=yes
+	KDRIVE_HW=yes
 	;;
 esac
+AM_CONDITIONAL(KDRIVE_HW, test "x$KDRIVE_HW" = xyes)
 
 AC_MSG_CHECKING(for MMX capable platform)
 if test "x$use_x86_asm" = xyes && test "x$GCC" = xyes ; then
@@ -356,6 +355,9 @@ AC_ARG_WITH(xkb-output,       AS_HELP_STRING([--with-xkb-output=PATH], [Path to 
 AC_ARG_WITH(rgb-path,         AS_HELP_STRING([--with-rgb-path=PATH], [Path to RGB database (default: ${datadir}/X11/rgb)]),
 				[ RGBPATH="$withval" ],
 				[ RGBPATH="${datadir}/X11/rgb" ])
+AC_ARG_WITH(dri-driver-path,  AS_HELP_STRING([--with-dri-driver-path=PATH], [Path to DRI drivers (default: ${libdir}/dri)]),
+				[ DRI_DRIVER_PATH="$withval" ],
+				[ DRI_DRIVER_PATH="${libdir}/dri" ])
 AC_ARG_ENABLE(builddocs,      AS_HELP_STRING([--enable-builddocs], [Build docs (default: disabled)]),
                                 [BUILDDOCS=$enableval],
                                 [BUILDDOCS=no])
@@ -378,6 +380,7 @@ AC_ARG_ENABLE(screensaver,    AS_HELP_STRING([--disable-screensaver], [Build Scr
 AC_ARG_ENABLE(xdmcp,          AS_HELP_STRING([--disable-xdmcp], [Build XDMCP extension (default: auto)]), [XDMCP=$enableval], [XDMCP=auto])
 AC_ARG_ENABLE(xdm-auth-1,     AS_HELP_STRING([--disable-xdm-auth-1], [Build XDM-Auth-1 extension (default: auto)]), [XDMAUTH=$enableval], [XDMAUTH=auto])
 AC_ARG_ENABLE(glx,            AS_HELP_STRING([--disable-glx], [Build GLX extension (default: enabled)]), [GLX=$enableval], [GLX=yes])
+AC_ARG_ENABLE(glx-dri,        AS_HELP_STRING([--enable-glx-dri], [Build GLX DRI loader (default: disabled)]), [GLX_DRI=$enableval], [GLX_DRI=yes])
 AC_ARG_ENABLE(dri,            AS_HELP_STRING([--enable-dri], [Build DRI extension (default: auto)]), [DRI=$enableval])
 AC_ARG_ENABLE(xinerama,	      AS_HELP_STRING([--disable-xinerama], [Build Xinerama extension (default: enabled)]), [XINERAMA=$enableval], [XINERAMA=yes])
 AC_ARG_ENABLE(xf86vidmode,    AS_HELP_STRING([--disable-xf86vidmode], [Build XF86VidMode extension (default: enabled)]), [XF86VIDMODE=$enableval], [XF86VIDMODE=yes])
@@ -391,6 +394,9 @@ AC_ARG_ENABLE(evi,            AS_HELP_STRING([--disable-evi], [Build Extended-Vi
 AC_ARG_ENABLE(multibuffer,    AS_HELP_STRING([--enable-multibuffer], [Build Multibuffer extension (default: disabled)]), [MULTIBUFFER=$enableval], [MULTIBUFFER=no])
 AC_ARG_ENABLE(fontcache,      AS_HELP_STRING([--enable-fontcache], [Build FontCache extension (default: disabled)]), [FONTCACHE=$enableval], [FONTCACHE=no])
 AC_ARG_ENABLE(dbe,            AS_HELP_STRING([--disable-dbe], [Build DBE extension (default: enabled)]), [DBE=$enableval], [DBE=yes])
+AC_ARG_ENABLE(xf86bigfont,    AS_HELP_STRING([--disable-xf86bigfont], [Build XF86 Big Font extension (default: enabled (sigh))]), [XF86BIGFONT=$enableval], [XF86BIGFONT=yes])
+AC_ARG_ENABLE(dpms,    AS_HELP_STRING([--disable-dpms], [Build DPMS extension (default: enabled (sigh))]), [DPMS=$enableval], [DPMSExtension=yes])
+AC_ARG_ENABLE(xinput,  AS_HELP_STRING([--disable-xinput], [Build XInput Extension (default: enabled)]), [XINPUT=$ENABLEVAL], [XINPUT=yes])
 
 dnl DDXes.
 AC_ARG_ENABLE(xorg,    	      AS_HELP_STRING([--enable-xorg], [Build Xorg server (default: auto)]), [XORG=$enableval], [XORG=auto])
@@ -481,10 +487,13 @@ if test "x$XV" = xyes; then
 	AC_DEFINE(XV, 1, [Support Xv extension])
 	AC_DEFINE(XvExtension, 1, [Build Xv extension])
 	REQUIRED_MODULES="$REQUIRED_MODULES videoproto"
-	AM_CONDITIONAL(XVMC, [test "x$XVMC" = xyes])
-	if test "x$XVMC" = xyes; then
-		AC_DEFINE(XvMCExtension, 1, [Build XvMC extension])
-	fi
+else
+	XVMC=no
+fi
+
+AM_CONDITIONAL(XVMC, [test "x$XVMC" = xyes])
+if test "x$XVMC" = xyes; then
+	AC_DEFINE(XvMCExtension, 1, [Build XvMC extension])
 fi
 
 AM_CONDITIONAL(DGA, [test "x$DGA" = xyes])
@@ -534,7 +543,6 @@ fi
 if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
 	PKG_CHECK_MODULES([XLIB], [x11])
 	AC_SUBST(XLIB_CFLAGS)
-
 	AC_DEFINE(GLXEXT, 1, [Build GLX extension])
 	GLX_LIBS='$(top_builddir)/GL/glx/libglx.la $(top_builddir)/GL/mesa/libGLcore.la'
 	test -d GL || mkdir GL
@@ -547,6 +555,13 @@ else
 fi
 AM_CONDITIONAL(GLX, test "x$GLX" = xyes)
 AC_SUBST([MESA_SOURCE])
+
+if test "x$GLX_DRI" = xyes -a "x$GLX" = xyes -a "x$DRI" = xyes; then
+	AC_DEFINE(GLX_DRI, 1, [Build GLX DRI loader])
+else
+	GLX_DRI=no
+fi
+AM_CONDITIONAL(GLX_DRI, test "x$GLX_DRI" = xyes)
 
 PKG_CHECK_MODULES([LBXUTIL_TEST], [lbxutil], [have_lbxutil=yes], [have_lbxutil=no])
 
@@ -634,6 +649,16 @@ if test "x$DBE" = xyes; then
 	DBE_LIB='$(top_builddir)/dbe/libdbe.la'
 fi
 
+AM_CONDITIONAL(XF86BIGFONT, [test "x$XF86BIGFONT" = xyes])
+if test "x$XF86BIGFONT" = xyes; then
+	AC_DEFINE(XF86BIGFONT, 1, [Support XF86 Big font extension])
+fi
+
+AM_CONDITIONAL(DPMSExtension, [test "x$DPMSExtension" = xyes])
+if test "x$DPMSExtension" = xyes; then
+	AC_DEFINE(DPMSExtension, 1, [Support DPMS extension])
+fi
+
 if test "x$XF86VIDMODE" = xyes; then
 	AC_DEFINE(XF86VIDMODE, 1, [Support XFree86 Video Mode extension])
 fi
@@ -673,9 +698,12 @@ if test "$COMPOSITE" = yes; then
 fi
 MIEXT_DAMAGE_INC='-I$(top_srcdir)/miext/damage'
 
-AC_DEFINE(XINPUT, 1, [Support X Input extension])
-XI_LIB='$(top_builddir)/Xi/libXi.la'
-XI_INC='-I$(top_srcdir)/Xi'
+AM_CONDITIONAL(XINPUT, [test "x$XINPUT" = xyes])
+if test "x$XINPUT" = xyes; then
+   	AC_DEFINE(XINPUT, 1, [Support X Input extension])
+	XI_LIB='$(top_builddir)/Xi/libXi.la'
+	XI_INC='-I$(top_srcdir)/Xi'
+fi
 
 AC_DEFINE(SHAPE, 1, [Support SHAPE extension])
 
@@ -744,6 +772,7 @@ VENDOR_MAN_VERSION="Version ${VENDOR_VERSION_STRING}"
 
 AC_DEFINE_DIR(COMPILEDDEFAULTFONTPATH, FONTPATH, [Default font path])
 AC_DEFINE_DIR(RGB_DB, RGBPATH, [Default RGB path])
+AC_DEFINE_DIR(DRI_DRIVER_PATH, DRI_DRIVER_PATH, [Default DRI driver path])
 AC_DEFINE_UNQUOTED(XVENDORNAME, ["$VENDOR_STRING"], [Vendor name])
 AC_DEFINE_UNQUOTED(XVENDORNAMESHORT, ["$VENDOR_STRING_SHORT"], [Short vendor name])
 AC_DEFINE_UNQUOTED(XORG_RELEASE, ["$VENDOR_RELEASE_STRING"], [Vendor release])
@@ -760,6 +789,7 @@ AC_SUBST([VENDOR_MAN_VERSION])
 AC_DEFINE(DDXOSINIT, 1, [Use OsVendorInit])
 AC_DEFINE(SERVER_LOCK, 1, [Use a lock to prevent multiple servers on a display])
 AC_DEFINE(SMART_SCHEDULE, 1, [Include time-based scheduler])
+AC_DEFINE(NO_LIBCWRAPPER, 1, [Define to 1 if modules should avoid the libcwrapper])
 AM_CONDITIONAL(DEBUG, test "x$DEBUGGING" = xyes)
 
 if ! test "x$DEBUGGING" = xyes; then
@@ -835,7 +865,7 @@ if test "x$DMX" = xyes; then
 		              modules not found.])
 	fi
 	DMX_INCLUDES="$XEXT_INC $RENDER_INC $XTRAP_INC $RECORD_INC"
-	XDMX_LIBS="$FB_LIB $MI_LIB $XEXT_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_DAMAGE_LIB $LBX_LIB $MIEXT_SHADOW_LIB $CWRAP_LIB $OS_LIB"
+	XDMX_LIBS="$FB_LIB $MI_LIB $XEXT_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_DAMAGE_LIB $LBX_LIB $MIEXT_SHADOW_LIB $OS_LIB $CWRAP_LIB"
 	AC_SUBST([XDMX_LIBS])
 
 dnl USB sources in DMX require <linux/input.h>
@@ -1360,10 +1390,10 @@ AC_SUBST(KDRIVE_PURE_LIBS)
 AC_SUBST(KDRIVE_LIBS)
 AM_CONDITIONAL(TSLIB, false)
 AM_CONDITIONAL(H3600_TS, false)
-#AM_CONDITIONAL(KDRIVEVESA, [test x"$ac_cv_header_sys_vm86_h" = xyes])
-#AM_CONDITIONAL(KDRIVEFBDEV, [test x"$ac_cv_header_linux_fb_h" = xyes])
-AM_CONDITIONAL(KDRIVEVESA, false)
-AM_CONDITIONAL(KDRIVEFBDEV, false)
+AM_CONDITIONAL(KDRIVEVESA, [test x"$ac_cv_header_sys_vm86_h" = xyes])
+AM_CONDITIONAL(KDRIVEFBDEV, [test x"$ac_cv_header_linux_fb_h" = xyes])
+#AM_CONDITIONAL(KDRIVEVESA, false)
+#AM_CONDITIONAL(KDRIVEFBDEV, false)
 
 AM_CONDITIONAL(XEPHYR, [test x"$xephyr" = xyes])
 XEPHYR_LIBS="$XEPHYR_LIBS $XSERVER_LIBS"
@@ -1406,9 +1436,7 @@ AC_SUBST(XKB_COMPILED_DIR)
 
 dnl and the rest of these are generic, so they're in config.h
 AC_DEFINE(XFreeXDGA, 1, [Build XDGA support])
-AC_DEFINE(XF86BIGFONT, 1, [Build XFree86 BigFont extension])
 AC_DEFINE(XResExtension, 1, [Build XRes extension])
-AC_DEFINE(DPMSExtension, 1, [Build DPMS extension])
 
 dnl CYGWIN does not define fd_set if _POSIX_SOURCE is defined
 dnl _*_SOURCE on Solaris restricts to the standards, and removes non-standard
@@ -1529,10 +1557,7 @@ lbx/Makefile
 mfb/Makefile
 cfb/Makefile
 cfb16/Makefile
-cfb24/Makefile
 cfb32/Makefile
-ilbm/Makefile
-iplan2p4/Makefile
 mi/Makefile
 miext/Makefile
 miext/damage/Makefile
@@ -1546,6 +1571,7 @@ xkb/Makefile
 Xext/Makefile
 Xi/Makefile
 xfixes/Makefile
+exa/Makefile
 hw/Makefile
 hw/xfree86/Makefile
 hw/xfree86/common/Makefile
@@ -1589,7 +1615,6 @@ hw/xfree86/xf1bpp/Makefile
 hw/xfree86/xf4bpp/Makefile
 hw/xfree86/xf8_16bpp/Makefile
 hw/xfree86/xf8_32bpp/Makefile
-hw/xfree86/xf8_32wid/Makefile
 hw/xfree86/utils/Makefile
 hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile

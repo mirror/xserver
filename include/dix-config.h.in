@@ -53,6 +53,12 @@
 /* Build GLX extension */
 #undef GLXEXT
 
+/* Build GLX DRI loader */
+#undef GLX_DRI
+
+/* Path to DRI drivers */
+#undef DRI_DRIVER_PATH
+
 /* Include handhelds.org h3600 touchscreen driver */
 #undef H3600_TS
 
@@ -423,5 +429,8 @@
 
 /* Define to 1 if `struct sockaddr_in' has a `sin_len' member */
 #undef BSD44SOCKETS
+
+/* Define to 1 if modules should avoid the libcwrapper */
+#undef NO_LIBCWRAPPER
 
 #endif /* _DIX_CONFIG_H_ */
