@@ -1,5 +1,8 @@
 2006-03-09  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/xglscreen.c (xglScreenInit): Use xglScreenInfo.widthMm
+	and xglScreenInfo.heightMm if set.
+
 	* Makefile.am:
 	* configure.ac:
 	* include/dix-config.h.in:

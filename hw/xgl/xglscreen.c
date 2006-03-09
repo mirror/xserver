@@ -118,6 +118,7 @@ xglScreenInit (ScreenPtr pScreen)
     xglScreenPtr pScreenPriv;
     xglVisualPtr v;
     int		 i, depth, bpp = 0;
+    int		 dpiX, dpiY;
 
 #ifdef RENDER
     PictureScreenPtr pPictureScreen;
@@ -174,12 +175,27 @@ xglScreenInit (ScreenPtr pScreen)
     pScreenPriv->lines		  = xglScreenInfo.lines;
     pScreenPriv->accel		  = xglScreenInfo.accel;
 
-    if (monitorResolution == 0)
-	monitorResolution = XGL_DEFAULT_DPI;
+    if (monitorResolution)
+    {
+	dpiX = dpiY = monitorResolution;
+    }
+    else
+    {
+	dpiX = xglScreenInfo.widthMm;
+	dpiY = xglScreenInfo.heightMm;
+
+	if (dpiX && dpiY)
+	{
+	    dpiX = (xglScreenInfo.width  * 254 + dpiX * 5) / (dpiX * 10);
+	    dpiY = (xglScreenInfo.height * 254 + dpiY * 5) / (dpiY * 10);
+	}
+	else
+	    dpiX = dpiY = XGL_DEFAULT_DPI;
+    }
 
     if (!fbSetupScreen (pScreen, NULL,
 			xglScreenInfo.width, xglScreenInfo.height,
-			monitorResolution, monitorResolution,
+			dpiX, dpiY,
 			xglScreenInfo.width, bpp))
 	return FALSE;
 
@@ -190,7 +206,7 @@ xglScreenInit (ScreenPtr pScreen)
 
     if (!fbFinishScreenInit (pScreen, NULL,
 			     xglScreenInfo.width, xglScreenInfo.height,
-			     monitorResolution, monitorResolution,
+			     dpiX, dpiY,
 			     xglScreenInfo.width, bpp))
 	return FALSE;
 
