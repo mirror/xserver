@@ -3,6 +3,7 @@
 	* hw/xgl/glxext/xglglxext.c (xglScreenProbe): Let mesa screen probe
 	function call __glXScreenInit and then just copy the initialized
 	values.
+	(xglFreeContext): Make context current before we delete all gl objects.
 
 	* GL/mesa/X/xf86glx.c (__glXMesaContextCreateDrawable): Get pGlxScreen
 	from context.

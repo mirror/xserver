@@ -5181,6 +5181,13 @@ xglFreeContext (xglGLContextPtr pContext)
     if (pContext->shared != pContext)
 	xglFreeContext (pContext->shared);
 
+    if (pContext->context)
+    {
+	XGL_SCREEN_PRIV (pContext->base.pScreen);
+
+	glitz_context_make_current (pContext->context, pScreenPriv->drawable);
+    }
+
     if (pContext->texObjects)
     {
 	xglTexObjPtr pTexObj;
