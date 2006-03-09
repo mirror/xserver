@@ -8,6 +8,7 @@ AM_CFLAGS = \
 	@LIBDRM_CFLAGS@ \
 	@DRIPROTO_CFLAGS@ \
 	-I@MESA_SOURCE@/src/mesa/glapi \
+	-I@MESA_SOURCE@/src/glx/x11 \
 	-I@MESA_SOURCE@/src/mesa/main \
 	@SERVER_DEFINES@ \
 	@MODULE_DEFINES@ \

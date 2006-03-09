@@ -1,5 +1,9 @@
 2006-03-09  Matthias Hopf  <mhopf@suse.de>
 
+	* GL/glx/Makefile.am: find xf86dristr.h again.
+
+2006-03-09  Matthias Hopf  <mhopf@suse.de>
+
 	* GL/mesa/Makefile.am: added missing glapi to SUBDIRS.
 	* cfb/Makefile.am, cfb16/Makefile.am, cfb24/Makefile.am, cfb32/Makefile.am:
 	  Added missing -I$(top_srcdir)/hw/xfree86/common.
