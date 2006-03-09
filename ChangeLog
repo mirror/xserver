@@ -1,5 +1,12 @@
 2006-03-09  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glxext/xglglxext.c (xglScreenProbe): Let mesa screen probe
+	function call __glXScreenInit and then just copy the initialized
+	values.
+
+	* GL/mesa/X/xf86glx.c (__glXMesaContextCreateDrawable): Get pGlxScreen
+	from context.
+
 	* configure.ac: Back out last change, Xorg and Xgl servers cannot yet
 	be built at the same time.
 

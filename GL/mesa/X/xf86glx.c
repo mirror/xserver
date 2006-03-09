@@ -162,7 +162,7 @@ __glXMesaContextCreateDrawable(__GLXcontext *context,
     glxPriv->base.resize        = __glXMesaDrawableResize;
     glxPriv->base.swapBuffers   = __glXMesaDrawableSwapBuffers;
 
-    pGlxScreen = __glXActiveScreens[pDraw->pScreen->myNum];
+    pGlxScreen = context->pGlxScreen;
 
     if (glxPriv->base.type == DRAWABLE_WINDOW) {
 	VisualID vid = wVisual((WindowPtr)pDraw);

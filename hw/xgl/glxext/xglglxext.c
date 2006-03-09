@@ -5776,7 +5776,8 @@ xglScreenDestroy (__GLXscreen *screen)
     xglGLScreenPtr pScreen = (xglGLScreenPtr) screen;
     __GLXscreen    *mesaScreen = pScreen->mesaScreen;
 
-    GlxScreenDestroy (screen);
+    if (mesaScreen)
+	GlxScreenDestroy (mesaScreen);
 
     xfree (pScreen);
 }
@@ -5804,9 +5805,20 @@ xglScreenProbe (ScreenPtr pScreen)
 
     screen->base.textureFromPixmap = &__xglTextureFromPixmapScreen;
 
-    GlxScreenInit (&screen->base, pScreen);
-
     screen->mesaScreen = (*__xglMesaProvider->screenProbe) (pScreen);
+
+    screen->base.GLextensions  = screen->mesaScreen->GLextensions;
+    screen->base.GLXvendor     = screen->mesaScreen->GLXvendor;
+    screen->base.GLXversion    = screen->mesaScreen->GLXversion;
+    screen->base.GLXextensions = screen->mesaScreen->GLXextensions;
+
+    screen->base.WrappedPositionWindow =
+	screen->mesaScreen->WrappedPositionWindow;
+
+    screen->base.modes		  = screen->mesaScreen->modes;
+    screen->base.pVisualPriv	  = screen->mesaScreen->pVisualPriv;
+    screen->base.numVisuals	  = screen->mesaScreen->numVisuals;
+    screen->base.numUsableVisuals = screen->mesaScreen->numUsableVisuals;
 
     modes = screen->base.modes;
 
