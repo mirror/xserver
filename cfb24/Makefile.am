@@ -8,4 +8,4 @@ EXTRA_DIST = cfbrrop24.h
 
 AM_CFLAGS = -DPSZ=24 $(DIX_CFLAGS) $(PLATFORMDEFS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@
 
-INCLUDES = $(CFB_INCLUDES) -I$(top_srcdir)/hw/xfree86/os-support
+INCLUDES = $(CFB_INCLUDES) -I$(top_srcdir)/hw/xfree86/os-support -I$(top_srcdir)/hw/xfree86/common
