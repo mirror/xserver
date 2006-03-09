@@ -1,3 +1,11 @@
+2006-03-09  David Reveman  <davidr@novell.com>
+
+	* configure.ac: Back out last change, Xorg and Xgl servers cannot yet
+	be built at the same time.
+
+	* GL/mesa/Makefile.am (SUBDIRS): Remove glapi from SUBDIRS, it
+	shouldn't be there, glapi sources are now in $(top_srcdir)/GL/glx.
+
 2006-03-09  Matthias Hopf  <mhopf@suse.de>
 
 	* GL/glx/Makefile.am: find xf86dristr.h again.
