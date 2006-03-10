@@ -30,6 +30,11 @@
 #include <GL/glxproto.h>
 #ifdef __linux__
 #include <byteswap.h>
+#elif defined(__OpenBSD__)
+#include <sys/endian.h>
+#define bswap_16 __swap16
+#define bswap_32 __swap32
+#define bswap_64 __swap64
 #else
 #include <sys/endian.h>
 #define bswap_16 bswap16
@@ -59,18 +64,10 @@ extern void __glXClearErrorOccured( void );
 
 static const unsigned dummy_answer[2] = {0, 0};
 
-static GLenum
-bswap_ENUM( const void * src )
-{
-    union { uint32_t dst; GLenum ret; } x;
-    x.dst = bswap_32( *(uint32_t *) src );
-    return x.ret;
-}
-
-static GLintptr
+static GLsizei
 bswap_CARD32( const void * src )
 {
-    union { uint32_t dst; GLintptr ret; } x;
+    union { uint32_t dst; GLsizei ret; } x;
     x.dst = bswap_32( *(uint32_t *) src );
     return x.ret;
 }
@@ -83,19 +80,27 @@ bswap_CARD16( const void * src )
     return x.ret;
 }
 
+static GLenum
+bswap_ENUM( const void * src )
+{
+    union { uint32_t dst; GLenum ret; } x;
+    x.dst = bswap_32( *(uint32_t *) src );
+    return x.ret;
+}
+
+static GLdouble
+bswap_FLOAT64( const void * src )
+{
+    union { uint64_t dst; GLdouble ret; } x;
+    x.dst = bswap_64( *(uint64_t *) src );
+    return x.ret;
+}
+
 static GLfloat
 bswap_FLOAT32( const void * src )
 {
     union { uint32_t dst; GLfloat ret; } x;
     x.dst = bswap_32( *(uint32_t *) src );
-    return x.ret;
-}
-
-static GLclampd
-bswap_FLOAT64( const void * src )
-{
-    union { uint64_t dst; GLclampd ret; } x;
-    x.dst = bswap_64( *(uint64_t *) src );
     return x.ret;
 }
 
@@ -4193,7 +4198,7 @@ int __glXDispSwap_GenProgramsNV(__GLXclientState *cl, GLbyte *pc)
             programs
         ) );
         (void) bswap_32_array( (uint32_t *) programs, n );
-        __glXSendReplySwap(cl->client, programs, n, 4, GL_FALSE, 0);
+        __glXSendReplySwap(cl->client, programs, n, 4, GL_TRUE, 0);
         error = Success;
     }
 

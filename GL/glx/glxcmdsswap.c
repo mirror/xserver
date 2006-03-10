@@ -1126,6 +1126,30 @@ int __glXSwapVendorPrivateWithReply(__GLXclientState *cl, GLbyte *pc)
 	return __glXSwapCreateGLXPixmapWithConfigSGIX(cl, pc);
       case X_GLXvop_GetDrawableAttributesSGIX:
 	return __glXSwapGetDrawableAttributesSGIX(cl, pc);
+      case X_GLvop_DeleteProgramARB:
+	return __glXDispSwap_DeleteProgramsNV(cl, pc);
+      case X_GLvop_GenProgramsARB:
+	return __glXDispSwap_GenProgramsNV(cl, pc);
+      case X_GLvop_GetProgramEnvParameterfvARB:
+	return __glXDispSwap_GetProgramEnvParameterfvARB(cl, pc);
+      case X_GLvop_GetProgramEnvParameterdvARB:
+	return __glXDispSwap_GetProgramEnvParameterdvARB(cl, pc);
+      case X_GLvop_GetProgramLocalParameterfvARB:
+	return __glXDispSwap_GetProgramLocalParameterfvARB(cl, pc);
+      case X_GLvop_GetProgramLocalParameterdvARB:
+	return __glXDispSwap_GetProgramLocalParameterdvARB(cl, pc);
+      case X_GLvop_GetProgramivARB:
+	return __glXDispSwap_GetProgramivARB(cl, pc);
+      case X_GLvop_GetProgramStringARB:
+	return __glXDispSwap_GetProgramStringARB(cl, pc);
+      case X_GLvop_GetVertexAttribdvARB:
+	return __glXDispSwap_GetVertexAttribdvARB(cl, pc);
+      case X_GLvop_GetVertexAttribfvARB:
+	return __glXDispSwap_GetVertexAttribfvARB(cl, pc);
+      case X_GLvop_GetVertexAttribivARB:
+	return __glXDispSwap_GetVertexAttribivARB(cl, pc);
+      case X_GLvop_IsProgramARB:
+	return __glXDispSwap_IsProgramNV(cl, pc);
       case X_GLvop_IsRenderbufferEXT:
 	return __glXDispSwap_IsRenderbufferEXT(cl, pc);
       case X_GLvop_GenRenderbuffersEXT:

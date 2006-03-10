@@ -390,3 +390,68 @@ int __glXDisp_GetString(__GLXclientState *cl, GLbyte *pc)
 {
     return DoGetString(cl, pc, GL_FALSE);
 }
+
+int DoGetProgramString(__GLXclientState *cl, GLbyte *pc, GLboolean need_swap)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    ClientPtr client;
+    __GLXcontext *cx;
+    GLenum target;
+    GLenum pname;
+    __GLX_DECLARE_SWAP_VARIABLES;
+    int error;
+    char *string = NULL;
+    GLint length = 0;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    if ( need_swap ) {
+	__GLX_SWAP_INT(req->contextTag);
+	__GLX_SWAP_INT(pc);
+	__GLX_SWAP_INT(pc + 4);
+    }
+
+    cx = __glXForceCurrent(cl, req->contextTag, &error);
+    if (!cx) {
+	return error;
+    }
+
+    target = *(GLenum *)(pc);
+    pname  = *(GLenum *)(pc + 4);
+
+    CALL_GetProgramivNV( GET_DISPATCH(),
+			 (target, GL_PROGRAM_LENGTH_ARB, &length) );
+
+    if (length)
+    {
+	string = __glXMalloc (length + 1);
+	if (string)
+	{
+	    CALL_GetProgramStringARB( GET_DISPATCH(), (target, pname, string) );
+	}
+	else
+	    length = 0;
+    }
+
+    client = cl->client;
+
+    __GLX_BEGIN_REPLY(length);
+    __GLX_PUT_SIZE(length);
+
+    if ( need_swap ) {
+	__GLX_SWAP_REPLY_SIZE();
+	__GLX_SWAP_REPLY_HEADER();
+    }
+
+    __GLX_SEND_HEADER();
+    WriteToClient(client, length, (char *) string);
+    if (string != NULL) {
+	__glXFree(string);
+    }
+    return Success;
+}
+
+int __glXDisp_GetProgramStringARB(__GLXclientState *cl, GLbyte *pc)
+{
+    return DoGetProgramString(cl, pc, GL_FALSE);
+}

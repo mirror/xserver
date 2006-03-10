@@ -248,6 +248,10 @@ typedef struct _xglGLContext {
 
     PFNGLACTIVETEXTUREARBPROC ActiveTextureARB;
     PFNGLWINDOWPOS3FMESAPROC WindowPos3fMESA;
+    PFNGLISPROGRAMARBPROC IsProgramARB;
+    PFNGLGENPROGRAMSARBPROC GenProgramsARB;
+    PFNGLBINDPROGRAMARBPROC BindProgramARB;
+    PFNGLDELETEPROGRAMSARBPROC DeleteProgramsARB;
     PFNGLISRENDERBUFFEREXTPROC IsRenderbufferEXT;
     PFNGLBINDRENDERBUFFEREXTPROC BindRenderbufferEXT;
     PFNGLDELETERENDERBUFFERSEXTPROC DeleteRenderbuffersEXT;
@@ -274,8 +278,8 @@ typedef struct _xglGLContext {
     GLint		 depthBits;
     GLint		 stencilBits;
     xglHashTablePtr	 texObjects;
+    xglHashTablePtr	 programObjects;
     xglHashTablePtr	 renderbufferObjects;
-    GLuint		 renderbuffer;
     xglHashTablePtr	 framebufferObjects;
     GLuint		 framebuffer;
     xglHashTablePtr	 displayLists;
@@ -3210,6 +3214,187 @@ xglNoOpPointParameterivNV (GLenum pname, const GLint *params) {}
 static void
 xglNoOpActiveStencilFaceEXT (GLenum face) {}
 
+/* GL_ARB_vertex_program */
+static void
+xglNoOpVertexAttrib1svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib1fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib1dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib2svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib2fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib2dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib3svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib3fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib3dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib4bvARB (GLuint index, const GLbyte *v) {}
+static void
+xglNoOpVertexAttrib4svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib4ivARB (GLuint index, const GLint *v) {}
+static void
+xglNoOpVertexAttrib4ubvARB (GLuint index, const GLubyte *v) {}
+static void
+xglNoOpVertexAttrib4usvARB (GLuint index, const GLushort *v) {}
+static void
+xglNoOpVertexAttrib4uivARB (GLuint index, const GLuint *v) {}
+static void
+xglNoOpVertexAttrib4fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib4dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib4NbvARB (GLuint index, const GLbyte *v) {}
+static void
+xglNoOpVertexAttrib4NsvARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib4NivARB (GLuint index, const GLint *v) {}
+static void
+xglNoOpVertexAttrib4NubvARB (GLuint index, const GLubyte *v) {}
+static void
+xglNoOpVertexAttrib4NusvARB (GLuint index, const GLushort *v) {}
+static void
+xglNoOpVertexAttrib4NuivARB (GLuint index, const GLuint *v) {}
+static void
+xglNoOpProgramStringARB (GLenum target, GLenum format, GLsizei len,
+			 const void *string) {}
+static void
+xglNoOpBindProgramARB (GLenum target, GLuint program) {}
+static void
+xglBindProgramARBProc (xglGLOpPtr pOp)
+{
+    if (pOp->u.bind_object.object)
+    {
+	GLuint po;
+
+	po = (GLuint) xglHashLookup (cctx->shared->programObjects,
+				     pOp->u.bind_object.object);
+	if (!po)
+	{
+	    (*cctx->GenProgramsARB) (1, &po);
+
+	    xglHashInsert (cctx->shared->programObjects,
+			   pOp->u.bind_object.object,
+			   (void *) po);
+	}
+
+	(*cctx->BindProgramARB) (pOp->u.bind_object.target, po);
+    }
+    else
+    {
+	(*cctx->BindProgramARB) (pOp->u.bind_object.target, 0);
+    }
+}
+static void
+xglBindProgramARB (GLenum target, GLuint program)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindProgramARBProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = program;
+
+    xglGLOp (&gl);
+}
+static void
+xglNoOpDeleteProgramsARB (GLsizei n, const GLuint *programs) {}
+static void
+xglDeleteProgramsARB (GLsizei n, const GLuint *programs)
+{
+    GLuint po;
+
+    while (n--)
+    {
+	if (!*programs)
+	    continue;
+
+	po = (GLuint) xglHashLookup (cctx->shared->programObjects,
+				      *programs);
+	if (po)
+	{
+	    (*cctx->DeleteProgramsARB) (1, &po);
+	    xglHashRemove (cctx->shared->programObjects, *programs);
+	}
+	programs++;
+    }
+}
+static void
+xglNoOpGenProgramsARB (GLsizei n, GLuint *programs) {}
+static void
+xglGenProgramsARB (GLsizei n, GLuint *programs)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->programObjects, n);
+
+    (cctx->GenProgramsARB) (n, programs);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->programObjects, name,
+		       (void *) *programs);
+
+	*programs++ = name++;
+    }
+}
+static void
+xglNoOpProgramEnvParameter4dvARB (GLenum target, GLuint index,
+				  const GLdouble *params) {}
+static void
+xglNoOpProgramEnvParameter4fvARB (GLenum target, GLuint index,
+				  const GLfloat *params) {}
+static void
+xglNoOpProgramLocalParameter4dvARB (GLenum target, GLuint index,
+				    const GLdouble *params) {}
+static void
+xglNoOpProgramLocalParameter4fvARB (GLenum target, GLuint index,
+				    const GLfloat *params) {}
+static void
+xglNoOpGetProgramEnvParameterdvARB (GLenum target, GLuint index,
+				    GLdouble *params) {}
+static void
+xglNoOpGetProgramEnvParameterfvARB (GLenum target, GLuint index,
+				    GLfloat *params) {}
+static void
+xglNoOpGetProgramLocalParameterdvARB (GLenum target, GLuint index,
+				      GLdouble *params) {}
+static void
+xglNoOpGetProgramLocalParameterfvARB (GLenum target, GLuint index,
+				      GLfloat *params) {}
+static void
+xglNoOpGetProgramivARB (GLenum target, GLenum pname, GLint *params) {}
+static void
+xglNoOpGetProgramStringARB (GLenum target, GLenum pname, void *string) {}
+static void
+xglNoOpGetVertexAttribdvARB (GLuint index, GLenum pname, GLdouble *params) {}
+static void
+xglNoOpGetVertexAttribfvARB (GLuint index,GLenum pname, GLfloat *params) {}
+static void
+xglNoOpGetVertexAttribivARB (GLuint index, GLenum pname, GLint *params) {}
+static GLboolean
+xglNoOpIsProgramARB (GLuint program)
+{
+    return GL_FALSE;
+}
+static GLboolean
+xglIsProgramARB (GLuint program)
+{
+    if (!program)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->programObjects, program))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
+
 /* GL_EXT_framebuffer_object */
 static GLboolean
 xglNoOpIsRenderbufferEXT (GLuint renderbuffer)
@@ -3232,42 +3417,27 @@ xglNoOpBindRenderbufferEXT (GLenum target, GLuint renderbuffer) {}
 static void
 xglBindRenderbufferEXTProc (xglGLOpPtr pOp)
 {
-    GLuint rbo;
-
-    switch (pOp->u.bind_object.target) {
-    case GL_RENDERBUFFER_EXT:
-	rbo = cctx->renderbuffer;
-	break;
-    default:
-	xglRecordError (GL_INVALID_ENUM);
-	return;
-    }
-
     if (pOp->u.bind_object.object)
     {
-	if (!rbo || pOp->u.bind_object.object != rbo)
+	GLuint rbo;
+
+	rbo = (GLuint) xglHashLookup (cctx->shared->renderbufferObjects,
+				      pOp->u.bind_object.object);
+	if (!rbo)
 	{
-	    rbo = (GLuint)
-		xglHashLookup (cctx->shared->renderbufferObjects,
-			       pOp->u.bind_object.object);
-	    if (!rbo)
-	    {
-		(*cctx->GenRenderbuffersEXT) (1, &rbo);
+	    (*cctx->GenRenderbuffersEXT) (1, &rbo);
 
-		xglHashInsert (cctx->shared->renderbufferObjects,
-			       pOp->u.bind_object.object,
-			       (void *) rbo);
-	    }
-
-	    (*cctx->BindRenderbufferEXT) (GL_RENDERBUFFER_EXT, rbo);
+	    xglHashInsert (cctx->shared->renderbufferObjects,
+			   pOp->u.bind_object.object,
+			   (void *) rbo);
 	}
+
+	(*cctx->BindRenderbufferEXT) (pOp->u.bind_object.target, rbo);
     }
     else
     {
-	(*cctx->BindRenderbufferEXT) (GL_RENDERBUFFER_EXT, 0);
+	(*cctx->BindRenderbufferEXT) (pOp->u.bind_object.target, 0);
     }
-
-    cctx->renderbuffer = pOp->u.bind_object.object;
 }
 static void
 xglBindRenderbufferEXT (GLenum target,
@@ -4192,20 +4362,20 @@ static struct _glapi_table __glNativeRenderTable = {
     xglNoOpSecondaryColor3usvEXT,
     xglNoOpSecondaryColorPointerEXT,
     0, /* glAreProgramsResidentNV */
-    0, /* glBindProgramNV */
-    0, /* glDeleteProgramsNV */
+    xglNoOpBindProgramARB,
+    xglNoOpDeleteProgramsARB,
     0, /* glExecuteProgramNV */
-    0, /* glGenProgramsNV */
+    xglNoOpGenProgramsARB,
     0, /* glGetProgramParameterdvNV */
     0, /* glGetProgramParameterfvNV */
-    0, /* glGetProgramivNV */
+    xglNoOpGetProgramivARB,
     0, /* glGetProgramStringNV */
     0, /* glGetTrackMatrixivNV */
-    0, /* glGetVertexAttribdvARB */
-    0, /* glGetVertexAttribfvARB */
-    0, /* glGetVertexAttribivARB */
+    xglNoOpGetVertexAttribdvARB,
+    xglNoOpGetVertexAttribfvARB,
+    xglNoOpGetVertexAttribivARB,
     0, /* glGetVertexAttribPointervNV */
-    0, /* glIsProgramNV */
+    xglNoOpIsProgramARB,
     0, /* glLoadProgramNV */
     0, /* glProgramParameter4dNV */
     0, /* glProgramParameter4dvNV */
@@ -4217,31 +4387,31 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glTrackMatrixNV */
     0, /* glVertexAttribPointerNV */
     0, /* glVertexAttrib1dARB */
-    0, /* glVertexAttrib1dvARB */
+    xglNoOpVertexAttrib1dvARB,
     0, /* glVertexAttrib1fARB */
-    0, /* glVertexAttrib1fvARB */
+    xglNoOpVertexAttrib1fvARB,
     0, /* glVertexAttrib1sARB */
-    0, /* glVertexAttrib1svARB */
+    xglNoOpVertexAttrib1svARB,
     0, /* glVertexAttrib2dARB */
-    0, /* glVertexAttrib2dvARB */
+    xglNoOpVertexAttrib2dvARB,
     0, /* glVertexAttrib2fARB */
-    0, /* glVertexAttrib2fvARB */
+    xglNoOpVertexAttrib2fvARB,
     0, /* glVertexAttrib2sARB */
-    0, /* glVertexAttrib2svARB */
+    xglNoOpVertexAttrib2svARB,
     0, /* glVertexAttrib3dARB */
-    0, /* glVertexAttrib3dvARB */
+    xglNoOpVertexAttrib3dvARB,
     0, /* glVertexAttrib3fARB */
-    0, /* glVertexAttrib3fvARB */
+    xglNoOpVertexAttrib3fvARB,
     0, /* glVertexAttrib3sARB */
-    0, /* glVertexAttrib3svARB */
+    xglNoOpVertexAttrib3svARB,
     0, /* glVertexAttrib4dARB */
-    0, /* glVertexAttrib4dvARB */
+    xglNoOpVertexAttrib4dvARB,
     0, /* glVertexAttrib4fARB */
-    0, /* glVertexAttrib4fvARB */
+    xglNoOpVertexAttrib4fvARB,
     0, /* glVertexAttrib4sARB */
-    0, /* glVertexAttrib4svARB */
+    xglNoOpVertexAttrib4svARB,
     0, /* glVertexAttrib4NubARB */
-    0, /* glVertexAttrib4NubvARB */
+    xglNoOpVertexAttrib4NubvARB,
     0, /* glVertexAttribs1dvNV */
     0, /* glVertexAttribs1fvNV */
     0, /* glVertexAttribs1svNV */
@@ -4267,34 +4437,34 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glGetFenceivNV */
     0, /* glFinishFenceNV */
     0, /* glSetFenceNV */
-    0, /* glVertexAttrib4bvARB */
-    0, /* glVertexAttrib4ivARB */
-    0, /* glVertexAttrib4ubvARB */
-    0, /* glVertexAttrib4usvARB */
-    0, /* glVertexAttrib4uivARB */
-    0, /* glVertexAttrib4NbvARB */
-    0, /* glVertexAttrib4NsvARB */
-    0, /* glVertexAttrib4NivARB */
-    0, /* glVertexAttrib4NusvARB */
-    0, /* glVertexAttrib4NuivARB */
+    xglNoOpVertexAttrib4bvARB,
+    xglNoOpVertexAttrib4ivARB,
+    xglNoOpVertexAttrib4ubvARB,
+    xglNoOpVertexAttrib4usvARB,
+    xglNoOpVertexAttrib4uivARB,
+    xglNoOpVertexAttrib4NbvARB,
+    xglNoOpVertexAttrib4NsvARB,
+    xglNoOpVertexAttrib4NivARB,
+    xglNoOpVertexAttrib4NusvARB,
+    xglNoOpVertexAttrib4NuivARB,
     0, /* glVertexAttribPointerARB */
     0, /* glEnableVertexAttribArrayARB */
     0, /* glDisableVertexAttribArrayARB */
-    0, /* glProgramStringARB */
+    xglNoOpProgramStringARB,
     0, /* glProgramEnvParameter4dARB */
-    0, /* glProgramEnvParameter4dvARB */
+    xglNoOpProgramEnvParameter4dvARB,
     0, /* glProgramEnvParameter4fARB */
-    0, /* glProgramEnvParameter4fvARB */
+    xglNoOpProgramEnvParameter4fvARB,
     0, /* glProgramLocalParameter4dARB */
-    0, /* glProgramLocalParameter4dvARB */
+    xglNoOpProgramLocalParameter4dvARB,
     0, /* glProgramLocalParameter4fARB */
-    0, /* glProgramLocalParameter4fvARB */
-    0, /* glGetProgramEnvParameterdvARB */
-    0, /* glGetProgramEnvParameterfvARB */
-    0, /* glGetProgramLocalParameterdvARB */
-    0, /* glGetProgramLocalParameterfvARB */
-    0, /* glGetProgramivARB */
-    0, /* glGetProgramStringARB */
+    xglNoOpProgramLocalParameter4fvARB,
+    xglNoOpGetProgramEnvParameterdvARB,
+    xglNoOpGetProgramEnvParameterfvARB,
+    xglNoOpGetProgramLocalParameterdvARB,
+    xglNoOpGetProgramLocalParameterfvARB,
+    xglNoOpGetProgramivARB,
+    xglNoOpGetProgramStringARB,
     0, /* glProgramNamedParameter4fNV */
     0, /* glProgramNamedParameter4dNV */
     0, /* glProgramNamedParameter4fvNV */
@@ -4654,6 +4824,179 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    (PFNGLACTIVESTENCILFACEEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glActiveStencilFaceEXT");
+    }
+
+    if (strstr (extensions, "GL_ARB_vertex_program"))
+    {
+	pContext->BindProgramARB =
+	    (PFNGLBINDPROGRAMARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glBindProgramARB");
+	pContext->DeleteProgramsARB =
+	    (PFNGLDELETEPROGRAMSARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glDeleteProgramsARB");
+	pContext->GenProgramsARB =
+	    (PFNGLGENPROGRAMSARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGenProgramsARB");
+	pContext->glRenderTable.GetProgramivARB =
+	    (PFNGLGETPROGRAMIVPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramivARB");
+	pContext->glRenderTable.GetVertexAttribdvARB =
+	    (PFNGLGETVERTEXATTRIBDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribdvARB");
+	pContext->glRenderTable.GetVertexAttribfvARB =
+	    (PFNGLGETVERTEXATTRIBFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribfvARB");
+	pContext->glRenderTable.GetVertexAttribivARB =
+	    (PFNGLGETVERTEXATTRIBIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribivARB");
+	pContext->IsProgramARB =
+	    (PFNGLISPROGRAMARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glIsProgramARB");
+	pContext->glRenderTable.ProgramEnvParameter4fvARB =
+	    (PFNGLPROGRAMENVPARAMETER4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramEnvParameter4fvARB");
+	pContext->glRenderTable.ProgramEnvParameter4dvARB =
+	    (PFNGLPROGRAMENVPARAMETER4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramEnvParameter4dvARB");
+	pContext->glRenderTable.VertexAttrib1svARB =
+	    (PFNGLVERTEXATTRIB1SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1svARB");
+	pContext->glRenderTable.VertexAttrib2svARB =
+	    (PFNGLVERTEXATTRIB2SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2svARB");
+	pContext->glRenderTable.VertexAttrib3svARB =
+	    (PFNGLVERTEXATTRIB3SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3svARB");
+	pContext->glRenderTable.VertexAttrib4svARB =
+	    (PFNGLVERTEXATTRIB4SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4svARB");
+	pContext->glRenderTable.VertexAttrib1fvARB =
+	    (PFNGLVERTEXATTRIB1FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1fvARB");
+	pContext->glRenderTable.VertexAttrib2fvARB =
+	    (PFNGLVERTEXATTRIB2FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2fvARB");
+	pContext->glRenderTable.VertexAttrib3fvARB =
+	    (PFNGLVERTEXATTRIB3FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3fvARB");
+	pContext->glRenderTable.VertexAttrib4fvARB =
+	    (PFNGLVERTEXATTRIB4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4fvARB");
+	pContext->glRenderTable.VertexAttrib1dvARB =
+	    (PFNGLVERTEXATTRIB1DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1dvARB");
+	pContext->glRenderTable.VertexAttrib2dvARB =
+	    (PFNGLVERTEXATTRIB2DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2dvARB");
+	pContext->glRenderTable.VertexAttrib3dvARB =
+	    (PFNGLVERTEXATTRIB3DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3dvARB");
+	pContext->glRenderTable.VertexAttrib4dvARB =
+	    (PFNGLVERTEXATTRIB4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4dvARB");
+	pContext->glRenderTable.VertexAttrib4NubvARB =
+	    (PFNGLVERTEXATTRIB4NUBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NubvARB");
+	pContext->glRenderTable.ProgramLocalParameter4fvARB =
+	    (PFNGLPROGRAMLOCALPARAMETER4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramLocalParameter4fvARB");
+	pContext->glRenderTable.ProgramLocalParameter4dvARB =
+	    (PFNGLPROGRAMLOCALPARAMETER4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramLocalParameter4dvARB");
+	pContext->glRenderTable.GetProgramEnvParameterdvARB =
+	    (PFNGLGETPROGRAMENVPARAMETERDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramEnvParameterdvARB");
+	pContext->glRenderTable.GetProgramEnvParameterfvARB =
+	    (PFNGLGETPROGRAMENVPARAMETERFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramEnvParameterfvARB");
+	pContext->glRenderTable.GetProgramLocalParameterdvARB =
+	    (PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramLocalParameterdvARB");
+	pContext->glRenderTable.GetProgramLocalParameterfvARB =
+	    (PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramLocalParameterfvARB");
+	pContext->glRenderTable.ProgramStringARB =
+	    (PFNGLPROGRAMSTRINGARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramStringARB");
+	pContext->glRenderTable.GetProgramStringARB =
+	    (PFNGLGETPROGRAMSTRINGARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramStringARB");
+	pContext->glRenderTable.VertexAttrib4bvARB =
+	    (PFNGLVERTEXATTRIB4BVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4bvARB");
+	pContext->glRenderTable.VertexAttrib4ivARB =
+	    (PFNGLVERTEXATTRIB4IVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4ivARB");
+	pContext->glRenderTable.VertexAttrib4ubvARB =
+	    (PFNGLVERTEXATTRIB4UBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4ubvARB");
+	pContext->glRenderTable.VertexAttrib4usvARB =
+	    (PFNGLVERTEXATTRIB4USVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4usvARB");
+	pContext->glRenderTable.VertexAttrib4uivARB =
+	    (PFNGLVERTEXATTRIB4UIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4uivARB");
+	pContext->glRenderTable.VertexAttrib4NbvARB =
+	    (PFNGLVERTEXATTRIB4NBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NbvARB");
+	pContext->glRenderTable.VertexAttrib4NsvARB =
+	    (PFNGLVERTEXATTRIB4NSVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NsvARB");
+	pContext->glRenderTable.VertexAttrib4NivARB =
+	    (PFNGLVERTEXATTRIB4NIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NivARB");
+	pContext->glRenderTable.VertexAttrib4NusvARB =
+	    (PFNGLVERTEXATTRIB4NUSVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NusvARB");
+	pContext->glRenderTable.VertexAttrib4NuivARB =
+	    (PFNGLVERTEXATTRIB4NUIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NuivARB");
+
+	pContext->glRenderTable.IsProgramNV = xglIsProgramARB;
+	pContext->glRenderTable.BindProgramNV = xglBindProgramARB;
+	pContext->glRenderTable.DeleteProgramsNV = xglDeleteProgramsARB;
+	pContext->glRenderTable.GenProgramsNV = xglGenProgramsARB;
     }
 
     if (strstr (extensions, "GL_EXT_framebuffer_object"))
@@ -5209,6 +5552,26 @@ xglFreeContext (xglGLContextPtr pContext)
 	xglDeleteHashTable (pContext->texObjects);
     }
 
+    if (pContext->programObjects)
+    {
+	GLuint po;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->programObjects);
+	    if (key)
+	    {
+		po = (GLuint) xglHashLookup (pContext->programObjects, key);
+		if (po)
+		    (*pContext->DeleteProgramsARB) (1, &po);
+
+		xglHashRemove (pContext->programObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->programObjects);
+    }
+
     if (pContext->renderbufferObjects)
     {
 	GLuint rbo;
@@ -5658,7 +6021,6 @@ xglCreateContext (__GLXscreen	   *screen,
     pContext->drawXoff	    = 0;
     pContext->drawYoff	    = 0;
     pContext->maxTexUnits   = 0;
-    pContext->renderbuffer  = 0;
     pContext->framebuffer   = 0;
 
     if (pContext->doubleBuffer)
@@ -5677,6 +6039,7 @@ xglCreateContext (__GLXscreen	   *screen,
     if (shareContext)
     {
 	pContext->texObjects	      = NULL;
+	pContext->programObjects      = NULL;
 	pContext->renderbufferObjects = NULL;
 	pContext->framebufferObjects  = NULL;
 	pContext->displayLists	      = NULL;
@@ -5688,6 +6051,13 @@ xglCreateContext (__GLXscreen	   *screen,
     {
 	pContext->texObjects = xglNewHashTable ();
 	if (!pContext->texObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->programObjects = xglNewHashTable ();
+	if (!pContext->programObjects)
 	{
 	    xglFreeContext (pContext);
 	    return NULL;

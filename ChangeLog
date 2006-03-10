@@ -1,3 +1,21 @@
+2006-03-10  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glxext/xglglxext.c:
+	* GL/glx/glxscreens.c:
+	* GL/glx/g_disptab_EXT.c:
+	* GL/glx/rensizetab.c:
+	* GL/glx/glxcmdsswap.c (__glXSwapVendorPrivateWithReply):
+	* GL/glx/glxcmds.c (__glXVendorPrivateWithReply):
+	GL_ARB_vertex_program and GL_ARB_fragment_program support.
+
+	* hw/xgl/glxext/xglglxext.c: Remove renderbuffer from context.
+
+	* GL/glx/indirect_dispatch_swap.c:
+	* GL/glx/indirect_dispatch.c: New automatically generated code
+	that includes GenProgramsNV fix to gl_API.xml.
+
+	* GL/glx/single2.c: Add GetProgramStringARB implementation.
+
 2006-03-09  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/xglglxext.c (xglScreenProbe): Let mesa screen probe

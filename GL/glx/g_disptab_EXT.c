@@ -2185,28 +2185,28 @@ __GLXdispatchRenderProcPtr __glXRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT - __
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4180 */
+	__glXDisp_BindProgramNV, /* 4180 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
+	__glXDisp_ProgramEnvParameter4fvARB, /* 4184 */
+	__glXDisp_ProgramEnvParameter4dvARB, /* 4185 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4190 */
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4200 */
-	__glXNoSuchRenderOpcode,
+	__glXDisp_VertexAttrib1svARB, /* 4189 */
+	__glXDisp_VertexAttrib2svARB, /* 4190 */
+	__glXDisp_VertexAttrib3svARB, /* 4191 */
+	__glXDisp_VertexAttrib4svARB, /* 4192 */
+	__glXDisp_VertexAttrib1fvARB, /* 4193 */
+	__glXDisp_VertexAttrib2fvARB, /* 4194 */
+	__glXDisp_VertexAttrib3fvARB, /* 4195 */
+	__glXDisp_VertexAttrib4fvARB, /* 4196 */
+	__glXDisp_VertexAttrib1dvARB, /* 4197 */
+	__glXDisp_VertexAttrib2dvARB, /* 4198 */
+	__glXDisp_VertexAttrib3dvARB, /* 4199 */
+	__glXDisp_VertexAttrib4dvARB, /* 4200 */
+	__glXDisp_VertexAttrib4NubvARB, /* 4201 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
@@ -2220,9 +2220,9 @@ __GLXdispatchRenderProcPtr __glXRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT - __
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
+	__glXDisp_ProgramLocalParameter4fvARB, /* 4215 */
+	__glXDisp_ProgramLocalParameter4dvARB, /* 4216 */
+	__glXDisp_ProgramStringARB, /* 4217 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode, /* 4219 */
 #ifndef MISSING_GL_EXTS
@@ -2241,16 +2241,16 @@ __GLXdispatchRenderProcPtr __glXRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT - __
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
+	__glXDisp_VertexAttrib4bvARB, /* 4230 */
+	__glXDisp_VertexAttrib4ivARB, /* 4231 */
+	__glXDisp_VertexAttrib4ubvARB, /* 4232 */
+	__glXDisp_VertexAttrib4usvARB, /* 4233 */
+	__glXDisp_VertexAttrib4uivARB, /* 4234 */
+	__glXDisp_VertexAttrib4NbvARB, /* 4235 */
+	__glXDisp_VertexAttrib4NsvARB, /* 4236 */
+	__glXDisp_VertexAttrib4NivARB, /* 4237 */
+	__glXDisp_VertexAttrib4NusvARB, /* 4238 */
+	__glXDisp_VertexAttrib4NuivARB, /* 4239 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
@@ -4494,28 +4494,28 @@ __GLXdispatchRenderProcPtr __glXSwapRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT 
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4180 */
+	__glXDispSwap_BindProgramNV, /* 4180 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
+	__glXDispSwap_ProgramEnvParameter4fvARB, /* 4184 */
+	__glXDispSwap_ProgramEnvParameter4dvARB, /* 4185 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4190 */
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode, /* 4200 */
-	__glXNoSuchRenderOpcode,
+	__glXDispSwap_VertexAttrib1svARB, /* 4189 */
+	__glXDispSwap_VertexAttrib2svARB, /* 4190 */
+	__glXDispSwap_VertexAttrib3svARB, /* 4191 */
+	__glXDispSwap_VertexAttrib4svARB, /* 4192 */
+	__glXDispSwap_VertexAttrib1fvARB, /* 4193 */
+	__glXDispSwap_VertexAttrib2fvARB, /* 4194 */
+	__glXDispSwap_VertexAttrib3fvARB, /* 4195 */
+	__glXDispSwap_VertexAttrib4fvARB, /* 4196 */
+	__glXDispSwap_VertexAttrib1dvARB, /* 4197 */
+	__glXDispSwap_VertexAttrib2dvARB, /* 4198 */
+	__glXDispSwap_VertexAttrib3dvARB, /* 4199 */
+	__glXDispSwap_VertexAttrib4dvARB, /* 4200 */
+	__glXDispSwap_VertexAttrib4NubvARB, /* 4201 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
@@ -4529,9 +4529,9 @@ __GLXdispatchRenderProcPtr __glXSwapRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT 
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
+	__glXDispSwap_ProgramLocalParameter4fvARB, /* 4215 */
+	__glXDispSwap_ProgramLocalParameter4dvARB, /* 4216 */
+	__glXDispSwap_ProgramStringARB, /* 4217 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode, /* 4219 */
 #ifndef MISSING_GL_EXTS
@@ -4550,16 +4550,16 @@ __GLXdispatchRenderProcPtr __glXSwapRenderTable_EXT[__GLX_MAX_RENDER_OPCODE_EXT 
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
-	__glXNoSuchRenderOpcode,
+	__glXDispSwap_VertexAttrib4bvARB, /* 4230 */
+	__glXDispSwap_VertexAttrib4ivARB, /* 4231 */
+	__glXDispSwap_VertexAttrib4ubvARB, /* 4232 */
+	__glXDispSwap_VertexAttrib4usvARB, /* 4233 */
+	__glXDispSwap_VertexAttrib4uivARB, /* 4234 */
+	__glXDispSwap_VertexAttrib4NbvARB, /* 4235 */
+	__glXDispSwap_VertexAttrib4NsvARB, /* 4236 */
+	__glXDispSwap_VertexAttrib4NivARB, /* 4237 */
+	__glXDispSwap_VertexAttrib4NusvARB, /* 4238 */
+	__glXDispSwap_VertexAttrib4NuivARB, /* 4239 */
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,
 	__glXNoSuchRenderOpcode,

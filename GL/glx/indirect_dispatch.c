@@ -4058,7 +4058,7 @@ int __glXDisp_GenProgramsNV(__GLXclientState *cl, GLbyte *pc)
             n,
             programs
         ) );
-        __glXSendReply(cl->client, programs, n, 4, GL_FALSE, 0);
+        __glXSendReply(cl->client, programs, n, 4, GL_TRUE, 0);
         error = Success;
     }
 

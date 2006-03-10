@@ -65,6 +65,8 @@ static const char GLServerExtensions[] =
 			"GL_ARB_transpose_matrix "
 			"GL_ARB_window_pos "
 			"GL_ARB_texture_non_power_of_two "
+			"GL_ARB_vertex_program "
+			"GL_ARB_fragment_program "
 			"GL_EXT_abgr "
 			"GL_EXT_bgra "
  			"GL_EXT_blend_color "
