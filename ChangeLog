@@ -1,3 +1,8 @@
+2006-03-11  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glxext/xglglxext.c (xglBindTexImage): Add missing break
+	statement so that TEXTURE_RECTANGLE can be used again.
+
 2006-03-10  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/xglglxext.c:

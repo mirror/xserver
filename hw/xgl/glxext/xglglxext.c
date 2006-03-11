@@ -5277,6 +5277,7 @@ xglBindTexImage (__GLXcontext *context,
 		    break;
 		case GLITZ_TEXTURE_TARGET_RECT:
 		    pTexObj = pTexUnit->pRect;
+		    break;
 		default:
 		    pTexObj = NULL;
 		    break;
