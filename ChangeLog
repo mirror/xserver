@@ -1,3 +1,9 @@
+2006-03-13  Matthias Hopf  <mhopf@suse.de>
+
+	Needed for 'make distcheck':
+	* GL/mesa/Makefile.am: Add glapi to DIST_SUBDIRS.
+	* hw/xfree86/Makefile.am: Sync to trunk branch.
+
 2006-03-11  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/xglglxext.c (xglBindTexImage): Add missing break
