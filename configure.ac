@@ -1533,7 +1533,6 @@ GL/include/Makefile
 GL/include/GL/Makefile
 GL/mesa/Makefile
 GL/mesa/array_cache/Makefile
-GL/mesa/glapi/Makefile
 GL/mesa/main/Makefile
 GL/mesa/math/Makefile
 GL/mesa/shader/Makefile

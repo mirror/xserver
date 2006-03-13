@@ -1,3 +1,9 @@
+2006-03-13  Matthias Hopf  <mhopf@suse.de>
+
+	* GL/mesa/Makefile.am:
+	* configure.ac:
+	Real fix for glapi: Remove Makefile generation, don't distribute.
+
 2006-03-13  David Reveman  <davidr@novell.com>
 
 	* GL/mesa/X/xf86glx.c:
