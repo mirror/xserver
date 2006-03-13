@@ -1363,7 +1363,7 @@ int __glXSwapBuffers(__GLXclientState *cl, GLbyte *pc)
 	if (!glxc) {
 	    return __glXBadContextTag;
 	}
-#if 0 //XGL
+#if 0 /*XGL */
 	/*
 	** The calling thread is swapping its current drawable.  In this case,
 	** glxSwapBuffers is in both GL and X streams, in terms of
@@ -1407,6 +1407,107 @@ int __glXSwapBuffers(__GLXclientState *cl, GLbyte *pc)
     return Success;
 }
 
+int __glXCopySubBufferMESA(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    ClientPtr		 client = cl->client;
+    GLXContextTag	 tag = req->contextTag;
+    GLXDrawable		 drawId;
+    DrawablePtr		 pDraw;
+    __GLXpixmap		 *pGlxPixmap;
+    __GLXcontext	 *glxc = NULL;
+    int			 x, y, w, h;
+    int			 error;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = *((CARD32 *) (pc));
+    x	   = *((INT32  *) (pc + 4));
+    y	   = *((INT32  *) (pc + 8));
+    w	   = *((INT32  *) (pc + 12));
+    h	   = *((INT32  *) (pc + 16));
+
+    /*
+    ** Check that the GLX drawable is valid.
+    */
+    pDraw = (DrawablePtr) LookupDrawable(drawId, client);
+    if (pDraw) {
+	if (pDraw->type == DRAWABLE_WINDOW) {
+	    /*
+	    ** Drawable is an X window.
+	    */
+	} else {
+	    /*
+	    ** Drawable is an X pixmap, which is not allowed.
+	    */
+	    client->errorValue = drawId;
+	    return __glXBadDrawable;
+	}
+    } else {
+	pGlxPixmap = (__GLXpixmap *) LookupIDByType(drawId,
+						    __glXPixmapRes);
+	if (pGlxPixmap) {
+	    /*
+	    ** Drawable is a GLX pixmap.
+	    */
+	} else {
+	    /*
+	    ** Drawable is neither a X window nor a GLX pixmap.
+	    */
+	    client->errorValue = drawId;
+	    return __glXBadDrawable;
+	}
+    }
+
+    if (tag) {
+	glxc = __glXLookupContextByTag(cl, tag);
+	if (!glxc) {
+	    return __glXBadContextTag;
+	}
+#if 0 /*XGL */
+	/*
+	** The calling thread is swapping its current drawable.  In this case,
+	** glxSwapBuffers is in both GL and X streams, in terms of
+	** sequentiality.
+	*
+	if (__glXForceCurrent(cl, tag, &error)) {
+	    *
+	    ** Do whatever is needed to make sure that all preceding requests
+	    ** in both streams are completed before the swap is executed.
+	    *
+	    (*__glRenderTable->Finish)();
+	    __GLX_NOTE_FLUSHED_CMDS(glxc);
+	} else {
+	    return error;
+	}
+	*/
+#endif
+    }
+
+    if (pDraw) {
+	__GLXdrawable *glxPriv;
+
+	if (glxc) {
+	    glxPriv = __glXGetDrawable(glxc, pDraw, drawId);
+	    if (glxPriv == NULL) {
+		return __glXBadDrawable;
+	    }
+	}
+	else {
+	    glxPriv = __glXFindDrawable(drawId);
+	    if (glxPriv == NULL) {
+		/* This is a window we've never seen before, do nothing */
+		return Success;
+	    }
+	}
+
+	if ((*glxPriv->copySubBuffer)(glxPriv, x, y, w, h) == GL_FALSE) {
+	    return __glXBadDrawable;
+	}
+    }
+
+    return Success;
+}
 
 int __glXQueryContextInfoEXT(__GLXclientState *cl, GLbyte *pc)
 {
@@ -2329,6 +2430,8 @@ static int __glxHyperpipeConfigSGIX(__GLXclientState *cl, GLbyte *pc)
 ** allocating the entry points in the dispatch table.
 */
 
+#define X_GLXvop_CopySubBufferMESA 5154 /* temporary */
+
 int __glXVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXVendorPrivateReq *req;
@@ -2352,6 +2455,8 @@ int __glXVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	return __glXBindTexImageEXT(cl, pc);
     case X_GLXvop_ReleaseTexImageEXT:
 	return __glXReleaseTexImageEXT(cl, pc);  
+     case X_GLXvop_CopySubBufferMESA:
+ 	return __glXCopySubBufferMESA(cl, pc);
     }
 #endif
 

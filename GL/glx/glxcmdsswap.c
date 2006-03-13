@@ -327,6 +327,36 @@ int __glXSwapSwapBuffers(__GLXclientState *cl, GLbyte *pc)
     return __glXSwapBuffers(cl, pc);
 }
 
+int __glXSwapCopySubBufferMESA(__GLXclientState *cl, GLbyte *pc)
+{
+    xGLXVendorPrivateReq *req = (xGLXVendorPrivateReq *) pc;
+    CARD32		 *drawId;
+    INT32		 *x;
+    INT32		 *y;
+    INT32		 *w;
+    INT32		 *h;
+
+    __GLX_DECLARE_SWAP_VARIABLES;
+
+    pc += __GLX_VENDPRIV_HDR_SIZE;
+
+    drawId = ((CARD32 *) (pc));
+    x	   = ((INT32  *) (pc + 4));
+    y	   = ((INT32  *) (pc + 8));
+    w	   = ((INT32  *) (pc + 12));
+    h	   = ((INT32  *) (pc + 16));
+
+    __GLX_SWAP_SHORT(&req->length);
+    __GLX_SWAP_INT(&req->contextTag);
+    __GLX_SWAP_INT(drawId);
+    __GLX_SWAP_INT(x);
+    __GLX_SWAP_INT(y);
+    __GLX_SWAP_INT(w);
+    __GLX_SWAP_INT(h);
+
+    return __glXCopySubBufferMESA(cl, (GLbyte *)pc);
+}
+
 int __glXSwapUseXFont(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXUseXFontReq *req = (xGLXUseXFontReq *) pc;
@@ -1058,6 +1088,8 @@ int __glXSwapRenderLarge(__GLXclientState *cl, GLbyte *pc)
 ** allocating these entry points in the dispatch table.
 */
 
+#define X_GLXvop_CopySubBufferMESA 5154 /* temporary */
+
 int __glXSwapVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXVendorPrivateReq *req;
@@ -1087,6 +1119,8 @@ int __glXSwapVendorPrivate(__GLXclientState *cl, GLbyte *pc)
 	return __glXSwapBindTexImageEXT(cl, pc);
     case X_GLXvop_ReleaseTexImageEXT:
 	return __glXSwapReleaseTexImageEXT(cl, pc);  
+    case X_GLXvop_CopySubBufferMESA:
+	return __glXSwapCopySubBufferMESA(cl, pc);
     }
 #endif
 

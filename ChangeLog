@@ -1,3 +1,12 @@
+2006-03-13  David Reveman  <davidr@novell.com>
+
+	* GL/mesa/X/xf86glx.c:
+	* GL/glx/glxscreens.c:
+	* GL/glx/glxdri.c:
+	* GL/glx/glxdrawable.h:
+	* GL/glx/glxcmdsswap.c:
+	* GL/glx/glxcmds.c: CopySubBufferMESA support.
+
 2006-03-13  Matthias Hopf  <mhopf@suse.de>
 
 	Needed for 'make distcheck':

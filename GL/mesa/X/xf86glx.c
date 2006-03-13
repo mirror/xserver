@@ -137,6 +137,23 @@ __glXMesaDrawableSwapBuffers(__GLXdrawable *base)
     return GL_TRUE;
 }
 
+static GLboolean
+__glXMesaDrawableCopySubBuffer(__GLXdrawable *base,
+			       int	     x,
+			       int	     y,
+			       int	     width,
+			       int	     height)
+{
+    __GLXMESAdrawable *glxPriv = (__GLXMESAdrawable *) base;
+
+    __glXenterServer();
+
+    XMesaCopySubBuffer (glxPriv->xm_buf, x, y, width, height);
+
+    __glXleaveServer();
+
+    return GL_TRUE;
+}
 
 static __GLXdrawable *
 __glXMesaContextCreateDrawable(__GLXcontext *context,
@@ -161,6 +178,7 @@ __glXMesaContextCreateDrawable(__GLXcontext *context,
     glxPriv->base.destroy       = __glXMesaDrawableDestroy;
     glxPriv->base.resize        = __glXMesaDrawableResize;
     glxPriv->base.swapBuffers   = __glXMesaDrawableSwapBuffers;
+    glxPriv->base.copySubBuffer = __glXMesaDrawableCopySubBuffer;
 
     pGlxScreen = context->pGlxScreen;
 

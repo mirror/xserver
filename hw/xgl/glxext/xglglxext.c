@@ -55,6 +55,7 @@ extern __GLXprovider *__xglMesaProvider;
 typedef struct _xglGLScreen {
     __GLXscreen base;
     __GLXscreen *mesaScreen;
+    char	*GLXextensions;
 } xglGLScreenRec, *xglGLScreenPtr;
 
 typedef struct _xglGLBuffer {
@@ -5220,6 +5221,60 @@ xglSwapBuffers (__GLXdrawable *drawable)
 }
 
 static GLboolean
+xglCopySubBuffer (__GLXdrawable *drawable,
+		  int		x,
+		  int		y,
+		  int		width,
+		  int		height)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr	   pDrawable = pBufferPriv->pDrawable;
+    GLboolean	   status = GL_TRUE;
+
+    if (pDrawable)
+    {
+	glitz_surface_t *surface;
+	int		xOff, yOff;
+	GCPtr		pGC = pBufferPriv->pGC;
+	RegionRec	region;
+	BoxRec		box;
+
+	XGL_SCREEN_PRIV (pGC->pScreen);
+
+	XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
+
+	box.x1 = pDrawable->x + x;
+	box.y2 = pDrawable->height - y;
+	box.x2 = box.x1 + width;
+	box.y1 = box.y2 - height;
+
+	REGION_INIT (pGC->pScreen, &region, &box, 1);
+	REGION_INTERSECT (pDrawable->pScreen, &region,
+			  pGC->pCompositeClip, &region);
+
+	glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
+					   xOff, yOff, (glitz_box_t *)
+					   REGION_RECTS (&region),
+					   REGION_NUM_RECTS (&region));
+
+	xglAddBitDamage (pDrawable, &region);
+	DamageDamageRegion (pDrawable, &region);
+	REGION_SUBTRACT (pGC->pScreen, &pBufferPriv->damage,
+			 &pBufferPriv->damage, &region);
+
+	REGION_UNINIT (pGC->pScreen, &region);
+    }
+    else if (mesaDrawable)
+    {
+	status = (*mesaDrawable->copySubBuffer) (mesaDrawable,
+						 x, y, width, height);
+    }
+
+    return status;
+}
+
+static GLboolean
 xglResizeDrawable (__GLXdrawable *drawable)
 {
     xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
@@ -5425,9 +5480,10 @@ xglCreateDrawable (__GLXcontext *context,
     pBufferPriv->pPixmap   = NULL;
     pBufferPriv->pGC	   = NULL;
 
-    pBufferPriv->base.destroy     = xglDestroyDrawable;
-    pBufferPriv->base.resize      = xglResizeDrawable;
-    pBufferPriv->base.swapBuffers = xglSwapBuffers;
+    pBufferPriv->base.destroy       = xglDestroyDrawable;
+    pBufferPriv->base.resize        = xglResizeDrawable;
+    pBufferPriv->base.swapBuffers   = xglSwapBuffers;
+    pBufferPriv->base.copySubBuffer = xglCopySubBuffer;
 
     pBufferPriv->drawable    = NULL;
     pBufferPriv->backSurface = NULL;
@@ -6157,6 +6213,9 @@ xglScreenDestroy (__GLXscreen *screen)
     if (mesaScreen)
 	GlxScreenDestroy (mesaScreen);
 
+    if (pScreen->GLXextensions)
+	xfree (pScreen->GLXextensions);
+
     xfree (pScreen);
 }
 
@@ -6189,6 +6248,31 @@ xglScreenProbe (ScreenPtr pScreen)
     screen->base.GLXvendor     = screen->mesaScreen->GLXvendor;
     screen->base.GLXversion    = screen->mesaScreen->GLXversion;
     screen->base.GLXextensions = screen->mesaScreen->GLXextensions;
+
+    /* Remove GLX_MESA_copy_sub_buffer from GLX extension string if
+       glitz can't efficiently support it */
+    if (!(glitz_drawable_get_features (pScreenPriv->drawable) &
+	  GLITZ_FEATURE_COPY_SUB_BUFFER_MASK))
+    {
+	screen->GLXextensions = strdup (screen->mesaScreen->GLXextensions);
+	if (screen->GLXextensions)
+	{
+	    char *s;
+
+	    s = strstr (screen->GLXextensions, "GLX_MESA_copy_sub_buffer ");
+	    if (s)
+	    {
+		int n, n2;
+
+		n  = strlen ("GLX_MESA_copy_sub_buffer ");
+		n2 = strlen (s);
+
+		memmove (s, s + n, n2 - n + 1);
+	    }
+
+	    screen->base.GLXextensions = screen->GLXextensions;
+	}
+    }
 
     screen->base.WrappedPositionWindow =
 	screen->mesaScreen->WrappedPositionWindow;

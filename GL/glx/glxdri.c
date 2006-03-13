@@ -177,6 +177,32 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *basePrivate)
     return TRUE;
 }
 
+static GLboolean
+__glXDRIdrawableCopySubBuffer(__GLXdrawable *basePrivate,
+			      int	    x,
+			      int	    y,
+			      int	    width,
+			      int	    height)
+{
+    __GLXDRIdrawable *private = (__GLXDRIdrawable *) basePrivate;
+    __GLXDRIscreen *screen;
+
+    /* FIXME: We're jumping through hoops here to get the DRIdrawable
+     * which the dri driver tries to keep to it self...  cf. FIXME in
+     * createDrawable. */
+
+    screen = (__GLXDRIscreen *) __glXgetActiveScreen(private->base.pDraw->pScreen->myNum);
+    private->driDrawable = (screen->driScreen.getDrawable)(NULL,
+							   private->base.drawId,
+							   screen->driScreen.private);
+
+    (*private->driDrawable->copySubBuffer)(NULL,
+					   private->driDrawable->private,
+					   x, y, width, height);
+
+    return TRUE;
+}
+
 static __GLXdrawable *
 __glXDRIcontextCreateDrawable(__GLXcontext *context,
 			      DrawablePtr pDraw,
@@ -195,9 +221,10 @@ __glXDRIcontextCreateDrawable(__GLXcontext *context,
 	return NULL;
     }
 
-    private->base.destroy     = __glXDRIdrawableDestroy;
-    private->base.resize      = __glXDRIdrawableResize;
-    private->base.swapBuffers = __glXDRIdrawableSwapBuffers;
+    private->base.destroy	= __glXDRIdrawableDestroy;
+    private->base.resize	= __glXDRIdrawableResize;
+    private->base.swapBuffers	= __glXDRIdrawableSwapBuffers;
+    private->base.copySubBuffer = __glXDRIdrawableCopySubBuffer;
     
 #if 0
     /* FIXME: It would only be natural that we called
