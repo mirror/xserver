@@ -1,3 +1,13 @@
+2006-03-15  David Reveman  <davidr@novell.com>
+
+	* GL/mesa/X/xf86glx.c (init_screen_visuals): Pass the correct visual
+	to XMesaCreateVisual.
+	(__glXMesaDrawableDestroy): Only try to destroy mesa buffer if it has
+	been created.
+	(__glXMesaContextDestroy):
+	(__glXMesaContextLoseCurrent): Flush context cache appropriately.
+	(__glXMesaContextForceCurrent): Set dispatch table.
+
 2006-03-13  Matthias Hopf  <mhopf@suse.de>
 
 	* GL/mesa/Makefile.am:

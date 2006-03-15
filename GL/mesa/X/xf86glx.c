@@ -101,7 +101,8 @@ __glXMesaDrawableDestroy(__GLXdrawable *base)
 {
     __GLXMESAdrawable *glxPriv = (__GLXMESAdrawable *) base;
 
-    XMesaDestroyBuffer(glxPriv->xm_buf);
+    if (glxPriv->xm_buf)
+	XMesaDestroyBuffer(glxPriv->xm_buf);
     xfree(glxPriv);
 }
 
@@ -214,6 +215,9 @@ __glXMesaContextDestroy(__GLXcontext *baseContext)
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
 
     XMesaDestroyContext(context->xmesa);
+
+    GlxFlushContextCache ();
+
     xfree(context);
 }
 
@@ -235,6 +239,8 @@ __glXMesaContextLoseCurrent(__GLXcontext *baseContext)
 {
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
 
+    GlxFlushContextCache ();
+
     return XMesaLoseCurrent(context->xmesa);
 }
 
@@ -254,6 +260,8 @@ static int
 __glXMesaContextForceCurrent(__GLXcontext *baseContext)
 {
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
+
+    GlxSetRenderTables (context->xmesa->mesa.CurrentDispatch);
 
     return XMesaForceCurrent(context->xmesa);
 }
@@ -383,7 +391,7 @@ static void init_screen_visuals(__GLXMESAscreen *screen)
 		/* Create the XMesa visual */
 		pXMesaVisual[i] =
 		    XMesaCreateVisual(pScreen,
-				      pVis,
+				      &pVis[j],
 				      modes->rgbMode,
 				      (modes->alphaBits > 0),
 				      modes->doubleBufferMode,
