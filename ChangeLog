@@ -1,5 +1,8 @@
 2006-03-15  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glxext/xglglxlog.c:
+	* hw/xgl/glxext/xglglxext.c: Sync with mesa head.
+
 	* GL/mesa/X/xf86glx.c (init_screen_visuals): Pass the correct visual
 	to XMesaCreateVisual.
 	(__glXMesaDrawableDestroy): Only try to destroy mesa buffer if it has

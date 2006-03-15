@@ -4599,7 +4599,10 @@ static struct _glapi_table __glNativeRenderTable = {
     xglNoOpGenerateMipmapEXT,
     0, /* glStencilFuncSeparate */
     0, /* glStencilOpSeparate */
-    0  /* glStencilMaskSeparate */
+    0, /* glStencilMaskSeparate */
+    0, /* GetQueryObjecti64vEXT */
+    0, /* GetQueryObjectui64vEXT */
+    0  /* BlitFramebufferEXT */
 };
 
 static void
