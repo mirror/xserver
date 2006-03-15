@@ -3464,6 +3464,364 @@ logActiveStencilFaceEXT (GLenum face)
 }
 
 
+/* GL_ARB_vertex_program */
+
+static void
+logVertexAttrib1svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib1svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1svARB) (index, v);
+}
+
+static void
+logVertexAttrib1fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib1fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1fvARB) (index, v);
+}
+
+static void
+logVertexAttrib1dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib1dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1dvARB) (index, v);
+}
+
+static void
+logVertexAttrib2svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib2svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2svARB) (index, v);
+}
+
+static void
+logVertexAttrib2fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib2fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2fvARB) (index, v);
+}
+
+static void
+logVertexAttrib2dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib2dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2dvARB) (index, v);
+}
+
+static void
+logVertexAttrib3svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib3svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3svARB) (index, v);
+}
+
+static void
+logVertexAttrib3fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib3fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3fvARB) (index, v);
+}
+
+static void
+logVertexAttrib3dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib3dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3dvARB) (index, v);
+}
+
+static void
+logVertexAttrib4bvARB (GLuint	    index,
+		       const GLbyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4bvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4bvARB) (index, v);
+}
+
+static void
+logVertexAttrib4svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib4svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4svARB) (index, v);
+}
+
+static void
+logVertexAttrib4ivARB (GLuint	   index,
+		       const GLint *v)
+{
+    fprintf (logFp, "glVertexAttrib4ivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4ivARB) (index, v);
+}
+
+static void
+logVertexAttrib4ubvARB (GLuint	      index,
+			const GLubyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4ubvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4ubvARB) (index, v);
+}
+
+static void
+logVertexAttrib4usvARB (GLuint	       index,
+			const GLushort *v)
+{
+    fprintf (logFp, "glVertexAttrib4usvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4usvARB) (index, v);
+}
+
+static void
+logVertexAttrib4uivARB (GLuint	     index,
+			const GLuint *v)
+{
+    fprintf (logFp, "glVertexAttrib4uivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4uivARB) (index, v);
+}
+
+static void
+logVertexAttrib4fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib4fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4fvARB) (index, v);
+}
+
+static void
+logVertexAttrib4dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib4dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4dvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NbvARB (GLuint	     index,
+			const GLbyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4NbvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NbvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NsvARB (GLuint	      index,
+			const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib4NsvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NsvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NivARB (GLuint	    index,
+			const GLint *v)
+{
+    fprintf (logFp, "glVertexAttrib4NivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NivARB) (index, v);
+}
+
+static void
+logVertexAttrib4NubvARB (GLuint	       index,
+			 const GLubyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4NubvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NubvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NusvARB (GLuint		index,
+			 const GLushort *v)
+{
+    fprintf (logFp, "glVertexAttrib4NusvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NusvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NuivARB (GLuint	      index,
+			 const GLuint *v)
+{
+    fprintf (logFp, "glVertexAttrib4NuivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NuivARB) (index, v);
+}
+
+static void
+logProgramStringARB (GLenum	target,
+		     GLenum	format,
+		     GLsizei	len,
+		     const void *string)
+{
+    fprintf (logFp, "glProgramStringARB (0x%x, 0x%x, %d, %p)\n",
+	     target, format, len, string);
+    (*nativeRenderTable->ProgramStringARB) (target, format, len, string);
+}
+
+static void
+logBindProgramARB (GLenum target,
+		   GLuint program)
+{
+    fprintf (logFp, "glBindProgramARB (0x%x, %d)\n", target, program);
+    (*nativeRenderTable->BindProgramNV) (target, program);
+}
+
+static void
+logDeleteProgramsARB (GLsizei	   n,
+		      const GLuint *programs)
+{
+    fprintf (logFp, "glDeleteProgramsARB (%d, %p)\n", n, programs);
+    (*nativeRenderTable->DeleteProgramsNV) (n, programs);
+}
+
+static void
+logGenProgramsARB (GLsizei n,
+		   GLuint  *programs)
+{
+    fprintf (logFp, "glGenProgramsARB (%d, %p)\n", n, programs);
+    (*nativeRenderTable->GenProgramsNV) (n, programs);
+}
+
+static void
+logProgramEnvParameter4dvARB (GLenum	     target,
+			      GLuint	     index,
+			      const GLdouble *params)
+{
+    fprintf (logFp, "glProgramEnvParameter4dvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramEnvParameter4dvARB) (target, index, params);
+}
+
+static void
+logProgramEnvParameter4fvARB (GLenum	    target,
+			      GLuint	    index,
+			      const GLfloat *params)
+{
+    fprintf (logFp, "glProgramEnvParameter4fvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramEnvParameter4fvARB) (target, index, params);
+}
+
+static void
+logProgramLocalParameter4dvARB (GLenum	       target,
+				GLuint	       index,
+				const GLdouble *params)
+{
+    fprintf (logFp, "glProgramLocalParameter4dvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramLocalParameter4dvARB) (target, index, params);
+}
+
+static void
+logProgramLocalParameter4fvARB (GLenum	      target,
+				GLuint	      index,
+				const GLfloat *params)
+{
+    fprintf (logFp, "glProgramLocalParameter4fvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramLocalParameter4fvARB) (target, index, params);
+}
+
+static void
+logGetProgramEnvParameterdvARB (GLenum	 target,
+				GLuint	 index,
+				GLdouble *params)
+{
+    fprintf (logFp, "glGetProgramEnvParameterdvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramEnvParameterdvARB) (target, index, params);
+}
+
+static void
+logGetProgramEnvParameterfvARB (GLenum	target,
+				GLuint	index,
+				GLfloat *params)
+{
+    fprintf (logFp, "glGetProgramEnvParameterfvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramEnvParameterfvARB) (target, index, params);
+}
+
+static void
+logGetProgramLocalParameterdvARB (GLenum   target,
+				  GLuint   index,
+				  GLdouble *params)
+{
+    fprintf (logFp, "glGetProgramLocalParameterdvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramLocalParameterdvARB) (target, index, params);
+}
+
+static void
+logGetProgramLocalParameterfvARB (GLenum  target,
+				  GLuint  index,
+				  GLfloat *params)
+{
+    fprintf (logFp, "glGetProgramLocalParameterfvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramLocalParameterfvARB) (target, index, params);
+}
+
+static void
+logGetProgramivARB (GLenum target,
+		    GLenum pname,
+		    GLint  *params)
+{
+    fprintf (logFp, "glGetProgramivARB (0x%x, 0x%x, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramivARB) (target, pname, params);
+}
+
+static void
+logGetProgramStringARB (GLenum target,
+			GLenum pname,
+			void   *string)
+{
+    fprintf (logFp, "glGetProgramStringARB (0x%x, 0x%x, %p)\n",
+	     target, pname, string);
+    (*nativeRenderTable->GetProgramStringARB) (target, pname, string);
+}
+
+static void
+logGetVertexAttribdvARB (GLuint   index,
+			 GLenum   pname,
+			 GLdouble *params)
+{
+    fprintf (logFp, "glGetVertexAttribdvARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribdvARB) (index, pname, params);
+}
+
+static void
+logGetVertexAttribfvARB (GLuint  index,
+			 GLenum  pname,
+			 GLfloat *params)
+{
+    fprintf (logFp, "glGetVertexAttribfvARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribfvARB) (index, pname, params);
+}
+
+static void
+logGetVertexAttribivARB (GLuint index,
+			 GLenum pname,
+			 GLint  *params)
+{
+    fprintf (logFp, "glGetVertexAttribivARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribivARB) (index, pname, params);
+}
+
+static GLboolean
+logIsProgramARB (GLuint program)
+{
+    fprintf (logFp, "glIsProgramARB (%d)\n", program);
+    return (*nativeRenderTable->IsProgramNV) (program);
+}
+
 /* GL_EXT_framebuffer_object */
 
 static GLboolean
@@ -4220,20 +4578,20 @@ static struct _glapi_table __logRenderTable = {
     logSecondaryColor3usvEXT,
     logSecondaryColorPointerEXT,
     0, /* glAreProgramsResidentNV */
-    0, /* glBindProgramNV */
-    0, /* glDeleteProgramsNV */
+    logBindProgramARB,
+    logDeleteProgramsARB,
     0, /* glExecuteProgramNV */
-    0, /* glGenProgramsNV */
+    logGenProgramsARB,
     0, /* glGetProgramParameterdvNV */
     0, /* glGetProgramParameterfvNV */
-    0, /* glGetProgramivNV */
+    logGetProgramivARB,
     0, /* glGetProgramStringNV */
     0, /* glGetTrackMatrixivNV */
-    0, /* glGetVertexAttribdvARB */
-    0, /* glGetVertexAttribfvARB */
-    0, /* glGetVertexAttribivARB */
+    logGetVertexAttribdvARB,
+    logGetVertexAttribfvARB,
+    logGetVertexAttribivARB,
     0, /* glGetVertexAttribPointervNV */
-    0, /* glIsProgramNV */
+    logIsProgramARB,
     0, /* glLoadProgramNV */
     0, /* glProgramParameter4dNV */
     0, /* glProgramParameter4dvNV */
@@ -4245,31 +4603,31 @@ static struct _glapi_table __logRenderTable = {
     0, /* glTrackMatrixNV */
     0, /* glVertexAttribPointerNV */
     0, /* glVertexAttrib1dARB */
-    0, /* glVertexAttrib1dvARB */
+    logVertexAttrib1dvARB,
     0, /* glVertexAttrib1fARB */
-    0, /* glVertexAttrib1fvARB */
+    logVertexAttrib1fvARB,
     0, /* glVertexAttrib1sARB */
-    0, /* glVertexAttrib1svARB */
+    logVertexAttrib1svARB,
     0, /* glVertexAttrib2dARB */
-    0, /* glVertexAttrib2dvARB */
+    logVertexAttrib2dvARB,
     0, /* glVertexAttrib2fARB */
-    0, /* glVertexAttrib2fvARB */
+    logVertexAttrib2fvARB,
     0, /* glVertexAttrib2sARB */
-    0, /* glVertexAttrib2svARB */
+    logVertexAttrib2svARB,
     0, /* glVertexAttrib3dARB */
-    0, /* glVertexAttrib3dvARB */
+    logVertexAttrib3dvARB,
     0, /* glVertexAttrib3fARB */
-    0, /* glVertexAttrib3fvARB */
+    logVertexAttrib3fvARB,
     0, /* glVertexAttrib3sARB */
-    0, /* glVertexAttrib3svARB */
+    logVertexAttrib3svARB,
     0, /* glVertexAttrib4dARB */
-    0, /* glVertexAttrib4dvARB */
+    logVertexAttrib4dvARB,
     0, /* glVertexAttrib4fARB */
-    0, /* glVertexAttrib4fvARB */
+    logVertexAttrib4fvARB,
     0, /* glVertexAttrib4sARB */
-    0, /* glVertexAttrib4svARB */
+    logVertexAttrib4svARB,
     0, /* glVertexAttrib4NubARB */
-    0, /* glVertexAttrib4NubvARB */
+    logVertexAttrib4NubvARB,
     0, /* glVertexAttribs1dvNV */
     0, /* glVertexAttribs1fvNV */
     0, /* glVertexAttribs1svNV */
@@ -4295,34 +4653,34 @@ static struct _glapi_table __logRenderTable = {
     0, /* glGetFenceivNV */
     0, /* glFinishFenceNV */
     0, /* glSetFenceNV */
-    0, /* glVertexAttrib4bvARB */
-    0, /* glVertexAttrib4ivARB */
-    0, /* glVertexAttrib4ubvARB */
-    0, /* glVertexAttrib4usvARB */
-    0, /* glVertexAttrib4uivARB */
-    0, /* glVertexAttrib4NbvARB */
-    0, /* glVertexAttrib4NsvARB */
-    0, /* glVertexAttrib4NivARB */
-    0, /* glVertexAttrib4NusvARB */
-    0, /* glVertexAttrib4NuivARB */
+    logVertexAttrib4bvARB,
+    logVertexAttrib4ivARB,
+    logVertexAttrib4ubvARB,
+    logVertexAttrib4usvARB,
+    logVertexAttrib4uivARB,
+    logVertexAttrib4NbvARB,
+    logVertexAttrib4NsvARB,
+    logVertexAttrib4NivARB,
+    logVertexAttrib4NusvARB,
+    logVertexAttrib4NuivARB,
     0, /* glVertexAttribPointerARB */
     0, /* glEnableVertexAttribArrayARB */
     0, /* glDisableVertexAttribArrayARB */
-    0, /* glProgramStringARB */
+    logProgramStringARB,
     0, /* glProgramEnvParameter4dARB */
-    0, /* glProgramEnvParameter4dvARB */
+    logProgramEnvParameter4dvARB,
     0, /* glProgramEnvParameter4fARB */
-    0, /* glProgramEnvParameter4fvARB */
+    logProgramEnvParameter4fvARB,
     0, /* glProgramLocalParameter4dARB */
-    0, /* glProgramLocalParameter4dvARB */
+    logProgramLocalParameter4dvARB,
     0, /* glProgramLocalParameter4fARB */
-    0, /* glProgramLocalParameter4fvARB */
-    0, /* glGetProgramEnvParameterdvARB */
-    0, /* glGetProgramEnvParameterfvARB */
-    0, /* glGetProgramLocalParameterdvARB */
-    0, /* glGetProgramLocalParameterfvARB */
-    0, /* glGetProgramivARB */
-    0, /* glGetProgramStringARB */
+    logProgramLocalParameter4fvARB,
+    logGetProgramEnvParameterdvARB,
+    logGetProgramEnvParameterfvARB,
+    logGetProgramLocalParameterdvARB,
+    logGetProgramLocalParameterfvARB,
+    logGetProgramivARB,
+    logGetProgramStringARB,
     0, /* glProgramNamedParameter4fNV */
     0, /* glProgramNamedParameter4dNV */
     0, /* glProgramNamedParameter4fvNV */

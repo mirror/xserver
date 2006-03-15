@@ -1,6 +1,8 @@
 2006-03-15  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/xglglxlog.c:
+	Add missing log functions for GL_ARB_vertex_program.
+
 	* hw/xgl/glxext/xglglxext.c: Sync with mesa head.
 
 	* GL/mesa/X/xf86glx.c (init_screen_visuals): Pass the correct visual
