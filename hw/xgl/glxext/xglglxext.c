@@ -70,7 +70,6 @@ typedef struct _xglGLBuffer {
     PixmapPtr	     pPixmap;
     GCPtr	     pGC;
     RegionRec	     damage;
-    void	     *private;
     int		     screenX, screenY;
     int		     xOff, yOff;
     int		     yFlip;
@@ -273,6 +272,7 @@ typedef struct _xglGLContext {
     xglGLBufferPtr	 pDrawBuffer;
     xglGLBufferPtr	 pReadBuffer;
     int			 drawXoff, drawYoff;
+    int			 readXoff, readYoff;
     char		 *versionString;
     GLenum		 errorValue;
     GLboolean		 doubleBuffer;
@@ -300,17 +300,27 @@ typedef struct _xglGLContext {
 
 static xglGLContextPtr cctx = NULL;
 
+static BoxRec _largeBox = { SHRT_MIN, SHRT_MIN, SHRT_MAX, SHRT_MAX };
+
 static void
 xglSetCurrentContext (xglGLContextPtr pContext);
 
-#define XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES(pBox, nBox, pScissorBox)	  \
-    (pBox) = REGION_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	  \
-    (nBox) = REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	  \
-    (pScissorBox)->x1 = cctx->attrib.scissor.x + cctx->pDrawBuffer->xOff; \
-    (pScissorBox)->x2 = (pScissorBox)->x1 + cctx->attrib.scissor.width;	  \
-    (pScissorBox)->y2 = cctx->attrib.scissor.y + cctx->pDrawBuffer->yOff; \
-    (pScissorBox)->y2 = cctx->pDrawBuffer->yFlip - (pScissorBox)->y2;	  \
-    (pScissorBox)->y1 = (pScissorBox)->y2 - cctx->attrib.scissor.height
+#define XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES(pBox, nBox, pScissorBox)	      \
+    if (cctx->framebuffer)						      \
+    {									      \
+	(pBox) = &_largeBox;						      \
+	(nBox) = 1;							      \
+    }									      \
+    else								      \
+    {									      \
+	(pBox) = REGION_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	      \
+	(nBox) = REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);   \
+	(pScissorBox)->x1 = cctx->attrib.scissor.x + cctx->pDrawBuffer->xOff; \
+	(pScissorBox)->x2 = (pScissorBox)->x1 + cctx->attrib.scissor.width;   \
+	(pScissorBox)->y2 = cctx->attrib.scissor.y + cctx->pDrawBuffer->yOff; \
+	(pScissorBox)->y2 = cctx->pDrawBuffer->yFlip - (pScissorBox)->y2;     \
+	(pScissorBox)->y1 = (pScissorBox)->y2 - cctx->attrib.scissor.height;  \
+    }
 
 #define XGL_GLX_DRAW_PROLOGUE(pBox, nBox, pScissorBox)		      \
     XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES (pBox, nBox, pScissorBox); \
@@ -334,14 +344,27 @@ xglSetCurrentContext (xglGLContextPtr pContext);
 	    (pBox1)->y2 = (pBox2)->y2;	    \
     }
 
-#define XGL_GLX_SET_SCISSOR_BOX(pBox)		      \
-    glScissor ((pBox)->x1,			      \
-	       cctx->pDrawBuffer->yFlip - (pBox)->y2, \
-	       (pBox)->x2 - (pBox)->x1,		      \
-	       (pBox)->y2 - (pBox)->y1)
+#define XGL_GLX_SET_SCISSOR_BOX(pBox)			  \
+    if (cctx->framebuffer)				  \
+    {							  \
+	if (cctx->attrib.scissorTest)			  \
+	    glScissor (cctx->attrib.scissor.x,		  \
+		       cctx->attrib.scissor.y,		  \
+		       cctx->attrib.scissor.width,	  \
+		       cctx->attrib.scissor.height);	  \
+	else						  \
+	    glScissor (0, 0, SHRT_MAX, SHRT_MAX);	  \
+    }							  \
+    else						  \
+    {							  \
+	glScissor ((pBox)->x1,				  \
+		   cctx->pDrawBuffer->yFlip - (pBox)->y2, \
+		   (pBox)->x2 - (pBox)->x1,		  \
+		   (pBox)->y2 - (pBox)->y1);		  \
+    }
 
 #define XGL_GLX_DRAW_DAMAGE(pBox, pRegion)				 \
-    if (cctx->attrib.drawBuffer != GL_BACK)				 \
+    if (!cctx->framebuffer && cctx->attrib.drawBuffer != GL_BACK)	 \
     {									 \
 	(pRegion)->extents.x1 = (pBox)->x1 - cctx->pDrawBuffer->screenX; \
 	(pRegion)->extents.y1 = (pBox)->y1 - cctx->pDrawBuffer->screenY; \
@@ -354,6 +377,29 @@ xglSetCurrentContext (xglGLContextPtr pContext);
 		      pRegion);						 \
 	xglAddBitDamage (cctx->pDrawBuffer->pDrawable, pRegion);	 \
     }
+
+
+static void
+xglSetDrawOffset (int xOff,
+		  int yOff)
+{
+    /* update viewport and raster position */
+    if (xOff != cctx->drawXoff || yOff != cctx->drawYoff)
+    {
+	glViewport (cctx->attrib.viewport.x + xOff,
+		    cctx->attrib.viewport.y + yOff,
+		    cctx->attrib.viewport.width,
+		    cctx->attrib.viewport.height);
+
+	glBitmap (0, 0, 0, 0,
+		  xOff - cctx->drawXoff,
+		  yOff - cctx->drawYoff,
+		  NULL);
+
+	cctx->drawXoff = xOff;
+	cctx->drawYoff = yOff;
+    }
+}
 
 static void
 xglRecordError (GLenum error)
@@ -493,8 +539,8 @@ xglViewportProc (xglGLOpPtr pOp)
     cctx->attrib.viewport.width  = pOp->u.rect.width;
     cctx->attrib.viewport.height = pOp->u.rect.height;
 
-    glViewport (pOp->u.rect.x + cctx->pDrawBuffer->xOff,
-		pOp->u.rect.y + cctx->pDrawBuffer->yOff,
+    glViewport (pOp->u.rect.x + cctx->drawXoff,
+		pOp->u.rect.y + cctx->drawYoff,
 		pOp->u.rect.width,
 		pOp->u.rect.height);
 }
@@ -1879,7 +1925,7 @@ xglDrawList (GLuint list)
 
 	pBox++;
 
-	if (cctx->attrib.scissorTest)
+	if (!cctx->framebuffer && cctx->attrib.scissorTest)
 	    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2139,7 +2185,7 @@ xglClear (GLbitfield mask)
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2193,7 +2239,7 @@ xglAccum (GLenum  op,
 
 		pBox++;
 
-		if (cctx->attrib.scissorTest)
+		if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 		if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2248,7 +2294,7 @@ xglDrawArrays (GLenum  mode,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2301,7 +2347,7 @@ xglDrawElements (GLenum	      mode,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2355,7 +2401,7 @@ xglDrawPixels (GLsizei	    width,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2412,7 +2458,7 @@ xglBitmap (GLsizei	 width,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2465,7 +2511,7 @@ xglRectdv (const GLdouble *v1,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2552,7 +2598,8 @@ xglBegin (GLenum mode)
     }
     else
     {
-	if (REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
+	if (cctx->framebuffer ||
+	    REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
 	{
 	    BoxRec scissor, box;
 	    BoxPtr pBox;
@@ -2562,7 +2609,7 @@ xglBegin (GLenum mode)
 
 	    XGL_GLX_DRAW_BOX (&box, pBox);
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    XGL_GLX_SET_SCISSOR_BOX (&box);
@@ -2608,7 +2655,8 @@ xglEnd (void)
 	}
 	else
 	{
-	    if (REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
+	    if (cctx->framebuffer ||
+		REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
 	    {
 		XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES (pBox, nBox, &scissor);
 	    }
@@ -2629,7 +2677,7 @@ xglEnd (void)
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2670,7 +2718,7 @@ xglCopyPixelsProc (xglGLOpPtr pOp)
 
 	pBox++;
 
-	if (cctx->attrib.scissorTest)
+	if (!cctx->framebuffer && cctx->attrib.scissorTest)
 	    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2718,8 +2766,8 @@ xglReadPixels (GLint   x,
 	       GLenum  type,
 	       GLvoid  *pixels)
 {
-    glReadPixels (x + cctx->pReadBuffer->xOff,
-		  y + cctx->pReadBuffer->yOff,
+    glReadPixels (x + cctx->readXoff,
+		  y + cctx->readYoff,
 		  width, height, format, type, pixels);
 }
 
@@ -2729,8 +2777,8 @@ xglCopyTexImage1DProc (xglGLOpPtr pOp)
     glCopyTexImage1D (pOp->u.copy_tex_image_1d.target,
 		      pOp->u.copy_tex_image_1d.level,
 		      pOp->u.copy_tex_image_1d.internalformat,
-		      pOp->u.copy_tex_image_1d.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_tex_image_1d.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_tex_image_1d.x + cctx->readXoff,
+		      pOp->u.copy_tex_image_1d.y + cctx->readYoff,
 		      pOp->u.copy_tex_image_1d.width,
 		      pOp->u.copy_tex_image_1d.border);
 }
@@ -2765,8 +2813,8 @@ xglCopyTexImage2DProc (xglGLOpPtr pOp)
     glCopyTexImage2D (pOp->u.copy_tex_image_2d.target,
 		      pOp->u.copy_tex_image_2d.level,
 		      pOp->u.copy_tex_image_2d.internalformat,
-		      pOp->u.copy_tex_image_2d.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_tex_image_2d.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_tex_image_2d.x + cctx->readXoff,
+		      pOp->u.copy_tex_image_2d.y + cctx->readYoff,
 		      pOp->u.copy_tex_image_2d.width,
 		      pOp->u.copy_tex_image_2d.height,
 		      pOp->u.copy_tex_image_2d.border);
@@ -2804,10 +2852,8 @@ xglCopyTexSubImage1DProc (xglGLOpPtr pOp)
     glCopyTexSubImage1D (pOp->u.copy_tex_sub_image_1d.target,
 			 pOp->u.copy_tex_sub_image_1d.level,
 			 pOp->u.copy_tex_sub_image_1d.xoffset,
-			 pOp->u.copy_tex_sub_image_1d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_1d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_1d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_1d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_1d.width);
 }
 
@@ -2840,10 +2886,8 @@ xglCopyTexSubImage2DProc (xglGLOpPtr pOp)
 			 pOp->u.copy_tex_sub_image_2d.level,
 			 pOp->u.copy_tex_sub_image_2d.xoffset,
 			 pOp->u.copy_tex_sub_image_2d.yoffset,
-			 pOp->u.copy_tex_sub_image_2d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_2d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_2d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_2d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_2d.width,
 			 pOp->u.copy_tex_sub_image_2d.height);
 }
@@ -2879,8 +2923,8 @@ xglCopyColorTableProc (xglGLOpPtr pOp)
 {
     glCopyColorTable (pOp->u.copy_color_table.target,
 		      pOp->u.copy_color_table.internalformat,
-		      pOp->u.copy_color_table.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_color_table.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_color_table.x + cctx->readXoff,
+		      pOp->u.copy_color_table.y + cctx->readYoff,
 		      pOp->u.copy_color_table.width);
 }
 
@@ -2909,8 +2953,8 @@ xglCopyColorSubTableProc (xglGLOpPtr pOp)
 {
     glCopyColorTable (pOp->u.copy_color_sub_table.target,
 		      pOp->u.copy_color_sub_table.start,
-		      pOp->u.copy_color_sub_table.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_color_sub_table.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_color_sub_table.x + cctx->readXoff,
+		      pOp->u.copy_color_sub_table.y + cctx->readYoff,
 		      pOp->u.copy_color_sub_table.width);
 }
 
@@ -2942,9 +2986,9 @@ xglCopyConvolutionFilter1DProc (xglGLOpPtr pOp)
     glCopyConvolutionFilter1D (pOp->u.copy_convolution_filter_1d.target,
 			       internalformat,
 			       pOp->u.copy_convolution_filter_1d.x +
-			       cctx->pReadBuffer->xOff,
+			       cctx->readXoff,
 			       pOp->u.copy_convolution_filter_1d.y +
-			       cctx->pReadBuffer->yOff,
+			       cctx->readYoff,
 			       pOp->u.copy_convolution_filter_1d.width);
 }
 
@@ -2976,9 +3020,9 @@ xglCopyConvolutionFilter2DProc (xglGLOpPtr pOp)
     glCopyConvolutionFilter2D (pOp->u.copy_convolution_filter_2d.target,
 			       internalformat,
 			       pOp->u.copy_convolution_filter_2d.x +
-			       cctx->pReadBuffer->xOff,
+			       cctx->readXoff,
 			       pOp->u.copy_convolution_filter_2d.y +
-			       cctx->pReadBuffer->yOff,
+			       cctx->readYoff,
 			       pOp->u.copy_convolution_filter_2d.width,
 			       pOp->u.copy_convolution_filter_2d.height);
 }
@@ -3013,10 +3057,8 @@ xglCopyTexSubImage3DProc (xglGLOpPtr pOp)
 			 pOp->u.copy_tex_sub_image_3d.xoffset,
 			 pOp->u.copy_tex_sub_image_3d.yoffset,
 			 pOp->u.copy_tex_sub_image_3d.zoffset,
-			 pOp->u.copy_tex_sub_image_3d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_3d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_3d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_3d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_3d.width,
 			 pOp->u.copy_tex_sub_image_3d.height);
 }
@@ -3534,7 +3576,7 @@ xglBindFramebufferEXTProc (xglGLOpPtr pOp)
 
     if (pOp->u.bind_object.object)
     {
-	if (!fbo || pOp->u.bind_object.object != fbo)
+	if (pOp->u.bind_object.object != fbo)
 	{
 	    fbo = (GLuint)
 		xglHashLookup (cctx->shared->framebufferObjects,
@@ -3548,13 +3590,28 @@ xglBindFramebufferEXTProc (xglGLOpPtr pOp)
 			       (void *) fbo);
 	    }
 
+	    if (!cctx->framebuffer)
+	    {
+		xglSetDrawOffset (0, 0);
+
+		cctx->readXoff = 0;
+		cctx->readYoff = 0;
+	    }
+
 	    (*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, fbo);
 	}
     }
     else
     {
+	(*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, 0);
+
 	/* window-system drawable */
 	glitz_context_make_current (cctx->context, cctx->pDrawBuffer->drawable);
+
+	xglSetDrawOffset (cctx->pDrawBuffer->xOff, cctx->pDrawBuffer->yOff);
+
+	cctx->readXoff = cctx->pReadBuffer->xOff;
+	cctx->readYoff = cctx->pReadBuffer->yOff;
     }
 
     cctx->framebuffer = pOp->u.bind_object.object;
@@ -3637,6 +3694,21 @@ xglFramebufferTexture1DEXT (GLenum target,
 	return;
     }
 
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
+    }
+
     (*cctx->FramebufferTexture1DEXT) (target,
 				      attachment,
 				      textarget,
@@ -3660,6 +3732,21 @@ xglFramebufferTexture2DEXT (GLenum target,
     {
 	xglRecordError (GL_INVALID_OPERATION);
 	return;
+    }
+
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
     }
 
     (*cctx->FramebufferTexture2DEXT) (target,
@@ -3689,6 +3776,21 @@ xglFramebufferTexture3DEXT (GLenum target,
 	return;
     }
 
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
+    }
+
     (*cctx->FramebufferTexture3DEXT) (target,
 				      attachment,
 				      textarget,
@@ -3711,6 +3813,18 @@ xglFramebufferRenderbufferEXT (GLenum target,
     {
 	xglRecordError (GL_INVALID_OPERATION);
 	return;
+    }
+
+    if (renderbuffer)
+    {
+	renderbuffer = (GLuint)
+	    xglHashLookup (cctx->shared->renderbufferObjects,
+			   renderbuffer);
+	if (!renderbuffer)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
     }
 
     (*cctx->FramebufferRenderbufferEXT) (target,
@@ -3739,6 +3853,29 @@ xglGetFramebufferAttachmentParameterivEXT (GLenum target,
 						     attachment,
 						     pname,
 						     params);
+
+    if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT)
+    {
+	GLint type;
+
+	pname = GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT;
+
+	(*cctx->GetFramebufferAttachmentParameterivEXT) (target,
+							 attachment,
+							 pname,
+							 &type);
+
+	switch (type) {
+	case GL_RENDERBUFFER_EXT:
+	    *params = (GLint) xglHashLookup (cctx->shared->renderbufferObjects,
+					     *params);
+	    break;
+	case GL_TEXTURE:
+	    *params = (GLint) xglHashLookup (cctx->shared->texObjects,
+					     *params);
+	    break;
+	}
+    }
 }
 static void
 xglNoOpGenerateMipmapEXT (GLenum target) {}
@@ -5976,24 +6113,6 @@ xglForceCurrent (__GLXcontext *context)
 		cctx->needInit = FALSE;
 	    }
 
-	    /* update viewport and raster position */
-	    if (cctx->pDrawBuffer->xOff != cctx->drawXoff ||
-		cctx->pDrawBuffer->yOff != cctx->drawYoff)
-	    {
-		glViewport (cctx->attrib.viewport.x + cctx->pDrawBuffer->xOff,
-			    cctx->attrib.viewport.y + cctx->pDrawBuffer->yOff,
-			    cctx->attrib.viewport.width,
-			    cctx->attrib.viewport.height);
-
-		glBitmap (0, 0, 0, 0,
-			  cctx->pDrawBuffer->xOff - cctx->drawXoff,
-			  cctx->pDrawBuffer->yOff - cctx->drawYoff,
-			  NULL);
-
-		cctx->drawXoff = cctx->pDrawBuffer->xOff;
-		cctx->drawYoff = cctx->pDrawBuffer->yOff;
-	    }
-
 	    if (cctx->framebuffer)
 	    {
 		GLuint fbo;
@@ -6006,6 +6125,12 @@ xglForceCurrent (__GLXcontext *context)
 	    }
 	    else
 	    {
+		xglSetDrawOffset (cctx->pDrawBuffer->xOff,
+				  cctx->pDrawBuffer->yOff);
+
+		cctx->readXoff = cctx->pReadBuffer->xOff;
+		cctx->readYoff = cctx->pReadBuffer->yOff;
+
 		xglDrawBuffer (cctx->attrib.drawBuffer);
 		xglReadBuffer (cctx->attrib.readBuffer);
 	    }
@@ -6080,6 +6205,8 @@ xglCreateContext (__GLXscreen	   *screen,
     pContext->stencilBits   = modes->stencilBits;
     pContext->drawXoff	    = 0;
     pContext->drawYoff	    = 0;
+    pContext->readXoff	    = 0;
+    pContext->readYoff	    = 0;
     pContext->maxTexUnits   = 0;
     pContext->framebuffer   = 0;
 
