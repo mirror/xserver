@@ -331,6 +331,21 @@ OsVendorInit (void)
 	(*__ddxFunc.osVendorInit) ();
 }
 
-void ddxInitGlobals()
+void
+ddxInitGlobals (void)
 {
 }
+
+#if 1
+
+/* nvdia's driver seem to be abusing sched_yield and it is causing
+   xgl to be very unresponsive if something that consumes a lot of CPU
+   is running in the background. having this empty implementation of
+   sched_yield here is an ugly workaround that seem to make things
+   work a lot better. */
+void
+sched_yield (void)
+{
+}
+
+#endif

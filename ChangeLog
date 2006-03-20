@@ -1,5 +1,9 @@
 2006-03-20  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/xglinit.c: Add workaround for xgl being unresponsive on
+	nvidia's driver when something that consumes a lot of CPU is running
+	in the background.
+
 	* hw/xgl/glxext/xglglxext.c: Update for rendering to FBOs. Adjust
 	clipping and draw/read offsets when FBO is bound. Lookup texture and
 	renderbuffer objects when attaching. Fix
