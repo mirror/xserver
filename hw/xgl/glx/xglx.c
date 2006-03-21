@@ -52,6 +52,7 @@
 #include <X11/extensions/XKB.h>
 #include <X11/extensions/XKBsrv.h>
 #include <X11/extensions/XKBconfig.h>
+#include <X11/extensions/XKBrules.h>
 
 extern Bool
 XkbQueryExtension (Display *dpy,
@@ -71,14 +72,8 @@ XkbGetControls (Display	    *dpy,
 		unsigned long which,
 		XkbDescPtr    desc);
 
-#ifndef XKB_BASE_DIRECTORY
-#define	XKB_BASE_DIRECTORY	"/usr/lib/X11/xkb/"
-#endif
-#ifndef XKB_CONFIG_FILE
-#define	XKB_CONFIG_FILE		"X0-config.keyboard"
-#endif
 #ifndef XKB_DFLT_RULES_FILE
-#define	XKB_DFLT_RULES_FILE	"xorg"
+#define	XKB_DFLT_RULES_FILE	__XKBDEFRULES__
 #endif
 #ifndef XKB_DFLT_KB_LAYOUT
 #define	XKB_DFLT_KB_LAYOUT	"us"
@@ -1046,7 +1041,7 @@ xglxBell (int	       volume,
 	  pointer      ctrl,
 	  int	       cls)
 {
-  XBell (xdisplay, volume);
+    XBell (xdisplay, volume);
 }
 
 static void
@@ -1165,8 +1160,32 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 
       if (xkbExtension)
       {
-	  XkbDescPtr desc;
-	  char	     *rules, *model, *layout, *variants, *options;
+	  XkbRF_VarDefsRec vd;
+	  XkbDescPtr	   desc;
+	  char		   *rules, *model, *layout, *variants, *options;
+	  char		   *tmp = NULL;
+
+	  rules    = XKB_DFLT_RULES_FILE;
+	  model    = XKB_DFLT_KB_MODEL;
+	  layout   = XKB_DFLT_KB_LAYOUT;
+	  variants = XKB_DFLT_KB_VARIANT;
+	  options  = XKB_DFLT_KB_OPTIONS;
+
+	  if (XkbRF_GetNamesProp (xdisplay, &tmp, &vd) && tmp)
+	  {
+	      rules    = tmp;
+	      model    = vd.model;
+	      layout   = vd.layout;
+	      variants = vd.variant;
+	      options  = vd.options;
+	  }
+	  else
+	  {
+	      ErrorF ("Couldn't interpret %s property\n",
+		      _XKB_RF_NAMES_PROP_ATOM);
+	      ErrorF ("Use defaults: rules - '%s' model - '%s' layout - '%s'\n",
+		      rules, model, layout);
+	  }
 
 	  desc = XkbGetKeyboard (xdisplay,
 				 XkbGBN_AllComponentsMask,
@@ -1175,13 +1194,6 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 	  if (desc && desc->geom)
 	  {
 	      XkbComponentNamesRec names;
-	      FILE		   *file;
-
-	      rules    = XKB_DFLT_RULES_FILE;
-	      model    = XKB_DFLT_KB_MODEL;
-	      layout   = XKB_DFLT_KB_LAYOUT;
-	      variants = XKB_DFLT_KB_VARIANT;
-	      options  = XKB_DFLT_KB_OPTIONS;
 
 	      XkbGetControls (xdisplay, XkbAllControlsMask, desc);
 
@@ -1193,27 +1205,6 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 		      names.keymap++;
 		  else
 		      names.keymap = XkbInitialMap;
-	      }
-
-	      file = fopen (XKB_BASE_DIRECTORY XKB_CONFIG_FILE, "r");
-	      if (file)
-	      {
-		  XkbConfigRtrnRec config;
-
-		  if (XkbCFParse (file, XkbCFDflts, desc, &config))
-		  {
-		      if (config.rules_file)
-			  rules = config.rules_file;
-		      if (config.model)
-			  model = config.model;
-		      if (config.layout)
-			  layout = config.layout;
-		      if (config.variant)
-			  variants = config.variant;
-		      if (config.options)
-			  options = config.options;
-		  }
-		  fclose (file);
 	      }
 
 	      XkbSetRulesDflts (rules, model, layout, variants, options);

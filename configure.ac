@@ -982,7 +982,7 @@ dnl Xglx DDX
 
 AC_MSG_CHECKING([whether to build Xglx DDX])
 if test "x$XGLX" != xno; then
-	PKG_CHECK_MODULES([XGLXMODULES], [glitz-glx >= $XGL_REQUIRED_GLITZ_VERSION xrender >= 0.5 xrandr >= 0.5], [XGLX=yes], [XGLX=no])
+	PKG_CHECK_MODULES([XGLXMODULES], [glitz-glx >= $XGL_REQUIRED_GLITZ_VERSION xrender >= 0.5 xrandr >= 0.5 xkbfile], [XGLX=yes], [XGLX=no])
 	AC_SUBST(XGLXMODULES_CFLAGS)
 	AC_SUBST(XGLXMODULES_LIBS)
 fi
