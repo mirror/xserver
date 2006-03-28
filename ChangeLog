@@ -1,3 +1,9 @@
+2006-03-28  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glxext/module/Makefile.am:
+	* hw/xgl/xglglx.c (xglLoadGLXModules): Changed GLX module name
+	from libglx to libglxext to avoid conflicts.
+
 2006-03-21  David Reveman  <davidr@novell.com>
 
 	* configure.ac: xglx requires xkbfile.
