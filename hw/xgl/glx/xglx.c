@@ -840,24 +840,6 @@ xglxInitOutput (ScreenInfo *pScreenInfo,
 
     xglSetPixmapFormats (pScreenInfo);
 
-    if (!xdisplay)
-    {
-	char *name = xDisplayName;
-
-	if (!name)
-	    name = xglxInitXorg ();
-
-	xdisplay = XOpenDisplay (name);
-	if (!xdisplay)
-	    FatalError ("can't open display: %s\n", name ? name : "NULL");
-
-	xscreen = DefaultScreen (xdisplay);
-
-	if (!xDisplayName)
-	    XDefineCursor (xdisplay, RootWindow (xdisplay, xscreen),
-			   XCreateFontCursor (xdisplay, XC_watch));
-    }
-
     templ.samples          = 1;
     templ.doublebuffer     = 1;
     templ.color.fourcc     = GLITZ_FOURCC_RGB;
@@ -875,7 +857,7 @@ xglxInitOutput (ScreenInfo *pScreenInfo,
     }
 
     if (!format)
-	FatalError ("no visual format found");
+	FatalError ("no visual format found\n");
 
     xglScreenInfo.depth =
 	format->color.red_size   +
@@ -1406,6 +1388,26 @@ xglxGiveUp (void)
 void
 xglxOsVendorInit (void)
 {
+    if (!xdisplay)
+    {
+	char *name = xDisplayName;
+
+	if (!name)
+	    name = xglxInitXorg ();
+
+	xdisplay = XOpenDisplay (name);
+	if (!xdisplay)
+	    FatalError ("can't open display: %s\n", name ? name : "NULL");
+
+	xscreen = DefaultScreen (xdisplay);
+
+	if (!xDisplayName)
+	    XDefineCursor (xdisplay, RootWindow (xdisplay, xscreen),
+			   XCreateFontCursor (xdisplay, XC_watch));
+
+	if (!glitz_glx_find_window_format (xdisplay, xscreen, 0, NULL, 0))
+	    FatalError ("no GLX visuals available\n");
+    }
 }
 
 #ifdef ARGB_CURSOR

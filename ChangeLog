@@ -1,3 +1,9 @@
+2006-03-30  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glx/xglx.c: Move XOpenDisplay and GLX initialization
+	to OsVendorInit so that it is done before xgl server sockets are
+	created.
+
 2006-03-28  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/module/Makefile.am:
