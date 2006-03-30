@@ -45,17 +45,9 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <X11/extensions/XKBsrv.h>
 #include <X11/extensions/XI.h>
 
-#ifdef XF86DDXACTIONS
-#include "xf86.h"
-#endif
-
 int
 XkbDDXTerminateServer(DeviceIntPtr dev,KeyCode key,XkbAction *act)
 {
-#ifdef XF86DDXACTIONS
-    xf86ProcessActionEvent(ACTION_TERMINATE, NULL);
-#else
     GiveUp(1);
-#endif
     return 0;
 }

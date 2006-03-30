@@ -25,7 +25,7 @@ dnl Process this file with autoconf to create configure.
 AC_PREREQ(2.57)
 dnl This is the not the Xorg version number, it's the server version number.
 dnl Yes, that's weird.
-AC_INIT([xorg-server], 1.0.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
+AC_INIT([xorg-server], 1.0.99.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([dist-bzip2 foreign])
 AM_MAINTAINER_MODE
@@ -98,6 +98,9 @@ AM_CONDITIONAL(NEED_STRLCAT, [test x$HAVE_STRLCAT = xno])
 
 AM_CONDITIONAL(NEED_VSNPRINTF, [test x$HAVE_VSNPRINTF = xno])
 
+dnl Check for mmap support for Xvfb
+AC_CHECK_FUNC([mmap], AC_DEFINE(HAS_MMAP, 1, [Have the `mmap' function.]))
+
 dnl Find the math libary
 AC_CHECK_LIB(m, sqrt)
 
@@ -155,6 +158,11 @@ if test "x$ac_cv_sysv_ipc" = xyes; then
 	AC_DEFINE(HAVE_SYSV_IPC, 1, [Define to 1 if SYSV IPC is available])
 fi
 
+dnl OpenBSD /dev/xf86 aperture driver 
+if test -c /dev/xf86 ; then
+	AC_DEFINE(HAS_APERTURE_DRV, 1, [System has /dev/xf86 aperture driver])
+fi
+
 dnl glibc backtrace support check (hw/xfree86/common/xf86Events.c)
 AC_CHECK_HEADER([execinfo.h],[
     AC_CHECK_LIB(c, backtrace, [
@@ -188,7 +196,9 @@ case $host_cpu in
 		*linux*)	DEFAULT_INT10=vm86 ;;
 		*freebsd*)	AC_DEFINE(USE_DEV_IO) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL) ;;
-		*openbsd*)	AC_DEFINE(USE_I386_IOPL) ;;
+		*openbsd*)	AC_DEFINE(USE_I386_IOPL) 
+				SYS_LIBS=-li386
+				;;
 	esac
         ;;
   powerpc*)
@@ -208,7 +218,9 @@ case $host_cpu in
 	case $host_os in
 		*freebsd*)	AC_DEFINE(USE_DEV_IO, 1, [BSD /dev/io]) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL, 1, [BSD i386 iopl]) ;;
-		*openbsd*)	AC_DEFINE(USE_AMD64_IOPL, 1, [BSD AMD64 iopl]) ;;
+		*openbsd*)	AC_DEFINE(USE_AMD64_IOPL, 1, [BSD AMD64 iopl])
+				SYS_LIBS=-lamd64
+				;;
 	esac
 	;;
 esac
@@ -239,7 +251,7 @@ case $host_os in
 	;;
   *openbsd*)
 	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
-	AC_DEFINE(PCCONS_SUPPORT, 1, [System has PC console])
+	AC_DEFINE(PCVT_SUPPORT, 1, [System has PC console])
 	AC_DEFINE(WSCONS_SUPPORT, 1, [System has wscons console])
 	;;
   *linux*)
@@ -380,7 +392,8 @@ AC_ARG_ENABLE(screensaver,    AS_HELP_STRING([--disable-screensaver], [Build Scr
 AC_ARG_ENABLE(xdmcp,          AS_HELP_STRING([--disable-xdmcp], [Build XDMCP extension (default: auto)]), [XDMCP=$enableval], [XDMCP=auto])
 AC_ARG_ENABLE(xdm-auth-1,     AS_HELP_STRING([--disable-xdm-auth-1], [Build XDM-Auth-1 extension (default: auto)]), [XDMAUTH=$enableval], [XDMAUTH=auto])
 AC_ARG_ENABLE(glx,            AS_HELP_STRING([--disable-glx], [Build GLX extension (default: enabled)]), [GLX=$enableval], [GLX=yes])
-AC_ARG_ENABLE(glx-dri,        AS_HELP_STRING([--enable-glx-dri], [Build GLX DRI loader (default: disabled)]), [GLX_DRI=$enableval], [GLX_DRI=yes])
+AC_ARG_ENABLE(aiglx,          AS_HELP_STRING([--enable-aiglx], [Build accelerated indirect GLX (default: enabled)]), [AIGLX=$enableval], [AIGLX=yes])
+AC_ARG_ENABLE(glx-tls,        AS_HELP_STRING([--enable-glx-tls], [Build GLX with TLS support (default: disabled)]), [GLX_USE_TLS=$enableval], [GLX_USE_TLS=no])
 AC_ARG_ENABLE(dri,            AS_HELP_STRING([--enable-dri], [Build DRI extension (default: auto)]), [DRI=$enableval])
 AC_ARG_ENABLE(xinerama,	      AS_HELP_STRING([--disable-xinerama], [Build Xinerama extension (default: enabled)]), [XINERAMA=$enableval], [XINERAMA=yes])
 AC_ARG_ENABLE(xf86vidmode,    AS_HELP_STRING([--disable-xf86vidmode], [Build XF86VidMode extension (default: enabled)]), [XF86VIDMODE=$enableval], [XF86VIDMODE=yes])
@@ -394,9 +407,9 @@ AC_ARG_ENABLE(evi,            AS_HELP_STRING([--disable-evi], [Build Extended-Vi
 AC_ARG_ENABLE(multibuffer,    AS_HELP_STRING([--enable-multibuffer], [Build Multibuffer extension (default: disabled)]), [MULTIBUFFER=$enableval], [MULTIBUFFER=no])
 AC_ARG_ENABLE(fontcache,      AS_HELP_STRING([--enable-fontcache], [Build FontCache extension (default: disabled)]), [FONTCACHE=$enableval], [FONTCACHE=no])
 AC_ARG_ENABLE(dbe,            AS_HELP_STRING([--disable-dbe], [Build DBE extension (default: enabled)]), [DBE=$enableval], [DBE=yes])
-AC_ARG_ENABLE(xf86bigfont,    AS_HELP_STRING([--disable-xf86bigfont], [Build XF86 Big Font extension (default: enabled (sigh))]), [XF86BIGFONT=$enableval], [XF86BIGFONT=yes])
-AC_ARG_ENABLE(dpms,    AS_HELP_STRING([--disable-dpms], [Build DPMS extension (default: enabled (sigh))]), [DPMS=$enableval], [DPMSExtension=yes])
-AC_ARG_ENABLE(xinput,  AS_HELP_STRING([--disable-xinput], [Build XInput Extension (default: enabled)]), [XINPUT=$ENABLEVAL], [XINPUT=yes])
+AC_ARG_ENABLE(xf86bigfont,    AS_HELP_STRING([--disable-xf86bigfont], [Build XF86 Big Font extension (default: enabled)]), [XF86BIGFONT=$enableval], [XF86BIGFONT=yes])
+AC_ARG_ENABLE(dpms,           AS_HELP_STRING([--disable-dpms], [Build DPMS extension (default: enabled)]), [DPMS=$enableval], [DPMSExtension=yes])
+AC_ARG_ENABLE(xinput,         AS_HELP_STRING([--disable-xinput], [Build XInput Extension (default: enabled)]), [XINPUT=$enableval], [XINPUT=yes])
 
 dnl DDXes.
 AC_ARG_ENABLE(xorg,    	      AS_HELP_STRING([--enable-xorg], [Build Xorg server (default: auto)]), [XORG=$enableval], [XORG=auto])
@@ -479,7 +492,7 @@ XEXT_LIB='$(top_builddir)/Xext/libXext.la'
 XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
-REQUIRED_MODULES="randrproto renderproto fixesproto damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto scrnsaverproto bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
+REQUIRED_MODULES="randrproto renderproto [fixesproto >= 4.0] damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto scrnsaverproto bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
 REQUIRED_LIBS="xfont xau fontenc"
 
 AM_CONDITIONAL(XV, [test "x$XV" = xyes])
@@ -504,7 +517,7 @@ fi
 AM_CONDITIONAL(COMPOSITE, [test "x$COMPOSITE" = xyes])
 if test "x$COMPOSITE" = xyes; then
 	AC_DEFINE(COMPOSITE, 1, [Support Composite Extension])
-	REQUIRED_MODULES="$REQUIRED_MODULES compositeproto"
+	REQUIRED_MODULES="$REQUIRED_MODULES [compositeproto >= 0.3]"
 	COMPOSITE_LIB='$(top_builddir)/composite/libcomposite.la'
 	COMPOSITE_INC='-I$(top_srcdir)/composite'
 fi
@@ -542,6 +555,7 @@ fi
 
 if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
 	PKG_CHECK_MODULES([XLIB], [x11])
+	PKG_CHECK_MODULES([GL], [glproto >= 1.4.6])
 	AC_SUBST(XLIB_CFLAGS)
 	AC_DEFINE(GLXEXT, 1, [Build GLX extension])
 	GLX_LIBS='$(top_builddir)/GL/glx/libglx.la $(top_builddir)/GL/mesa/libGLcore.la'
@@ -556,12 +570,18 @@ fi
 AM_CONDITIONAL(GLX, test "x$GLX" = xyes)
 AC_SUBST([MESA_SOURCE])
 
-if test "x$GLX_DRI" = xyes -a "x$GLX" = xyes -a "x$DRI" = xyes; then
-	AC_DEFINE(GLX_DRI, 1, [Build GLX DRI loader])
+if test "x$AIGLX" = xyes -a "x$GLX" = xyes -a "x$DRI" = xyes; then
+	AC_DEFINE(AIGLX, 1, [Build AIGLX loader])
 else
-	GLX_DRI=no
+	AIGLX=no
 fi
-AM_CONDITIONAL(GLX_DRI, test "x$GLX_DRI" = xyes)
+AM_CONDITIONAL(AIGLX, test "x$AIGLX" = xyes)
+
+if test "x$GLX_USE_TLS" = xyes -a "x$AIGLX" = xyes; then
+	GLX_DEFINES="-DGLX_USE_TLS -DPTHREADS"
+	GLX_LIBS="$GLX_LIBS -lpthread"
+fi
+AC_SUBST([GLX_DEFINES])
 
 PKG_CHECK_MODULES([LBXUTIL_TEST], [lbxutil], [have_lbxutil=yes], [have_lbxutil=no])
 
@@ -714,6 +734,8 @@ REQUIRED_MODULES="$REQUIRED_MODULES xkbfile"
 XKB_LIB='$(top_builddir)/xkb/libxkb.la'
 XKB_STUB_LIB='$(top_builddir)/xkb/libxkbstubs.la'
 
+AC_CHECK_FUNC(strcasecmp, [], AC_DEFINE([NEED_STRCASECMP], 1,
+                                        [Do not have `strcasecmp'.]))
 
 PKG_CHECK_MODULES([XDMCP], [xdmcp], [have_libxdmcp="yes"], [have_libxdmcp="no"])
 if test "x$have_libxdmcp" = xyes; then
@@ -822,9 +844,9 @@ PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
 PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
 XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS}"
-XSERVER_LIBS="${XSERVERLIBS_LIBS} -lm -lz"
+XSERVER_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} -lm -lz"
 AC_SUBST([XSERVER_LIBS])
-
+AC_SUBST([SYS_LIBS])
 
 dnl Imake defines SVR4 on SVR4 systems, and many files check for it, so
 dnl we need to replicate that here until those can all be fixed
@@ -1187,6 +1209,11 @@ if test "x$XORG" = xyes; then
 		XSERVER_CFLAGS="$GCC_WARNINGS $XSERVER_CFLAGS"
 		LD_EXPORT_SYMBOLS_FLAG="-rdynamic"
 	fi
+	case $host_os in
+		openbsd*)
+		LD_EXPORT_SYMBOLS_FLAG="-Wl,--export-dynamic"
+		;;
+	esac
 	AC_SUBST([XORG_CFLAGS])
 	AC_SUBST([LD_EXPORT_SYMBOLS_FLAG])
 
@@ -1533,6 +1560,7 @@ GL/include/Makefile
 GL/include/GL/Makefile
 GL/mesa/Makefile
 GL/mesa/array_cache/Makefile
+GL/mesa/glapi/Makefile
 GL/mesa/main/Makefile
 GL/mesa/math/Makefile
 GL/mesa/shader/Makefile
@@ -1570,6 +1598,7 @@ xkb/Makefile
 Xext/Makefile
 Xi/Makefile
 xfixes/Makefile
+exa/Makefile
 hw/Makefile
 hw/xfree86/Makefile
 hw/xfree86/common/Makefile

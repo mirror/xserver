@@ -1,4 +1,4 @@
-/* $XdotOrg$ */
+/* $XdotOrg: xserver/xorg/hw/xfree86/os-support/usl/usl_kbd.c,v 1.3 2006-03-25 19:52:05 ajax Exp $ */
 /*
  * Copyright 2005 by Kean Johnston <jkj@sco.com>
  *
@@ -426,7 +426,7 @@ OpenKeyboard(InputInfoPtr pInfo)
   return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 xf86OSKbdPreInit(InputInfoPtr pInfo)
 {
   KbdDevPtr pKbd = pInfo->private;

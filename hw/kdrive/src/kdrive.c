@@ -1,7 +1,7 @@
 /*
  * $RCSId: xc/programs/Xserver/hw/kdrive/kdrive.c,v 1.29 2002/10/31 18:29:50 keithp Exp $ 
  *
- * Copyright © 1999 Keith Packard
+ * Copyright Â© 1999 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -38,7 +38,6 @@
 #ifdef XV
 #include "kxv.h"
 #endif
-#include "kaa.h"
 
 #ifdef DPMSExtension
 #include "dpmsproc.h"
@@ -225,7 +224,6 @@ KdDisableScreen (ScreenPtr pScreen)
     
     if (!pScreenPriv->enabled)
 	return;
-    kaaWaitSync (pScreen);
     if (!pScreenPriv->closed)
 	KdSetRootClip (pScreen, FALSE);
     KdDisableColormap (pScreen);
@@ -1514,3 +1512,4 @@ DPMSSupported (void)
 #endif
 
 void ddxInitGlobals(void) { /* THANK YOU XPRINT */ }
+

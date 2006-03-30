@@ -41,10 +41,6 @@
 #endif /* USL */
 #endif
 
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#endif
-
 static int miscErrorBase;
 static int MiscGeneration = 0;
 static int MiscClientPrivateIndex;
@@ -508,7 +504,8 @@ ProcXF86MiscSetClientVersion(ClientPtr client)
 	    return BadAlloc;
 	MPRIV(client) = pPriv;
     }
-    ErrorF("SetClientVersion: %i %i\n",stuff->major,stuff->minor);
+    if (xf86GetVerbosity() > 1) 
+	    ErrorF("SetClientVersion: %i %i\n",stuff->major,stuff->minor);
     pPriv->major = stuff->major;
     pPriv->minor = stuff->minor;
     

@@ -1,4 +1,8 @@
-noinst_LTLIBRARIES = libglx.la libglxdri.la
+if AIGLX
+GLXDRI_LIBRARY = libglxdri.la
+endif
+
+noinst_LTLIBRARIES = libglx.la $(GLXDRI_LIBRARY)
 
 AM_CFLAGS = \
 	-I@MESA_SOURCE@/include \
@@ -8,19 +12,18 @@ AM_CFLAGS = \
 	@LIBDRM_CFLAGS@ \
 	@DRIPROTO_CFLAGS@ \
 	-I@MESA_SOURCE@/src/mesa/glapi \
-	-I@MESA_SOURCE@/src/glx/x11 \
 	-I@MESA_SOURCE@/src/mesa/main \
 	@SERVER_DEFINES@ \
 	@MODULE_DEFINES@ \
 	@LOADER_DEFINES@ \
 	-DNO_LIBCWRAPPER \
-	-DUSE_MGL_NAMESPACE
+	-DUSE_MGL_NAMESPACE \
+	@GLX_DEFINES@
 
 # none yet
 #sdk_HEADERS =
 
 INCLUDES = \
-	-I$(top_srcdir)/GL/include \
 	-I$(top_srcdir)/hw/xfree86/os-support \
 	-I$(top_srcdir)/hw/xfree86/os-support/bus \
 	-I$(top_srcdir)/hw/xfree86/common \

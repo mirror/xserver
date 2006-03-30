@@ -9,7 +9,6 @@
 
 #include "xf86.h"
 #include "xf86_OSproc.h"
-#include "xf86_ansic.h"
 #include "xf86Pci.h"
 #include "compiler.h"
 #define _INT10_PRIVATE
@@ -27,6 +26,14 @@
 #endif
 #define ALLOC_ENTRIES(x) ((V_RAM / x) - 1)
 #define SHMERRORPTR (pointer)(-1)
+
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <unistd.h>
+#include <string.h>
 
 static int counter = 0;
 static unsigned long int10Generation = 0;

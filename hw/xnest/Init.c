@@ -161,4 +161,3 @@ void ddxBeforeReset(void)
 #ifdef AIXV3
 int SelectWaitTime = 10000; /* usec */
 #endif
-

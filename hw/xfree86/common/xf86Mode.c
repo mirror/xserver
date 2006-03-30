@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/hw/xfree86/common/xf86Mode.c,v 1.7 2005/07/03 08:53:42 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/hw/xfree86/common/xf86Mode.c,v 1.11 2006-03-25 19:52:03 ajax Exp $ */
 /* $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86Mode.c,v 1.69 2003/10/08 14:58:28 dawes Exp $ */
 /*
  * Copyright (c) 1997-2003 by The XFree86 Project, Inc.
@@ -54,7 +54,7 @@
  *	Find closest clock to given frequency (in kHz).  This assumes the
  *	number of clocks is greater than zero.
  */
-int
+_X_EXPORT int
 xf86GetNearestClock(ScrnInfoPtr scrp, int freq, Bool allowDiv2,
     int DivFactor, int MulFactor, int *divider)
 {
@@ -93,7 +93,7 @@ xf86GetNearestClock(ScrnInfoPtr scrp, int freq, Bool allowDiv2,
  * Convert a ModeStatus value to a printable message
  */
 
-const char *
+_X_EXPORT const char *
 xf86ModeStatusToString(ModeStatus status)
 {
     switch (status) {
@@ -180,7 +180,7 @@ xf86ModeStatusToString(ModeStatus status)
  * xf86ShowClockRanges() -- Print the clock ranges allowed
  * and the clock values scaled by ClockMulFactor and ClockDivFactor
  */
-void
+_X_EXPORT void
 xf86ShowClockRanges(ScrnInfoPtr scrp, ClockRangePtr clockRanges)
 {
     ClockRangePtr cp;
@@ -412,7 +412,7 @@ ModeVRefresh(DisplayModePtr mode)
  * reason.
  */
 
-ModeStatus
+_X_EXPORT ModeStatus
 xf86LookupMode(ScrnInfoPtr scrp, DisplayModePtr modep,
 	       ClockRangePtr clockRanges, LookupModeFlags strategy)
 {
@@ -736,7 +736,7 @@ xf86SetModeCrtc(DisplayModePtr p, int adjustFlags)
  * This function takes a mode and monitor description, and determines
  * if the mode is valid for the monitor.
  */
-ModeStatus
+_X_EXPORT ModeStatus
 xf86CheckModeForMonitor(DisplayModePtr mode, MonPtr monitor)
 {
     int i;
@@ -816,15 +816,24 @@ xf86CheckModeForMonitor(DisplayModePtr mode, MonPtr monitor)
     if (mode->Flags & V_INTERLACE)
 	mode->CrtcVTotal = mode->VTotal |= 1;
 
-    /* Check wether this mode has acceptable blanking */
-    if (((mode->HDisplay * 5 / 4) & ~0x07) > mode->HTotal) {
+    /*
+     * This code stops cvt -r modes, and only cvt -r modes, from hitting 15y+
+     * old CRTs which might, when there is a lot of solar flare activity and
+     * when the celestial bodies are unfavourably aligned, implode trying to
+     * sync to it. It's called "Protecting the user from doing anything stupid".
+     * -- libv
+     */
 
-        /* Is this a CVT Reduced blanking mode? */
-        if ((mode->HTotal - mode->HDisplay) != 160) 
-            return MODE_HBLANK_NARROW;
-        
-        if (!monitor->reducedblanking)
-            return MODE_NO_REDUCED;
+    /* Is the horizontal blanking a bit lowish? */
+    if (((mode->HDisplay * 5 / 4) & ~0x07) > mode->HTotal) {
+        /* is this a cvt -r mode, and only a cvt -r mode? */
+        if (((mode->HTotal - mode->HDisplay) == 160) &&
+            ((mode->HSyncEnd - mode->HDisplay) == 80) &&
+            ((mode->HSyncEnd - mode->HSyncStart) == 32) &&
+            ((mode->VSyncStart - mode->VDisplay) == 3)) {
+            if (!monitor->reducedblanking)
+                return MODE_NO_REDUCED;
+        }
     }
 
     return MODE_OK;
@@ -903,7 +912,7 @@ xf86CheckModeSize(ScrnInfoPtr scrp, int w, int x, int y)
  *    maxVValue    maximum vertical timing value
  */
 
-ModeStatus
+_X_EXPORT ModeStatus
 xf86InitialCheckModeForDriver(ScrnInfoPtr scrp, DisplayModePtr mode,
 			      ClockRangePtr clockRanges,
 			      LookupModeFlags strategy,
@@ -1051,7 +1060,7 @@ xf86InitialCheckModeForDriver(ScrnInfoPtr scrp, DisplayModePtr mode,
  *    clockRanges  allowable clock ranges
  */
 
-ModeStatus
+_X_EXPORT ModeStatus
 xf86CheckModeForDriver(ScrnInfoPtr scrp, DisplayModePtr mode, int flags)
 {
     ClockRangesPtr cp;
@@ -1225,7 +1234,7 @@ xf86CheckModeForDriver(ScrnInfoPtr scrp, DisplayModePtr mode, int flags)
  * if an unrecoverable error was encountered.
  */
 
-int
+_X_EXPORT int
 xf86ValidateModes(ScrnInfoPtr scrp, DisplayModePtr availModes,
 		  char **modeNames, ClockRangePtr clockRanges,
 		  int *linePitches, int minPitch, int maxPitch, int pitchInc,
@@ -1969,7 +1978,7 @@ xf86ValidateModes(ScrnInfoPtr scrp, DisplayModePtr availModes,
  *
  */
  
-void
+_X_EXPORT void
 xf86DeleteMode(DisplayModePtr *modeList, DisplayModePtr mode)
 {
     /* Catch the easy/insane cases */
@@ -2001,7 +2010,7 @@ xf86DeleteMode(DisplayModePtr *modeList, DisplayModePtr mode)
  * invalid.
  */
 
-void
+_X_EXPORT void
 xf86PruneDriverModes(ScrnInfoPtr scrp)
 {
     DisplayModePtr first, p, n;
@@ -2055,7 +2064,7 @@ xf86PruneDriverModes(ScrnInfoPtr scrp)
  * parameters for each mode.  The initialisation includes adjustments
  * for interlaced and double scan modes.
  */
-void
+_X_EXPORT void
 xf86SetCrtcForModes(ScrnInfoPtr scrp, int adjustFlags)
 {
     DisplayModePtr p;
@@ -2130,7 +2139,7 @@ PrintModeline(int scrnIndex,DisplayModePtr mode)
     xfree(flags);
 }
 
-void
+_X_EXPORT void
 xf86PrintModes(ScrnInfoPtr scrp)
 {
     DisplayModePtr p;

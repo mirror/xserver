@@ -28,8 +28,6 @@
 
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
-#elif defined(HAVE_CONFIG_H)
-#include <config.h>
 #endif
 
 #include <stdio.h>
@@ -39,22 +37,6 @@
 #define X_INCLUDE_STRING_H
 #define XOS_USE_NO_LOCKING
 #include <X11/Xos_r.h>
-
-#ifndef XKB_IN_SERVER
-
-#include <X11/Xproto.h>
-#include <X11/Xlib.h>
-#include <X11/Xos.h>
-#include <X11/Xfuncs.h>
-#include <X11/Xatom.h>
-#include <X11/keysym.h>
-#include <X11/XKBlib.h>
-#include <X11/extensions/XKBgeom.h>
-#include "XKMformat.h"
-#include "XKBfileInt.h"
-#include "XKBrules.h"
-
-#else
 
 #define NEED_EVENTS
 #include <X11/Xproto.h>
@@ -70,8 +52,6 @@
 #define XKBSRV_NEED_FILE_FUNCS
 #include <X11/extensions/XKBsrv.h>
 
-#endif
-
 #ifdef DEBUG
 #define PR_DEBUG(s)		fprintf(stderr,s)
 #define PR_DEBUG1(s,a)		fprintf(stderr,s,a)
@@ -80,6 +60,12 @@
 #define PR_DEBUG(s)
 #define PR_DEBUG1(s,a)
 #define PR_DEBUG2(s,a,b)
+#endif
+
+#ifdef NEED_STRCASECMP
+extern int _XkbStrCaseCmp(char *s1, char *s2);
+#else
+#define _XkbStrCaseCmp strcasecmp
 #endif
 
 /***====================================================================***/
@@ -374,13 +360,6 @@ Bool		found;
    }
    if ((present&COMPONENT_MASK)==0) {
 	PR_DEBUG("Mapping needs at least one component\n");
-	PR_DEBUG("Illegal mapping ignored\n");
-	remap->num_remap= 0;
-	return;
-   }
-   if (((present&PART_MASK)&(1<<OPTION))&&
-				((present&PART_MASK)!=(1<<OPTION))) {
-	PR_DEBUG("Options cannot appear with other parts\n");
 	PR_DEBUG("Illegal mapping ignored\n");
 	remap->num_remap= 0;
 	return;
@@ -1113,13 +1092,13 @@ int			len,headingtype,extra_ndx = 0;
     for ( ; GetInputLine(file,&line,False); line.num_line= 0) {
 	if (line.line[0]=='!') {
 	    tok = strtok(&(line.line[1]), " \t");
-	    if (!_XkbStrCaseCmp(tok,"model"))
+	    if (_XkbStrCaseCmp(tolower(tok),"model") == 0)
 		headingtype = HEAD_MODEL;
-	    else if (!_XkbStrCaseCmp(tok,"layout"))
+	    else if (_XkbStrCaseCmp(tok,"layout") == 0)
 		headingtype = HEAD_LAYOUT;
-	    else if (!_XkbStrCaseCmp(tok,"variant"))
+	    else if (_XkbStrCaseCmp(tok,"variant") == 0)
 		headingtype = HEAD_VARIANT;
-	    else if (!_XkbStrCaseCmp(tok,"option"))
+	    else if (_XkbStrCaseCmp(tok,"option") == 0)
 		headingtype = HEAD_OPTION;
 	    else {
 		int i;
@@ -1351,132 +1330,3 @@ XkbRF_GroupPtr	group;
 	_XkbFree(rules);
     return;
 }
-
-#ifndef XKB_IN_SERVER
-
-Bool 
-XkbRF_GetNamesProp(Display *dpy,char **rf_rtrn,XkbRF_VarDefsPtr vd_rtrn)
-{
-Atom		rules_atom,actual_type;
-int		fmt;
-unsigned long	nitems,bytes_after;
-char            *data,*out;
-Status		rtrn;
-
-    rules_atom= XInternAtom(dpy,_XKB_RF_NAMES_PROP_ATOM,True);
-    if (rules_atom==None)	/* property cannot exist */
-	return False; 
-    rtrn= XGetWindowProperty(dpy,DefaultRootWindow(dpy),rules_atom,
-                                0L,_XKB_RF_NAMES_PROP_MAXLEN,False,
-                                XA_STRING,&actual_type,
-                                &fmt,&nitems,&bytes_after,
-                                (unsigned char **)&data);
-    if (rtrn!=Success)
-	return False;
-    if (rf_rtrn)
-	*rf_rtrn= NULL;
-    (void)bzero((char *)vd_rtrn,sizeof(XkbRF_VarDefsRec));
-    if ((bytes_after>0)||(actual_type!=XA_STRING)||(fmt!=8)) {
-	if (data) XFree(data);
-	return (fmt==0?True:False);
-    }
-
-    out= data;
-    if (out && (*out) && rf_rtrn)
-	 *rf_rtrn= _XkbDupString(out);
-    out+=strlen(out)+1;
-
-    if ((out-data)<nitems) {
-	if (*out)
-	    vd_rtrn->model= _XkbDupString(out);
-	out+=strlen(out)+1;
-    }
-
-    if ((out-data)<nitems) {
-	if (*out)
-	    vd_rtrn->layout= _XkbDupString(out);
-	out+=strlen(out)+1;
-    }
-
-    if ((out-data)<nitems) {
-	if (*out)
-	    vd_rtrn->variant= _XkbDupString(out);
-	out+=strlen(out)+1;
-    }
-
-
-    if ((out-data)<nitems) {
-	if (*out)
-	    vd_rtrn->options= _XkbDupString(out);
-	out+=strlen(out)+1;
-    }
-    XFree(data);
-    return True;
-}
-
-Bool 
-XkbRF_SetNamesProp(Display *dpy,char *rules_file,XkbRF_VarDefsPtr var_defs)
-{
-int	len,out;
-Atom	name;
-char *	pval;
-
-    len= (rules_file?strlen(rules_file):0);
-    len+= (var_defs->model?strlen(var_defs->model):0);
-    len+= (var_defs->layout?strlen(var_defs->layout):0);
-    len+= (var_defs->variant?strlen(var_defs->variant):0);
-    len+= (var_defs->options?strlen(var_defs->options):0);
-    if (len<1)
-        return True;
-
-    len+= 5; /* trailing NULs */
-
-    name= XInternAtom(dpy,_XKB_RF_NAMES_PROP_ATOM,False);
-    if (name==None)  { /* should never happen */
-	_XkbLibError(_XkbErrXReqFailure,"XkbRF_SetNamesProp",X_InternAtom);
-        return False;
-    }
-    pval= (char *)_XkbAlloc(len);
-    if (!pval) {
-	_XkbLibError(_XkbErrBadAlloc,"XkbRF_SetNamesProp",len);
-        return False;
-    }
-    out= 0;
-    if (rules_file) {
-        strcpy(&pval[out],rules_file);
-        out+= strlen(rules_file);
-    }
-    pval[out++]= '\0';
-    if (var_defs->model) {
-        strcpy(&pval[out],var_defs->model);
-        out+= strlen(var_defs->model);
-    }
-    pval[out++]= '\0';
-    if (var_defs->layout) {
-        strcpy(&pval[out],var_defs->layout);
-        out+= strlen(var_defs->layout);
-    }
-    pval[out++]= '\0';
-    if (var_defs->variant) {
-        strcpy(&pval[out],var_defs->variant);
-        out+= strlen(var_defs->variant);
-    }
-    pval[out++]= '\0';
-    if (var_defs->options) {
-        strcpy(&pval[out],var_defs->options);
-        out+= strlen(var_defs->options);
-    }
-    pval[out++]= '\0';
-    if (out!=len) {
-	_XkbLibError(_XkbErrBadLength,"XkbRF_SetNamesProp",out);
-	_XkbFree(pval);
-	return False;
-    }
-
-    XChangeProperty(dpy,DefaultRootWindow(dpy),name,XA_STRING,8,PropModeReplace,
-                                                (unsigned char *)pval,len);
-    _XkbFree(pval);
-    return True;
-}
-
-#endif

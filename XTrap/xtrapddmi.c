@@ -42,16 +42,12 @@ SOFTWARE.
 #include <dix-config.h>
 #endif
 
-#ifndef EXTMODULE
 #include <errno.h>
 #include <X11/Xos.h>
 #ifdef PC
 # include "fcntl.h"
 # include "io.h"
 # define O_NDELAY 0L
-#endif
-#else
-#include "xf86_ansic.h"
 #endif
 
 #define NEED_REPLIES
@@ -163,26 +159,3 @@ int XETrapSimulateXEvent(register xXTrapInputReq *request,
     return(status);
 }
 #endif /* _XINPUT */
-
-#if defined vms && !defined LINKED_IN
-/* Used by swapping code not visible from VMS (from main.c) */
-#ifndef BLADE
-void
-NotImplemented()
-{
-    FatalError("Not implemented");
-}
-#endif
-
-int
-#ifdef __STDC__
-ProcBadRequest( ClientPtr client)
-#else
-ProcBadRequest(client)
-    ClientPtr client;
-#endif
-{
-    return (BadRequest);
-}
-
-#endif /* vms && ! LINKED_IN */

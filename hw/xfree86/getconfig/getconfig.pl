@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 # $DHD: xc/programs/Xserver/hw/xfree86/getconfig/getconfig.pl,v 1.13 2003/09/23 05:12:07 dawes Exp $
+# $XdotOrg: xserver/xorg/hw/xfree86/getconfig/getconfig.pl,v 1.3 2006-03-23 23:54:08 alanc Exp $
 
 #
 # Copyright 2003 by David H. Dawes.
@@ -164,6 +165,10 @@ if ($debug) {
 # ARK
 ['$vendor == 0xedd8',
 	'apm'],
+
+# AST
+['$vendor == 0x1a03',
+	'ast'],
 
 # ATI
 ['$vendor == 0x1002',

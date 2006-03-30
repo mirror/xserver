@@ -1,5 +1,3 @@
-/* $Xorg: grabdev.c,v 1.4 2001/02/09 02:04:34 xorgcvs Exp $ */
-
 /************************************************************
 
 Copyright 1989, 1998  The Open Group
@@ -45,7 +43,6 @@ ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 SOFTWARE.
 
 ********************************************************/
-/* $XFree86: xc/programs/Xserver/Xi/grabdev.c,v 3.2 2001/01/17 22:13:25 dawes Exp $ */
 
 /***********************************************************************
  *
@@ -53,28 +50,27 @@ SOFTWARE.
  *
  */
 
-
 #define	 NEED_EVENTS
 #define	 NEED_REPLIES
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
 #endif
 
-#include <X11/X.h>				/* for inputstr.h    */
-#include <X11/Xproto.h>			/* Request macro     */
-#include "inputstr.h"			/* DeviceIntPtr	     */
-#include "windowstr.h"			/* window structure  */
+#include <X11/X.h>	/* for inputstr.h    */
+#include <X11/Xproto.h>	/* Request macro     */
+#include "inputstr.h"	/* DeviceIntPtr      */
+#include "windowstr.h"	/* window structure  */
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
 #include "extnsionst.h"
-#include "extinit.h"			/* LookupDeviceIntRec */
+#include "extinit.h"	/* LookupDeviceIntRec */
 #include "exglobals.h"
-#include "dixevents.h"			/* GrabDevice */
+#include "dixevents.h"	/* GrabDevice */
 
 #include "grabdev.h"
 
-extern	XExtEventInfo	EventInfo[];
-extern int		ExtEventIndex;
+extern XExtEventInfo EventInfo[];
+extern int ExtEventIndex;
 
 /***********************************************************************
  *
@@ -83,9 +79,8 @@ extern int		ExtEventIndex;
  */
 
 int
-SProcXGrabDevice(client)
-    register ClientPtr client;
-    {
+SProcXGrabDevice(register ClientPtr client)
+{
     register char n;
     register long *p;
     register int i;
@@ -96,15 +91,14 @@ SProcXGrabDevice(client)
     swapl(&stuff->grabWindow, n);
     swapl(&stuff->time, n);
     swaps(&stuff->event_count, n);
-    p = (long *) &stuff[1];
-    for (i=0; i<stuff->event_count; i++)
-        {
-        swapl(p, n);
+    p = (long *)&stuff[1];
+    for (i = 0; i < stuff->event_count; i++) {
+	swapl(p, n);
 	p++;
-        }
-
-    return(ProcXGrabDevice(client));
     }
+
+    return (ProcXGrabDevice(client));
+}
 
 /***********************************************************************
  *
@@ -113,52 +107,49 @@ SProcXGrabDevice(client)
  */
 
 int
-ProcXGrabDevice(client)
-    ClientPtr client;
-    {
-    int			error;
-    xGrabDeviceReply 	rep;
-    DeviceIntPtr 	dev;
-    struct tmask	tmp[EMASKSIZE];
+ProcXGrabDevice(ClientPtr client)
+{
+    int error;
+    xGrabDeviceReply rep;
+    DeviceIntPtr dev;
+    struct tmask tmp[EMASKSIZE];
 
     REQUEST(xGrabDeviceReq);
     REQUEST_AT_LEAST_SIZE(xGrabDeviceReq);
 
-    if (stuff->length !=(sizeof(xGrabDeviceReq)>>2) + stuff->event_count)
-	{
-	SendErrorToClient (client, IReqCode, X_GrabDevice, 0, BadLength);
+    if (stuff->length != (sizeof(xGrabDeviceReq) >> 2) + stuff->event_count) {
+	SendErrorToClient(client, IReqCode, X_GrabDevice, 0, BadLength);
 	return Success;
-	}
+    }
 
     rep.repType = X_Reply;
     rep.RepType = X_GrabDevice;
     rep.sequenceNumber = client->sequence;
     rep.length = 0;
 
-    dev = LookupDeviceIntRec (stuff->deviceid);
-    if (dev == NULL)
-	{
+    dev = LookupDeviceIntRec(stuff->deviceid);
+    if (dev == NULL) {
 	SendErrorToClient(client, IReqCode, X_GrabDevice, 0, BadDevice);
 	return Success;
-	}
-
-    if (CreateMaskFromList (client, (XEventClass *)&stuff[1], 
-	stuff->event_count, tmp, dev, X_GrabDevice) != Success)
-	return Success;
-
-    error = GrabDevice (client, dev, stuff->this_device_mode, 
-	stuff->other_devices_mode, stuff->grabWindow, stuff->ownerEvents, 
-	stuff->time, tmp[stuff->deviceid].mask, &rep.status);
-
-    if (error != Success)
-	{
-	SendErrorToClient(client, IReqCode, X_GrabDevice, 0, error);
-	return Success;
-	}
-    WriteReplyToClient(client, sizeof(xGrabDeviceReply), &rep);
-    return Success;
     }
 
+    if (CreateMaskFromList(client, (XEventClass *) & stuff[1],
+			   stuff->event_count, tmp, dev,
+			   X_GrabDevice) != Success)
+	return Success;
+
+    error = GrabDevice(client, dev, stuff->this_device_mode,
+		       stuff->other_devices_mode, stuff->grabWindow,
+		       stuff->ownerEvents, stuff->time,
+		       tmp[stuff->deviceid].mask, &rep.status);
+
+    if (error != Success) {
+	SendErrorToClient(client, IReqCode, X_GrabDevice, 0, error);
+	return Success;
+    }
+    WriteReplyToClient(client, sizeof(xGrabDeviceReply), &rep);
+    return Success;
+}
 
 /***********************************************************************
  *
@@ -167,49 +158,39 @@ ProcXGrabDevice(client)
  */
 
 int
-CreateMaskFromList (client, list, count, mask, dev, req)
-    ClientPtr		client;
-    XEventClass		*list;
-    int			count;
-    struct tmask	mask[];
-    DeviceIntPtr	dev;
-    int			req;
-    {
-    int			i,j;
-    int			device;
-    DeviceIntPtr	tdev;
+CreateMaskFromList(ClientPtr client, XEventClass * list, int count,
+		   struct tmask *mask, DeviceIntPtr dev, int req)
+{
+    int i, j;
+    int device;
+    DeviceIntPtr tdev;
 
-    for (i=0; i<EMASKSIZE; i++)
-	{
+    for (i = 0; i < EMASKSIZE; i++) {
 	mask[i].mask = 0;
 	mask[i].dev = NULL;
+    }
+
+    for (i = 0; i < count; i++, list++) {
+	device = *list >> 8;
+	if (device > 255) {
+	    SendErrorToClient(client, IReqCode, req, 0, BadClass);
+	    return BadClass;
+	}
+	tdev = LookupDeviceIntRec(device);
+	if (tdev == NULL || (dev != NULL && tdev != dev)) {
+	    SendErrorToClient(client, IReqCode, req, 0, BadClass);
+	    return BadClass;
 	}
 
-    for (i=0; i<count; i++, list++)
-	{
-	device = *list >> 8;
-	if (device > 255)
-	    {
-	    SendErrorToClient(client, IReqCode, req, 0, BadClass);
-	    return BadClass;
-	    }
-	tdev = LookupDeviceIntRec (device);
-	if (tdev==NULL || (dev != NULL && tdev != dev))
-	    {
-	    SendErrorToClient(client, IReqCode, req, 0, BadClass);
-	    return BadClass;
-	    }
-
-	for (j=0; j<ExtEventIndex; j++)
-	    if (EventInfo[j].type == (*list & 0xff))
-		{
+	for (j = 0; j < ExtEventIndex; j++)
+	    if (EventInfo[j].type == (*list & 0xff)) {
 		mask[device].mask |= EventInfo[j].mask;
 		mask[device].dev = (Pointer) tdev;
 		break;
-		}
-	}
-    return Success;
+	    }
     }
+    return Success;
+}
 
 /***********************************************************************
  *
@@ -219,14 +200,11 @@ CreateMaskFromList (client, list, count, mask, dev, req)
  */
 
 void
-SRepXGrabDevice (client, size, rep)
-    ClientPtr	client;
-    int		size;
-    xGrabDeviceReply	*rep;
-    {
+SRepXGrabDevice(ClientPtr client, int size, xGrabDeviceReply * rep)
+{
     register char n;
 
     swaps(&rep->sequenceNumber, n);
     swapl(&rep->length, n);
     WriteToClient(client, size, (char *)rep);
-    }
+}

@@ -25,6 +25,8 @@
 #include <dix-config.h>
 #endif
 
+#include <string.h>
+
 #include "gcstruct.h"
 #include "windowstr.h"
 #include "cw.h"
@@ -461,7 +463,7 @@ cwPaintWindowBackground(WindowPtr pWin, RegionPtr pRegion, int what)
 	DrawablePtr pBackingDrawable;
 	int x_off, y_off, x_screen, y_screen;
 
-	while (pWin && pWin->backgroundState == ParentRelative)
+	while (pWin->backgroundState == ParentRelative)
 	    pWin = pWin->parent;
 
 	pBackingDrawable = cwGetBackingDrawable((DrawablePtr)pWin, &x_off,
@@ -664,7 +666,7 @@ miInitializeCompositeWrapper(ScreenPtr pScreen)
 #endif
 }
 
-void
+_X_EXPORT void
 miDisableCompositeWrapper(ScreenPtr pScreen)
 {
     cwDisabled[pScreen->myNum] = TRUE;

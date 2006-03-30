@@ -129,7 +129,6 @@ miValidatePicture (PicturePtr pPicture,
 		   Mask       mask)
 {
     DrawablePtr	    pDrawable = pPicture->pDrawable;
-    ScreenPtr       pScreen = pDrawable->pScreen;
 
     if ((mask & (CPClipXOrigin|CPClipYOrigin|CPClipMask|CPSubwindowMode)) ||
 	(pDrawable->serialNumber != (pPicture->serialNumber & DRAWABLE_SERIAL_BITS)))
@@ -405,7 +404,7 @@ miCompositeSourceValidate (PicturePtr	pPicture,
  * an allocation failure, but rendering ignores those anyways.
  */
 
-Bool
+_X_EXPORT Bool
 miComputeCompositeRegion (RegionPtr	pRegion,
 			  PicturePtr	pSrc,
 			  PicturePtr	pMask,
@@ -610,7 +609,7 @@ miRenderPixelToColor (PictFormatPtr format,
     }
 }
 
-Bool
+_X_EXPORT Bool
 miPictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 {
     PictureScreenPtr    ps;

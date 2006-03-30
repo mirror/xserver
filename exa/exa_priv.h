@@ -26,8 +26,8 @@
 #ifndef EXAPRIV_H
 #define EXAPRIV_H
 
-#ifdef HAVE_XORG_CONFIG_H
-#include <xorg-config.h>
+#ifdef HAVE_DIX_CONFIG_H
+#include <dix-config.h>
 #endif
 
 #include "exa.h"
@@ -67,9 +67,24 @@ do {								\
 #define EXA_FALLBACK(x)
 #endif
 
+#if DEBUG_PIXMAP
+#define DBG_PIXMAP(a) ErrorF a
+#else
+#define DBG_PIXMAP(a)
+#endif
+
 #ifndef EXA_MAX_FB
 #define EXA_MAX_FB   FB_OVERLAY_MAX
 #endif
+
+/**
+ * This is the list of migration heuristics supported by EXA.  See
+ * exaDoMigration() for what their implementations do.
+ */
+enum ExaMigrationHeuristic {
+    ExaMigrationGreedy,
+    ExaMigrationAlways
+};
 
 typedef void (*EnableDisableFBAccessProcPtr)(int, Bool);
 typedef struct {
@@ -87,9 +102,8 @@ typedef struct {
     CompositeProcPtr             SavedComposite;
     GlyphsProcPtr                SavedGlyphs;
 #endif
-    EnableDisableFBAccessProcPtr SavedEnableDisableFBAccess;
-    Bool			 wrappedEnableDisableFB;
     Bool			 swappedOut;
+    enum ExaMigrationHeuristic	 migration;
 } ExaScreenPrivRec, *ExaScreenPrivPtr;
 
 /*
@@ -109,29 +123,68 @@ extern int exaPixmapPrivateIndex;
 #define ExaGetScreenPriv(s)	((ExaScreenPrivPtr)(s)->devPrivates[exaScreenPrivateIndex].ptr)
 #define ExaScreenPriv(s)	ExaScreenPrivPtr    pExaScr = ExaGetScreenPriv(s)
 
+/** Align an offset to an arbitrary alignment */
+#define EXA_ALIGN(offset, align) (((offset) + (align) - 1) - \
+	(((offset) + (align) - 1) % (align)))
+/** Align an offset to a power-of-two alignment */
+#define EXA_ALIGN2(offset, align) (((offset) + (align) - 1) & ~((align) - 1))
+
+/**
+ * Returns TRUE if the given planemask covers all the significant bits in the
+ * pixel values for pDrawable.
+ */
+#define EXA_PM_IS_SOLID(_pDrawable, _pm) \
+	(((_pm) & ((1 << (_pDrawable)->bitsPerPixel) - 1)) == \
+	 ((1 << (_pDrawable)->bitsPerPixel) - 1))
+
+#define EXA_PIXMAP_SCORE_MOVE_IN    10
+#define EXA_PIXMAP_SCORE_MAX	    20
+#define EXA_PIXMAP_SCORE_MOVE_OUT   -10
+#define EXA_PIXMAP_SCORE_MIN	    -20
+#define EXA_PIXMAP_SCORE_PINNED	    1000
+#define EXA_PIXMAP_SCORE_INIT	    1001
+
 #define ExaGetPixmapPriv(p)	((ExaPixmapPrivPtr)(p)->devPrivates[exaPixmapPrivateIndex].ptr)
 #define ExaSetPixmapPriv(p,a)	((p)->devPrivates[exaPixmapPrivateIndex].ptr = (pointer) (a))
 #define ExaPixmapPriv(p)	ExaPixmapPrivPtr pExaPixmap = ExaGetPixmapPriv(p)
 
 typedef struct {
     ExaOffscreenArea *area;
-    int		    score;
-    int		    devKind;
-    DevUnion	    devPrivate;
+    int		    score;	/**< score for the move-in vs move-out heuristic */
 
-    /* If area is NULL, then dirty == TRUE means that the pixmap has been
+    CARD8	    *sys_ptr;	/**< pointer to pixmap data in system memory */
+    int		    sys_pitch;	/**< pitch of pixmap in system memory */
+
+    CARD8	    *fb_ptr;	/**< pointer to pixmap data in framebuffer memory */
+    int		    fb_pitch;	/**< pitch of pixmap in framebuffer memory */
+    unsigned int    fb_size;	/**< size of pixmap in framebuffer memory */
+
+    /**
+     * If area is NULL, then dirty == TRUE means that the pixmap has been
      * modified, so the contents are defined.  Used to avoid uploads of
      * undefined data.
-     * If area is non-NULL, then dirty == TRUE means that the in-framebuffer
-     * copy has been changed from the system-memory copy.  Used to avoid
-     * downloads of unmodified data.
+     *
+     * If area is non-NULL, then dirty == TRUE means that the pixmap data at
+     * pPixmap->devPrivate.ptr (either fb_ptr or sys_ptr) has been changed
+     * compared to the copy in the other location.  This is used to avoid
+     * uploads/downloads of unmodified data.
      */
     Bool	    dirty;
-    unsigned int    size;
 } ExaPixmapPrivRec, *ExaPixmapPrivPtr;
+ 
+typedef struct _ExaMigrationRec {
+    Bool as_dst;
+    Bool as_src;
+    PixmapPtr pPix;
+} ExaMigrationRec, *ExaMigrationPtr;
 
+/**
+ * exaDDXDriverInit must be implemented by the DDX using EXA, and is the place
+ * to set EXA options or hook in screen functions to handle using EXA as the AA.
+  */
+void exaDDXDriverInit (ScreenPtr pScreen);
 
-/* exaasync.c */
+/* exa_unaccel.c */
 void
 ExaCheckFillSpans  (DrawablePtr pDrawable, GCPtr pGC, int nspans,
 		   DDXPointPtr ppt, int *pwidth, int fSorted);
@@ -230,7 +283,25 @@ ExaCheckRestoreAreas (PixmapPtr	pPixmap,
 void
 ExaCheckPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what);
 
-extern const GCOps	exaAsyncPixmapGCOps;
+CARD32
+exaGetPixmapFirstPixel (PixmapPtr pPixmap); 
+
+/* exa_accel.c */
+void
+exaCopyWindow(WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc);
+
+void
+exaPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what);
+
+void
+exaGetImage (DrawablePtr pDrawable, int x, int y, int w, int h,
+	     unsigned int format, unsigned long planeMask, char *d);
+
+void
+exaGetSpans (DrawablePtr pDrawable, int wMax, DDXPointPtr ppt, int *pwidth,
+	     int nspans, char *pdstStart);
+
+extern const GCOps	exaOps, exaAsyncPixmapGCOps;
 
 #ifdef RENDER
 void
@@ -258,25 +329,13 @@ ExaOffscreenSwapOut (ScreenPtr pScreen);
 void
 ExaOffscreenSwapIn (ScreenPtr pScreen);
 
+Bool
+exaOffscreenInit(ScreenPtr pScreen);
+
 void
 ExaOffscreenFini (ScreenPtr pScreen);
 
-void
-exaEnableDisableFBAccess (int index, Bool enable);
-
 /* exa.c */
-void
-exaDrawableUseScreen(DrawablePtr pDrawable);
-
-void
-exaDrawableUseMemory(DrawablePtr pDrawable);
-
-void
-exaPixmapUseScreen (PixmapPtr pPixmap);
-
-void
-exaPixmapUseMemory (PixmapPtr pPixmap);
-
 void
 exaPrepareAccess(DrawablePtr pDrawable, int index);
 
@@ -295,8 +354,8 @@ exaPixmapIsOffscreen(PixmapPtr p);
 PixmapPtr
 exaGetOffscreenPixmap (DrawablePtr pDrawable, int *xp, int *yp);
 
-void
-exaMoveInPixmap (PixmapPtr pPixmap);
+PixmapPtr
+exaGetDrawablePixmap(DrawablePtr pDrawable);
 
 RegionPtr
 exaCopyArea(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
@@ -339,5 +398,15 @@ exaGlyphs (CARD8	op,
 	  int		nlist,
 	  GlyphListPtr	list,
 	  GlyphPtr	*glyphs);
+
+/* exa_migration.c */
+void
+exaDoMigration (ExaMigrationPtr pixmaps, int npixmaps, Bool can_accel);
+
+void
+exaMoveInPixmap (PixmapPtr pPixmap);
+
+void
+exaMoveOutPixmap (PixmapPtr pPixmap);
 
 #endif /* EXAPRIV_H */

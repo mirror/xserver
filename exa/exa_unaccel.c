@@ -21,7 +21,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "exaPriv.h"
+#include "exa_priv.h"
 
 /*
  * These functions wrap the low-level fb rendering functions and
@@ -279,6 +279,11 @@ ExaCheckRestoreAreas (PixmapPtr	pPixmap,
     exaFinishAccess ((DrawablePtr)pPixmap, EXA_PREPARE_DEST);
 }
 
+/* XXX: Note the lack of a prepare on the tile, if the window has a tiled
+ * background.  This function happens to only be called if pExaScr->swappedOut,
+ * so we actually end up not having to do it since the tile won't be in fb.
+ * That doesn't make this not dirty, though.
+ */
 void
 ExaCheckPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what)
 {
@@ -324,6 +329,38 @@ ExaCheckComposite (CARD8      op,
 	exaFinishAccess (pMask->pDrawable, EXA_PREPARE_MASK);
     exaFinishAccess (pSrc->pDrawable, EXA_PREPARE_SRC);
     exaFinishAccess (pDst->pDrawable, EXA_PREPARE_DEST);
+}
+
+/**
+ * Gets the 0,0 pixel of a pixmap.  Used for doing solid fills of tiled pixmaps
+ * that happen to be 1x1.  Pixmap must be at least 8bpp.
+ */
+CARD32
+exaGetPixmapFirstPixel (PixmapPtr pPixmap)
+{
+    CARD32 pixel;
+    ExaMigrationRec pixmaps[1];
+
+    pixmaps[0].as_dst = FALSE;
+    pixmaps[0].as_src = TRUE;
+    pixmaps[0].pPix = pPixmap;
+    exaDoMigration (pixmaps, 1, TRUE);
+
+    exaPrepareAccess(&pPixmap->drawable, EXA_PREPARE_SRC);
+    switch (pPixmap->drawable.bitsPerPixel) {
+    case 32:
+	pixel = *(CARD32 *)(pPixmap->devPrivate.ptr);
+	break;
+    case 16:
+	pixel = *(CARD16 *)(pPixmap->devPrivate.ptr);
+	break;
+    default:
+	pixel = *(CARD8 *)(pPixmap->devPrivate.ptr);
+	break;
+    }
+    exaFinishAccess(&pPixmap->drawable, EXA_PREPARE_SRC);
+
+    return pixel;
 }
 
 /*

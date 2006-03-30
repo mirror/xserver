@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/mi/miarc.c,v 1.3 2005/04/20 12:25:45 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/mi/miarc.c,v 1.8 2006-03-28 01:21:00 ajax Exp $ */
 /* $XFree86: xc/programs/Xserver/mi/miarc.c,v 3.14 2003/10/29 22:57:48 tsi Exp $ */
 /***********************************************************
 
@@ -112,12 +112,12 @@ ICEILTEMPDECL
 #endif
 
 #ifdef USE_INLINE
-inline static const int max (const int x, const int y)
+inline static int max (const int x, const int y)
 {
 	return x>y? x:y;
 }
 
-inline static const int min (const int x, const int y)
+inline static int min (const int x, const int y)
 {
 	return x<y? x:y;
 }
@@ -1073,7 +1073,7 @@ miFillWideEllipse(
  * fuller explanation of this.)
  */
 
-void
+_X_EXPORT void
 miPolyArc(pDraw, pGC, narcs, parcs)
     DrawablePtr	pDraw;
     GCPtr	pGC;

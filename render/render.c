@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/render/render.c,v 1.12 2005/08/28 19:47:39 ajax Exp $ */
+/* $XdotOrg: xserver/xorg/render/render.c,v 1.12.8.1 2006/01/18 07:21:43 airlied Exp $ */
 /*
  * $XFree86: xc/programs/Xserver/render/render.c,v 1.27tsi Exp $
  *
@@ -48,9 +48,6 @@
 #include "glyphstr.h"
 #include <X11/Xfuncproto.h>
 #include "cursorstr.h"
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#endif
 
 static int ProcRenderQueryVersion (ClientPtr pClient);
 static int ProcRenderQueryPictFormats (ClientPtr pClient);
@@ -389,14 +386,7 @@ ProcRenderQueryPictFormats (ClientPtr client)
 	}
 	ps = GetPictureScreenIfSet(pScreen);
 	if (ps)
-	{
-	    for (d = 0; d < ps->nformats; d++)
-	    {
-		if (ps->formats[d].type == PictTypeIndexed ||
-		    ps->formats[d].type == PictTypeDirect)
-		    nformat++;
-	    }
-	}
+	    nformat += ps->nformats;
     }
     if (pRenderClient->major_version == 0 && pRenderClient->minor_version < 6)
 	numSubpixel = 0;
@@ -433,10 +423,6 @@ ProcRenderQueryPictFormats (ClientPtr client)
 		 nformat < ps->nformats;
 		 nformat++, pFormat++)
 	    {
-	        if (pFormat->type != PictTypeIndexed &&
-		    pFormat->type != PictTypeDirect)
-		    continue;
-
 		pictForm->id = pFormat->id;
 		pictForm->type = pFormat->type;
 		pictForm->depth = pFormat->depth;

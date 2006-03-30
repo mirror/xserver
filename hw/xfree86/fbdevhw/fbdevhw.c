@@ -5,9 +5,10 @@
 #include <xorg-config.h>
 #endif
 
+#include <string.h>
+
 #include "xf86.h"
 #include "xf86_OSproc.h"
-#include "xf86_ansic.h"
 
 /* pci stuff */
 #include "xf86PciInfo.h"
@@ -79,14 +80,16 @@ fbdevhwSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 		return (pointer)1;
 	}
 }
-	
-#else /* XFree86LOADER */
+#endif /* XFree86LOADER */
 
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/mman.h>
-
-#endif /* XFree86LOADER */
+#include <sys/ioctl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------- */
 /* our private data, and two functions to allocate/free this            */

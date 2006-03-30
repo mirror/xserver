@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dix/main.c,v 1.11 2005/05/22 01:12:49 alanc Exp $ */
+/* $XdotOrg: xserver/xorg/dix/main.c,v 1.16 2006-03-24 20:50:13 fredrik Exp $ */
 /* $XFree86: xc/programs/Xserver/dix/main.c,v 3.43 2003/10/30 21:21:02 herrb Exp $ */
 /***********************************************************
 
@@ -140,13 +140,13 @@ Bool CreateConnectionBlock(void);
 
 static void FreeScreen(ScreenPtr);
 
-PaddingInfo PixmapWidthPaddingInfo[33];
+_X_EXPORT PaddingInfo PixmapWidthPaddingInfo[33];
 
 int connBlockScreenStart;
 
 static int restart = 0;
 
-void
+_X_EXPORT void
 NotImplemented(xEvent *from, xEvent *to)
 {
     FatalError("Not implemented");
@@ -432,9 +432,6 @@ main(int argc, char *argv[], char *envp[])
 	    InitRootWindow(WindowTable[i]);
 	DefineInitialRootWindow(WindowTable[0]);
 	SaveScreens(SCREEN_SAVER_FORCER, ScreenSaverReset);
-#ifdef DPMSExtension
-	SetDPMSTimers();
-#endif
 
 #ifdef PANORAMIX
 	if (!noPanoramiXExtension) {
@@ -481,9 +478,6 @@ main(int argc, char *argv[], char *envp[])
 	WindowTable = NULL;
 	FreeFonts();
 
-#ifdef DPMSExtension
-	FreeDPMSTimers();
-#endif
 	FreeAuditTimer();
 
 	xfree(serverClient->devPrivates);

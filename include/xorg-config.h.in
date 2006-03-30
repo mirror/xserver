@@ -106,4 +106,10 @@
 /* System has wscons console */
 #undef WSCONS_SUPPORT
 
+/* System has /dev/xf86 aperture driver */
+#undef HAS_APERTURE_DRV
+
+/* Has backtrace support */
+#undef HAVE_BACKTRACE
+
 #endif /* _XORG_CONFIG_H_ */

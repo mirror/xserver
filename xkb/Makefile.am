@@ -13,7 +13,6 @@ DDX_SRCS = \
         ddxLEDs.c \
         ddxLoad.c \
         ddxList.c \
-        ddxConfig.c \
         ddxDevBtn.c
 
 DIX_SRCS = \
@@ -31,11 +30,8 @@ DIX_SRCS = \
 XKBFILE_SRCS = \
         maprules.c \
         xkmread.c \
-        xkbtext.c \
         xkbfmisc.c \
-        xkberrs.c \
-        xkbconfig.c \
-        xkbout.c
+        xkberrs.c
 
 X11_SRCS = \
         XKBMisc.c \

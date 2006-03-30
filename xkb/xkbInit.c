@@ -1,5 +1,5 @@
 /* $Xorg: xkbInit.c,v 1.3 2000/08/17 19:53:47 cpqbld Exp $ */
-/* $XdotOrg: xserver/xorg/xkb/xkbInit.c,v 1.9 2005/10/19 22:45:54 ajax Exp $ */
+/* $XdotOrg: xserver/xorg/xkb/xkbInit.c,v 1.13 2006-03-25 22:35:48 daniels Exp $ */
 /************************************************************
 Copyright (c) 1993 by Silicon Graphics Computer Systems, Inc.
 
@@ -146,7 +146,7 @@ char *			XkbOptionsUsed=	NULL;
 int			_XkbClientMajor=	XkbMajorVersion;
 int			_XkbClientMinor=	XkbMinorVersion;
 
-Bool			noXkbExtension=		XKB_DFLT_DISABLED;
+_X_EXPORT Bool		noXkbExtension=		XKB_DFLT_DISABLED;
 Bool			XkbWantRulesProp=	XKB_DFLT_RULES_PROP;
 
 /***====================================================================***/
@@ -254,7 +254,7 @@ XkbSetRulesUsed(XkbRF_VarDefsPtr defs)
     return;
 }
 
-void
+_X_EXPORT void
 XkbSetRulesDflts(char *rulesFile,char *model,char *layout,
 					char *variant,char *options)
 {
@@ -608,7 +608,7 @@ XkbEventCauseRec	cause;
 #define XkbMaxKeyCount MAP_LENGTH
 #endif
 
-Bool
+_X_EXPORT Bool
 XkbInitKeyboardDeviceStruct(
     DeviceIntPtr		dev,
     XkbComponentNamesPtr	names,
@@ -628,8 +628,6 @@ KeySymsRec		tmpSyms,*pSyms;
 CARD8			tmpMods[XkbMaxLegalKeyCode+1],*pMods;
 char			name[PATH_MAX],*rules;
 Bool			ok=False;
-XPointer		config;
-XkbComponentNamesRec	cfgNames;
 XkbRF_VarDefsRec	defs;
 
     if ((dev->key!=NULL)||(dev->kbdfeed!=NULL))
@@ -637,9 +635,7 @@ XkbRF_VarDefsRec	defs;
     pSyms= pSymsIn;
     pMods= pModsIn;
     bzero(&defs,sizeof(XkbRF_VarDefsRec));
-    bzero(&cfgNames,sizeof(XkbComponentNamesRec));
     rules= XkbGetRulesDflts(&defs);
-    config= XkbDDXPreloadConfig(&rules,&defs,&cfgNames,dev);
 
     /*
      * The strings are duplicated because it is not guaranteed that
@@ -691,30 +687,6 @@ XkbRF_VarDefsRec	defs;
 	    }
 	    XkbSetRulesUsed(&defs);
 	}
-    }
-    if (cfgNames.keymap){
-	if (names->keymap) _XkbFree(names->keymap);
-	names->keymap= cfgNames.keymap;
-    }
-    if (cfgNames.keycodes){
-	if (names->keycodes) _XkbFree(names->keycodes);	
-	names->keycodes= cfgNames.keycodes;
-    }
-    if (cfgNames.types) {
-	if (names->types) _XkbFree(names->types);	
-	names->types= cfgNames.types;
-    }
-    if (cfgNames.compat) {
-	if (names->compat) _XkbFree(names->compat);	
-	names->compat= cfgNames.compat;
-    }
-    if (cfgNames.symbols){
-	if (names->symbols) _XkbFree(names->symbols);	
-	names->symbols= cfgNames.symbols;
-    }
-    if (cfgNames.geometry) {
-	if (names->geometry) _XkbFree(names->geometry);
-	names->geometry= cfgNames.geometry;
     }
 
     if (names->keymap) {
@@ -768,8 +740,6 @@ XkbRF_VarDefsRec	defs;
 	LogMessage(X_WARNING, "Couldn't load XKB keymap, falling back to pre-XKB keymap\n");
     }
     ok= InitKeyboardDeviceStruct((DevicePtr)dev,pSyms,pMods,bellProc,ctrlProc);
-    if ((config!=NULL)&&(dev && dev->key && dev->key->xkbInfo))
-	XkbDDXApplyConfig(config,dev->key->xkbInfo);
     _XkbInitFileInfo= NULL;
     if ((pSyms==&tmpSyms)&&(pSyms->map!=NULL)) {
 	_XkbFree(pSyms->map);

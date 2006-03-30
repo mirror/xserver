@@ -323,7 +323,6 @@ LOOKUP xfree86LookupTab[] = {
     SYMFUNC(xf86SetCurrentAccess)
     SYMFUNC(xf86IsPrimaryPci)
     SYMFUNC(xf86IsPrimaryIsa)
-    SYMFUNC(xf86CheckPciGAType)
     SYMFUNC(xf86PrintResList)
     SYMFUNC(xf86AddResToList)
     SYMFUNC(xf86JoinResLists)
@@ -707,6 +706,7 @@ LOOKUP xfree86LookupTab[] = {
     SYMFUNC(xf86MotionHistoryAllocate)
     SYMFUNC(xf86FirstLocalDevice)
     SYMFUNC(xf86eqEnqueue)
+    SYMFUNC(xf86ActivateDevice)
 /* The following segment merged from Metrolink tree */
     SYMFUNC(xf86XInputSetScreen)
     SYMFUNC(xf86ScaleAxis)
@@ -760,6 +760,7 @@ LOOKUP xfree86LookupTab[] = {
     SYMFUNC(LoaderListDirs)
     SYMFUNC(LoaderFreeDirList)
     SYMFUNC(LoaderGetOS)
+    SYMFUNC(LoaderGetABIVersion)
 
     /*
      * These are our own interfaces to libc functions.

@@ -659,7 +659,6 @@ typedef struct pci_device {
     pciCfgSpc cfgspc;
     int	      basesize[7];	/* number of bits in base addr allocations */
     Bool      minBasesize;
-    CARD32    listed_class;
     pointer   businfo;		/* pointer to secondary's bus info structure */
     Bool      fakeDevice;	/* Device added by system chipset support */
 } pciDevice, *pciConfigPtr;
@@ -748,7 +747,7 @@ typedef enum {
 
 typedef enum {
   PCI_BIOS_PC = 0,
-  PCI_BIOS_OPEN_FIRMARE,
+  PCI_BIOS_OPEN_FIRMWARE,
   PCI_BIOS_HP_PA_RISC,
   PCI_BIOS_OTHER
 } PciBiosType;
@@ -774,11 +773,6 @@ pointer	      xf86MapPciMem(int ScreenNum, int Flags, PCITAG Tag,
 				ADDRESS Base, unsigned long Size);
 int	      xf86ReadPciBIOS(unsigned long Offset, PCITAG Tag, int basereg,
 				unsigned char *Buf, int Len);
-int	      xf86ReadPciBIOSByType(unsigned long Offset, PCITAG Tag,
-				    int basereg, unsigned char *Buf,
-				    int Len, PciBiosType Type);
-int	      xf86GetAvailablePciBIOSTypes(PCITAG Tag, int basereg,
-					   PciBiosType *Buf);
 pciConfigPtr *xf86scanpci(int flags);
 
 extern int pciNumBuses;

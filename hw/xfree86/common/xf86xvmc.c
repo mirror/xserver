@@ -48,10 +48,11 @@
 #include "xf86xvpriv.h"
 #include "xf86xvmc.h"
 
+typedef int (*XvMCScreenInitProcPtr)(ScreenPtr, int, XvMCAdaptorPtr);
 #ifdef XFree86LOADER
-int (*XvMCScreenInitProc)(ScreenPtr, int, XvMCAdaptorPtr) = NULL;
+_X_EXPORT XvMCScreenInitProcPtr XvMCScreenInitProc = NULL;
 #else
-int (*XvMCScreenInitProc)(ScreenPtr, int, XvMCAdaptorPtr) = XvMCScreenInit;
+_X_EXPORT XvMCScreenInitProcPtr XvMCScreenInitProc = XvMCScreenInit;
 #endif
 
 
@@ -162,7 +163,7 @@ xf86XvMCCloseScreen (int i, ScreenPtr pScreen)
     return (*pScreen->CloseScreen)(i, pScreen);
 }
 
-Bool xf86XvMCScreenInit(
+_X_EXPORT Bool xf86XvMCScreenInit(
    ScreenPtr pScreen, 
    int num_adaptors,
    XF86MCAdaptorPtr *adaptors
@@ -232,12 +233,12 @@ Bool xf86XvMCScreenInit(
    return TRUE;
 }
 
-XF86MCAdaptorPtr xf86XvMCCreateAdaptorRec (void)
+_X_EXPORT XF86MCAdaptorPtr xf86XvMCCreateAdaptorRec (void)
 {
    return xcalloc(1, sizeof(XF86MCAdaptorRec));
 }
 
-void xf86XvMCDestroyAdaptorRec(XF86MCAdaptorPtr adaptor)
+_X_EXPORT void xf86XvMCDestroyAdaptorRec(XF86MCAdaptorPtr adaptor)
 {
    xfree(adaptor);
 }

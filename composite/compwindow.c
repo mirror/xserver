@@ -1,6 +1,26 @@
 /*
  * $Id$
  *
+ * Copyright © 2006 Sun Microsystems
+ *
+ * Permission to use, copy, modify, distribute, and sell this software and its
+ * documentation for any purpose is hereby granted without fee, provided that
+ * the above copyright notice appear in all copies and that both that
+ * copyright notice and this permission notice appear in supporting
+ * documentation, and that the name of Sun Microsystems not be used in
+ * advertising or publicity pertaining to distribution of the software without
+ * specific, written prior permission.  Sun Microsystems makes no
+ * representations about the suitability of this software for any purpose.  It
+ * is provided "as is" without express or implied warranty.
+ *
+ * SUN MICROSYSTEMS DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
+ * EVENT SHALL SUN MICROSYSTEMS BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ *
  * Copyright © 2003 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -124,10 +144,18 @@ Bool
 compCheckRedirect (WindowPtr pWin)
 {
     CompWindowPtr   cw = GetCompWindow (pWin);
+    CompScreenPtr   cs = GetCompScreen(pWin->drawable.pScreen);
     Bool	    should;
 
     should = pWin->realized && (pWin->drawable.class != InputOnly) &&
 	     (cw != NULL);
+    
+    /* Never redirect the overlay window */
+    if (cs->pOverlayWin != NULL) {
+	if (pWin == cs->pOverlayWin) {
+	    should = FALSE;
+	}
+    }	
     
     if (should != pWin->redirectDraw)
     {
@@ -294,34 +322,6 @@ compImplicitRedirect (WindowPtr pWin, WindowPtr pParent)
 	    return TRUE;
     }
     return FALSE;
-}
-
-/*
- * We're lazy about creating window privates, since redirecting a window
- * implicitly redirects its children.  So we have to walk up towards the
- * root to find out how we're being redirected.
- */
-int
-compRedirectMode(WindowPtr pWin)
-{
-    CompWindowPtr cw = NULL;
-
-    if (CompWindowPrivateIndex == -1) {
-        return -1;
-    }
-
-    for (; pWin; pWin = pWin->parent) {
-        if (pWin->parent == pWin || pWin->parent == NULL)
-            break; /* failure */
-        if ((cw = GetCompWindow(pWin)))
-            break; /* success */
-    }
-
-    if (!cw) {
-        return -1;
-    }
-
-    return cw->update;
 }
 
 void
@@ -576,9 +576,7 @@ compCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 	REGION_TRANSLATE (prgnSrc, prgnSrc,
 			  pWin->drawable.x - ptOldOrg.x,
 			  pWin->drawable.y - ptOldOrg.y);
-#if 0
-   DamageDamageRegion (&pWin->drawable, prgnSrc);
-#endif
+	DamageDamageRegion (&pWin->drawable, prgnSrc);
     }
     cs->CopyWindow = pScreen->CopyWindow;
     pScreen->CopyWindow = compCopyWindow;
@@ -657,9 +655,7 @@ compSetRedirectBorderClip (WindowPtr pWin, RegionPtr pRegion)
     /*
      * Report that as damaged so it will be redrawn
      */
-#if 0
     DamageDamageRegion (&pWin->drawable, &damage);
-#endif
     REGION_UNINIT (pScreen, &damage);
     /*
      * Save the new border clip region
@@ -783,5 +779,36 @@ compWindowUpdate (WindowPtr pWin)
 	    compWindowUpdateAutomatic (pWin);
 	    cw->damaged = FALSE;
 	}
+    }
+}
+
+WindowPtr
+CompositeRealChildHead (WindowPtr pWin)
+{
+    WindowPtr pChild, pChildBefore;
+    CompScreenPtr cs;
+
+    if (!pWin->parent &&
+	(screenIsSaved == SCREEN_SAVER_ON) &&
+	(HasSaverWindow (pWin->drawable.pScreen->myNum))) {
+
+	/* First child is the screen saver; see if next child is the overlay */
+	pChildBefore = pWin->firstChild;
+	pChild = pChildBefore->nextSib;
+
+    } else {
+	pChildBefore = NullWindow;
+	pChild = pWin->firstChild;
+    }
+
+    if (!pChild) {
+	return NullWindow;
+    }
+    
+    cs = GetCompScreen(pWin->drawable.pScreen);
+    if (pChild == cs->pOverlayWin) {
+	return pChild;
+    } else {
+	return pChildBefore;
     }
 }

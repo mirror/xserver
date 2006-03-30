@@ -2,7 +2,15 @@ INCLUDES = 					\
 	@KDRIVE_INCS@				\
 	@KDRIVE_CFLAGS@
 
+AM_CFLAGS =	-DHAVE_DIX_CONFIG_H
+
 noinst_LIBRARIES = libkdrive.a libkdrivestubs.a
+
+if KDRIVE_HW
+KDRIVE_HW_SOURCES =	\
+	vga.c		\
+	vga.h
+endif
 
 libkdrive_a_SOURCES =	\
 	fourcc.h	\
@@ -25,8 +33,7 @@ libkdrive_a_SOURCES =	\
 	ktest.c		\
 	kxv.c		\
 	kxv.h		\
-	vga.c		\
-	vga.h           \
+	$(KDRIVE_HW_SOURCES) \
         $(top_srcdir)/mi/miinitext.c
 
 libkdrivestubs_a_SOURCES = \

@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/Xext/saver.c,v 1.7 2005/04/20 12:25:12 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/Xext/saver.c,v 1.11 2006-02-10 22:00:20 anholt Exp $ */
 /*
  * $XConsortium: saver.c,v 1.12 94/04/17 20:59:36 dpw Exp $
  *
@@ -57,11 +57,7 @@ in this Software without prior written authorization from the X Consortium.
 #endif
 
 
-#ifdef IN_MODULE
-#include <xf86_ansic.h>
-#else
 #include <stdio.h>
-#endif
 
 #include "modinit.h"
 

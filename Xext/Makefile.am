@@ -4,9 +4,13 @@
 #                    Xorg by default
 # libXextmodule.la:  includes those extensions that are built into a module
 #                    that Xorg loads
+if XORG
 noinst_LTLIBRARIES = libXext.la libXextbuiltin.la libXextmodule.la
+else
+noinst_LTLIBRARIES = libXext.la
+endif
 
-INCLUDES = -I$(top_srcdir)/hw/xfree86/dixmods/extmod -I$(top_srcdir)/hw/xfree86/os-support
+INCLUDES = -I$(top_srcdir)/hw/xfree86/dixmods/extmod
 
 AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @LOADER_DEFINES@
 
@@ -22,8 +26,7 @@ BUILTIN_SRCS =			\
 	xtest.c			\
 	xtest1di.c		\
 	xtest1dd.c		\
-	xtest1dd.h		\
-	xf86bigfont.c
+	xtest1dd.h
 
 # Sources always included in libXextmodule.la & libXext.la
 MODULE_SRCS =			\
@@ -31,14 +34,12 @@ MODULE_SRCS =			\
 	mitmisc.c		\
 	shape.c			\
 	sync.c			\
-	xcmisc.c		\
-	dpms.c			\
-	dpmsproc.h
+	xcmisc.c
 
 # Optional sources included if extension enabled by configure.ac rules
 
 # MIT Shared Memory extension
-MITSHM_SRCS = shm.c shmint.h 
+MITSHM_SRCS = shm.c shmint.h
 if MITSHM
 BUILTIN_SRCS += $(MITSHM_SRCS)
 endif
@@ -123,14 +124,27 @@ if FONTCACHE
 MODULE_SRCS  += $(FONTCACHE_SRCS)
 endif
 
+# XF86 Big Font extension
+BIGFONT_SRCS = xf86bigfont.c
+if XF86BIGFONT
+BUILTIN_SRCS += $(BIGFONT_SRCS)
+endif
+
+# DPMS extension
+DPMS_SRCS = dpms.c dpmsproc.h
+if DPMSExtension
+MODULE_SRCS += $(DPMS_SRCS)
+endif
+
 # Now take all of the above, mix well, bake for 10 minutes and get libXext*.la
 
 libXext_la_SOURCES =		$(BUILTIN_SRCS) $(MODULE_SRCS)
 
+if XORG
 libXextbuiltin_la_SOURCES =	$(BUILTIN_SRCS)
 
 libXextmodule_la_SOURCES =	$(MODULE_SRCS)
-libXextmodule_la_CFLAGS = 	$(AM_CFLAGS) @MODULE_DEFINES@ -DEXTMODULE
+endif
 
 EXTRA_DIST = \
 	README.xtest1-ddx \
@@ -148,5 +162,7 @@ EXTRA_DIST = \
 	$(EVI_SRCS) \
 	$(MULTIBUFFER_SRCS) \
 	$(EXTRA_MULTIBUFFER_SRCS) \
-	$(FONTCACHE_SRCS)
+	$(FONTCACHE_SRCS) \
+	$(BIGFONT_SRCS) \
+	$(DPMS_SRCS)
 

@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.3 2006/02/02 02:20:24 davidr Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.4 2006/02/02 02:35:00 davidr Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -33,11 +33,14 @@
 
 #ifdef RENDER
 
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <assert.h>
+
 #include "picturestr.h"
 #include "mipict.h"
 #include "fbpict.h"
-#include <math.h>
-
 
 static unsigned int
 SourcePictureClassify (PicturePtr pict,

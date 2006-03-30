@@ -73,9 +73,12 @@ libfb_la_LIBADD = $(top_builddir)/fb/libfb.la
 libfb_la_SOURCES = $(top_builddir)/fb/fbcmap.c fbmodule.c
 
 libglx_la_LDFLAGS = -avoid-version
+if AIGLX
+GLXDRI_LIBRARY = $(top_builddir)/GL/glx/libglxdri.la
+endif
 libglx_la_LIBADD = \
 	$(top_builddir)/GL/glx/libglx.la \
-	$(top_builddir)/GL/glx/libglxdri.la
+	$(GLXDRI_LIBRARY)
 libglx_la_SOURCES = glxmodule.c
 
 libmfb_la_LDFLAGS = -avoid-version
@@ -98,13 +101,8 @@ libtype1_la_SOURCES = type1mod.c
 
 libdixmods_la_SOURCES = $(top_srcdir)/mi/miinitext.c
 
-XKB_SOURCES = xkbVT.c xkbPrivate.c xkbKillSrv.c
-libxorgxkb_la_SOURCES = $(XKB_SOURCES)
+libxorgxkb_la_SOURCES = xkbVT.c xkbPrivate.c xkbKillSrv.c
 
 libxtrap_la_LDFLAGS = -avoid-version
 libxtrap_la_LIBADD = $(top_builddir)/XTrap/libxtrap.la
 libxtrap_la_SOURCES = xf86XTrapModule.c
-
-$(XKB_SOURCES):
-	echo "#define XF86DDXACTIONS" > $@
-	echo "#include \"$(top_srcdir)/xkb/ddx${@:xkb%=%}\"" >> $@

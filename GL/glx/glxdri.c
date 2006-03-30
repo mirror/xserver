@@ -144,7 +144,7 @@ __glXDRIdrawableDestroy(__GLXdrawable *private)
 					    glxPriv->driDrawable.private);
 #endif
 
-    __glXFree(private);
+    xfree(private);
 }
 
 static GLboolean
@@ -177,32 +177,6 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *basePrivate)
     return TRUE;
 }
 
-static GLboolean
-__glXDRIdrawableCopySubBuffer(__GLXdrawable *basePrivate,
-			      int	    x,
-			      int	    y,
-			      int	    width,
-			      int	    height)
-{
-    __GLXDRIdrawable *private = (__GLXDRIdrawable *) basePrivate;
-    __GLXDRIscreen *screen;
-
-    /* FIXME: We're jumping through hoops here to get the DRIdrawable
-     * which the dri driver tries to keep to it self...  cf. FIXME in
-     * createDrawable. */
-
-    screen = (__GLXDRIscreen *) __glXgetActiveScreen(private->base.pDraw->pScreen->myNum);
-    private->driDrawable = (screen->driScreen.getDrawable)(NULL,
-							   private->base.drawId,
-							   screen->driScreen.private);
-
-    (*private->driDrawable->copySubBuffer)(NULL,
-					   private->driDrawable->private,
-					   x, y, width, height);
-
-    return TRUE;
-}
-
 static __GLXdrawable *
 __glXDRIcontextCreateDrawable(__GLXcontext *context,
 			      DrawablePtr pDraw,
@@ -210,21 +184,20 @@ __glXDRIcontextCreateDrawable(__GLXcontext *context,
 {
     __GLXDRIdrawable *private;
 
-    private = __glXMalloc(sizeof *private);
+    private = xalloc(sizeof *private);
     if (private == NULL)
 	return NULL;
 
     memset(private, 0, sizeof *private);
 
     if (!__glXDrawableInit(&private->base, context, pDraw, drawId)) {
-        __glXFree(private);
+        xfree(private);
 	return NULL;
     }
 
-    private->base.destroy	= __glXDRIdrawableDestroy;
-    private->base.resize	= __glXDRIdrawableResize;
-    private->base.swapBuffers	= __glXDRIdrawableSwapBuffers;
-    private->base.copySubBuffer = __glXDRIdrawableCopySubBuffer;
+    private->base.destroy     = __glXDRIdrawableDestroy;
+    private->base.resize      = __glXDRIdrawableResize;
+    private->base.swapBuffers = __glXDRIdrawableSwapBuffers;
     
 #if 0
     /* FIXME: It would only be natural that we called
@@ -254,7 +227,8 @@ __glXDRIcontextDestroy(__GLXcontext *baseContext)
     context->driContext.destroyContext(NULL,
 				       context->base.pScreen->myNum,
 				       context->driContext.private);
-    __glXFree(context);
+    __glXContextDestroy(&context->base);
+    xfree(context);
 }
 
 static int
@@ -434,7 +408,7 @@ __glXDRIscreenDestroy(__GLXscreen *baseScreen)
 
     __glXScreenDestroy(baseScreen);
 
-    __glXFree(screen);
+    xfree(screen);
 }
 
 static __GLXcontext *
@@ -452,7 +426,7 @@ __glXDRIscreenCreateContext(__GLXscreen *baseScreen,
     else
 	sharePrivate = NULL;
 
-    context = __glXMalloc(sizeof *context);
+    context = xalloc(sizeof *context);
     if (context == NULL)
 	return NULL;
 
@@ -487,7 +461,8 @@ filter_modes(__GLcontextModes **server_modes,
     unsigned modes_count = 0;
 
     if ( driver_modes == NULL ) {
-	fprintf(stderr, "libGL warning: 3D driver returned no fbconfigs.\n");
+	LogMessage(X_WARNING,
+		   "AIGLX: 3D driver returned no fbconfigs.\n");
 	return 0;
     }
 
@@ -512,8 +487,9 @@ filter_modes(__GLcontextModes **server_modes,
 	if ( do_delete && (m->visualID != 0) ) {
 	    do_delete = GL_FALSE;
 
-	    fprintf(stderr, "libGL warning: 3D driver claims to not support "
-		    "visual 0x%02x\n", m->visualID);
+	    LogMessage(X_WARNING,
+		       "AIGLX: 3D driver claims to not support "
+		       "visual 0x%02x\n", m->visualID);
 	}
 
 	if ( do_delete ) {
@@ -674,7 +650,7 @@ getDrawableInfo(__DRInativeDisplay *dpy, int screen,
 
     if (*numClipRects > 0) {
 	size = sizeof (drm_clip_rect_t) * *numClipRects;
-	*ppClipRects = __glXMalloc (size);
+	*ppClipRects = xalloc (size);
 	if (*ppClipRects != NULL)
 	    memcpy (*ppClipRects, pClipRects, size);
     }
@@ -684,7 +660,7 @@ getDrawableInfo(__DRInativeDisplay *dpy, int screen,
       
     if (*numBackClipRects > 0) {
 	size = sizeof (drm_clip_rect_t) * *numBackClipRects;
-	*ppBackClipRects = __glXMalloc (size);
+	*ppBackClipRects = xalloc (size);
 	if (*ppBackClipRects != NULL)
 	    memcpy (*ppBackClipRects, pBackClipRects, size);
     }
@@ -747,8 +723,6 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     __DRIframebuffer  framebuffer;
     int   fd = -1;
     int   status;
-    const char *err_msg;
-    const char *err_extra = NULL;
     int api_ver = INTERNAL_VERSION;
     drm_magic_t magic;
     drmVersionPtr version;
@@ -759,8 +733,20 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     __GLXDRIscreen *screen;
     void *dev_priv = NULL;
     char filename[128];
+    Bool isCapable;
 
-    screen = __glXMalloc(sizeof *screen);
+    if (dlsym (NULL, "DRIQueryDirectRenderingCapable") == NULL) {
+	LogMessage(X_ERROR, "AIGLX: DRI module not loaded\n");
+	return NULL;
+    }
+
+    if (!DRIQueryDirectRenderingCapable(pScreen, &isCapable) || !isCapable) {
+	LogMessage(X_ERROR,
+		   "AIGLX: Screen %d is not DRI capable\n", pScreen->myNum);
+	return NULL;
+    }
+
+    screen = xalloc(sizeof *screen);
     if (screen == NULL)
       return NULL;
     memset(screen, 0, sizeof *screen);
@@ -780,21 +766,20 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     framebuffer.dev_priv = NULL;
 
     if (!DRIOpenConnection(pScreen, &hSAREA, &BusID)) {
-	err_msg = "DRIOpenConnection";
-	err_extra = NULL;
+	LogMessage(X_ERROR, "AIGLX error: DRIOpenConnection failed\n");
 	goto handle_error;
     }
 
     fd = drmOpen(NULL, BusID);
 
     if (fd < 0) {
-	err_msg = "open DRM";
-	err_extra = strerror( -fd );
+	LogMessage(X_ERROR, "AIGLX error: drmOpen failed (%s)\n",
+		   strerror(-fd));
 	goto handle_error;
     }
 
     if (drmGetMagic(fd, &magic)) {
-	err_msg = "drmGetMagic";
+	LogMessage(X_ERROR, "AIGLX error: drmGetMagic failed\n");
 	goto handle_error;
     }
 
@@ -812,7 +797,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     }
 
     if (!DRIAuthConnection(pScreen, magic)) {
-	err_msg = "DRIAuthConnection";
+	LogMessage(X_ERROR, "AIGLX error: DRIAuthConnection failed\n");
 	goto handle_error;
     }
 
@@ -824,7 +809,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 				&ddx_version.minor,
 				&ddx_version.patch,
 				&driverName)) {
-	err_msg = "DRIGetClientDriverName";
+	LogMessage(X_ERROR, "AIGLX error: DRIGetClientDriverName failed\n");
 	goto handle_error;
     }
 
@@ -833,15 +818,15 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 
     screen->driver = dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
     if (screen->driver == NULL) {
-        err_msg = "Loading driver";
-        err_extra = filename;
+	LogMessage(X_ERROR, "AIGLX error: dlopen of %s failed (%s)\n",
+		   filename, dlerror());
         goto handle_error;
     }
 
     createNewScreen = dlsym(screen->driver, CREATE_NEW_SCREEN_FUNC);
     if (createNewScreen == NULL) {
-      err_msg = "Driver entry point lookup";
-      err_extra = CREATE_NEW_SCREEN_FUNC;
+	LogMessage(X_ERROR, "AIGLX error: dlsym for %s failed (%s)\n",
+		   CREATE_NEW_SCREEN_FUNC, dlerror());
       goto handle_error;
     }
 
@@ -854,7 +839,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     if (!DRIGetDeviceInfo(pScreen, &hFB, &junk,
 			  &framebuffer.size, &framebuffer.stride,
 			  &framebuffer.dev_priv_size, &framebuffer.dev_priv)) {
-	err_msg = "XF86DRIGetDeviceInfo";
+	LogMessage(X_ERROR, "AIGLX error: XF86DRIGetDeviceInfo failed");
 	goto handle_error;
     }
 
@@ -863,9 +848,9 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
      * but we can't use _mesa_malloc() here.  In fact, the DRI driver
      * shouldn't free data it didn't allocate itself, but what can you
      * do... */
-    dev_priv = __glXMalloc(framebuffer.dev_priv_size);
+    dev_priv = xalloc(framebuffer.dev_priv_size);
     if (dev_priv == NULL) {
-	err_msg = "dev_priv allocation";
+	LogMessage(X_ERROR, "AIGLX error: dev_priv allocation failed");
 	goto handle_error;
     }
     memcpy(dev_priv, framebuffer.dev_priv, framebuffer.dev_priv_size);
@@ -878,8 +863,8 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     status = drmMap(fd, hFB, framebuffer.size, 
 		    (drmAddressPtr)&framebuffer.base);
     if (status != 0) {
-	err_msg = "drmMap of framebuffer";
-	err_extra = strerror( -status );
+	LogMessage(X_ERROR, "AIGLX error: drmMap of framebuffer failed (%s)",
+		   strerror(-status));
 	goto handle_error;
     }
 
@@ -888,13 +873,11 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
      */
     status = drmMap(fd, hSAREA, SAREA_MAX, &pSAREA);
     if (status != 0) {
-	err_msg = "drmMap of sarea";
-	err_extra = strerror( -status );
+	LogMessage(X_ERROR, "AIGLX error: drmMap of SAREA failed (%s)",
+		   strerror(-status));
 	goto handle_error;
     }
     
-    __glXScreenInit(&screen->base, pScreen);
-
     driver_modes = NULL;
     screen->driScreen.private =
 	(*createNewScreen)(NULL, pScreen->myNum,
@@ -911,10 +894,11 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 			   &driver_modes);
 
     if (screen->driScreen.private == NULL) {
-	err_msg = "InitDriver";
-	err_extra = NULL;
+	LogMessage(X_ERROR, "AIGLX error: Calling driver entry point failed");
 	goto handle_error;
     }
+
+    __glXScreenInit(&screen->base, pScreen);
 
     filter_modes(&screen->base.modes, driver_modes);
     _gl_context_modes_destroy(driver_modes);
@@ -922,7 +906,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     __glXsetEnterLeaveServerFuncs(__glXDRIenterServer, __glXDRIleaveServer);
 
     LogMessage(X_INFO,
-	       "GLX-DRI: Loaded and initialized %s\n", filename);
+	       "AIGLX: Loaded and initialized %s\n", filename);
 
     return &screen->base;
 
@@ -934,7 +918,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 	drmUnmap((drmAddress)framebuffer.base, framebuffer.size);
 
     if (dev_priv != NULL)
-	__glXFree(dev_priv);
+	xfree(dev_priv);
 
     if (fd >= 0)
 	drmClose(fd);
@@ -946,13 +930,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 
     xfree(screen);
 
-    if (err_extra != NULL)
-	LogMessage(X_ERROR,
-                   "GLX-DRI error: %s failed (%s)\n", err_msg, err_extra);
-    else
-	LogMessage(X_ERROR, "GLX-DRI error: %s failed\n", err_msg);
-
-    ErrorF("GLX-DRI: reverting to software rendering\n");
+    LogMessage(X_ERROR, "GLX-DRI: reverting to software rendering\n");
 
     return NULL;
 }

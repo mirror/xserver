@@ -62,9 +62,6 @@ in this Software without prior written authorization from The Open Group.
 #define _XSHM_SERVER_
 #include <X11/extensions/shmstr.h>
 #include <X11/Xfuncproto.h>
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#endif
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -115,9 +112,9 @@ static DISPATCH_PROC(SProcShmPutImage);
 static DISPATCH_PROC(SProcShmQueryVersion);
 
 static unsigned char ShmReqCode;
-int ShmCompletionCode;
-int BadShmSegCode;
-RESTYPE ShmSegType;
+_X_EXPORT int ShmCompletionCode;
+_X_EXPORT int BadShmSegCode;
+_X_EXPORT RESTYPE ShmSegType;
 static ShmDescPtr Shmsegs;
 static Bool sharedPixmaps;
 static int pixmapFormat;

@@ -48,7 +48,7 @@ SOFTWARE.
 
 
 /* $Xorg: devices.c,v 1.4 2001/02/09 02:04:39 xorgcvs Exp $ */
-/* $XdotOrg: xc/programs/Xserver/dix/devices.c,v 1.5 2005/05/22 01:12:49 alanc Exp $ */
+/* $XdotOrg: xserver/xorg/dix/devices.c,v 1.10 2006-03-28 01:20:59 ajax Exp $ */
 
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
@@ -126,7 +126,8 @@ _AddInputDevice(DeviceProc deviceProc, Bool autoStart)
     dev->xkb_interest= NULL;
 #endif
     dev->nPrivates = 0;
-    dev->devPrivates = dev->unwrapProc = NULL;
+    dev->devPrivates = NULL;
+    dev->unwrapProc = NULL;
     inputInfo.off_devices = dev;
     return dev;
 }
@@ -400,13 +401,13 @@ _RegisterKeyboardDevice(DeviceIntPtr device)
     }
 }
 
-DevicePtr
+_X_EXPORT DevicePtr
 LookupKeyboardDevice()
 {
     return inputInfo.keyboard ? &inputInfo.keyboard->public : NULL;
 }
 
-DevicePtr
+_X_EXPORT DevicePtr
 LookupPointerDevice()
 {
     return inputInfo.pointer ? &inputInfo.pointer->public : NULL;
@@ -528,7 +529,7 @@ InitModMap(register KeyClassPtr keyc)
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitKeyClassDeviceStruct(DeviceIntPtr dev, KeySymsPtr pKeySyms, CARD8 pModifiers[])
 {
     int i;
@@ -566,7 +567,7 @@ InitKeyClassDeviceStruct(DeviceIntPtr dev, KeySymsPtr pKeySyms, CARD8 pModifiers
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitButtonClassDeviceStruct(register DeviceIntPtr dev, int numButtons, 
                             CARD8 *map)
 {
@@ -590,7 +591,7 @@ InitButtonClassDeviceStruct(register DeviceIntPtr dev, int numButtons,
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes, 
                               ValuatorMotionProcPtr motionProc, 
                               int numMotionEvents, int mode)
@@ -616,7 +617,7 @@ InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes,
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitFocusClassDeviceStruct(DeviceIntPtr dev)
 {
     register FocusClassPtr focc;
@@ -634,7 +635,7 @@ InitFocusClassDeviceStruct(DeviceIntPtr dev)
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitKbdFeedbackClassDeviceStruct(DeviceIntPtr dev, BellProcPtr bellProc, 
                                  KbdCtrlProcPtr controlProc)
 {
@@ -662,7 +663,7 @@ InitKbdFeedbackClassDeviceStruct(DeviceIntPtr dev, BellProcPtr bellProc,
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitPtrFeedbackClassDeviceStruct(DeviceIntPtr dev, PtrCtrlProcPtr controlProc)
 {
     register PtrFeedbackPtr feedc;
@@ -703,7 +704,7 @@ IntegerCtrl defaultIntegerControl = {
 	DEFAULT_INT_DISPLAYED,
 	0};
 
-Bool
+_X_EXPORT Bool
 InitStringFeedbackClassDeviceStruct (
       DeviceIntPtr dev, StringCtrlProcPtr controlProc, 
       int max_symbols, int num_symbols_supported, KeySym *symbols)
@@ -743,7 +744,7 @@ InitStringFeedbackClassDeviceStruct (
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitBellFeedbackClassDeviceStruct (DeviceIntPtr dev, BellProcPtr bellProc, 
                                    BellCtrlProcPtr controlProc)
 {
@@ -763,7 +764,7 @@ InitBellFeedbackClassDeviceStruct (DeviceIntPtr dev, BellProcPtr bellProc,
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitLedFeedbackClassDeviceStruct (DeviceIntPtr dev, LedCtrlProcPtr controlProc)
 {
     register LedFeedbackPtr feedc;
@@ -784,7 +785,7 @@ InitLedFeedbackClassDeviceStruct (DeviceIntPtr dev, LedCtrlProcPtr controlProc)
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitIntegerFeedbackClassDeviceStruct (DeviceIntPtr dev, IntegerCtrlProcPtr controlProc)
 {
     register IntegerFeedbackPtr feedc;
@@ -802,7 +803,7 @@ InitIntegerFeedbackClassDeviceStruct (DeviceIntPtr dev, IntegerCtrlProcPtr contr
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 InitPointerDeviceStruct(DevicePtr device, CARD8 *map, int numButtons, 
                         ValuatorMotionProcPtr motionProc, 
                         PtrCtrlProcPtr controlProc, int numMotionEvents)
@@ -815,7 +816,7 @@ InitPointerDeviceStruct(DevicePtr device, CARD8 *map, int numButtons,
 	   InitPtrFeedbackClassDeviceStruct(dev, controlProc));
 }
 
-Bool
+_X_EXPORT Bool
 InitKeyboardDeviceStruct(DevicePtr device, KeySymsPtr pKeySyms, 
                          CARD8 pModifiers[], BellProcPtr bellProc, 
                          KbdCtrlProcPtr controlProc) 
@@ -827,7 +828,7 @@ InitKeyboardDeviceStruct(DevicePtr device, KeySymsPtr pKeySyms,
 	   InitKbdFeedbackClassDeviceStruct(dev, bellProc, controlProc));
 }
 
-void
+_X_EXPORT void
 SendMappingNotify(unsigned request, unsigned firstKeyCode, unsigned count, 
                   ClientPtr client)
 {
@@ -1199,7 +1200,7 @@ NoteLedState(DeviceIntPtr keybd, int led, Bool on)
 	ctrl->leds &= ~((Leds)1 << (led - 1));
 }
 
-int
+_X_EXPORT int
 Ones(unsigned long mask)             /* HACKMEM 169 */
 {
     register unsigned long y;

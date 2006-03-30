@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/hw/xfree86/common/xf86RandR.c,v 1.9 2005/04/20 12:25:21 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/hw/xfree86/common/xf86RandR.c,v 1.26 2006-03-25 19:52:03 ajax Exp $ */
 /*
  * $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86RandR.c,v 1.7tsi Exp $
  *
@@ -340,7 +340,7 @@ xf86RandRCloseScreen (int index, ScreenPtr pScreen)
     return (*pScreen->CloseScreen) (index, pScreen);
 }
 
-Rotation
+_X_EXPORT Rotation
 xf86GetRotation(ScreenPtr pScreen)
 {
     if (xf86RandRIndex == -1)
@@ -350,7 +350,7 @@ xf86GetRotation(ScreenPtr pScreen)
 }
 
 /* Function to change RandR's idea of the virtual screen size */
-Bool
+_X_EXPORT Bool
 xf86RandRSetNewVirtualAndDimensions(ScreenPtr pScreen,
 	int newvirtX, int newvirtY, int newmmWidth, int newmmHeight,
 	Bool resetMode)

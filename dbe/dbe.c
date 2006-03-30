@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/dbe/dbe.c,v 1.3 2005/04/20 12:25:19 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/dbe/dbe.c,v 1.7 2006-03-28 01:20:59 ajax Exp $ */
 /* $Xorg: dbe.c,v 1.3 2000/08/17 19:48:16 cpqbld Exp $ */
 /******************************************************************************
  * 
@@ -41,6 +41,8 @@
 #include <dix-config.h>
 #endif
 
+#include <string.h>
+
 #include <X11/X.h>
 #include <X11/Xproto.h>
 #include "scrnintstr.h"
@@ -50,10 +52,6 @@
 #define NEED_DBE_PROTOCOL
 #include "dbestruct.h"
 #include "midbe.h"
-
-#ifdef XFree86LOADER
-#include "xf86_ansic.h"
-#endif
 
 /* GLOBALS */
 
@@ -102,10 +100,7 @@ static Bool	firstRegistrationPass = TRUE;
  *****************************************************************************/
 
 void
-DbeValidateBuffer(pWin, drawID, dstbuf)
-    WindowPtr pWin;
-    XID drawID;
-    Bool dstbuf;
+DbeValidateBuffer(WindowPtr pWin, XID drawID, Bool dstbuf)
 {
     DbeScreenPrivPtr pDbeScreenPriv = DBE_SCREEN_PRIV_FROM_WINDOW(pWin);
     if (pDbeScreenPriv->ValidateBuffer)
@@ -124,9 +119,7 @@ DbeValidateBuffer(pWin, drawID, dstbuf)
  *****************************************************************************/
 
 void
-DbeRegisterFunction(pScreen, funct)
-    ScreenPtr	pScreen;
-    Bool	(*funct)();
+DbeRegisterFunction(ScreenPtr pScreen, Bool (*funct) (/* ??? */))
 {
     int	i;
 
@@ -160,8 +153,7 @@ DbeRegisterFunction(pScreen, funct)
  *
  *****************************************************************************/
 static DbeWindowPrivPtr
-DbeAllocWinPriv(pScreen)
-    ScreenPtr	pScreen;
+DbeAllocWinPriv(ScreenPtr pScreen)
 {
     DbeWindowPrivPtr		pDbeWindowPriv;
     DbeScreenPrivPtr		pDbeScreenPriv;
@@ -230,7 +222,7 @@ DbeFallbackAllocWinPriv(pScreen)
  *****************************************************************************/
 
 static int
-DbeAllocWinPrivPrivIndex()
+DbeAllocWinPrivPrivIndex(void)
 {
     return winPrivPrivCount++;
 
@@ -250,10 +242,7 @@ DbeAllocWinPrivPrivIndex()
  *****************************************************************************/
 
 static Bool
-DbeAllocWinPrivPriv(pScreen, index, amount)
-    register ScreenPtr	pScreen;
-    int			index;
-    unsigned int	amount;
+DbeAllocWinPrivPriv(register ScreenPtr pScreen, int index, unsigned int amount)
 {
     DbeScreenPrivPtr	pDbeScreenPriv;
     unsigned int	oldamount;
@@ -304,9 +293,7 @@ DbeAllocWinPrivPriv(pScreen, index, amount)
  *****************************************************************************/
 
 static void
-DbeStubScreen(pDbeScreenPriv, nStubbedScreens)
-    DbeScreenPrivPtr	pDbeScreenPriv;
-    int			*nStubbedScreens;
+DbeStubScreen(DbeScreenPrivPtr pDbeScreenPriv, int *nStubbedScreens)
 {
     /* Stub DIX. */
     pDbeScreenPriv->SetupBackgroundPainter = NULL;
@@ -353,8 +340,7 @@ DbeStubScreen(pDbeScreenPriv, nStubbedScreens)
  *****************************************************************************/
 
 static int
-ProcDbeGetVersion(client)
-    ClientPtr client;
+ProcDbeGetVersion(ClientPtr client)
 {
     /* REQUEST(xDbeGetVersionReq); */
     xDbeGetVersionReply	rep;
@@ -405,8 +391,7 @@ ProcDbeGetVersion(client)
  *****************************************************************************/
 
 static int
-ProcDbeAllocateBackBufferName(client)
-    ClientPtr client;
+ProcDbeAllocateBackBufferName(ClientPtr client)
 {
     REQUEST(xDbeAllocateBackBufferNameReq);
     WindowPtr			pWin;
@@ -640,8 +625,7 @@ ProcDbeAllocateBackBufferName(client)
  *****************************************************************************/
 
 static int
-ProcDbeDeallocateBackBufferName(client)
-    ClientPtr	client;
+ProcDbeDeallocateBackBufferName(ClientPtr client)
 {
     REQUEST(xDbeDeallocateBackBufferNameReq);
     DbeWindowPrivPtr	pDbeWindowPriv;
@@ -712,8 +696,7 @@ ProcDbeDeallocateBackBufferName(client)
  *****************************************************************************/
 
 static int
-ProcDbeSwapBuffers(client)
-    ClientPtr client;
+ProcDbeSwapBuffers(ClientPtr client)
 {
     REQUEST(xDbeSwapBuffersReq);
     WindowPtr		pWin;
@@ -837,8 +820,7 @@ ProcDbeSwapBuffers(client)
  *****************************************************************************/
 
 static int
-ProcDbeBeginIdiom(client)
-    ClientPtr client;
+ProcDbeBeginIdiom(ClientPtr client)
 {
     /* REQUEST(xDbeBeginIdiomReq); */
     DbeScreenPrivPtr	pDbeScreenPriv;
@@ -881,8 +863,7 @@ ProcDbeBeginIdiom(client)
  *****************************************************************************/
 
 static int
-ProcDbeGetVisualInfo(client)
-    ClientPtr client;
+ProcDbeGetVisualInfo(ClientPtr client)
 {
     REQUEST(xDbeGetVisualInfoReq);
     DbeScreenPrivPtr		pDbeScreenPriv;
@@ -1058,8 +1039,7 @@ ProcDbeGetVisualInfo(client)
  *****************************************************************************/
 
 static int
-ProcDbeGetBackBufferAttributes(client)
-    ClientPtr client;
+ProcDbeGetBackBufferAttributes(ClientPtr client)
 {
     REQUEST(xDbeGetBackBufferAttributesReq);
     xDbeGetBackBufferAttributesReply	rep;
@@ -1108,8 +1088,7 @@ ProcDbeGetBackBufferAttributes(client)
  *****************************************************************************/
 
 static int
-ProcDbeDispatch(client)
-    ClientPtr client;
+ProcDbeDispatch(ClientPtr client)
 {
     REQUEST(xReq);
 
@@ -1164,8 +1143,7 @@ ProcDbeDispatch(client)
  *****************************************************************************/
 
 static int
-SProcDbeGetVersion(client)
-    ClientPtr client;
+SProcDbeGetVersion(ClientPtr client)
 {
     REQUEST(xDbeGetVersionReq);
     register int	n;
@@ -1201,8 +1179,7 @@ SProcDbeGetVersion(client)
  *****************************************************************************/
 
 static int
-SProcDbeAllocateBackBufferName(client)
-    ClientPtr client;
+SProcDbeAllocateBackBufferName(ClientPtr client)
 {
     REQUEST(xDbeAllocateBackBufferNameReq);
     register int	n;
@@ -1237,8 +1214,7 @@ SProcDbeAllocateBackBufferName(client)
  *****************************************************************************/
 
 static int
-SProcDbeDeallocateBackBufferName(client)
-    ClientPtr client;
+SProcDbeDeallocateBackBufferName(ClientPtr client)
 {
     REQUEST (xDbeDeallocateBackBufferNameReq);
     register int	n;
@@ -1276,8 +1252,7 @@ SProcDbeDeallocateBackBufferName(client)
  *****************************************************************************/
 
 static int
-SProcDbeSwapBuffers(client)
-    ClientPtr client;
+SProcDbeSwapBuffers(ClientPtr client)
 {
     REQUEST(xDbeSwapBuffersReq);
     register int	i, n;
@@ -1325,8 +1300,7 @@ SProcDbeSwapBuffers(client)
  *****************************************************************************/
 
 static int
-SProcDbeBeginIdiom(client)
-    ClientPtr client;
+SProcDbeBeginIdiom(ClientPtr client)
 {
     REQUEST(xDbeBeginIdiomReq);
     register int	n;
@@ -1355,8 +1329,7 @@ SProcDbeBeginIdiom(client)
  *****************************************************************************/
 
 static int
-SProcDbeGetVisualInfo(client)
-    ClientPtr client;
+SProcDbeGetVisualInfo(ClientPtr client)
 {
     REQUEST(xDbeGetVisualInfoReq);
     register int	n;
@@ -1390,8 +1363,7 @@ SProcDbeGetVisualInfo(client)
  *****************************************************************************/
 
 static int
-SProcDbeGetBackBufferAttributes(client)
-    ClientPtr client;
+SProcDbeGetBackBufferAttributes(ClientPtr client)
 {
     REQUEST (xDbeGetBackBufferAttributesReq);
     register int	n;
@@ -1417,8 +1389,7 @@ SProcDbeGetBackBufferAttributes(client)
  *****************************************************************************/
 
 static int
-SProcDbeDispatch(client)
-    ClientPtr client;
+SProcDbeDispatch(ClientPtr client)
 {
     REQUEST(xReq);
 
@@ -1472,9 +1443,7 @@ SProcDbeDispatch(client)
  *****************************************************************************/
 
 static Bool
-DbeSetupBackgroundPainter(pWin, pGC)
-    WindowPtr	pWin;
-    GCPtr	pGC;
+DbeSetupBackgroundPainter(WindowPtr pWin, GCPtr pGC)
 {
     pointer	gcvalues[4];
     int		ts_x_origin, ts_y_origin;
@@ -1547,9 +1516,7 @@ DbeSetupBackgroundPainter(pWin, pGC)
  *
  *****************************************************************************/
 static int
-DbeDrawableDelete(pDrawable, id)
-    pointer	pDrawable;
-    XID		id;
+DbeDrawableDelete(pointer pDrawable, XID id)
 {
     return(Success);
 
@@ -1568,9 +1535,7 @@ DbeDrawableDelete(pDrawable, id)
  *
  *****************************************************************************/
 static int
-DbeWindowPrivDelete(pDbeWinPriv, id)
-    pointer	pDbeWinPriv;
-    XID		id;
+DbeWindowPrivDelete(pointer pDbeWinPriv, XID id)
 {
     DbeScreenPrivPtr	pDbeScreenPriv;
     DbeWindowPrivPtr	pDbeWindowPriv = (DbeWindowPrivPtr)pDbeWinPriv;
@@ -1677,8 +1642,7 @@ DbeWindowPrivDelete(pDbeWinPriv, id)
  *
  *****************************************************************************/
 static void
-DbeResetProc(extEntry)
-    ExtensionEntry	*extEntry;
+DbeResetProc(ExtensionEntry *extEntry)
 {
     int			i;
     ScreenPtr		pScreen;
@@ -1733,8 +1697,7 @@ DbeResetProc(extEntry)
  *****************************************************************************/
 
 static Bool
-DbeDestroyWindow(pWin)
-    WindowPtr	pWin;
+DbeDestroyWindow(WindowPtr pWin)
 {
     DbeScreenPrivPtr	pDbeScreenPriv;
     DbeWindowPrivPtr	pDbeWindowPriv;
@@ -1816,7 +1779,7 @@ DbeDestroyWindow(pWin)
  *****************************************************************************/
 
 void
-DbeExtensionInit()
+DbeExtensionInit(void)
 {
     ExtensionEntry	*extEntry;
     register int	i, j;

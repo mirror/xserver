@@ -39,12 +39,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #include "xf86.h"
-#ifdef XFree86LOADER
-#include "xf86_ansic.h"
-#else
 #include <sys/time.h>
 #include <unistd.h>
-#endif
+#include <string.h>
+#include <stdio.h>
 
 #define NEED_REPLIES
 #define NEED_EVENTS
@@ -586,7 +584,7 @@ DRIExtensionInit(void)
     int		    	i;
     ScreenPtr		pScreen;
 
-    if (DRIScreenPrivIndex < 0) {
+    if (DRIScreenPrivIndex < 0 || DRIGeneration != serverGeneration) {
 	return FALSE;
     }
 
@@ -783,7 +781,7 @@ static Bool
 DRICreateDummyContext(ScreenPtr pScreen, Bool needCtxPriv)
 {
     DRIScreenPrivPtr pDRIPriv = DRI_SCREEN_PRIV(pScreen);
-    __GLXscreenInfo *pGLXScreen = __glXgetActiveScreen(pScreen->myNum);
+    __GLXscreen *pGLXScreen = __glXgetActiveScreen(pScreen->myNum);
     __GLcontextModes *modes = pGLXScreen->modes;
     void **pVisualConfigPriv = pGLXScreen->pVisualPriv;
     DRIContextPrivPtr pDRIContextPriv;
@@ -847,7 +845,7 @@ DRICreateContext(ScreenPtr pScreen, VisualPtr visual,
                  XID context, drm_context_t * pHWContext)
 {
     DRIScreenPrivPtr pDRIPriv = DRI_SCREEN_PRIV(pScreen);
-    __GLXscreenInfo *pGLXScreen = __glXgetActiveScreen(pScreen->myNum);
+    __GLXscreen *pGLXScreen = __glXgetActiveScreen(pScreen->myNum);
     __GLcontextModes *modes = pGLXScreen->modes;
     void **pVisualConfigPriv = pGLXScreen->pVisualPriv;
     DRIContextPrivPtr pDRIContextPriv;
@@ -1139,7 +1137,9 @@ DRIGetDrawableInfo(ScreenPtr pScreen,
     WindowPtr		pWin, pOldWin;
     int			i;
 
+#if 0
     printf("maxDrawableTableEntry = %d\n", pDRIPriv->pDriverInfo->maxDrawableTableEntry);
+#endif
 
     if (pDrawable->type == DRAWABLE_WINDOW) {
 	pWin = (WindowPtr)pDrawable;
@@ -1658,16 +1658,12 @@ DRICopyWindow(WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 static void
 DRIGetSecs(long *secs, long *usecs)
 {
-#ifdef XFree86LOADER
-    getsecs(secs,usecs);
-#else
     struct timeval tv;
 
     gettimeofday(&tv, NULL);
 
     *secs  = tv.tv_sec;
     *usecs = tv.tv_usec;
-#endif
 }
 
 static unsigned long

@@ -22,7 +22,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* $XdotOrg: xserver/xorg/fb/fb.h,v 1.13 2005/10/02 08:28:26 anholt Exp $ */
+/* $XdotOrg: xserver/xorg/fb/fb.h,v 1.13 2005-10-02 08:28:26 anholt Exp $ */
 
 #ifndef _FB_H_
 #define _FB_H_
@@ -677,7 +677,7 @@ typedef struct {
 	(yoff) = __fbPixOffYPix(_pPix); \
     } \
     (pointer) = (FbBits *) _pPix->devPrivate.ptr; \
-    (stride) = (_pPix->devKind) / (FbStride) sizeof (FbBits); (void)(stride); \
+    (stride) = ((int) _pPix->devKind) / sizeof (FbBits); (void)(stride); \
     (bpp) = _pPix->drawable.bitsPerPixel;  (void)(bpp); \
 }
 

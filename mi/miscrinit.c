@@ -62,7 +62,7 @@ typedef struct
 
 
 /* this plugs into pScreen->ModifyPixmapHeader */
-Bool
+_X_EXPORT Bool
 miModifyPixmapHeader(pPixmap, width, height, depth, bitsPerPixel, devKind,
 		     pPixData)
     PixmapPtr   pPixmap;
@@ -145,7 +145,7 @@ miCloseScreen (iScreen, pScreen)
  * possible private-requesting modules have been inited; we create the
  * screen pixmap here.
  */
-Bool
+_X_EXPORT Bool
 miCreateScreenResources(pScreen)
     ScreenPtr pScreen;
 {
@@ -206,7 +206,7 @@ miScreenDevPrivateInit(pScreen, width, pbits)
     return TRUE;
 }
 
-Bool
+_X_EXPORT Bool
 miScreenInit(pScreen, pbits, xsize, ysize, dpix, dpiy, width,
 	     rootDepth, numDepths, depths, rootVisual, numVisuals, visuals)
     register ScreenPtr pScreen;
@@ -266,33 +266,7 @@ miScreenInit(pScreen, pbits, xsize, ysize, dpix, dpiy, width,
     /* CreateGC */
     /* CreateColormap, DestroyColormap, InstallColormap, UninstallColormap */
     /* ListInstalledColormaps, StoreColors, ResolveColor */
-#ifdef NEED_SCREEN_REGIONS
-    pScreen->RegionCreate = miRegionCreate;
-    pScreen->RegionInit = miRegionInit;
-    pScreen->RegionCopy = miRegionCopy;
-    pScreen->RegionDestroy = miRegionDestroy;
-    pScreen->RegionUninit = miRegionUninit;
-    pScreen->Intersect = miIntersect;
-    pScreen->Union = miUnion;
-    pScreen->Subtract = miSubtract;
-    pScreen->Inverse = miInverse;
-    pScreen->RegionReset = miRegionReset;
-    pScreen->TranslateRegion = miTranslateRegion;
-    pScreen->RectIn = miRectIn;
-    pScreen->PointInRegion = miPointInRegion;
-    pScreen->RegionNotEmpty = miRegionNotEmpty;
-    pScreen->RegionEqual = miRegionEqual;
-    pScreen->RegionBroken = miRegionBroken;
-    pScreen->RegionBreak = miRegionBreak;
-    pScreen->RegionEmpty = miRegionEmpty;
-    pScreen->RegionExtents = miRegionExtents;
-    pScreen->RegionAppend = miRegionAppend;
-    pScreen->RegionValidate = miRegionValidate;
-#endif /* NEED_SCREEN_REGIONS */
     /* BitmapToRegion */
-#ifdef NEED_SCREEN_REGIONS
-    pScreen->RectsToRegion = miRectsToRegion;
-#endif /* NEED_SCREEN_REGIONS */
     pScreen->SendGraphicsExpose = miSendGraphicsExpose;
     pScreen->BlockHandler = (ScreenBlockHandlerProcPtr)NoopDDA;
     pScreen->WakeupHandler = (ScreenWakeupHandlerProcPtr)NoopDDA;
@@ -325,7 +299,7 @@ miScreenInit(pScreen, pbits, xsize, ysize, dpix, dpiy, width,
     return miScreenDevPrivateInit(pScreen, width, pbits);
 }
 
-int
+_X_EXPORT int
 miAllocateGCPrivateIndex()
 {
     static int privateIndex = -1;
@@ -339,10 +313,10 @@ miAllocateGCPrivateIndex()
     return privateIndex;
 }
 
-int miZeroLineScreenIndex;
+_X_EXPORT int miZeroLineScreenIndex;
 unsigned int miZeroLineGeneration = 0;
 
-void
+_X_EXPORT void
 miSetZeroLineBias(pScreen, bias)
     ScreenPtr pScreen;
     unsigned int bias;
@@ -356,14 +330,14 @@ miSetZeroLineBias(pScreen, bias)
 	pScreen->devPrivates[miZeroLineScreenIndex].uval = bias;
 }
 
-PixmapPtr
+_X_EXPORT PixmapPtr
 miGetScreenPixmap(pScreen)
     ScreenPtr pScreen;
 {
     return (PixmapPtr)(pScreen->devPrivate);
 }
 
-void
+_X_EXPORT void
 miSetScreenPixmap(pPix)
     PixmapPtr pPix;
 {

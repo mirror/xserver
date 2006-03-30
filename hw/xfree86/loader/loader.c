@@ -858,7 +858,7 @@ LoaderVRefSymbols(const char *sym0, va_list args)
     } while (s != NULL);
 }
 
-void
+_X_EXPORT void
 LoaderRefSymbols(const char *sym0, ...)
 {
     va_list ap;
@@ -883,7 +883,7 @@ LoaderVRefSymLists(const char **list0, va_list args)
     } while (l != NULL);
 }
 
-void
+_X_EXPORT void
 LoaderRefSymLists(const char **list0, ...)
 {
     va_list ap;
@@ -908,7 +908,7 @@ LoaderVReqSymLists(const char **list0, va_list args)
     } while (l != NULL);
 }
 
-void
+_X_EXPORT void
 LoaderReqSymLists(const char **list0, ...)
 {
     va_list ap;
@@ -933,7 +933,7 @@ LoaderVReqSymbols(const char *sym0, va_list args)
     } while (s != NULL);
 }
 
-void
+_X_EXPORT void
 LoaderReqSymbols(const char *sym0, ...)
 {
     va_list ap;
@@ -973,7 +973,7 @@ _LoaderHandleUnresolved(char *symbol, char *module)
  * Handle an archive.
  */
 void *
-ARCHIVELoadModule(loaderPtr modrec, int arfd, LOOKUP ** ppLookup)
+ARCHIVELoadModule(loaderPtr modrec, int arfd, LOOKUP ** ppLookup, int flags)
 {
     loaderPtr tmp = NULL;
     void *ret = NULL;
@@ -1171,7 +1171,7 @@ ARCHIVELoadModule(loaderPtr modrec, int arfd, LOOKUP ** ppLookup)
 	}
 	offsetbias = offset;
 
-	if ((tmp->private = funcs[modtype].LoadModule(tmp, arfd, &lookup_ret))
+	if ((tmp->private = funcs[modtype].LoadModule(tmp, arfd, &lookup_ret, LD_FLAG_GLOBAL))
 	    == NULL) {
 	    ErrorF("Failed to load %s\n", hdr.ar_name);
 	    offsetbias = 0;
@@ -1233,13 +1233,14 @@ _LoaderGetRelocations(void *mod)
     return &(formatrec->pRelocs);
 }
 
+
 /*
  * Public Interface to the loader.
  */
 
 int
 LoaderOpen(const char *module, const char *cname, int handle,
-	   int *errmaj, int *errmin, int *wasLoaded)
+	   int *errmaj, int *errmin, int *wasLoaded, int flags)
 {
     loaderPtr tmp;
     int new_handle, modtype;
@@ -1329,7 +1330,7 @@ LoaderOpen(const char *module, const char *cname, int handle,
     tmp->module = moduleseq++;
     tmp->funcs = &funcs[modtype];
 
-    if ((tmp->private = funcs[modtype].LoadModule(tmp, fd, &pLookup)) == NULL) {
+    if ((tmp->private = funcs[modtype].LoadModule(tmp, fd, &pLookup, flags)) == NULL) {
 	xf86Msg(X_ERROR, "Failed to load %s\n", module);
 	_LoaderListPop(new_handle);
 	freeHandles[new_handle] = HANDLE_FREE;
@@ -1363,7 +1364,7 @@ LoaderHandleOpen(int handle)
     return handle;
 }
 
-void *
+_X_EXPORT void *
 LoaderSymbol(const char *sym)
 {
     int i;
@@ -1394,7 +1395,7 @@ LoaderResolveSymbols(void)
     return 0;
 }
 
-int
+_X_EXPORT int
 LoaderCheckUnresolved(int delay_flag)
 {
     int i, ret = 0;
@@ -1428,7 +1429,7 @@ xf86LoaderTrap(void)
 {
 }
 
-void
+_X_EXPORT void
 LoaderDefaultFunc(void)
 {
     ErrorF("\n\n\tThis should not happen!\n"
@@ -1445,7 +1446,7 @@ LoaderUnload(int handle)
     loaderRec fakeHead;
     loaderPtr tmp = &fakeHead;
 
-    if (handle < 0 || handle > MAX_HANDLE)
+    if (handle < 0 || handle >= MAX_HANDLE)
 	return -1;
 
     /*
@@ -1506,4 +1507,29 @@ void
 LoaderClearOptions(unsigned long opts)
 {
     LoaderOptions &= ~opts;
+}
+
+_X_EXPORT int
+LoaderGetABIVersion(const char *abiclass)
+{
+    struct {
+        const char *name;
+        int version;
+    } classes[] = {
+        { ABI_CLASS_ANSIC,     LoaderVersionInfo.ansicVersion },
+        { ABI_CLASS_VIDEODRV,  LoaderVersionInfo.videodrvVersion },
+        { ABI_CLASS_XINPUT,    LoaderVersionInfo.xinputVersion },
+        { ABI_CLASS_EXTENSION, LoaderVersionInfo.extensionVersion },
+        { ABI_CLASS_FONT,      LoaderVersionInfo.fontVersion },
+        { NULL,                0 }
+    };
+    int i;
+
+    for(i = 0; classes[i].name; i++) {
+        if(!strcmp(classes[i].name, abiclass)) {
+            return classes[i].version;
+        }
+    }
+
+    return 0;
 }

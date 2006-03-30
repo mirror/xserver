@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/mi/miinitext.c,v 1.30 2006/01/08 23:43:54 ajax Exp $ */
+/* $XdotOrg: xserver/xorg/mi/miinitext.c,v 1.32 2006-03-12 00:11:34 krh Exp $ */
 /* $XFree86: xc/programs/Xserver/mi/miinitext.c,v 3.67 2003/01/12 02:44:27 dawes Exp $ */
 /***********************************************************
 
@@ -350,6 +350,9 @@ extern void XFree86MiscExtensionInit(INITARGS);
 extern void XFree86DGAExtensionInit(INITARGS);
 #endif
 #ifdef GLXEXT
+typedef struct __GLXprovider __GLXprovider;
+extern __GLXprovider __glXMesaProvider;
+extern void GlxPushProvider(__GLXprovider *impl);
 #ifndef __DARWIN__
 extern void GlxExtensionInit(INITARGS);
 extern void GlxWrapInitVisuals(miInitVisualsProcPtr *);
@@ -669,7 +672,7 @@ InitExtensions(argc, argv)
     if (!noXevieExtension) XevieExtensionInit();
 #endif
 #ifdef COMPOSITE
-    if (1/*!noCompositeExtension*/) CompositeExtensionInit();
+    if (!noCompositeExtension) CompositeExtensionInit();
 #endif
 #ifdef DAMAGE
     if (!noDamageExtension) DamageExtensionInit();
@@ -790,8 +793,9 @@ InitVisualWrap()
 	(*__miHookInitVisualsFunction)(&miInitVisualsProc);
 }
 
-void miHookInitVisuals(void (**old)(miInitVisualsProcPtr *),
-		       void (*new)(miInitVisualsProcPtr *))
+_X_EXPORT void
+miHookInitVisuals(void (**old)(miInitVisualsProcPtr *),
+		  void (*new)(miInitVisualsProcPtr *))
 {
     if (old)
 	*old = __miHookInitVisualsFunction;

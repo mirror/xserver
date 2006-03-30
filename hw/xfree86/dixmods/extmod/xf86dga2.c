@@ -30,11 +30,7 @@
 #include "dgaproc.h"
 #include "xf86dgaext.h"
 
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#else
 #include <string.h>
-#endif
 
 #include "modinit.h"
 
@@ -766,10 +762,8 @@ ProcXDGADispatch (ClientPtr client)
     }
 }
 
-#ifdef EXTMODULE
 void
 XFree86DGARegister(INITARGS)
 {
   XDGAEventBase = &DGAEventBase; 
 }
-#endif

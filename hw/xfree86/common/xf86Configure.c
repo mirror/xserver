@@ -69,7 +69,7 @@ typedef struct _DevToConfig {
 static DevToConfigPtr DevToConfig = NULL;
 static int nDevToConfig = 0, CurrentDriver;
 
-xf86MonPtr ConfiguredMonitor;
+_X_EXPORT xf86MonPtr ConfiguredMonitor;
 Bool xf86DoConfigurePass1 = TRUE;
 Bool foundMouse = FALSE;
 
@@ -87,7 +87,7 @@ static char *DFLT_MOUSE_DEV = "/dev/mouse";
 #elif defined(__QNXNTO__)
 static char *DFLT_MOUSE_PROTO = "OSMouse";
 static char *DFLT_MOUSE_DEV = "/dev/devi/mouse0";
-#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 static char *DFLT_MOUSE_DEV = "/dev/sysmouse";
 static char *DFLT_MOUSE_PROTO = "auto";
 #else
@@ -251,7 +251,7 @@ xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int 
 /*
  * Backwards compatibility
  */
-GDevPtr
+_X_EXPORT GDevPtr
 xf86AddDeviceToConfigure(const char *driver, pciVideoPtr pVideo, int chipset)
 {
     return xf86AddBusDeviceToConfigure(driver, pVideo ? BUS_PCI : BUS_ISA,

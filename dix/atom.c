@@ -74,7 +74,7 @@ static NodePtr *nodeTable;
 
 void FreeAtom(NodePtr patom);
 
-Atom 
+_X_EXPORT Atom 
 MakeAtom(char *string, unsigned len, Bool makeit)
 {
     register    NodePtr * np;
@@ -151,13 +151,13 @@ MakeAtom(char *string, unsigned len, Bool makeit)
 	return None;
 }
 
-Bool
+_X_EXPORT Bool
 ValidAtom(Atom atom)
 {
     return (atom != None) && (atom <= lastAtom);
 }
 
-char *
+_X_EXPORT char *
 NameForAtom(Atom atom)
 {
     NodePtr node;

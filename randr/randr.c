@@ -50,9 +50,6 @@
 #include "picturestr.h"
 #endif
 #include <X11/Xfuncproto.h>
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#endif
 
 /* From render.h */
 #ifndef SubPixelUnknown
@@ -1300,6 +1297,17 @@ Bool RRRegisterRate (ScreenPtr		pScreen,
     pRate->oldReferenced = FALSE;
     pSize->pRates = pNew;
     return TRUE;
+}
+
+Rotation
+RRGetRotation(ScreenPtr pScreen)
+{
+    rrScrPriv (pScreen);
+
+    if (!pScrPriv)
+	return RR_Rotate_0;
+
+    return pScrPriv->rotation;
 }
 
 void

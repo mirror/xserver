@@ -51,7 +51,6 @@
 #include <extnsionst.h>
 #include <resource.h>
 #include <scrnintstr.h>
-#include "GL/glx_ansic.h"
 
 /*
 ** The X header misc.h defines these math functions.
@@ -110,6 +109,9 @@ extern __GLXscreen *__glXgetActiveScreen(int num);
 
 void GlxSetVisualConfigs(int nconfigs, 
                          __GLXvisualConfig *configs, void **privates);
+
+struct _glapi_table;
+void GlxSetRenderTables (struct _glapi_table *table);
 
 void __glXScreenInitVisuals(__GLXscreen *screen);
 

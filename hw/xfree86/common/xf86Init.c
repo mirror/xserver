@@ -1,5 +1,5 @@
 /* $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86Init.c,v 3.212 2004/01/27 01:31:45 dawes Exp $ */
-/* $XdotOrg: $ */
+/* $XdotOrg: xserver/xorg/hw/xfree86/common/xf86Init.c,v 1.33 2006-03-25 19:52:03 ajax Exp $ */
 
 /*
  * Loosely based on code bearing the following copyright:
@@ -1170,7 +1170,8 @@ OsVendorInit()
 {
   static Bool beenHere = FALSE;
 
-  /* xf86WrapperInit() is called directly from OsInit() */
+  xf86WrapperInit();
+
 #ifdef SIGCHLD
   signal(SIGCHLD, SIG_DFL);	/* Need to wait for child processes */
 #endif
@@ -1376,7 +1377,7 @@ ddxProcessArgument(int argc, char **argv, int i)
     }
   
   /* First the options that are only allowed for root */
-  if (getuid() == 0 || geteuid != 0)
+  if (getuid() == 0 || geteuid() != 0)
   {
     if (!strcmp(argv[i], "-modulepath"))
     {
@@ -1672,14 +1673,11 @@ ddxProcessArgument(int argc, char **argv, int i)
   if (!strcmp(argv[i], "-probe"))
   {
     xf86DoProbe = TRUE;
-#if 0
-    DoProbe(argc, argv, i);
-#endif
     return 1;
   }
   if (!strcmp(argv[i], "-configure"))
   {
-    if (getuid() != 0 && geteuid == 0) {
+    if (getuid() != 0 && geteuid() == 0) {
 	ErrorF("The '-configure' option can only be used by root.\n");
 	exit(1);
     }
@@ -1971,7 +1969,7 @@ xf86LoadModules(char **list, pointer *optlist)
 
 /* Pixmap format stuff */
 
-PixmapFormatPtr
+_X_EXPORT PixmapFormatPtr
 xf86GetPixFormat(ScrnInfoPtr pScrn, int depth)
 {
     int i;
@@ -2016,7 +2014,7 @@ xf86GetPixFormat(ScrnInfoPtr pScrn, int depth)
     return NULL;
 }
 
-int
+_X_EXPORT int
 xf86GetBppFromDepth(ScrnInfoPtr pScrn, int depth)
 {
     PixmapFormatPtr format;

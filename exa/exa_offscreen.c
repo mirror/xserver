@@ -20,7 +20,19 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "exaPriv.h"
+/** @file
+ * This allocator allocates blocks of memory by maintaining a list of areas
+ * and a score for each area.  As an area is marked used, its score is
+ * incremented, and periodically all of the areas have their scores decayed by
+ * a fraction.  When allocating, the contiguous block of areas with the minimum
+ * score is found and evicted in order to make room for the new allocation.
+ */
+
+#include "exa_priv.h"
+
+#include <limits.h>
+#include <assert.h>
+#include <stdlib.h>
 
 #if DEBUG_OFFSCREEN
 #define DBG_OFFSCREEN(a) ErrorF a
@@ -35,9 +47,9 @@ ExaOffscreenValidate (ScreenPtr pScreen)
     ExaScreenPriv (pScreen);
     ExaOffscreenArea *prev = 0, *area;
 
-    assert (pExaScr->info->card.offScreenAreas->base_offset == 
-	    pExaScr->info->card.offScreenBase);
-    for (area = pExaScr->info->card.offScreenAreas; area; area = area->next)
+    assert (pExaScr->info->offScreenAreas->base_offset == 
+	    pExaScr->info->offScreenBase);
+    for (area = pExaScr->info->offScreenAreas; area; area = area->next)
     {
 	assert (area->offset >= area->base_offset &&
 		area->offset < (area->base_offset -> area->size));
@@ -45,7 +57,7 @@ ExaOffscreenValidate (ScreenPtr pScreen)
 	    assert (prev->base_offset + prev->area.size == area->base_offset);
 	prev = area;
     }
-    assert (prev->base_offset + prev->size == pExaScr->info->card.memorySize);
+    assert (prev->base_offset + prev->size == pExaScr->info->memorySize);
 }
 #else
 #define ExaOffscreenValidate(s)
@@ -59,6 +71,26 @@ ExaOffscreenKickOut (ScreenPtr pScreen, ExaOffscreenArea *area)
     return exaOffscreenFree (pScreen, area);
 }
 
+/**
+ * exaOffscreenAlloc allocates offscreen memory
+ *
+ * @param pScreen current screen
+ * @param size size in bytes of the allocation
+ * @param align byte alignment requirement for the offset of the allocated area
+ * @param locked whether the allocated area is locked and can't be kicked out
+ * @param save callback for when the area is evicted from memory
+ * @param privdata private data for the save callback.
+ *
+ * Allocates offscreen memory from the device associated with pScreen.  size and
+ * align deteremine where and how large the allocated area is, and locked will
+ * mark whether it should be held in card memory.  privdata may be any pointer
+ * for the save callback when the area is removed.
+ *
+ * Note that locked areas do get evicted on VT switch, because during that time
+ * all offscreen memory becomes inaccessible.  This may change in the future,
+ * but drivers should be aware of this and provide a callback to mark that their
+ * locked allocation was evicted, and then restore it if necessary on EnterVT.
+ */
 ExaOffscreenArea *
 exaOffscreenAlloc (ScreenPtr pScreen, int size, int align,
                    Bool locked,
@@ -84,16 +116,16 @@ exaOffscreenAlloc (ScreenPtr pScreen, int size, int align,
     }
 
     /* throw out requests that cannot fit */
-    if (size > (pExaScr->info->card.memorySize - pExaScr->info->card.offScreenBase))
+    if (size > (pExaScr->info->memorySize - pExaScr->info->offScreenBase))
     {
 	DBG_OFFSCREEN (("Alloc 0x%x vs (0x%lx) -> TOBIG\n", size,
-			pExaScr->info->card.memorySize -
-			pExaScr->info->card.offScreenBase));
+			pExaScr->info->memorySize -
+			pExaScr->info->offScreenBase));
 	return NULL;
     }
 
     /* Try to find a free space that'll fit. */
-    for (area = pExaScr->info->card.offScreenAreas; area; area = area->next)
+    for (area = pExaScr->info->offScreenAreas; area; area = area->next)
     {
 	/* skip allocated areas */
 	if (area->state != ExaOffscreenAvail)
@@ -120,8 +152,8 @@ exaOffscreenAlloc (ScreenPtr pScreen, int size, int align,
 
 	/* prev points at the first object to boot */
 	best = NULL;
-	best_score = MAXINT;
-	for (begin = pExaScr->info->card.offScreenAreas; begin != NULL;
+	best_score = INT_MAX;
+	for (begin = pExaScr->info->offScreenAreas; begin != NULL;
 	     begin = begin->next)
 	{
 	    int avail, score;
@@ -233,7 +265,7 @@ ExaOffscreenSwapOut (ScreenPtr pScreen)
     /* loop until a single free area spans the space */
     for (;;)
     {
-	ExaOffscreenArea *area = pExaScr->info->card.offScreenAreas;
+	ExaOffscreenArea *area = pExaScr->info->offScreenAreas;
 
 	if (!area)
 	    break;
@@ -266,12 +298,7 @@ exaEnableDisableFBAccess (int index, Bool enable)
     if (!enable) {
 	ExaOffscreenSwapOut (pScreen);
 	pExaScr->swappedOut = TRUE;
-    }
-
-    if (pExaScr->SavedEnableDisableFBAccess)
-       (*pExaScr->SavedEnableDisableFBAccess)(index, enable);
-
-    if (enable) {
+    } else {
 	ExaOffscreenSwapIn (pScreen);
 	pExaScr->swappedOut = FALSE;
     }
@@ -290,6 +317,19 @@ ExaOffscreenMerge (ExaOffscreenArea *area)
     xfree (next);
 }
 
+/**
+ * exaOffscreenFree frees an allocation.
+ *
+ * @param pScreen current screen
+ * @param area offscreen area to free
+ *
+ * exaOffscreenFree frees an allocation created by exaOffscreenAlloc.  Note that
+ * the save callback of the area is not called, and it is up to the driver to
+ * do any cleanup necessary as a result.
+ *
+ * @return pointer to the newly freed area. This behavior should not be relied
+ * on.
+ */
 ExaOffscreenArea *
 exaOffscreenFree (ScreenPtr pScreen, ExaOffscreenArea *area)
 {
@@ -307,10 +347,10 @@ exaOffscreenFree (ScreenPtr pScreen, ExaOffscreenArea *area)
     /*
      * Find previous area
      */
-    if (area == pExaScr->info->card.offScreenAreas)
+    if (area == pExaScr->info->offScreenAreas)
 	prev = NULL;
     else
-	for (prev = pExaScr->info->card.offScreenAreas; prev; prev = prev->next)
+	for (prev = pExaScr->info->offScreenAreas; prev; prev = prev->next)
 	    if (prev->next == area)
 		break;
 
@@ -344,7 +384,7 @@ ExaOffscreenMarkUsed (PixmapPtr pPixmap)
     pExaPixmap->area->score += 100;
     if (++iter == 10) {
 	ExaOffscreenArea *area;
-	for (area = pExaScr->info->card.offScreenAreas; area != NULL;
+	for (area = pExaScr->info->offScreenAreas; area != NULL;
 	     area = area->next)
 	{
 	    if (area->state == ExaOffscreenRemovable)
@@ -353,6 +393,14 @@ ExaOffscreenMarkUsed (PixmapPtr pPixmap)
     }
 }
 
+/**
+ * exaOffscreenInit initializes the offscreen memory manager.
+ *
+ * @param pScreen current screen
+ *
+ * exaOffscreenInit is called by exaDriverInit to set up the memory manager for
+ * the screen, if any offscreen memory is available.
+ */
 Bool
 exaOffscreenInit (ScreenPtr pScreen)
 {
@@ -367,9 +415,9 @@ exaOffscreenInit (ScreenPtr pScreen)
 
 
     area->state = ExaOffscreenAvail;
-    area->base_offset = pExaScr->info->card.offScreenBase;
+    area->base_offset = pExaScr->info->offScreenBase;
     area->offset = area->base_offset;
-    area->size = pExaScr->info->card.memorySize - area->base_offset;
+    area->size = pExaScr->info->memorySize - area->base_offset;
     area->save = NULL;
     area->next = NULL;
     area->score = 0;
@@ -379,7 +427,7 @@ exaOffscreenInit (ScreenPtr pScreen)
 #endif
 
     /* Add it to the free areas */
-    pExaScr->info->card.offScreenAreas = area;
+    pExaScr->info->offScreenAreas = area;
 
     ExaOffscreenValidate (pScreen);
 
@@ -393,9 +441,9 @@ ExaOffscreenFini (ScreenPtr pScreen)
     ExaOffscreenArea *area;
 
     /* just free all of the area records */
-    while ((area = pExaScr->info->card.offScreenAreas))
+    while ((area = pExaScr->info->offScreenAreas))
     {
-	pExaScr->info->card.offScreenAreas = area->next;
+	pExaScr->info->offScreenAreas = area->next;
 	xfree (area);
     }
 }

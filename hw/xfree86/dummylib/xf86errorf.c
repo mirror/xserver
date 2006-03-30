@@ -13,7 +13,7 @@
  * Utility functions required by libxf86_os. 
  */
 
-void
+_X_EXPORT void
 xf86ErrorF(const char *format, ...)
 {
     va_list ap;
@@ -23,7 +23,7 @@ xf86ErrorF(const char *format, ...)
     va_end(ap);
 }
 
-void
+_X_EXPORT void
 ErrorF(const char *format, ...)
 {
     va_list ap;

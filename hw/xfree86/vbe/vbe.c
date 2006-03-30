@@ -14,8 +14,9 @@
 #include <xorg-config.h>
 #endif
 
+#include <string.h>
+
 #include "xf86.h"
-#include "xf86_ansic.h"
 #include "vbe.h"
 #include <X11/Xarch.h>
 #define DPMS_SERVER
@@ -180,7 +181,7 @@ vbeProbeDDC(vbeInfoPtr pVbe)
     char *ddc_level;
     int screen = pVbe->pInt10->scrnIndex;
     
-    if (!pVbe || (pVbe->ddc == DDC_NONE))
+    if (pVbe->ddc == DDC_NONE)
 	return FALSE;
     if (pVbe->ddc != DDC_UNCHECKED)
 	return TRUE;

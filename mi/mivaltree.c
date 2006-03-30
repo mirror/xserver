@@ -1,5 +1,5 @@
 /* $Xorg: mivaltree.c,v 1.4 2001/02/09 02:05:22 xorgcvs Exp $ */
-/* $XdotOrg: xserver/xorg/mi/mivaltree.c,v 1.6 2005/07/03 07:01:51 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/mi/mivaltree.c,v 1.8 2006-03-22 18:44:26 sandmann Exp $ */
 /*
  * mivaltree.c --
  *	Functions for recalculating window clip lists. Main function
@@ -110,7 +110,7 @@ Equipment Corporation.
 /*
  * Compute the visibility of a shaped window
  */
-int
+_X_EXPORT int
 miShapedWindowIn (pScreen, universe, bounding, rect, x, y)
     ScreenPtr	pScreen;
     RegionPtr	universe, bounding;
@@ -240,6 +240,18 @@ miComputeClips (
 	dy = 32767;
     borderSize.y2 = dy;
 
+#ifdef COMPOSITE
+    /*
+     * In redirected drawing case, reset universe to borderSize
+     */
+    if (pParent->redirectDraw)
+    {
+	if (miSetRedirectBorderClipProc)
+	    (*miSetRedirectBorderClipProc) (pParent, universe);
+	REGION_COPY(pScreen, universe, &pParent->borderSize);
+    }
+#endif
+
     oldVis = pParent->visibility;
     switch (RECT_IN_REGION( pScreen, universe, &borderSize)) 
     {
@@ -279,18 +291,6 @@ miComputeClips (
 	((pParent->eventMask | wOtherEventMasks(pParent)) & VisibilityChangeMask))
 	SendVisibilityNotify(pParent);
 
-#ifdef COMPOSITE
-    /*
-     * In redirected drawing case, reset universe to borderSize
-     */
-    if (pParent->redirectDraw)
-    {
-	if (miSetRedirectBorderClipProc)
-	    (*miSetRedirectBorderClipProc) (pParent, universe);
-	REGION_COPY(pScreen, universe, &pParent->borderSize);
-    }
-#endif
-
     dx = pParent->drawable.x - pParent->valdata->before.oldAbsCorner.x;
     dy = pParent->drawable.y - pParent->valdata->before.oldAbsCorner.y;
 
@@ -313,11 +313,7 @@ miComputeClips (
 	    {
 		if (pChild->viewable)
 		{
-		    if (pChild->visibility != VisibilityFullyObscured
-#ifdef COMPOSITE
-                        || pChild->redirectDraw
-#endif
-                        )
+		    if (pChild->visibility != VisibilityFullyObscured)
 		    {
 			REGION_TRANSLATE( pScreen, &pChild->borderClip,
 						      dx, dy);
@@ -495,15 +491,9 @@ miComputeClips (
      *
      * To figure the exposure of the window we subtract the old clip from the
      * new, just as for the border.
-     *
-     * For composite this optimization is incorrect since
-     * the window should not in fact be exposed just because it
-     * was FullyObscured before.
      */
-    if (
-#ifndef COMPOSITE
-        oldVis == VisibilityFullyObscured ||
-#endif
+
+    if (oldVis == VisibilityFullyObscured ||
 	oldVis == VisibilityNotViewable)
     {
 	REGION_COPY( pScreen, &pParent->valdata->after.exposed, universe);

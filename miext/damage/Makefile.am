@@ -4,6 +4,10 @@ AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@
 
 INCLUDES = -I$(srcdir)/../cw -I$(top_srcdir)/hw/xfree86/os-support
 
+if XORG
+sdk_HEADERS = damage.h damagestr.h
+endif
+
 libdamage_la_SOURCES =	\
 	damage.c	\
 	damage.h	\

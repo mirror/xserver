@@ -215,9 +215,7 @@ __glXMesaContextDestroy(__GLXcontext *baseContext)
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
 
     XMesaDestroyContext(context->xmesa);
-
-    GlxFlushContextCache ();
-
+    __glXContextDestroy(context);
     xfree(context);
 }
 
@@ -429,7 +427,7 @@ static void init_screen_visuals(__GLXMESAscreen *screen)
 	i++;
     }
 
-    __glXFree(used);
+    xfree(used);
 
     screen->xm_vis = pXMesaVisual;
 }

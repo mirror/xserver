@@ -1,4 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/Xext/xtest.c,v 1.3 2005/04/20 12:25:12 daniels Exp $ */
+/* $XdotOrg: xserver/xorg/Xext/xtest.c,v 1.7 2006-02-10 22:00:20 anholt Exp $ */
 /* $Xorg: xtest.c,v 1.4 2001/02/09 02:04:33 xorgcvs Exp $ */
 /*
 
@@ -54,9 +54,6 @@ from The Open Group.
 #define EXTENSION_EVENT_BASE	64
 #include "extinit.h"		/* LookupDeviceIntRec */
 #endif /* XINPUT */
-#ifdef EXTMODULE
-#include "xf86_ansic.h"
-#endif
 
 #include "modinit.h"
 

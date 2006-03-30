@@ -4,6 +4,9 @@
 #include <xorg-config.h>
 #endif
 
+#include <stdlib.h>
+#include <string.h>
+
 #include <X11/X.h>
 #include "windowstr.h"
 #include "pixmapstr.h"
@@ -58,7 +61,7 @@ cfb8_32GetImage (
         if (!pPixmap)
             return;
         if ((planemask & 0xff) != 0xff)
-            bzero((char *)pdstLine, pPixmap->devKind * h);
+            memset((char *)pdstLine, 0, pPixmap->devKind * h);
         ptSrc.x = sx + pDraw->x;
         ptSrc.y = sy + pDraw->y;
         box.x1 = 0;
