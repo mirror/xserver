@@ -661,6 +661,7 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 	    xfree (formats);
 	    return FALSE;
 	}
+	a = r = g = b = 0;
 	if (formats[n].type == PictTypeIndexed)
 	{
             VisualPtr   pVisual = PictureFindVisual (pScreen, formats[n].index.vid);
@@ -668,9 +669,8 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 		type = PICT_TYPE_COLOR;
 	    else
 		type = PICT_TYPE_GRAY;
-	    a = r = g = b = 0;
 	}
-	else
+	else if (formats[n].type == PictTypeDirect)
 	{
 	    if ((formats[n].direct.redMask|
 		 formats[n].direct.blueMask|
@@ -684,6 +684,10 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 	    r = Ones (formats[n].direct.redMask);
 	    g = Ones (formats[n].direct.greenMask);
 	    b = Ones (formats[n].direct.blueMask);
+	}
+	else
+	{
+            type = PICT_FORMAT_TYPE (formats[n].format);
 	}
 	formats[n].format = PICT_FORMAT(0,type,a,r,g,b);
     }
