@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/render/render.c,v 1.12.8.1 2006/01/18 07:21:43 airlied Exp $ */
+/* $XdotOrg: xserver/xorg/render/render.c,v 1.12.8.2 2006/03/30 16:39:30 davidr Exp $ */
 /*
  * $XFree86: xc/programs/Xserver/render/render.c,v 1.27tsi Exp $
  *
@@ -386,7 +386,14 @@ ProcRenderQueryPictFormats (ClientPtr client)
 	}
 	ps = GetPictureScreenIfSet(pScreen);
 	if (ps)
-	    nformat += ps->nformats;
+	{
+	    for (d = 0; d < ps->nformats; d++)
+	    {
+		if (ps->formats[d].type == PictTypeIndexed ||
+		    ps->formats[d].type == PictTypeDirect)
+		    nformat++;
+	    }
+	}
     }
     if (pRenderClient->major_version == 0 && pRenderClient->minor_version < 6)
 	numSubpixel = 0;
@@ -423,6 +430,10 @@ ProcRenderQueryPictFormats (ClientPtr client)
 		 nformat < ps->nformats;
 		 nformat++, pFormat++)
 	    {
+		if (pFormat->type != PictTypeIndexed &&
+		    pFormat->type != PictTypeDirect)
+		    continue;
+
 		pictForm->id = pFormat->id;
 		pictForm->type = pFormat->type;
 		pictForm->depth = pFormat->depth;
