@@ -1,3 +1,8 @@
+2006-04-03  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/Makefile.am (Xgl_LDADD): Static objects before dynamic
+	objects (Hanno Boeck).
+
 2006-03-31  David Reveman  <davidr@novell.com>
 
 	* render/render.c (ProcRenderQueryPictFormats): Do not return YUV

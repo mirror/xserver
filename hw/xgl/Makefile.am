@@ -77,9 +77,9 @@ Xgl_SOURCES =			       \
 Xgl_LDADD =		   \
 	libxgl.a	   \
 	$(XORG_CORE_LIBS)  \
-	$(XSERVER_LIBS)	   \
 	$(XGL_LIBS)	   \
-	$(XGLMODULES_LIBS)
+	$(XGLMODULES_LIBS) \
+	$(XSERVER_LIBS)
 
 Xgl_programs = Xgl
 
