@@ -29,13 +29,39 @@
  * the accelerator is idle
  */
 
+/**
+ * Calls exaPrepareAccess with EXA_PREPARE_SRC for the tile, if that is the
+ * current fill style.
+ *
+ * Solid doesn't use an extra pixmap source, and Stippled/OpaqueStippled are
+ * 1bpp and never in fb, so we don't worry about them.
+ */
+void
+exaPrepareAccessGC(GCPtr pGC)
+{
+    if (pGC->fillStyle == FillTiled)
+	exaPrepareAccess(&pGC->tile.pixmap->drawable, EXA_PREPARE_SRC);
+}
+
+/**
+ * Finishes access to the tile in the GC, if used.
+ */
+void
+exaFinishAccessGC(GCPtr pGC)
+{
+    if (pGC->fillStyle == FillTiled)
+	exaFinishAccess(&pGC->tile.pixmap->drawable, EXA_PREPARE_SRC);
+}
+
 void
 ExaCheckFillSpans  (DrawablePtr pDrawable, GCPtr pGC, int nspans,
 		   DDXPointPtr ppt, int *pwidth, int fSorted)
 {
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
     fbFillSpans (pDrawable, pGC, nspans, ppt, pwidth, fSorted);
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -112,10 +138,13 @@ ExaCheckPolylines (DrawablePtr pDrawable, GCPtr pGC,
 
     if (pGC->lineWidth == 0) {
 	exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+	exaPrepareAccessGC (pGC);
 	fbPolyLine (pDrawable, pGC, mode, npt, ppt);
+	exaFinishAccessGC (pGC);
 	exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 	return;
     }
+    /* fb calls mi functions in the lineWidth != 0 case. */
     fbPolyLine (pDrawable, pGC, mode, npt, ppt);
 }
 
@@ -126,25 +155,14 @@ ExaCheckPolySegment (DrawablePtr pDrawable, GCPtr pGC,
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     if (pGC->lineWidth == 0) {
 	exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+	exaPrepareAccessGC (pGC);
 	fbPolySegment (pDrawable, pGC, nsegInit, pSegInit);
+	exaFinishAccessGC (pGC);
 	exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 	return;
     }
+    /* fb calls mi functions in the lineWidth != 0 case. */
     fbPolySegment (pDrawable, pGC, nsegInit, pSegInit);
-}
-
-void
-ExaCheckPolyRectangle (DrawablePtr pDrawable, GCPtr pGC,
-		      int nrects, xRectangle *prect)
-{
-    EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
-    if (pGC->lineWidth == 0) {
-	exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
-	fbPolyRectangle (pDrawable, pGC, nrects, prect);
-	exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
-	return;
-    }
-    fbPolyRectangle (pDrawable, pGC, nrects, prect);
 }
 
 void
@@ -155,24 +173,14 @@ ExaCheckPolyArc (DrawablePtr pDrawable, GCPtr pGC,
     if (pGC->lineWidth == 0)
     {
 	exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+	exaPrepareAccessGC (pGC);
 	fbPolyArc (pDrawable, pGC, narcs, pArcs);
+	exaFinishAccessGC (pGC);
 	exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 	return;
     }
     miPolyArc (pDrawable, pGC, narcs, pArcs);
 }
-
-#if 0
-void
-ExaCheckFillPolygon (DrawablePtr pDrawable, GCPtr pGC,
-		    int shape, int mode, int count, DDXPointPtr pPts)
-{
-    EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
-    exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
-    fbFillPolygon (pDrawable, pGC, mode, count, pPts);
-    exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
-}
-#endif
 
 void
 ExaCheckPolyFillRect (DrawablePtr pDrawable, GCPtr pGC,
@@ -180,17 +188,9 @@ ExaCheckPolyFillRect (DrawablePtr pDrawable, GCPtr pGC,
 {
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
     fbPolyFillRect (pDrawable, pGC, nrect, prect);
-    exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
-}
-
-void
-ExaCheckPolyFillArc (DrawablePtr pDrawable, GCPtr pGC,
-		    int narcs, xArc *pArcs)
-{
-    EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
-    exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
-    fbPolyFillArc (pDrawable, pGC, narcs, pArcs);
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -201,7 +201,9 @@ ExaCheckImageGlyphBlt (DrawablePtr pDrawable, GCPtr pGC,
 {
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
     fbImageGlyphBlt (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -212,7 +214,9 @@ ExaCheckPolyGlyphBlt (DrawablePtr pDrawable, GCPtr pGC,
 {
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
     fbPolyGlyphBlt (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -223,7 +227,9 @@ ExaCheckPushPixels (GCPtr pGC, PixmapPtr pBitmap,
 {
     EXA_FALLBACK(("from 0x%lx to 0x%lx\n", (long)pBitmap, (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
     fbPushPixels (pGC, pBitmap, pDrawable, w, h, x, y);
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -310,8 +316,9 @@ ExaCheckComposite (CARD8      op,
     EXA_FALLBACK(("from picts 0x%lx/0x%lx to pict 0x%lx\n",
 		 (long)pSrc, (long)pMask, (long)pDst));
     exaPrepareAccess (pDst->pDrawable, EXA_PREPARE_DEST);
-    exaPrepareAccess (pSrc->pDrawable, EXA_PREPARE_SRC);
-    if (pMask)
+    if (pSrc->pDrawable != NULL)
+	exaPrepareAccess (pSrc->pDrawable, EXA_PREPARE_SRC);
+    if (pMask && pMask->pDrawable != NULL)
 	exaPrepareAccess (pMask->pDrawable, EXA_PREPARE_MASK);
     fbComposite (op,
                  pSrc,
@@ -325,9 +332,10 @@ ExaCheckComposite (CARD8      op,
                  yDst,
                  width,
                  height);
-    if (pMask)
+    if (pMask && pMask->pDrawable != NULL)
 	exaFinishAccess (pMask->pDrawable, EXA_PREPARE_MASK);
-    exaFinishAccess (pSrc->pDrawable, EXA_PREPARE_SRC);
+    if (pSrc->pDrawable != NULL)
+	exaFinishAccess (pSrc->pDrawable, EXA_PREPARE_SRC);
     exaFinishAccess (pDst->pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -362,33 +370,3 @@ exaGetPixmapFirstPixel (PixmapPtr pPixmap)
 
     return pixel;
 }
-
-/*
- * Only need to stall for CopyArea/CopyPlane, but we want to have the chance to
- * do migration for CopyArea.
- */
-const GCOps exaAsyncPixmapGCOps = {
-    ExaCheckFillSpans,
-    ExaCheckSetSpans,
-    ExaCheckPutImage,
-    exaCopyArea,
-    ExaCheckCopyPlane,
-    ExaCheckPolyPoint,
-    ExaCheckPolylines,
-    ExaCheckPolySegment,
-    ExaCheckPolyRectangle,
-    ExaCheckPolyArc,
-    ExaCheckFillPolygon,
-    ExaCheckPolyFillRect,
-    ExaCheckPolyFillArc,
-    miPolyText8,
-    miPolyText16,
-    miImageText8,
-    miImageText16,
-    ExaCheckImageGlyphBlt,
-    ExaCheckPolyGlyphBlt,
-    ExaCheckPushPixels
-#ifdef NEED_LINEHELPER
-    ,NULL
-#endif
-};

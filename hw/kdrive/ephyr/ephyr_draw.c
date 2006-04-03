@@ -28,6 +28,7 @@
 #ifdef HAVE_CONFIG_H
 #include <kdrive-config.h>
 #endif
+#undef NDEBUG	/* No, really.  The whole point of this module is to crash. */
 
 #include "ephyr.h"
 #include "exa_priv.h"
@@ -49,6 +50,43 @@
 #define EPHYR_OFFSCREEN_BASE	(1 * 1024 * 1024)
 
 /**
+ * Forces a real devPrivate.ptr for hidden pixmaps, so that we can call down to
+ * fb functions.
+ */
+static void
+ephyrPreparePipelinedAccess(PixmapPtr pPix, int index)
+{
+    KdScreenPriv(pPix->drawable.pScreen);
+    KdScreenInfo *screen = pScreenPriv->screen;
+    EphyrScrPriv *scrpriv = screen->driver;
+    EphyrFakexaPriv *fakexa = scrpriv->fakexa;
+
+    assert(fakexa->saved_ptrs[index] == NULL);
+    fakexa->saved_ptrs[index] = pPix->devPrivate.ptr;
+
+    if (pPix->devPrivate.ptr != NULL)
+	return;
+
+    pPix->devPrivate.ptr = fakexa->exa->memoryBase + exaGetPixmapOffset(pPix);
+}
+
+/**
+ * Restores the original devPrivate.ptr of the pixmap from before we messed with
+ * it.
+ */
+static void
+ephyrFinishPipelinedAccess(PixmapPtr pPix, int index)
+{
+    KdScreenPriv(pPix->drawable.pScreen);
+    KdScreenInfo *screen = pScreenPriv->screen;
+    EphyrScrPriv *scrpriv = screen->driver;
+    EphyrFakexaPriv *fakexa = scrpriv->fakexa;
+
+    pPix->devPrivate.ptr = fakexa->saved_ptrs[index];
+    fakexa->saved_ptrs[index] = NULL;
+}
+
+/**
  * Sets up a scratch GC for fbFill, and saves other parameters for the
  * ephyrSolid implementation.
  */
@@ -61,6 +99,8 @@ ephyrPrepareSolid(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     EphyrScrPriv *scrpriv = screen->driver;
     EphyrFakexaPriv *fakexa = scrpriv->fakexa;
     CARD32 tmpval[3];
+
+    ephyrPreparePipelinedAccess(pPix, EXA_PREPARE_DEST);
 
     fakexa->pDst = pPix;
     fakexa->pGC = GetScratchGC(pPix->drawable.depth, pScreen);
@@ -106,6 +146,8 @@ ephyrDoneSolid(PixmapPtr pPix)
     EphyrFakexaPriv *fakexa = scrpriv->fakexa;
 
     FreeScratchGC(fakexa->pGC);
+
+    ephyrFinishPipelinedAccess(pPix, EXA_PREPARE_DEST);
 }
 
 /**
@@ -122,6 +164,9 @@ ephyrPrepareCopy(PixmapPtr pSrc, PixmapPtr pDst, int dx, int dy, int alu,
     EphyrScrPriv *scrpriv = screen->driver;
     EphyrFakexaPriv *fakexa = scrpriv->fakexa;
     CARD32 tmpval[2];
+
+    ephyrPreparePipelinedAccess(pDst, EXA_PREPARE_DEST);
+    ephyrPreparePipelinedAccess(pSrc, EXA_PREPARE_SRC);
 
     fakexa->pSrc = pSrc;
     fakexa->pDst = pDst;
@@ -167,6 +212,9 @@ ephyrDoneCopy(PixmapPtr pDst)
     EphyrFakexaPriv *fakexa = scrpriv->fakexa;
 
     FreeScratchGC (fakexa->pGC);
+
+    ephyrFinishPipelinedAccess(fakexa->pSrc, EXA_PREPARE_SRC);
+    ephyrFinishPipelinedAccess(fakexa->pDst, EXA_PREPARE_DEST);
 }
 
 /**
@@ -194,10 +242,18 @@ ephyrPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pMaskPicture,
     EphyrScrPriv *scrpriv = screen->driver;
     EphyrFakexaPriv *fakexa = scrpriv->fakexa;
 
+    ephyrPreparePipelinedAccess(pDst, EXA_PREPARE_DEST);
+    ephyrPreparePipelinedAccess(pSrc, EXA_PREPARE_SRC);
+    if (pMask != NULL)
+	ephyrPreparePipelinedAccess(pMask, EXA_PREPARE_MASK);
+
     fakexa->op = op;
     fakexa->pSrcPicture = pSrcPicture;
     fakexa->pMaskPicture = pMaskPicture;
     fakexa->pDstPicture = pDstPicture;
+    fakexa->pSrc = pSrc;
+    fakexa->pMask = pMask;
+    fakexa->pDst = pDst;
 
     TRACE_DRAW();
 
@@ -224,6 +280,15 @@ ephyrComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int maskY,
 static void
 ephyrDoneComposite(PixmapPtr pDst)
 {
+    KdScreenPriv(pDst->drawable.pScreen);
+    KdScreenInfo *screen = pScreenPriv->screen;
+    EphyrScrPriv *scrpriv = screen->driver;
+    EphyrFakexaPriv *fakexa = scrpriv->fakexa;
+
+    if (fakexa->pMask != NULL)
+	ephyrFinishPipelinedAccess(fakexa->pMask, EXA_PREPARE_MASK);
+    ephyrFinishPipelinedAccess(fakexa->pSrc, EXA_PREPARE_SRC);
+    ephyrFinishPipelinedAccess(fakexa->pDst, EXA_PREPARE_DEST);
 }
 
 /**
@@ -243,6 +308,8 @@ ephyrDownloadFromScreen(PixmapPtr pSrc, int x, int y, int w, int h, char *dst,
     if (pSrc->drawable.bitsPerPixel < 8)
 	return FALSE;
 
+    ephyrPreparePipelinedAccess(pSrc, EXA_PREPARE_SRC);
+
     cpp = pSrc->drawable.bitsPerPixel / 8;
     src_pitch = exaGetPixmapPitch(pSrc);
     src = fakexa->exa->memoryBase + exaGetPixmapOffset(pSrc);
@@ -256,11 +323,13 @@ ephyrDownloadFromScreen(PixmapPtr pSrc, int x, int y, int w, int h, char *dst,
 
     exaMarkSync(pSrc->drawable.pScreen);
 
+    ephyrFinishPipelinedAccess(pSrc, EXA_PREPARE_SRC);
+
     return TRUE;
 }
 
 /**
- * Does fake acceleration of DownloadFromScren using memcpy.
+ * Does fake acceleration of UploadToScreen using memcpy.
  */
 static Bool
 ephyrUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src,
@@ -276,6 +345,8 @@ ephyrUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src,
     if (pDst->drawable.bitsPerPixel < 8)
 	return FALSE;
 
+    ephyrPreparePipelinedAccess(pDst, EXA_PREPARE_DEST);
+
     cpp = pDst->drawable.bitsPerPixel / 8;
     dst_pitch = exaGetPixmapPitch(pDst);
     dst = fakexa->exa->memoryBase + exaGetPixmapOffset(pDst);
@@ -289,14 +360,26 @@ ephyrUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src,
 
     exaMarkSync(pDst->drawable.pScreen);
 
+    ephyrFinishPipelinedAccess(pDst, EXA_PREPARE_DEST);
+
+    return TRUE;
+}
+
+static Bool
+ephyrPrepareAccess(PixmapPtr pPix, int index)
+{
+    /* Make sure we don't somehow end up with a pointer that is in framebuffer
+     * and hasn't been readied for us.
+     */
+    assert(pPix->devPrivate.ptr != NULL);
+
     return TRUE;
 }
 
 /**
  * In fakexa, we currently only track whether we have synced to the latest
- * "accelerated" drawing that has happened or not.  This will be used by an
- * ephyrPrepareAccess for the purpose of reliably providing garbage when
- * reading/writing when we haven't synced.
+ * "accelerated" drawing that has happened or not.  It's not used for anything
+ * yet.
  */
 static int
 ephyrMarkSync(ScreenPtr pScreen)
@@ -382,6 +465,8 @@ ephyrDrawInit(ScreenPtr pScreen)
     fakexa->exa->MarkSync = ephyrMarkSync;
     fakexa->exa->WaitMarker = ephyrWaitMarker;
 
+    fakexa->exa->PrepareAccess = ephyrPrepareAccess;
+
     fakexa->exa->pixmapOffsetAlign = EPHYR_OFFSET_ALIGN;
     fakexa->exa->pixmapPitchAlign = EPHYR_PITCH_ALIGN;
 
@@ -429,4 +514,5 @@ exaDDXDriverInit(ScreenPtr pScreen)
     ExaScreenPriv(pScreen);
 
     pExaScr->migration = ExaMigrationAlways;
+    pExaScr->hideOffscreenPixmapData = TRUE;
 }

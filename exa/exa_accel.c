@@ -165,6 +165,9 @@ exaPutImage (DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
     if (pPix == NULL)
 	goto fallback;
 
+    x += pDrawable->x;
+    y += pDrawable->y;
+
     pClip = fbGetCompositeClip(pGC);
     src_stride = PixmapBytePad(w, pDrawable->depth);
     for (nbox = REGION_NUM_RECTS(pClip),
@@ -190,7 +193,7 @@ exaPutImage (DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
 	if (x1 >= x2 || y1 >= y2)
 	    continue;
 
-	src = bits + (y1 - y + yoff) * src_stride + (x1 - x + xoff) * (bpp / 8);
+	src = bits + (y1 - y) * src_stride + (x1 - x) * (bpp / 8);
 	ok = pExaScr->info->UploadToScreen(pPix, x1 + xoff, y1 + yoff,
 					   x2 - x1, y2 - y1, src, src_stride);
 	/* If we fail to accelerate the upload, fall back to using unaccelerated
@@ -201,6 +204,8 @@ exaPutImage (DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
 	    FbStride dst_stride;
 	    int	dstBpp;
 	    int	dstXoff, dstYoff;
+
+	    exaPrepareAccess(pDrawable, EXA_PREPARE_DEST);
 
 	    fbGetStipDrawable(pDrawable, dst, dst_stride, dstBpp,
 			      dstXoff, dstYoff);
@@ -214,6 +219,8 @@ exaPutImage (DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
 		      (x2 - x1) * bpp,
 		      y2 - y1,
 		      GXcopy, FB_ALLONES, bpp);
+
+	    exaFinishAccess(pDrawable, EXA_PREPARE_DEST);
 	}
     }
 
@@ -688,8 +695,7 @@ exaImageGlyphBlt (DrawablePtr	pDrawable,
 	return;
     }
     glyph = NULL;
-    fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
-    switch (dstBpp) {
+    switch (pDrawable->bitsPerPixel) {
     case 8:	glyph = fbGlyph8; break;
     case 16:    glyph = fbGlyph16; break;
     case 24:    glyph = fbGlyph24; break;
@@ -735,6 +741,9 @@ exaImageGlyphBlt (DrawablePtr	pDrawable,
 
     EXA_FALLBACK(("to 0x%lx\n", (long)pDrawable));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccessGC (pGC);
+
+    fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
     ppci = ppciInit;
     while (nglyph--)
@@ -780,6 +789,7 @@ exaImageGlyphBlt (DrawablePtr	pDrawable,
 	}
 	x += pci->metrics.characterWidth;
     }
+    exaFinishAccessGC (pGC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -812,17 +822,9 @@ const GCOps exaOps = {
 void
 exaCopyWindow(WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 {
-    ExaScreenPriv (pWin->drawable.pScreen);
     RegionRec	rgnDst;
     int		dx, dy;
     PixmapPtr	pPixmap = (*pWin->drawable.pScreen->GetWindowPixmap) (pWin);
-
-    if (pExaScr->swappedOut) {
-        ExaScreenPriv(pWin->drawable.pScreen);
-        pExaScr->SavedCopyWindow (pWin, ptOldOrg, prgnSrc);
-        exaDrawableDirty (&pWin->drawable);
-        return;
-    }
 
     dx = ptOldOrg.x - pWin->drawable.x;
     dy = ptOldOrg.y - pWin->drawable.y;

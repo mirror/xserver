@@ -58,9 +58,16 @@ unsigned long
 exaGetPixmapOffset(PixmapPtr pPix)
 {
     ExaScreenPriv (pPix->drawable.pScreen);
+    ExaPixmapPriv (pPix);
+    void *ptr;
 
-    return ((unsigned long)pPix->devPrivate.ptr -
-	(unsigned long)pExaScr->info->memoryBase);
+    /* Return the offscreen pointer if we've hidden the data. */
+    if (pPix->devPrivate.ptr == NULL)
+	ptr = pExaPixmap->fb_ptr;
+    else
+	ptr = pPix->devPrivate.ptr;
+
+    return ((unsigned long)ptr - (unsigned long)pExaScr->info->memoryBase);
 }
 
 /**
@@ -232,6 +239,11 @@ exaPixmapIsOffscreen(PixmapPtr p)
     ScreenPtr	pScreen = p->drawable.pScreen;
     ExaScreenPriv(pScreen);
 
+    /* If the devPrivate.ptr is NULL, it's offscreen but we've hidden the data.
+     */
+    if (p->devPrivate.ptr == NULL)
+	return TRUE;
+
     return ((unsigned long) ((CARD8 *) p->devPrivate.ptr -
 			     (CARD8 *) pExaScr->info->memoryBase) <
 	    pExaScr->info->memorySize);
@@ -301,6 +313,13 @@ exaPrepareAccess(DrawablePtr pDrawable, int index)
     else
 	return;
 
+    /* Unhide pixmap pointer */
+    if (pPixmap->devPrivate.ptr == NULL) {
+	ExaPixmapPriv (pPixmap);
+
+	pPixmap->devPrivate.ptr = pExaPixmap->fb_ptr;
+    }
+
     if (pExaScr->info->PrepareAccess == NULL)
 	return;
 
@@ -324,14 +343,25 @@ exaFinishAccess(DrawablePtr pDrawable, int index)
     ScreenPtr	    pScreen = pDrawable->pScreen;
     ExaScreenPriv  (pScreen);
     PixmapPtr	    pPixmap;
+    ExaPixmapPrivPtr pExaPixmap;
 
     if (index == EXA_PREPARE_DEST)
 	exaDrawableDirty (pDrawable);
 
+    pPixmap = exaGetDrawablePixmap (pDrawable);
+
+    pExaPixmap = ExaGetPixmapPriv(pPixmap);
+
+    /* Rehide pixmap pointer if we're doing that. */
+    if (pExaPixmap != NULL && pExaScr->hideOffscreenPixmapData &&
+	pExaPixmap->fb_ptr == pPixmap->devPrivate.ptr)
+    {
+	pPixmap->devPrivate.ptr = pExaPixmap->fb_ptr;
+    }
+
     if (pExaScr->info->FinishAccess == NULL)
 	return;
 
-    pPixmap = exaGetDrawablePixmap (pDrawable);
     if (!exaPixmapIsOffscreen (pPixmap))
 	return;
 
@@ -339,30 +369,69 @@ exaFinishAccess(DrawablePtr pDrawable, int index)
 }
 
 /**
- * exaValidateGC() chooses between the accelerated and unaccelerated GC Ops
- * vectors.
- *
- * The unaccelerated (exaAsyncPixmapGCOps) vector is chosen if the drawable is
- * offscreen.  This means that operations that affect only that drawable will
- * not result in migration of the pixmap.  However, exaAsyncPixmapGCOps does use
- * the accelerated operations for the Copy* functions, because the other
- * drawable involved might be in framebuffer and require synchronization before
- * accessing it.  This means that for the Copy* functions, even using
- * exaAsyncPixmapGCOps may result in migration, and therefore acceleration.
- *
- * Because of how nonintuitive exaAsyncPixmapGCOps is, and the fact that its
- * only use is for dubious performance reasons (and probably just historical
- * reasons), it is likely to go away in the future.
+ * exaValidateGC() sets the ops to EXA's implementations, which may be
+ * accelerated or may sync the card and fall back to fb.
  */
 static void
 exaValidateGC (GCPtr pGC, Mask changes, DrawablePtr pDrawable)
 {
+    /* fbValidateGC will do direct access to pixmaps if the tiling has changed.
+     * Preempt fbValidateGC by doing its work and masking the change out, so
+     * that we can do the Prepare/FinishAccess.
+     */
+#ifdef FB_24_32BIT
+    if ((changes & GCTile) && fbGetRotatedPixmap(pGC)) {
+	(*pGC->pScreen->DestroyPixmap) (fbGetRotatedPixmap(pGC));
+	fbGetRotatedPixmap(pGC) = 0;
+    }
+	
+    if (pGC->fillStyle == FillTiled) {
+	PixmapPtr	pOldTile, pNewTile;
+
+	pOldTile = pGC->tile.pixmap;
+	if (pOldTile->drawable.bitsPerPixel != pDrawable->bitsPerPixel)
+	{
+	    pNewTile = fbGetRotatedPixmap(pGC);
+	    if (!pNewTile ||
+		pNewTile ->drawable.bitsPerPixel != pDrawable->bitsPerPixel)
+	    {
+		if (pNewTile)
+		    (*pGC->pScreen->DestroyPixmap) (pNewTile);
+		/* fb24_32ReformatTile will do direct access of a newly-
+		 * allocated pixmap.  This isn't a problem yet, since we don't
+		 * put pixmaps in FB until at least one accelerated EXA op.
+		 */
+		exaPrepareAccess(&pOldTile->drawable, EXA_PREPARE_SRC);
+		pNewTile = fb24_32ReformatTile (pOldTile,
+						pDrawable->bitsPerPixel);
+		exaFinishAccess(&pOldTile->drawable, EXA_PREPARE_SRC);
+	    }
+	    if (pNewTile)
+	    {
+		fbGetRotatedPixmap(pGC) = pOldTile;
+		pGC->tile.pixmap = pNewTile;
+		changes |= GCTile;
+	    }
+	}
+    }
+#endif
+    if (changes & GCTile) {
+	if (!pGC->tileIsPixel && FbEvenTile (pGC->tile.pixmap->drawable.width *
+					     pDrawable->bitsPerPixel))
+	{
+	    exaPrepareAccess(&pGC->tile.pixmap->drawable, EXA_PREPARE_SRC);
+	    fbPadPixmap (pGC->tile.pixmap);
+	    exaFinishAccess(&pGC->tile.pixmap->drawable, EXA_PREPARE_SRC);
+	}
+	/* Mask out the GCTile change notification, now that we've done FB's
+	 * job for it.
+	 */
+	changes &= ~GCTile;
+    }
+
     fbValidateGC (pGC, changes, pDrawable);
 
-    if (exaDrawableIsOffscreen (pDrawable))
-	pGC->ops = (GCOps *) &exaOps;
-    else
-	pGC->ops = (GCOps *) &exaAsyncPixmapGCOps;
+    pGC->ops = (GCOps *) &exaOps;
 }
 
 static GCFuncs	exaGCFuncs = {
@@ -522,6 +591,12 @@ exaDriverInit (ScreenPtr		pScreen,
     if (ps) {
         pExaScr->SavedComposite = ps->Composite;
 	ps->Composite = exaComposite;
+
+	pExaScr->SavedRasterizeTrapezoid = ps->RasterizeTrapezoid;
+	ps->RasterizeTrapezoid = exaRasterizeTrapezoid;
+
+	pExaScr->SavedAddTriangles = ps->AddTriangles;
+	ps->AddTriangles = exaAddTriangles;
 
 	pExaScr->SavedGlyphs = ps->Glyphs;
 	ps->Glyphs = exaGlyphs;

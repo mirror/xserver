@@ -25,7 +25,7 @@ dnl Process this file with autoconf to create configure.
 AC_PREREQ(2.57)
 dnl This is the not the Xorg version number, it's the server version number.
 dnl Yes, that's weird.
-AC_INIT([xorg-server], 1.0.99.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
+AC_INIT([xorg-server], 1.1.99.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([dist-bzip2 foreign])
 AM_MAINTAINER_MODE
@@ -118,18 +118,24 @@ AC_CHECK_HEADERS([linux/fb.h], FBDEV=yes)
 AM_CONDITIONAL(FBDEVHW, [test "x$FBDEV" = xyes])
 
 dnl MTRR header
-AC_CHECK_HEADERS([asm/mtrr.h])
+AC_CHECK_HEADERS([asm/mtrr.h], ac_cv_asm_mtrr_h=yes)
+if test "x$ac_cv_asm_mtrr_h" = xyes; then
+	HAVE_MTRR=yes
+fi
 
 dnl BSD MTRR header
 AC_CHECK_HEADERS([sys/memrange.h], ac_cv_memrange_h=yes)
 if test "x$ac_cv_memrange_h" = xyes; then
-	AC_DEFINE(HAS_MTRR_SUPPORT, 1, [Define to 1 if BSD MTRR support is
-		 available])
+	HAVE_MTRR=yes
+fi
+
+if test "x$HAVE_MTRR" = xyes; then
+	AC_DEFINE(HAS_MTRR_SUPPORT, 1, [MTRR support available])
 fi
 
 dnl A NetBSD MTRR header
-AC_CHECK_HEADERS([machine/mtrr.h], ac_cv_mtrr_h=yes)
-if test "x$ac_cv_mtrr_h" = xyes; then
+AC_CHECK_HEADERS([machine/mtrr.h], ac_cv_machine_mtrr_h=yes)
+if test "x$ac_cv_machine_mtrr_h" = xyes; then
 	AC_DEFINE(HAS_MTRR_BUILTIN, 1, [Define to 1 if NetBSD built-in MTRR
 		support is available])
 fi
@@ -421,10 +427,14 @@ AC_ARG_ENABLE(xprint,         AS_HELP_STRING([--enable-xprint], [Build Xprint ex
 AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (default: no)]), [XGL=$enableval], [XGL=no])
 AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
 AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
-# kdrive and its subsystems
+dnl kdrive and its subsystems
 AC_ARG_ENABLE(kdrive,         AS_HELP_STRING([--enable-kdrive], [Build kdrive servers (default: no)]), [KDRIVE=$enableval], [KDRIVE=no])
 AC_ARG_ENABLE(xephyr,         AS_HELP_STRING([--enable-xephyr], [Build the kdrive Xephyr server (default: auto)]), [XEPHYR=$enableval], [XEPHYR=auto])
 AC_ARG_ENABLE(xsdl,           AS_HELP_STRING([--enable-xsdl], [Build the kdrive Xsdl server (default: auto)]), [XSDL=$enableval], [XSDL=auto])
+dnl xprint
+AC_ARG_ENABLE(freetype,       AS_HELP_STRING([ --enable-freetype], [Build Xprint FreeType backend (default: yes)]), [XP_USE_FREETYPE=$enableval],[XP_USE_FREETYPE=no])
+AC_ARG_WITH(freetype-config,  AS_HELP_STRING([ --with-freetype-config=PROG], [Use FreeType configuration program PROG (default: auto)]), freetype_config=$withval, freetype_config=auto)
+
 
 dnl chown/chmod to be setuid root as part of build
 dnl Replaces InstallXserverSetUID in imake
@@ -492,7 +502,7 @@ XEXT_LIB='$(top_builddir)/Xext/libXext.la'
 XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
-REQUIRED_MODULES="randrproto renderproto [fixesproto >= 4.0] damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto scrnsaverproto bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
+REQUIRED_MODULES="randrproto renderproto [fixesproto >= 4.0] damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
 REQUIRED_LIBS="xfont xau fontenc"
 
 AM_CONDITIONAL(XV, [test "x$XV" = xyes])
@@ -887,7 +897,7 @@ if test "x$DMX" = xyes; then
 		              modules not found.])
 	fi
 	DMX_INCLUDES="$XEXT_INC $RENDER_INC $XTRAP_INC $RECORD_INC"
-	XDMX_LIBS="$FB_LIB $MI_LIB $XEXT_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_DAMAGE_LIB $LBX_LIB $MIEXT_SHADOW_LIB $OS_LIB $CWRAP_LIB"
+	XDMX_LIBS="$FB_LIB $MI_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_DAMAGE_LIB $LBX_LIB $MIEXT_SHADOW_LIB $OS_LIB $XEXT_LIB $CWRAP_LIB"
 	AC_SUBST([XDMX_LIBS])
 
 dnl USB sources in DMX require <linux/input.h>
@@ -1033,7 +1043,7 @@ if test "x$XORG" = xyes; then
 	XORG_OSINCS='-I$(top_srcdir)/hw/xfree86/os-support -I$(top_srcdir)/hw/xfree86/os-support/bus -I$(top_srcdir)/os'
 	XORG_INCS="$XORG_DDXINCS $XORG_OSINCS"
 	XORG_CFLAGS="$XORGSERVER_CFLAGS -DHAVE_XORG_CONFIG_H"
-	XORG_LIBS="$MI_LIB $FIXES_LIB $XEXTXORG_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $LBX_LIB $COMPOSITE_LIB $XPSTUBS_LIB $OS_LIB"
+	XORG_LIBS="$MI_LIB $FIXES_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $LBX_LIB $COMPOSITE_LIB $XPSTUBS_LIB $OS_LIB $XEXTXORG_LIB"
 
 	AC_CHECK_LIB([dl], [dlopen], XORG_LIBS="$XORG_LIBS -ldl")
 
@@ -1289,7 +1299,41 @@ if test "x$XPRINT" = xyes; then
 
 	AC_PATH_PROG(MKFONTSCALE, mkfontscale)
 	AC_PATH_PROG(MKFONTDIR, mkfontdir)
+	
+        # freetype support code borrowed from lib/XFont
+        if test x$XP_USE_FREETYPE = xyes; then
+            AC_DEFINE(XP_USE_FREETYPE,1,[Support FreeType rasterizer in Xprint for nearly all font file formats])
+
+            if test "$freetype_config" = "auto" ; then
+                PKG_CHECK_MODULES(FREETYPE, freetype2,
+                        freetype_config=no, freetype_config=yes)
+            fi
+
+            if test "$freetype_config" = "yes"; then
+                AC_PATH_PROG(ft_config,freetype-config,no)
+                if test "$ft_config" = "no"; then
+                        AC_MSG_ERROR([You must have freetype installed; see http://www.freetype.org/])
+                fi
+            else
+                ft_config="$freetype_config"
+            fi
+
+            if test "$freetype_config" != "no"; then
+                FREETYPE_CFLAGS="`$ft_config --cflags`"
+                FREETYPE_LIBS="`$ft_config --libs`"
+            fi
+            FREETYPE_REQUIRES="freetype2"
+        else
+            FREETYPE_CFLAGS=""
+            FREETYPE_LIBS=""
+            FREETYPE_REQUIRES=""
+        fi
+        AC_SUBST(FREETYPE_LIBS)
+        AC_SUBST(FREETYPE_CFLAGS)
+        AC_SUBST(FREETYPE_REQUIRES)
+	# end freetype support
 fi
+AM_CONDITIONAL(XP_USE_FREETYPE, [test "x$XPRINT" = xyes && test "x$XP_USE_FREETYPE" = xyes])
 
 
 dnl XWin DDX
