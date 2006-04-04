@@ -772,6 +772,7 @@ xglxScreenInit (int	  index,
 	XColor	    black, dummy;
 	Pixmap	    bitmap;
 	Cursor	    cursor;
+	XID	    installedCmaps;
 
 	if (!XAllocNamedColor (xdisplay, pScreenPriv->colormap,
 			       "black", &black, &dummy))
@@ -794,6 +795,16 @@ xglxScreenInit (int	  index,
 	XFreeColors (xdisplay, pScreenPriv->colormap, &black.pixel, 1, 0);
 
 	miDCInitialize (pScreen, &xglxPointerScreenFuncs);
+
+	/* XXX: Assumes only one installed colormap. */
+	if ((*pScreen->ListInstalledColormaps) (pScreen, &installedCmaps))
+	{
+	    ColormapPtr installedCmap;
+
+	    installedCmap = LookupIDByType (installedCmaps, RT_COLORMAP);
+	    if (installedCmap)
+		(*pScreen->InstallColormap) (installedCmap);
+	}
     }
     else
     {
