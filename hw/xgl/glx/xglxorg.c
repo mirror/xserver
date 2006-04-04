@@ -544,7 +544,6 @@ xglxInitXorg (void)
     pid_t	 pid;
     char	 *name;
     char	 *auth[] = { "-auth", xorgAuthBuf, "-nolisten", "tcp" };
-    char	 *saver[] = { "-dpms", "-v", "-s", "0" };
     char	 *endArg = NULL;
     int		 authFd;
     int		 mask;
@@ -590,9 +589,6 @@ xglxInitXorg (void)
     }
 
     if (!xglxAddXorgArguments (auth, sizeof (auth) / sizeof (char *)))
-	return 0;
-
-    if (!xglxAddXorgArguments (saver, sizeof (saver) / sizeof (char *)))
 	return 0;
 
     if (!xglxAddXorgArguments (&xorgDisplay, 1))

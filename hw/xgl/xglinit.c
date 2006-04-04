@@ -77,6 +77,8 @@ typedef struct _xglDDXFunc {
     void (*abort)	       (void);
     void (*giveUp)	       (void);
     void (*osVendorInit)       (void);
+    Bool (*dpmsSupported)      (void);
+    void (*dpmsSet)	       (int	     level);
 } xglDDXFuncRec;
 
 static xglDDXFuncRec __ddxFunc;
@@ -154,7 +156,9 @@ xglEnsureDDXModule (void)
 	    SYM (__ddxFunc.processArgument,    "ddxProcessArgument"),
 	    SYM (__ddxFunc.abort,	       "AbortDDX"),
 	    SYM (__ddxFunc.giveUp,	       "ddxGiveUp"),
-	    SYM (__ddxFunc.osVendorInit,       "OsVendorInit")
+	    SYM (__ddxFunc.osVendorInit,       "OsVendorInit"),
+	    SYM (__ddxFunc.dpmsSupported,      "DPMSSupported"),
+	    SYM (__ddxFunc.dpmsSet,	       "DPMSSet")
 	};
 
 	ddxHandle = xglLoadModule (ddxModuleName, RTLD_NOW | RTLD_GLOBAL);
@@ -334,6 +338,28 @@ OsVendorInit (void)
 void
 ddxInitGlobals (void)
 {
+}
+
+Bool
+DPMSSupported (void)
+{
+    if (xglEnsureDDXModule ())
+	return (*__ddxFunc.dpmsSupported) ();
+
+    return FALSE;
+}
+
+int
+DPMSGet (int *plevel)
+{
+    return -1;
+}
+
+void
+DPMSSet (int level)
+{
+    if (xglEnsureDDXModule ())
+	return (*__ddxFunc.dpmsSet) (level);
 }
 
 #if 1

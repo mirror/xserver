@@ -117,6 +117,15 @@ xglxGiveUp (void);
 void
 xglxOsVendorInit (void);
 
+Bool
+xglxDPMSSupported (void);
+
+int
+xglxDPMSGet (int *plevel);
+
+void
+xglxDPMSSet (int level);
+
 #ifndef NXGLXORG
 
 void

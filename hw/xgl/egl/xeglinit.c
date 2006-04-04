@@ -129,3 +129,14 @@ OsVendorInit (void)
 {
     xeglOsVendorInit ();
 }
+
+Bool
+DPMSSupported (void)
+{
+    return FALSE;
+}
+
+void
+DPMSSet (int level)
+{
+}

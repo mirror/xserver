@@ -71,7 +71,6 @@ Xgl_LDFLAGS = -export-dynamic
 Xgl_SOURCES =			       \
 	xglinit.c		       \
 	$(top_srcdir)/mi/miinitext.c   \
-	$(top_srcdir)/Xext/dpmsstubs.c \
 	$(top_srcdir)/Xi/stubs.c       \
 	$(top_srcdir)/fb/fbcmap.c
 Xgl_LDADD =		   \

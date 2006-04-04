@@ -26,6 +26,7 @@
 #include "xglx.h"
 
 #include <X11/extensions/Xrandr.h>
+#include <X11/extensions/dpms.h>
 #include <X11/cursorfont.h>
 
 #include <glitz-glx.h>
@@ -132,6 +133,7 @@ static CARD32	 lastEventTime = 0;
 static ScreenPtr currentScreen = 0;
 static Bool	 softCursor    = FALSE;
 static Bool	 fullscreen    = TRUE;
+static Bool	 xDpms         = FALSE;
 
 static Bool randrExtension = FALSE;
 static int  randrEvent, randrError;
@@ -1413,8 +1415,34 @@ xglxOsVendorInit (void)
 	xscreen = DefaultScreen (xdisplay);
 
 	if (!xDisplayName)
+	{
+	    int timeout, interval, preferBlanking, allowExposures;
+
 	    XDefineCursor (xdisplay, RootWindow (xdisplay, xscreen),
 			   XCreateFontCursor (xdisplay, XC_watch));
+
+	    if (DPMSCapable (xdisplay))
+	    {
+		CARD16 standby, suspend, off;
+
+		DPMSGetTimeouts (xdisplay, &standby, &suspend, &off);
+		DPMSSetTimeouts (xdisplay, 0, 0, 0);
+		DPMSEnable (xdisplay);
+		DPMSForceLevel (xdisplay, DPMSModeOn);
+
+		DPMSStandbyTime = standby * MILLI_PER_SECOND;
+		DPMSSuspendTime = suspend * MILLI_PER_SECOND;
+		DPMSOffTime     = off     * MILLI_PER_SECOND;
+
+		xDpms = TRUE;
+	    }
+
+	    XGetScreenSaver (xdisplay, &timeout, &interval,
+			     &preferBlanking, &allowExposures);
+	    XSetScreenSaver (xdisplay, 0, interval,
+			     preferBlanking, allowExposures);
+	    XResetScreenSaver (xdisplay);
+	}
 
 	if (!glitz_glx_find_window_format (xdisplay, xscreen, 0, NULL, 0))
 	    FatalError ("no GLX visuals available\n");
@@ -1485,3 +1513,16 @@ xglxCreateARGBCursor (ScreenPtr pScreen,
 }
 
 #endif
+
+Bool
+xglxDPMSSupported (void)
+{
+    return xDpms;
+}
+
+void
+xglxDPMSSet (int level)
+{
+    if (xDpms)
+	DPMSForceLevel (xdisplay, level);
+}

@@ -167,6 +167,19 @@ OsVendorInit (void)
     xglxOsVendorInit ();
 }
 
-void ddxInitGlobals()
+void
+ddxInitGlobals (void)
 {
+}
+
+Bool
+DPMSSupported (void)
+{
+    return xglxDPMSSupported ();
+}
+
+void
+DPMSSet (int level)
+{
+    xglxDPMSSet (level);
 }

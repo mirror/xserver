@@ -102,3 +102,15 @@ OsVendorInit (void)
 {
     xglxOsVendorInit ();
 }
+
+Bool
+DPMSSupported (void)
+{
+    return xglxDPMSSupported ();
+}
+
+void
+DPMSSet (int level)
+{
+    xglxDPMSSet (level);
+}

@@ -1,5 +1,22 @@
 2006-04-04  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/glx/xglxorg.c (xglxInitXorg): No need to try and disable
+	dpms and screensaver with command line arguments as we now
+	do that as part of detecting DPMS support in xglx.c.
+
+	* hw/xgl/glx/xglx.c (xglxOsVendorInit): Check for DPMS,
+	get default timeouts, disable current timeouts and screensaver.
+	Add xglxDPMSSupported and xglxDPMSet for DPMS support.
+
+	* hw/xgl/Makefile.am (Xgl_SOURCES): Remove dpmsstubs.c.
+
+	* hw/xgl/egl/module/xeglmodule.c:
+	* hw/xgl/egl/xegl.c:
+	* hw/xgl/glx/module/xglxmodule.c:
+	* hw/xgl/glx/xglx.c:
+	* hw/xgl/xglinit.c: DPMS support by adding DPMSSupported
+	and DPMSSet as ddx module functions.
+
 	* hw/xgl/glx/xglx.c (xglxScreenInit): Re-install colormap
 	after initializing software cursor (#6489). (Tiago Vignatti)
 
