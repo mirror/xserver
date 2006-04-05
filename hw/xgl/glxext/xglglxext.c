@@ -4873,7 +4873,16 @@ xglInitExtensions (xglGLContextPtr pContext)
 					    "glPointParameterfvEXT");
     }
 
-    if (strstr (extensions, "GL_MESA_window_pos"))
+    if (strstr (extensions, "GL_ARB_window_pos"))
+    {
+	pContext->WindowPos3fMESA =
+	    (PFNGLWINDOWPOS3FMESAPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glWindowPos3fARB");
+
+	pContext->glRenderTable.WindowPos3fvMESA = xglWindowPos3fvMESA;
+    }
+    else if (strstr (extensions, "GL_MESA_window_pos"))
     {
 	pContext->WindowPos3fMESA =
 	    (PFNGLWINDOWPOS3FMESAPROC)
