@@ -94,6 +94,8 @@ XkbGetControls (Display	    *dpy,
 #define XGLX_DEFAULT_SCREEN_WIDTH  800
 #define XGLX_DEFAULT_SCREEN_HEIGHT 600
 
+#define MAX_BUTTONS 64
+
 typedef struct _xglxScreen {
     Window	       win, root;
     Colormap	       colormap;
@@ -1263,6 +1265,45 @@ xglxLegalModifier (unsigned int key,
     return TRUE;
 }
 
+static void
+xglxChangePointerControl (DeviceIntPtr pDev,
+			  PtrCtrl      *ctrl)
+{
+    XChangePointerControl (xdisplay, TRUE, TRUE,
+			   ctrl->num, ctrl->den, ctrl->threshold);
+}
+
+static int
+xglxPointerProc (DeviceIntPtr pDevice,
+		 int	      onoff)
+{
+    BYTE      map[MAX_BUTTONS + 1];
+    DevicePtr pDev = (DevicePtr) pDevice;
+    int       i, nMap;
+
+    switch (onoff) {
+    case DEVICE_INIT:
+	nMap = XGetPointerMapping (xdisplay, map, MAX_BUTTONS);
+	for (i = 0; i <= nMap; i++)
+	    map[i] = i;
+
+	InitPointerDeviceStruct (pDev, map, nMap,
+				 miPointerGetMotionEvents,
+				 xglxChangePointerControl,
+				 miPointerGetMotionBufferSize ());
+	break;
+    case DEVICE_ON:
+	pDev->on = TRUE;
+	break;
+    case DEVICE_OFF:
+    case DEVICE_CLOSE:
+	pDev->on = FALSE;
+	break;
+    }
+
+    return Success;
+}
+
 void
 xglxProcessInputEvents (void)
 {
@@ -1276,7 +1317,7 @@ xglxInitInput (int  argc,
 {
     DeviceIntPtr pKeyboard, pPointer;
 
-    pPointer  = AddInputDevice (xglMouseProc, TRUE);
+    pPointer  = AddInputDevice (xglxPointerProc, TRUE);
     pKeyboard = AddInputDevice (xglxKeybdProc, TRUE);
 
     RegisterPointerDevice (pPointer);

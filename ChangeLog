@@ -1,3 +1,9 @@
+2006-04-05  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glx/xglx.c: Add xglxPointerProc and
+	xglxChangePointerControl so that acceleration and threshold
+	can be set properly.
+
 2006-04-04  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glx/xglxorg.c (xglxInitXorg): No need to try and disable
