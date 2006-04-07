@@ -1,3 +1,8 @@
+2006-04-07  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glx/xglx.c (xglxDPMSSet): Set DPMSPowerLevel and
+	clamp level.
+
 2006-04-05  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glxext/xglglxext.c (xglInitExtensions): Fix glWindowPos3f

@@ -1564,6 +1564,16 @@ xglxDPMSSupported (void)
 void
 xglxDPMSSet (int level)
 {
-    if (xDpms)
-	DPMSForceLevel (xdisplay, level);
+    if (!xDpms)
+	return;
+
+    if (level < 0)
+	level = DPMSModeOn;
+
+    if (level > 3)
+	level = DPMSModeOff;
+
+    DPMSPowerLevel = level;
+
+    DPMSForceLevel (xdisplay, level);
 }
