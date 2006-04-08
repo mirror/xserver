@@ -65,6 +65,7 @@ EXTRA_DIST = \
 	xglmodule.h
 
 Xgl_DEPENDENCIES =	  \
+	libxgl.a	  \
 	$(XORG_CORE_LIBS) \
 	$(XGL_LIBS)
 Xgl_LDFLAGS = -export-dynamic
