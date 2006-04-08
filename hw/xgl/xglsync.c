@@ -236,6 +236,42 @@ xglSyncSurface (DrawablePtr pDrawable)
 	    format.scanline_order = GLITZ_PIXEL_SCANLINE_ORDER_TOP_DOWN;
 	}
 
+	/* If all bits are up to date we can avoid transferring a large set
+	   of boxes by transferring the extents box instead. */
+	if (pPixmapPriv->allBits && nBox != 1)
+	{
+	    /* This many boxes. It is likely more efficient to always transfer
+	       the extents box instead. */
+	    if (nBox > 64)
+	    {
+		pBox = pExt;
+		nBox = 1;
+	    }
+	    else
+	    {
+		int i, w, e, r = 0;
+
+		for (i = 0; i < nBox; i++)
+		    r += (pBox[i].x2 - pBox[i].x1) * (pBox[i].y2 - pBox[i].y1);
+
+		e = (pExt->x2 - pExt->x1) * (pExt->y2 - pExt->y1);
+		w = e - r;
+
+		/* r, is the area of all boxes. e, is the are for the
+		   extents. w, is the area that doesn't need to be
+		   transferred.
+
+		   If w per box is less than 2 times the area of all
+		   boxes, transferring the extents has been proved more
+		   efficient. */
+		if ((w / nBox) < (r << 1))
+		{
+		    pBox = pExt;
+		    nBox = 1;
+		}
+	    }
+	}
+
 	glitz_surface_set_clip_region (pPixmapPriv->surface,
 				       0, 0, (glitz_box_t *) pBox, nBox);
 

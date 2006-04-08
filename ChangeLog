@@ -1,5 +1,9 @@
 2006-04-08  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/xglsync.c (xglSyncSurface): Add very useful optimization
+	for which avoids which makes pixels transfers much more efficient in
+	some cases.
+
 	* hw/xgl/Makefile.am (Xgl_DEPENDENCIES): Add libxgl.a.
 
 2006-04-07  David Reveman  <davidr@novell.com>
