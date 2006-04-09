@@ -348,7 +348,7 @@ __GLXcontext *__glXForceCurrent(__GLXclientState *cl, GLXContextTag tag,
     }
 
     if (!cx->isDirect) {
-	if (cx->drawPriv == NULL) {
+	if (cx->pendingState & __GLX_PENDING_DESTROY) {
 	    /*
 	    ** The drawable has vanished.  It must be a window, because only
 	    ** windows can be destroyed from under us; GLX pixmaps are

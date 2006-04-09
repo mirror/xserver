@@ -643,6 +643,9 @@ int DoMakeCurrent( __GLXclientState *cl,
 	glxc->drawPriv = drawPriv;
 	glxc->readPriv = readPriv;
 
+	/* Reset pending state */
+	glxc->pendingState = 0;
+
 	/* make the context current */
 	if (!(*glxc->makeCurrent)(glxc)) {
 	    glxc->drawPriv = NULL;

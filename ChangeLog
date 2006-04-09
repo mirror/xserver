@@ -1,5 +1,11 @@
 2006-04-09  David Reveman  <davidr@novell.com>
 
+	* GL/glx/glxcmds.c (DoMakeCurrent): Reset pending state when making a
+	context current.
+
+	* GL/glx/glxext.c (__glXForceCurrent): Check for pending destroy flag
+	instead of drawPriv being NULL as that should never happen.
+
 	* GL/glx/glxvisuals.c (init_visuals): Set EXT_tfp attributes properly.
 
 	* GL/glx/glxserver.h: More temporary EXT_tfp defines.
