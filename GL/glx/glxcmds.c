@@ -1065,10 +1065,18 @@ __glXCreateARGBConfig(__GLXscreen *screen)
     modes->depthBits = 0;
     modes->haveStencilBuffer = FALSE;
     modes->stencilBits = 0;
+
+    modes->bindToTextureRgb = FALSE;
+    modes->bindToTextureRgba = TRUE;
+    modes->bindToMipmapTexture = TRUE;
+    modes->bindToTextureTargets =
+	GLX_TEXTURE_1D_BIT_EXT | GLX_TEXTURE_2D_BIT_EXT |
+	GLX_TEXTURE_RECTANGLE_BIT_EXT;
+    modes->yInverted = FALSE;
 }
 
 
-#define __GLX_TOTAL_FBCONFIG_ATTRIBS (28)
+#define __GLX_TOTAL_FBCONFIG_ATTRIBS (34)
 #define __GLX_FBCONFIG_ATTRIBS_LENGTH (__GLX_TOTAL_FBCONFIG_ATTRIBS * 2)
 /**
  * Send the set of GLXFBConfigs to the client.  There is not currently
@@ -1128,6 +1136,7 @@ int DoGetFBConfigs(__GLXclientState *cl, unsigned screen, GLboolean do_swap)
 
 	WRITE_PAIR( GLX_VISUAL_ID,        modes->visualID );
 	WRITE_PAIR( GLX_FBCONFIG_ID,      modes->visualID );
+	WRITE_PAIR( GLX_DRAWABLE_TYPE,    modes->drawableType );
 	WRITE_PAIR( GLX_X_RENDERABLE,     GL_TRUE );
 
 	WRITE_PAIR( GLX_RGBA,             modes->rgbMode );
@@ -1161,6 +1170,13 @@ int DoGetFBConfigs(__GLXclientState *cl, unsigned screen, GLboolean do_swap)
 	WRITE_PAIR( GLX_TRANSPARENT_ALPHA_VALUE, modes->transparentAlpha );
 	WRITE_PAIR( GLX_TRANSPARENT_INDEX_VALUE, modes->transparentIndex );
 	WRITE_PAIR( GLX_SWAP_METHOD_OML, modes->swapMethod );
+	WRITE_PAIR( GLX_BIND_TO_TEXTURE_RGB_EXT, modes->bindToTextureRgb );
+	WRITE_PAIR( GLX_BIND_TO_TEXTURE_RGBA_EXT, modes->bindToTextureRgba );
+	WRITE_PAIR( GLX_BIND_TO_MIPMAP_TEXTURE_EXT,
+		    modes->bindToMipmapTexture );
+	WRITE_PAIR( GLX_BIND_TO_TEXTURE_TARGETS_EXT,
+		    modes->bindToTextureTargets );
+	WRITE_PAIR( GLX_Y_INVERTED_EXT, modes->yInverted );
 
 	if ( do_swap ) {
 	    __GLX_SWAP_INT_ARRAY(buf, __GLX_FBCONFIG_ATTRIBS_LENGTH);
@@ -1646,7 +1662,7 @@ DoGetDrawableAttributes(__GLXclientState *cl, XID drawId)
     __GLXpixmap *glxPixmap;
     __GLXscreen *glxScreen;
     xGLXGetDrawableAttributesReply reply;
-    CARD32 attributes[4];
+    CARD32 attributes[2];
     int numAttribs;
 
     glxPixmap = (__GLXpixmap *)LookupIDByType(drawId, __glXPixmapRes);
@@ -1655,7 +1671,7 @@ DoGetDrawableAttributes(__GLXclientState *cl, XID drawId)
 	return __glXBadPixmap;
     }
 
-    numAttribs = 2;
+    numAttribs = 1;
     reply.length = numAttribs << 1;
     reply.type = X_Reply;
     reply.sequenceNumber = client->sequence;
@@ -1663,8 +1679,6 @@ DoGetDrawableAttributes(__GLXclientState *cl, XID drawId)
 
     attributes[0] = GLX_TEXTURE_TARGET_EXT;
     attributes[1] = GLX_NO_TEXTURE_EXT;
-    attributes[2] = GLX_Y_INVERTED_EXT;
-    attributes[3] = GL_FALSE;
 
     glxScreen = glxPixmap->pGlxScreen;
     if (glxScreen->textureFromPixmap)

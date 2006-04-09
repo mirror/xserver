@@ -361,9 +361,16 @@ static Bool init_visuals(int *nvisualp, VisualPtr *visualp,
 		       modes->blueBits + modes->alphaBits)
 		    : rootDepth;
 
+		modes->bindToTextureRgb = (is_rgb) ? GL_TRUE : GL_FALSE;
+		modes->bindToTextureRgba = GL_FALSE;
+
 #ifdef COMPOSITE
 		if (pVisual[i].nplanes == 32)
+		{
+		    modes->bindToTextureRgb = GL_FALSE;
+		    modes->bindToTextureRgba = (is_rgb) ? GL_TRUE : GL_FALSE;
 		    modes->visualRating = GLX_NON_CONFORMANT_CONFIG;
+		}
 #endif
 
 	    }
