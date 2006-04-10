@@ -1,5 +1,7 @@
 2006-04-10  David Reveman  <davidr@novell.com>
 
+	* fb/fb.h (fbGetDrawable): Don't lose sign on stride.
+
 	* fb/fbcompose.c (fbFetchTransformed): Shift down after multiplication
 	with filter parameters that are be in 16.16 fixed point.
 
