@@ -1,3 +1,8 @@
+2006-04-10  David Reveman  <davidr@novell.com>
+
+	* fb/fbcompose.c (fbFetchTransformed): Shift down after multiplication
+	with filter parameters that are be in 16.16 fixed point.
+
 2006-04-09  David Reveman  <davidr@novell.com>
 
 	* GL/glx/glxcmds.c (DoMakeCurrent): Reset pending state when making a

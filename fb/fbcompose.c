@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.4 2006/02/02 02:35:00 davidr Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.5 2006/03/30 16:38:16 davidr Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -3694,6 +3694,11 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
                         p++;
                     }
                 }
+
+		satot >>= 16;
+		srtot >>= 16;
+		sgtot >>= 16;
+		sbtot >>= 16;
 
                 if (satot < 0) satot = 0; else if (satot > 0xff) satot = 0xff;
                 if (srtot < 0) srtot = 0; else if (srtot > 0xff) srtot = 0xff;
