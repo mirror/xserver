@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/dix/globals.c,v 1.8 2006-02-15 20:44:12 ajax Exp $ */
+/* $XdotOrg: xserver/xorg/dix/globals.c,v 1.7.8.1 2006/03/30 16:38:14 davidr Exp $ */
 /* $XFree86: xc/programs/Xserver/dix/globals.c,v 1.12tsi Exp $ */
 /************************************************************
 
@@ -130,6 +130,10 @@ int  defaultScreenSaverBlanking = DEFAULT_SCREEN_SAVER_BLANKING;
 int  defaultScreenSaverAllowExposures = DEFAULT_SCREEN_SAVER_EXPOSURES;
 #ifndef NOLOGOHACK
 int  logoScreenSaver = DEFAULT_LOGO_SCREEN_SAVER;
+#endif
+
+#ifdef SCREENSAVER
+Bool screenSaverSuspended = FALSE;
 #endif
 
 char *defaultFontPath = COMPILEDDEFAULTFONTPATH;

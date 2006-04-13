@@ -1,4 +1,4 @@
-/* $XdotOrg: xserver/xorg/Xext/saver.c,v 1.10.8.1 2006/03/30 16:38:11 davidr Exp $ */
+/* $XdotOrg: xserver/xorg/Xext/saver.c,v 1.10.8.2 2006/04/03 06:16:14 davidr Exp $ */
 /*
  * $XConsortium: saver.c,v 1.12 94/04/17 20:59:36 dpw Exp $
  *
@@ -120,8 +120,6 @@ static void ScreenSaverResetProc (
 	);
 
 static RESTYPE SuspendType;  /* resource type for suspension records */
-
-_X_EXPORT Bool screenSaverSuspended = FALSE; /* used in os/WaitFor.c */
 
 typedef struct _ScreenSaverSuspension *ScreenSaverSuspensionPtr;
 

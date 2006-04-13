@@ -301,7 +301,7 @@ static void
 SyncDeleteTriggerFromCounter(pTrigger)
     SyncTrigger *pTrigger;
 {
-    SyncTriggerList *pCur, *pPrev = NULL;
+    SyncTriggerList *pCur;
 
     /* pCounter needs to be stored in pTrigger before calling here. */
 
@@ -312,10 +312,7 @@ SyncDeleteTriggerFromCounter(pTrigger)
     {
 	if (pCur->pTrigger == pTrigger)
 	{
-	    if (pPrev)
-		pPrev->next = pCur->next;
-	    else
-		pTrigger->pCounter->pTriglist = pCur->next;
+	    pTrigger->pCounter->pTriglist = pCur->next;
 	    xfree(pCur);
 	    break;
 	}
@@ -1112,7 +1109,7 @@ SyncComputeBracketValues(pCounter, startOver)
 {
     SyncTriggerList *pCur;
     SyncTrigger *pTrigger;
-    SysCounterInfo *psci = pCounter->pSysCounterInfo;
+    SysCounterInfo *psci;
     CARD64 *pnewgtval = NULL;
     CARD64 *pnewltval = NULL;
     SyncCounterType ct;
@@ -1120,6 +1117,7 @@ SyncComputeBracketValues(pCounter, startOver)
     if (!pCounter)
 	return;
 
+    psci = pCounter->pSysCounterInfo;
     ct = pCounter->pSysCounterInfo->counterType;
     if (ct == XSyncCounterNeverChanges)
 	return;
