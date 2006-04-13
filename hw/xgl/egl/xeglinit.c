@@ -32,7 +32,14 @@ static xglScreenInfoRec xglScreenInfo = {
     FALSE,
     XGL_DEFAULT_PBO_MASK,
     FALSE,
-    FALSE
+    FALSE,
+    FilterBilinear,
+    {
+	{ FALSE, FALSE, { 0, 0, 0, 0 } },
+	{ FALSE, FALSE, { 0, 0, 0, 0 } },
+	{ FALSE, FALSE, { 0, 0, 0, 0 } },
+	{ FALSE, FALSE, { 0, 0, 0, 0 } }
+    }
 };
 
 #ifdef GLXEXT
