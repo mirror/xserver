@@ -1,5 +1,19 @@
 2006-04-13  David Reveman  <davidr@novell.com>
 
+	* hw/xgl/xglparse.c (xglProcessArgument, xglUseMsg):
+	* hw/xgl/xglxv.c:
+	* hw/xgl/egl/xeglinit.c:
+	* hw/xgl/glx/xglxinit.c:
+	* hw/xgl/xglinit.c:
+	* hw/xgl/xglscreen.c (xglScreenInit):
+	* hw/xgl/xgl.h: Add xvfilter and noyuv options. xvfilter can be used
+	to set the filter used for XVideo, currently available filters are
+	nearest and linear (default is linear). Nearest filter can improve
+	performance signifcantly when XVideo isn't accelerated. noyuv
+	option can be used to force use of software YUV to RGB conversions,
+	which can improve performance when GL_ARB_fragment_program support
+	isn't fast enough.
+
 	* fb/fbpict.c (fbComposite):
 	* fb/fbmmx.h:
 	* fb/fbmmx.c: Add fast YUV conversion code.

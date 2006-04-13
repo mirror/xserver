@@ -173,6 +173,8 @@ xglScreenInit (ScreenPtr pScreen)
     pScreenPriv->yInverted	  = xglScreenInfo.yInverted;
     pScreenPriv->pboMask	  = xglScreenInfo.pboMask;
     pScreenPriv->lines		  = xglScreenInfo.lines;
+    pScreenPriv->noYuv		  = xglScreenInfo.noYuv;
+    pScreenPriv->xvFilter	  = xglScreenInfo.xvFilter;
     pScreenPriv->accel		  = xglScreenInfo.accel;
 
     if (monitorResolution)

@@ -102,6 +102,8 @@ typedef struct _xglScreenInfo {
     Bool		  yInverted;
     int			  pboMask;
     Bool		  lines;
+    Bool		  noYuv;
+    char		  *xvFilter;
     xglScreenAccelInfoRec accel;
 } xglScreenInfoRec, *xglScreenInfoPtr;
 
@@ -255,6 +257,8 @@ typedef struct _xglScreen {
     Bool			  yInverted;
     int				  pboMask;
     Bool			  lines;
+    Bool			  noYuv;
+    char			  *xvFilter;
     xglGeometryRec		  scratchGeometry;
     xglScreenAccelInfoRec	  accel;
 
@@ -372,6 +376,7 @@ typedef struct _xglXvPort {
     PixmapPtr  pPixmap;
     PicturePtr pSrc;
     PicturePtr pDst;
+    PicturePtr pTmp;
 } xglXvPortRec, *xglXvPortPtr;
 
 #endif

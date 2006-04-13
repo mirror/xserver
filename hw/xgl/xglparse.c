@@ -188,6 +188,13 @@ xglUseMsg (void)
     ErrorF ("-yinverted             Y is upside-down\n");
     ErrorF ("-lines                 "
 	    "accelerate lines that are not vertical or horizontal\n");
+    ErrorF ("-noyuv                 "
+	    "turns off hardware color-space conversion of YUV data\n");
+
+#ifdef XV
+    ErrorF ("-xvfilter [nearest|linear] set xvideo filter\n");
+#endif
+
     ErrorF ("-vbo                   "
 	    "use vertex buffer objects for streaming of vertex data\n");
     ErrorF ("-pbomask [1|4|8|16|32] "
@@ -225,6 +232,29 @@ xglProcessArgument (int	 argc,
 	xglScreenInfo.lines = TRUE;
 	return 1;
     }
+    else if (!strcmp (argv[i], "-noyuv"))
+    {
+	xglScreenInfo.noYuv = TRUE;
+	return 1;
+    }
+
+#ifdef XV
+    else if (!strcmp (argv[i], "-xvfilter"))
+    {
+	if ((i + 1) < argc)
+	{
+	    if (!strcasecmp (argv[i + 1], "nearest"))
+		xglScreenInfo.xvFilter = FilterNearest;
+	    else if (!strcasecmp (argv[i + 1], "linear"))
+		xglScreenInfo.xvFilter = FilterBilinear;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+#endif
+
     else if (!strcmp (argv[i], "-vbo"))
     {
 	xglScreenInfo.geometryUsage = GEOMETRY_USAGE_STREAM;
