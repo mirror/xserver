@@ -2305,8 +2305,614 @@ fbCompositeCopyAreammx (CARD8		op,
 		   width, height);
 }
 
+typedef struct {
+    ullong subYw;
+    ullong U_green;
+    ullong U_blue;
+    ullong V_red;
+    ullong V_green;
+    ullong Y_coeff;
+    ullong mmx0080;
+    ullong mmx00ff;
+} YUVData;
 
+static const YUVData yuv = {
+    .subYw   = 0x1010101010101010ULL,
+    .U_green = 0xf377f377f377f377ULL,
+    .U_blue  = 0x408d408d408d408dULL,
+    .V_red   = 0x3313331333133313ULL,
+    .V_green = 0xe5fce5fce5fce5fcULL,
+    .Y_coeff = 0x2543254325432543ULL,
+    .mmx0080 = 0x0080008000800080ULL,
+    .mmx00ff = 0x00ff00ff00ff00ffULL
+};
 
+static __inline__ void
+mmx_loadyv12 (CARD8 *py,
+	      CARD8 *pu,
+	      CARD8 *pv)
+{
+    __asm__ __volatile__ (
+	"movq      %0,    %%mm6\n" /* mm6 = Y7 Y6 Y5 Y4 Y3 Y2 Y1 Y0 */
+	"pxor      %%mm4, %%mm4\n" /* mm4 = 0                       */
+	"psubusb   %1,    %%mm6\n" /* Y -= 16                       */
+	"movd      %2,    %%mm0\n" /* mm0 = 00 00 00 00 U3 U2 U1 U0 */
+	"movq      %%mm6, %%mm7\n" /* mm7 = Y7 Y6 Y5 Y4 Y3 Y2 Y1 Y0 */
+	"pand      %3,    %%mm6\n" /* mm6 =    Y6    Y4    Y2    Y0 */
+	"psrlw     %4,    %%mm7\n" /* mm7 =    Y7    Y5    Y3    Y1 */
+	"movd      %5,    %%mm1\n" /* mm1 = 00 00 00 00 V3 V2 V1 V0 */
+	"psllw     %6,    %%mm6\n" /* promote precision             */
+	"pmulhw    %7,    %%mm6\n" /* mm6 = luma_rgb even           */
+	"psllw     %8,    %%mm7\n" /* promote precision             */
+	"punpcklbw %%mm4, %%mm0\n" /* mm0 = U3 U2 U1 U0             */
+	"psubsw    %9,    %%mm0\n" /* U -= 128                      */
+	"punpcklbw %%mm4, %%mm1\n" /* mm1 = V3 V2 V1 V0             */
+	"pmulhw    %10,   %%mm7\n" /* mm7 = luma_rgb odd            */
+	"psllw     %11,   %%mm0\n" /* promote precision             */
+	"psubsw    %12,   %%mm1\n" /* V -= 128                      */
+	"movq      %%mm0, %%mm2\n" /* mm2 = U3 U2 U1 U0             */
+	"psllw     %13,   %%mm1\n" /* promote precision             */
+	"movq      %%mm1, %%mm4\n" /* mm4 = V3 V2 V1 V0             */
+	"pmulhw    %14,   %%mm0\n" /* mm0 = chroma_b                */
+	"pmulhw    %15,   %%mm1\n" /* mm1 = chroma_r                */
+	"movq      %%mm0, %%mm3\n" /* mm3 = chroma_b                */
+	"paddsw    %%mm6, %%mm0\n" /* mm0 = B6 B4 B2 B0             */
+	"paddsw    %%mm7, %%mm3\n" /* mm3 = B7 B5 B3 B1             */
+	"packuswb  %%mm0, %%mm0\n" /* saturate to 0-255             */
+	"pmulhw    %16,   %%mm2\n" /* mm2 = U * U_green             */
+	"packuswb  %%mm3, %%mm3\n" /* saturate to 0-255             */
+	"punpcklbw %%mm3, %%mm0\n" /* mm0 = B7 B6 B5 B4 B3 B2 B1 B0 */
+	"pmulhw    %17,   %%mm4\n" /* mm4 = V * V_green             */
+	"paddsw    %%mm4, %%mm2\n" /* mm2 = chroma_g                */
+	"movq      %%mm2, %%mm5\n" /* mm5 = chroma_g                */
+	"movq      %%mm1, %%mm4\n" /* mm4 = chroma_r                */
+	"paddsw    %%mm6, %%mm2\n" /* mm2 = G6 G4 G2 G0             */
+	"packuswb  %%mm2, %%mm2\n" /* saturate to 0-255             */
+	"paddsw    %%mm6, %%mm1\n" /* mm1 = R6 R4 R2 R0             */
+	"packuswb  %%mm1, %%mm1\n" /* saturate to 0-255             */
+	"paddsw    %%mm7, %%mm4\n" /* mm4 = R7 R5 R3 R1             */
+	"packuswb  %%mm4, %%mm4\n" /* saturate to 0-255             */
+	"paddsw    %%mm7, %%mm5\n" /* mm5 = G7 G5 G3 G1             */
+	"packuswb  %%mm5, %%mm5\n" /* saturate to 0-255             */
+	"punpcklbw %%mm4, %%mm1\n" /* mm1 = R7 R6 R5 R4 R3 R2 R1 R0 */
+	"punpcklbw %%mm5, %%mm2\n" /* mm2 = G7 G6 G5 G4 G3 G2 G1 G0 */
+	: /* no outputs */
+	: "m" (*py), "m" (yuv.subYw), "m" (*pu), "m" (yuv.mmx00ff),
+	  "i" (8), "m" (*pv), "i" (3), "m" (yuv.Y_coeff),
+	  "i" (3), "m" (yuv.mmx0080), "m" (yuv.Y_coeff), "i" (3),
+	  "m" (yuv.mmx0080), "i" (3), "m" (yuv.U_blue), "m" (yuv.V_red),
+	  "m" (yuv.U_green), "m" (yuv.V_green));
+}
+
+static __inline__ void
+mmx_pack8888 (CARD8 *image)
+{
+    __asm__ __volatile__ (
+	"pxor      %%mm3, %%mm3\n"
+	"movq      %%mm0, %%mm6\n"
+	"punpcklbw %%mm2, %%mm6\n"
+	"movq      %%mm1, %%mm7\n"
+	"punpcklbw %%mm3, %%mm7\n"
+	"movq      %%mm0, %%mm4\n"
+	"punpcklwd %%mm7, %%mm6\n"
+	"movq      %%mm1, %%mm5\n"
+	"movq      %%mm6, (%0)\n"
+	"movq      %%mm0, %%mm6\n"
+	"punpcklbw %%mm2, %%mm6\n"
+	"punpckhwd %%mm7, %%mm6\n"
+	"movq      %%mm6, 8(%0)\n"
+	"punpckhbw %%mm2, %%mm4\n"
+	"punpckhbw %%mm3, %%mm5\n"
+	"punpcklwd %%mm5, %%mm4\n"
+	"movq      %%mm4, 16(%0)\n"
+	"movq      %%mm0, %%mm4\n"
+	"punpckhbw %%mm2, %%mm4\n"
+	"punpckhwd %%mm5, %%mm4\n"
+	"movq      %%mm4, 24(%0)\n"
+	: /* no outputs */
+	: "r" (image) );
+}
+
+static __inline__ CARD32
+loadyv12 (CARD8 *py,
+	  CARD8 *pu,
+	  CARD8 *pv)
+{
+    INT16 y, u, v;
+    INT32 r, g, b;
+
+    y = *py - 16;
+    u = *pu - 128;
+    v = *pv - 128;
+
+    /* R = 1.164(Y - 16) + 1.596(V - 128) */
+    r = 0x012b27 * y + 0x019a2e * v;
+    /* G = 1.164(Y - 16) - 0.813(V - 128) - 0.391(U - 128) */
+    g = 0x012b27 * y - 0x00d0f2 * v - 0x00647e * u;
+    /* B = 1.164(Y - 16) + 2.018(U - 128) */
+    b = 0x012b27 * y + 0x0206a2 * u;
+
+    return 0xff000000 |
+	(r >= 0 ? r < 0x1000000 ? r         & 0xff0000 : 0xff0000 : 0) |
+	(g >= 0 ? g < 0x1000000 ? (g >> 8)  & 0x00ff00 : 0x00ff00 : 0) |
+	(b >= 0 ? b < 0x1000000 ? (b >> 16) & 0x0000ff : 0x0000ff : 0);
+}
+
+typedef struct _ScanlineBuf {
+    Bool   lock[2];
+    int    y[2];
+    CARD8 *line[2];
+    int   height;
+    CARD8 *heap;
+} ScanlineBuf;
+
+static Bool
+init_scanline_buffer (ScanlineBuf *slb,
+		      CARD8	  *buffer,
+		      int	  size,
+		      int	  length,
+		      int	  height)
+{
+    int i, s;
+
+    s = length << 1;
+
+    if (size < s)
+    {
+	slb->heap = xalloc (s);
+	if (!slb->heap)
+	    return FALSE;
+
+	buffer = slb->heap;
+    }
+    else
+    {
+	slb->heap = NULL;
+    }
+
+    for (i = 0; i < 2; i++)
+    {
+	slb->lock[i] = FALSE;
+	slb->y[i]    = SHRT_MAX;
+	slb->line[i] = buffer;
+
+	buffer += length;
+    }
+
+    slb->height = height;
+
+    return TRUE;
+}
+
+static void
+fini_scanline_buffer (ScanlineBuf *slb)
+{
+    if (slb->heap)
+	xfree (slb->heap);
+}
+
+static __inline__ void
+release_scanlines (ScanlineBuf *slb)
+{
+    int i;
+
+    for (i = 0; i < 2; i++)
+	slb->lock[i] = FALSE;
+}
+
+static __inline__ int
+_y_to_scanline (ScanlineBuf *slb,
+		int	    y)
+{
+    return (y < 0) ? 0 : (y >= slb->height) ? slb->height - 1 : y;
+}
+
+static __inline__ CARD8 *
+get_scanline (ScanlineBuf *slb,
+	      int	  y)
+{
+    int i;
+
+    y = _y_to_scanline (slb, y);
+
+    for (i = 0; i < 2; i++)
+    {
+	if (slb->y[i] == y)
+	{
+	    slb->lock[i] = TRUE;
+	    return slb->line[i];
+	}
+    }
+
+    return NULL;
+}
+
+static __inline__ CARD8 *
+loadyv12_scanline (ScanlineBuf *slb,
+		   int	       y,
+		   CARD8       *srcY,
+		   int	       yStride,
+		   CARD8       *srcU,
+		   CARD8       *srcV,
+		   int	       uvStride,
+		   int	       x,
+		   int	       width)
+{
+    CARD8 *py, *pu, *pv, *pd;
+    int   i, w;
+
+    y = _y_to_scanline (slb, y);
+
+    for (i = 0; slb->lock[i]; i++);
+
+    slb->y[i]    = y;
+    slb->lock[i] = TRUE;
+
+    py = srcY + yStride  * (y >> 0);
+    pu = srcU + uvStride * (y >> 1);
+    pv = srcV + uvStride * (y >> 1);
+
+    pd = slb->line[i];
+
+    w = width;
+
+    while (w && (unsigned long) py & 7)
+    {
+	*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+
+	pd += 4;
+	py += 1;
+
+	if (w & 1)
+	{
+	    pu += 1;
+	    pv += 1;
+	}
+
+	w--;
+    }
+
+    while (w >= 8)
+    {
+	mmx_loadyv12 (py, pu, pv);
+	mmx_pack8888 (pd);
+
+	py += 8;
+	pu += 4;
+	pv += 4;
+	pd += 32;
+
+	w -= 8;
+    }
+
+    while (w)
+    {
+	*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+
+	pd += 4;
+	py += 1;
+
+	if (w & 1)
+	{
+	    pu += 1;
+	    pv += 1;
+	}
+
+	w--;
+    }
+
+    return slb->line[i];
+}
+
+static __inline__ CARD8
+interpolate_bilinear (int   distx,
+		      int   idistx,
+		      int   disty,
+		      int   idisty,
+		      CARD8 tl,
+		      CARD8 tr,
+		      CARD8 bl,
+		      CARD8 br)
+{
+    return ((tl * idistx + tr * distx) * idisty +
+	    (bl * idistx + br * distx) * disty) >> 16;
+}
+
+static __inline__ void
+interpolate_bilinear_8888 (int   distx,
+			   int   idistx,
+			   int   disty,
+			   int   idisty,
+			   CARD8 *l0,
+			   CARD8 *l1,
+			   int   x,
+			   CARD8 buffer[4])
+{
+    buffer[0] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l0[x], l0[x + 4],
+				      l1[x], l1[x + 4]);
+
+    buffer[1] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l0[x + 1], l0[x + 5],
+				      l1[x + 1], l1[x + 5]);
+
+    buffer[2] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l0[x + 2], l0[x + 6],
+				      l1[x + 2], l1[x + 6]);
+
+    buffer[3] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l0[x + 3], l0[x + 7],
+				      l1[x + 3], l1[x + 7]);
+}
+
+/* TODO: MMX code for bilinear interpolation */
+void
+fbCompositeSrc_yv12x8888mmx (CARD8      op,
+			     PicturePtr pSrc,
+			     PicturePtr pMask,
+			     PicturePtr pDst,
+			     INT16      xSrc,
+			     INT16      ySrc,
+			     INT16      xMask,
+			     INT16      yMask,
+			     INT16      xDst,
+			     INT16      yDst,
+			     CARD16     width,
+			     CARD16     height)
+{
+    PictTransform *transform = pSrc->transform;
+    CARD8	  *dst, *srcY, *srcU, *srcV;
+    FbBits	  *srcBits;
+    FbStride	  srcStride, uvStride;
+    int		  srcXoff;
+    int		  srcYoff;
+    FbBits	  *dstBits;
+    FbStride	  dstStride;
+    int		  dstXoff;
+    int		  dstYoff;
+    int		  bpp, offset, w;
+    CARD8	  *pd;
+
+    fbGetDrawable (pSrc->pDrawable, srcBits, srcStride, bpp, srcXoff, srcYoff);
+    fbGetDrawable (pDst->pDrawable, dstBits, dstStride, bpp, dstXoff, dstYoff);
+
+    dst = (CARD8 *) dstBits;
+    dstStride *= sizeof (FbBits);
+
+    srcY = (CARD8 *) srcBits;
+    if (srcStride < 0)
+    {
+	offset = ((-srcStride) >> 1) * ((pSrc->pDrawable->height - 1) >> 1) -
+	    srcStride;
+	srcV = (CARD8 *) (srcBits + offset);
+	offset += ((-srcStride) >> 1) * ((pSrc->pDrawable->height) >> 1);
+	srcU = (CARD8 *) (srcBits + offset);
+    }
+    else
+    {
+	offset = srcStride * pSrc->pDrawable->height;
+
+	srcV = (CARD8 *) (srcBits + offset);
+	srcU = (CARD8 *) (srcBits + offset + (offset >> 2));
+    }
+
+    srcStride *= sizeof (FbBits);
+    uvStride = srcStride >> 1;
+
+    if (transform)
+    {
+	/* transformation is a Y coordinate flip, this is achieved by
+	   moving start offsets for each plane and changing sign of stride */
+	if (pSrc->transform->matrix[0][0] == (1 << 16)  &&
+	    pSrc->transform->matrix[1][1] == -(1 << 16) &&
+	    pSrc->transform->matrix[0][2] == 0          &&
+	    pSrc->transform->matrix[1][2] == (pSrc->pDrawable->height << 16))
+	{
+	    srcY = srcY + ((pSrc->pDrawable->height >> 0) - 1) * srcStride;
+	    srcU = srcU + ((pSrc->pDrawable->height >> 1) - 0) * uvStride;
+	    srcV = srcV + ((pSrc->pDrawable->height >> 1) - 0) * uvStride;
+
+	    srcStride = -srcStride;
+	    uvStride  = -uvStride;
+
+	    transform = 0;
+	}
+    }
+
+    dst += dstStride * (yDst + dstYoff) + ((xDst + dstXoff) << 2);
+
+    if (transform)
+    {
+	ScanlineBuf slb;
+	CARD8	    _scanline_buf[8192];
+	CARD8	    *ps, *ps0, *ps1;
+	int	    x, x0, y, line, xStep, yStep;
+	int         distx, idistx, disty, idisty;
+	int	    srcEnd = (pSrc->pDrawable->width - 1) << 16;
+
+	x0 = pSrc->transform->matrix[0][2] + ((xSrc + srcXoff) << 16);
+	y  = pSrc->transform->matrix[1][2] + ((ySrc + srcYoff) << 16);
+
+	xStep = pSrc->transform->matrix[0][0];
+	yStep = pSrc->transform->matrix[1][1];
+
+	init_scanline_buffer (&slb,
+			      _scanline_buf, sizeof (_scanline_buf),
+			      pSrc->pDrawable->width << 2,
+			      pSrc->pDrawable->height);
+
+	while (height--)
+	{
+	    disty  = (y >> 8) & 0xff;
+	    idisty = 256 - disty;
+	    line   = y >> 16;
+
+	    ps0 = get_scanline (&slb, line);
+	    ps1 = get_scanline (&slb, line + 1);
+
+	    if (!ps0)
+		ps0 = loadyv12_scanline (&slb, line,
+					 srcY, srcStride, srcU, srcV, uvStride,
+					 0, pSrc->pDrawable->width);
+
+	    if (!ps1)
+		ps1 = loadyv12_scanline (&slb, line + 1,
+					 srcY, srcStride, srcU, srcV, uvStride,
+					 0, pSrc->pDrawable->width);
+
+	    pd = dst;
+
+	    x = x0;
+	    w = width;
+
+	    if (pSrc->filter == PictFilterBilinear)
+	    {
+		while (w && x < 0)
+		{
+		    interpolate_bilinear_8888 (0, 256, disty, idisty,
+					       ps0, ps1, 0, pd);
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w && x < srcEnd)
+		{
+		    distx  = (x >> 8) & 0xff;
+		    idistx = 256 - distx;
+
+		    interpolate_bilinear_8888 (distx, idistx, disty, idisty,
+					       ps0, ps1, (x >> 14) & ~3, pd);
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w)
+		{
+		    interpolate_bilinear_8888 (256, 0, disty, idisty,
+					       ps0, ps1, (x >> 14) & ~3, pd);
+
+		    pd += 4;
+		    w  -= 1;
+		}
+	    }
+	    else
+	    {
+		while (w && x < 0)
+		{
+		    *(CARD32 *) pd = *(CARD32 *) ps0;
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w && x < srcEnd)
+		{
+		    *(CARD32 *) pd = ((CARD32 *) ps0)[x >> 16];
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w)
+		{
+		    *(CARD32 *) pd = ((CARD32 *) ps0)[x >> 16];
+
+		    pd += 4;
+		    w  -= 1;
+		}
+	    }
+
+	    y   += yStep;
+	    dst += dstStride;
+
+	    release_scanlines (&slb);
+	}
+
+	fini_scanline_buffer (&slb);
+    }
+    else
+    {
+	CARD8 *py, *pu, *pv;
+
+	srcY += srcStride * (ySrc >> 0) + srcYoff + ((xSrc + srcXoff) >> 0);
+	srcU += uvStride  * (ySrc >> 1) + srcYoff + ((xSrc + srcXoff) >> 1);
+	srcV += uvStride  * (ySrc >> 1) + srcYoff + ((xSrc + srcXoff) >> 1);
+
+	while (height)
+	{
+	    py = srcY;
+	    pu = srcU;
+	    pv = srcV;
+	    pd = dst;
+
+	    w = width;
+
+	    while (w && (unsigned long) py & 7)
+	    {
+		*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+
+		pd += 4;
+		py += 1;
+
+		if (w & 1)
+		{
+		    pu += 1;
+		    pv += 1;
+		}
+
+		w--;
+	    }
+
+	    while (w >= 8)
+	    {
+		mmx_loadyv12 (py, pu, pv);
+		mmx_pack8888 (pd);
+
+		py += 8;
+		pu += 4;
+		pv += 4;
+		pd += 32;
+
+		w -= 8;
+	    }
+
+	    while (w)
+	    {
+		*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+
+		pd += 4;
+		py += 1;
+
+		if (w & 1)
+		{
+		    pu += 1;
+		    pv += 1;
+		}
+
+		w--;
+	    }
+
+	    dst  += dstStride;
+	    srcY += srcStride;
+
+	    if (height & 1)
+	    {
+		srcU += uvStride;
+		srcV += uvStride;
+	    }
+
+	    height--;
+	}
+    }
+
+    _mm_empty ();
+}
 
 #endif /* RENDER */
 #endif /* USE_MMX */

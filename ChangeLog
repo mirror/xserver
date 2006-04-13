@@ -1,3 +1,9 @@
+2006-04-13  David Reveman  <davidr@novell.com>
+
+	* fb/fbpict.c (fbComposite):
+	* fb/fbmmx.h:
+	* fb/fbmmx.c: Add fast YUV conversion code.
+
 2006-04-10  David Reveman  <davidr@novell.com>
 
 	* fb/fb.h (fbGetDrawable): Don't lose sign on stride.

@@ -874,7 +874,29 @@ fbComposite (CARD8      op,
 	maskAlphaMap = pMask->alphaMap != 0;
     }
 
-    if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
+    /* YV12 is only used internally for XVideo */
+    if (pSrc->format == PICT_yv12)
+    {
+#ifdef USE_MMX
+	/* non rotating transformation */
+	if (!pSrc->transform ||
+	    (pSrc->transform->matrix[0][1] == 0 &&
+	     pSrc->transform->matrix[1][0] == 0 &&
+	     pSrc->transform->matrix[2][0] == 0 &&
+	     pSrc->transform->matrix[2][1] == 0 &&
+	     pSrc->transform->matrix[2][2] == 1 << 16))
+	{
+	    switch (pDst->format) {
+	    case PICT_a8r8g8b8:
+	    case PICT_x8r8g8b8:
+		if (fbHaveMMX())
+		    func = fbCompositeSrc_yv12x8888mmx;
+		break;
+	    }
+	}
+#endif
+    }
+    else if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
         && !pSrc->transform && !(pMask && pMask->transform)
         && !maskAlphaMap && !srcAlphaMap && !dstAlphaMap
 	&& (!pSrc->repeatType || srcRepeat)
