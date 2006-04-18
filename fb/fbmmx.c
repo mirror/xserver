@@ -2711,8 +2711,8 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 	    pSrc->transform->matrix[1][2] == (pSrc->pDrawable->height << 16))
 	{
 	    srcY = srcY + ((pSrc->pDrawable->height >> 0) - 1) * srcStride;
-	    srcU = srcU + ((pSrc->pDrawable->height >> 1) - 0) * uvStride;
-	    srcV = srcV + ((pSrc->pDrawable->height >> 1) - 0) * uvStride;
+	    srcU = srcU + ((pSrc->pDrawable->height >> 1) - 1) * uvStride;
+	    srcV = srcV + ((pSrc->pDrawable->height >> 1) - 1) * uvStride;
 
 	    srcStride = -srcStride;
 	    uvStride  = -uvStride;
@@ -2730,7 +2730,7 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 	CARD8	    *ps, *ps0, *ps1;
 	int	    x, x0, y, line, xStep, yStep;
 	int         distx, idistx, disty, idisty;
-	int	    srcEnd = (pSrc->pDrawable->width - 1) << 16;
+	int	    srcEnd = pSrc->pDrawable->width << 16;
 
 	x0 = pSrc->transform->matrix[0][2] + ((xSrc + srcXoff) << 16);
 	y  = pSrc->transform->matrix[1][2] + ((ySrc + srcYoff) << 16);
