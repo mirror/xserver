@@ -140,7 +140,7 @@ void
 xglxAbortXorg (void);
 
 char *
-xglxInitXorg (void);
+xglxInitXorg (int displayOffset);
 
 #endif
 

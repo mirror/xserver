@@ -55,8 +55,11 @@ static char *xorgAuth      = NULL;
 static char *xorgProgs[] = { "/usr/bin/Xorg", "/usr/X11R6/bin/Xorg" };
 static char *xorgProg    = NULL;
 
-static char *xorgDisplay   = ":93";
-static char *xorgTerminate = "-terminate";
+static char xorgDisplayBuf[256];
+static char *xorgDisplay      = NULL;
+static int  xorgDisplayOffset = 93;
+
+static char *xorgTerminate    = "-terminate";
 
 static pid_t   xorgPid = 0;
 static int     receivedUsr1 = 0;
@@ -538,7 +541,7 @@ xglxSetupAuth (char *name, int authFd)
 }
 
 char *
-xglxInitXorg (void)
+xglxInitXorg (int displayOffset)
 {
     sighandler_t oldSigUsr1;
     pid_t	 pid;
@@ -590,6 +593,12 @@ xglxInitXorg (void)
 
     if (!xglxAddXorgArguments (auth, sizeof (auth) / sizeof (char *)))
 	return 0;
+
+    if (!xorgDisplay)
+    {
+	xorgDisplay = xorgDisplayBuf;
+	sprintf (xorgDisplay, ":%d", xorgDisplayOffset + displayOffset);
+    }
 
     if (!xglxAddXorgArguments (&xorgDisplay, 1))
 	return 0;

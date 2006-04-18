@@ -136,6 +136,7 @@ static ScreenPtr currentScreen = 0;
 static Bool	 softCursor    = FALSE;
 static Bool	 fullscreen    = TRUE;
 static Bool	 xDpms         = FALSE;
+static int	 displayOffset = 0;
 
 static Bool randrExtension = FALSE;
 static int  randrEvent, randrError;
@@ -1388,6 +1389,8 @@ xglxProcessArgument (int  argc,
 	if (xDisplayName)
 	    fullscreen = FALSE;
 
+	displayOffset = atoi (display + 1);
+
 	checkDisplayName = TRUE;
     }
 
@@ -1447,7 +1450,7 @@ xglxOsVendorInit (void)
 	char *name = xDisplayName;
 
 	if (!name)
-	    name = xglxInitXorg ();
+	    name = xglxInitXorg (displayOffset);
 
 	xdisplay = XOpenDisplay (name);
 	if (!xdisplay)
