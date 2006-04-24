@@ -1,3 +1,7 @@
+2006-04-24  David Reveman  <davidr@novell.com>
+
+	* fb/fbcompose.c (fbFetchTransformed): Fix convolution kernel offsets.
+
 2006-04-19  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glx/xglx.c: Pass display offset to xglxInitXorg.

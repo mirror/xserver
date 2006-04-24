@@ -1,5 +1,5 @@
 /*
- * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.5 2006/03/30 16:38:16 davidr Exp $
+ * $XdotOrg: xserver/xorg/fb/fbcompose.c,v 1.26.6.6 2006/04/10 14:24:51 davidr Exp $
  * $XFree86: xc/programs/Xserver/fb/fbcompose.c,v 1.17tsi Exp $
  *
  * Copyright © 2000 Keith Packard, member of The XFree86 Project, Inc.
@@ -3647,8 +3647,8 @@ static void fbFetchTransformed(PicturePtr pict, int x, int y, int width, CARD32 
         xFixed *params = pict->filter_params;
         INT32 cwidth = xFixedToInt(params[0]);
         INT32 cheight = xFixedToInt(params[1]);
-        int xoff = params[0] >> 1;
-        int yoff = params[1] >> 1;
+        int xoff = (params[0] - xFixed1) >> 1;
+	int yoff = (params[1] - xFixed1) >> 1;
         params += 2;
         for (i = 0; i < width; ++i) {
 	    if (!mask || mask[i] & maskBits)
