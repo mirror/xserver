@@ -379,6 +379,112 @@ xglxRandRInit (ScreenPtr pScreen)
 
 #endif
 
+static Bool
+xglxExposurePredicate (Display *xdisplay,
+		       XEvent  *xevent,
+		       char    *args)
+{
+    return (xevent->type == Expose);
+}
+
+static Bool
+xglxNotExposurePredicate (Display *xdisplay,
+			  XEvent  *xevent,
+			  char	  *args)
+{
+    return (xevent->type != Expose);
+}
+
+static int
+xglxWindowExposures (WindowPtr pWin,
+		     pointer   pReg)
+{
+    ScreenPtr pScreen = pWin->drawable.pScreen;
+    RegionRec ClipList;
+
+    if (HasBorder (pWin))
+    {
+	REGION_INIT (pScreen, &ClipList, NullBox, 0);
+	REGION_SUBTRACT (pScreen, &ClipList, &pWin->borderClip,
+			 &pWin->winSize);
+	REGION_INTERSECT (pScreen, &ClipList, &ClipList, (RegionPtr) pReg);
+	(*pScreen->PaintWindowBorder) (pWin, &ClipList, PW_BORDER);
+	REGION_UNINIT (pScreen, &ClipList);
+    }
+
+    REGION_INIT (pScreen, &ClipList, NullBox, 0);
+    REGION_INTERSECT (pScreen, &ClipList, &pWin->clipList, (RegionPtr) pReg);
+    (*pScreen->WindowExposures) (pWin, &ClipList, NullRegion);
+    REGION_UNINIT (pScreen, &ClipList);
+
+    return WT_WALKCHILDREN;
+}
+
+static void
+xglxEnqueueEvents (void)
+{
+    ScreenPtr pScreen = currentScreen;
+    XEvent    X;
+    xEvent    x;
+
+    while (XCheckIfEvent (xdisplay, &X, xglxNotExposurePredicate, NULL))
+    {
+	switch (X.type) {
+	case KeyPress:
+	    x.u.u.type = KeyPress;
+	    x.u.u.detail = X.xkey.keycode;
+	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+	    mieqEnqueue (&x);
+	    break;
+	case KeyRelease:
+	    x.u.u.type = KeyRelease;
+	    x.u.u.detail = X.xkey.keycode;
+	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+	    mieqEnqueue (&x);
+	    break;
+	case ButtonPress:
+	    x.u.u.type = ButtonPress;
+	    x.u.u.detail = X.xbutton.button;
+	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+	    mieqEnqueue (&x);
+	    break;
+	case ButtonRelease:
+	    x.u.u.type = ButtonRelease;
+	    x.u.u.detail = X.xbutton.button;
+	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+	    mieqEnqueue (&x);
+	    break;
+	case MotionNotify:
+	    x.u.u.type = MotionNotify;
+	    x.u.u.detail = 0;
+	    x.u.keyButtonPointer.rootX = X.xmotion.x;
+	    x.u.keyButtonPointer.rootY = X.xmotion.y;
+	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+	    miPointerAbsoluteCursor (X.xmotion.x, X.xmotion.y, lastEventTime);
+	    mieqEnqueue (&x);
+	    break;
+	case EnterNotify:
+	    if (X.xcrossing.detail != NotifyInferior)
+	    {
+		if (pScreen)
+		{
+		    NewCurrentScreen (pScreen, X.xcrossing.x, X.xcrossing.y);
+		    x.u.u.type = MotionNotify;
+		    x.u.u.detail = 0;
+		    x.u.keyButtonPointer.rootX = X.xcrossing.x;
+		    x.u.keyButtonPointer.rootY = X.xcrossing.y;
+		    x.u.keyButtonPointer.time = lastEventTime =
+			GetTimeInMillis ();
+		    mieqEnqueue (&x);
+		}
+	    }
+	    break;
+	default:
+	    break;
+	}
+    }
+}
+
 static void
 xglxConstrainCursor (ScreenPtr pScreen,
 		     BoxPtr    pBox)
@@ -552,6 +658,12 @@ xglxSetCursorPosition (ScreenPtr pScreen,
 
     XWarpPointer (xdisplay, pScreenPriv->win, pScreenPriv->win,
 		  0, 0, 0, 0, x, y);
+
+    if (generateEvent)
+    {
+	XSync (xdisplay, FALSE);
+	xglxEnqueueEvents ();
+    }
 
     return TRUE;
 }
@@ -891,47 +1003,6 @@ xglxInitOutput (ScreenInfo *pScreenInfo,
     AddScreen (xglxScreenInit, argc, argv);
 }
 
-static Bool
-xglxExposurePredicate (Display *xdisplay,
-		       XEvent  *xevent,
-		       char    *args)
-{
-    return (xevent->type == Expose);
-}
-
-static Bool
-xglxNotExposurePredicate (Display *xdisplay,
-			  XEvent  *xevent,
-			  char	  *args)
-{
-    return (xevent->type != Expose);
-}
-
-static int
-xglxWindowExposures (WindowPtr pWin,
-		     pointer   pReg)
-{
-    ScreenPtr pScreen = pWin->drawable.pScreen;
-    RegionRec ClipList;
-
-    if (HasBorder (pWin))
-    {
-	REGION_INIT (pScreen, &ClipList, NullBox, 0);
-	REGION_SUBTRACT (pScreen, &ClipList, &pWin->borderClip,
-			 &pWin->winSize);
-	REGION_INTERSECT (pScreen, &ClipList, &ClipList, (RegionPtr) pReg);
-	(*pScreen->PaintWindowBorder) (pWin, &ClipList, PW_BORDER);
-	REGION_UNINIT (pScreen, &ClipList);
-    }
-
-    REGION_INIT (pScreen, &ClipList, NullBox, 0);
-    REGION_INTERSECT (pScreen, &ClipList, &pWin->clipList, (RegionPtr) pReg);
-    (*pScreen->WindowExposures) (pWin, &ClipList, NullRegion);
-    REGION_UNINIT (pScreen, &ClipList);
-
-    return WT_WALKCHILDREN;
-}
-
 static void
 xglxBlockHandler (pointer   blockData,
 		  OSTimePtr pTimeout,
@@ -973,64 +1044,7 @@ xglxWakeupHandler (pointer blockData,
 		   int     result,
 		   pointer pReadMask)
 {
-    ScreenPtr pScreen = currentScreen;
-    XEvent    X;
-    xEvent    x;
-
-    while (XCheckIfEvent (xdisplay, &X, xglxNotExposurePredicate, NULL))
-    {
-	switch (X.type) {
-	case KeyPress:
-	    x.u.u.type = KeyPress;
-	    x.u.u.detail = X.xkey.keycode;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
-	    break;
-	case KeyRelease:
-	    x.u.u.type = KeyRelease;
-	    x.u.u.detail = X.xkey.keycode;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
-	    break;
-	case ButtonPress:
-	    x.u.u.type = ButtonPress;
-	    x.u.u.detail = X.xbutton.button;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
-	    break;
-	case ButtonRelease:
-	    x.u.u.type = ButtonRelease;
-	    x.u.u.detail = X.xbutton.button;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
-	    break;
-	case MotionNotify:
-	    x.u.u.type = MotionNotify;
-	    x.u.u.detail = 0;
-	    x.u.keyButtonPointer.rootX = X.xmotion.x;
-	    x.u.keyButtonPointer.rootY = X.xmotion.y;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    miPointerAbsoluteCursor (X.xmotion.x, X.xmotion.y, lastEventTime);
-	    mieqEnqueue (&x);
-	    break;
-	case EnterNotify:
-	    if (X.xcrossing.detail != NotifyInferior) {
-		if (pScreen) {
-		    NewCurrentScreen (pScreen, X.xcrossing.x, X.xcrossing.y);
-		    x.u.u.type = MotionNotify;
-		    x.u.u.detail = 0;
-		    x.u.keyButtonPointer.rootX = X.xcrossing.x;
-		    x.u.keyButtonPointer.rootY = X.xcrossing.y;
-		    x.u.keyButtonPointer.time = lastEventTime =
-			GetTimeInMillis ();
-		    mieqEnqueue (&x);
-		}
-	    }
-	    break;
-	default:
-	    break;
-	}
-    }
+    xglxEnqueueEvents ();
 }
 
 static void

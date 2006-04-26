@@ -1,3 +1,8 @@
+2006-04-26  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glx/xglx.c: Fix SetCursorPosition, events were not generated
+	correctly.
+
 2006-04-24  David Reveman  <davidr@novell.com>
 
 	* fb/fbcompose.c (fbFetchTransformed): Fix convolution kernel offsets.
