@@ -63,22 +63,6 @@
 #include <GL/glxproto.h>
 #include <GL/glxint.h>
 
-#ifndef GLX_TEXTURE_TARGET_EXT
-#define GLX_TEXTURE_TARGET_EXT              0x6001
-#define GLX_TEXTURE_2D_EXT                  0x6002
-#define GLX_TEXTURE_RECTANGLE_EXT           0x6003
-#define GLX_NO_TEXTURE_EXT                  0x6004
-#define GLX_FRONT_LEFT_EXT                  0x6005
-#define GLX_TEXTURE_FORMAT_EXT              0x6006
-#define GLX_TEXTURE_FORMAT_RGB_EXT          0x6007
-#define GLX_TEXTURE_FORMAT_RGBA_EXT         0x6008
-#define GLX_Y_INVERTED_EXT                  0x6009
-#define GLX_BIND_TO_TEXTURE_RGB_EXT         0x600A
-#define GLX_BIND_TO_TEXTURE_RGBA_EXT        0x600B
-#define GLX_BIND_TO_MIPMAP_TEXTURE_EXT      0x600C
-#define GLX_MIPMAP_TEXTURE_EXT              0x600D
-#endif
-
 /* For glxscreens.h */
 typedef struct __GLXdrawable __GLXdrawable;
 typedef struct __GLXcontext __GLXcontext;

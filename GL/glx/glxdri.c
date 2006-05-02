@@ -35,6 +35,7 @@
 #include <drm.h>
 #include <GL/gl.h>
 #include <GL/internal/dri_interface.h>
+#include <GL/glxtokens.h>
 
 #include <windowstr.h>
 #include <os.h>

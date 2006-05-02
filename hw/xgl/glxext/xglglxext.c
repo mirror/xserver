@@ -30,6 +30,7 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/internal/glcore.h>
+#include <GL/glxtokens.h>
 
 #include "glxserver.h"
 #include "glxdrawable.h"
@@ -6310,7 +6311,7 @@ static int
 xglGetTexTarget (__GLXscreen *screen,
 		 __GLXpixmap *pixmap)
 {
-    int target = GLX_NO_TEXTURE_EXT;
+    int target = GLX_TEXTURE_2D_EXT;
 
     XGL_DRAWABLE_PIXMAP (pixmap->pDraw);
 

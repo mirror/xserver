@@ -1681,7 +1681,7 @@ DoGetDrawableAttributes(__GLXclientState *cl, XID drawId)
     reply.numAttribs = numAttribs;
 
     attributes[0] = GLX_TEXTURE_TARGET_EXT;
-    attributes[1] = GLX_NO_TEXTURE_EXT;
+    attributes[1] = GLX_TEXTURE_RECTANGLE_EXT;
 
     glxScreen = glxPixmap->pGlxScreen;
     if (glxScreen->textureFromPixmap)
