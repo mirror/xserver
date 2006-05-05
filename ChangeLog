@@ -1,3 +1,10 @@
+2006-05-05  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/glx/xglx.c (xglxKbdCtrl): No need to go through more than
+	the first 4 leds.
+	(xglxKeybdProc): Turn off automatic indicator changes and make
+	sure audible bell is turned on.
+
 2006-04-26  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glx/xglx.c: Fix SetCursorPosition, events were not generated

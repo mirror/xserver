@@ -1078,11 +1078,10 @@ xglxKbdCtrl (DeviceIntPtr pDev,
 
     valueMask = KBLed | KBLedMode;
 
-    for (i = 1; i <= 32; i++)
+    for (i = 0; i < 5; i++)
     {
-	values.led = i;
-	values.led_mode = (ctrl->leds & (1 << (i - 1))) ? LedModeOn :
-	    LedModeOff;
+	values.led = i + 1;
+	values.led_mode = (ctrl->leds & (1 << i)) ? LedModeOn : LedModeOff;
 
 	XChangeKeyboardControl (xdisplay, valueMask, &values);
     }
@@ -1233,6 +1232,27 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 					desc->ctrls);
 
 	      XkbFreeKeyboard (desc, 0, False);
+	  }
+
+	  if (ret)
+	  {
+	      desc = XkbAllocKeyboard ();
+	      if (desc)
+	      {
+		  XkbGetIndicatorMap (xdisplay, XkbAllIndicatorsMask, desc);
+
+		  for (i = 0; i < XkbNumIndicators; i++)
+		      if (desc->indicators->phys_indicators & (1 << i))
+			  desc->indicators->maps[i].flags = XkbIM_NoAutomatic;
+
+		  XkbSetIndicatorMap (xdisplay, ~0, desc);
+		  XkbFreeKeyboard (desc, 0, True);
+	      }
+
+	      XkbChangeEnabledControls (xdisplay,
+					XkbUseCoreKbd,
+					XkbAudibleBellMask,
+					XkbAudibleBellMask);
 	  }
       }
 #endif
