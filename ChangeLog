@@ -1,3 +1,8 @@
+2006-05-09  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/xglxv.c (xglXvPutImage): Stride should be padded to a
+	multiple of 8.
+
 2006-05-05  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/glx/xglx.c (xglxKbdCtrl): No need to go through more than

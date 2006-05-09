@@ -339,7 +339,7 @@ xglXvPutImage (ClientPtr     client,
 				    srcWidth, srcHeight,
 				    depth, bpp, -1, (pointer) data);
 
-    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -srcWidth;
+    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -((srcWidth + 7) & ~7);
 
     pPortPriv->pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
 
