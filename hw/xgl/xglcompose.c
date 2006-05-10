@@ -175,9 +175,10 @@ xglCompositeGeneral (CARD8	     op,
 
     if (!pGeometry)
     {
-	if (!pSrc->transform && pSrc->filter != PictFilterConvolution)
+	if (pSrc->pDrawable && !pSrc->transform &&
+	    pSrc->filter != PictFilterConvolution)
 	{
-	    if (pSrc->pDrawable && pSrc->repeatType == RepeatNormal)
+	    if (pSrc->repeatType == RepeatNormal)
 	    {
 		XGL_PIXMAP_PRIV ((PixmapPtr) pSrc->pDrawable);
 
