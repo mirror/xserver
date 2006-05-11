@@ -86,6 +86,9 @@ struct __GLXMESAscreen {
 struct __GLXMESAcontext {
     __GLXcontext base;
     XMesaContext xmesa;
+
+    __GLXMESAdrawable *drawPriv;
+    __GLXMESAdrawable *readPriv;
 };
 
 struct __GLXMESAdrawable {
@@ -102,7 +105,10 @@ __glXMesaDrawableDestroy(__GLXdrawable *base)
     __GLXMESAdrawable *glxPriv = (__GLXMESAdrawable *) base;
 
     if (glxPriv->xm_buf)
+    {
+	glxPriv->xm_buf->frontxrb->drawable = 0;
 	XMesaDestroyBuffer(glxPriv->xm_buf);
+    }
     xfree(glxPriv);
 }
 
@@ -111,7 +117,8 @@ __glXMesaDrawableResize(__GLXdrawable *base)
 {
     __GLXMESAdrawable *glxPriv = (__GLXMESAdrawable *) base;
 
-    XMesaResizeBuffers(glxPriv->xm_buf);
+    if (XMesaGetCurrentBuffer () == glxPriv->xm_buf)
+	XMesaResizeBuffers(glxPriv->xm_buf);
 
     return GL_TRUE;
 }
@@ -214,6 +221,11 @@ __glXMesaContextDestroy(__GLXcontext *baseContext)
 {
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
 
+    if (context->drawPriv)
+	__glXUnrefDrawable (&context->drawPriv->base);
+    if (context->readPriv)
+	__glXUnrefDrawable (&context->readPriv->base);
+
     XMesaDestroyContext(context->xmesa);
     __glXContextDestroy(context);
     xfree(context);
@@ -226,10 +238,24 @@ __glXMesaContextMakeCurrent(__GLXcontext *baseContext)
     __GLXMESAcontext *context = (__GLXMESAcontext *) baseContext;
     __GLXMESAdrawable *drawPriv = (__GLXMESAdrawable *) context->base.drawPriv;
     __GLXMESAdrawable *readPriv = (__GLXMESAdrawable *) context->base.readPriv;
+    int		      status;
 
-    return XMesaMakeCurrent2(context->xmesa,
-			     drawPriv->xm_buf,
-			     readPriv->xm_buf);
+    __glXRefDrawable (&drawPriv->base);
+    __glXRefDrawable (&readPriv->base);
+
+    status = XMesaMakeCurrent2(context->xmesa,
+			       drawPriv->xm_buf,
+			       readPriv->xm_buf);
+
+    if (context->drawPriv)
+	__glXUnrefDrawable (&context->drawPriv->base);
+    if (context->readPriv)
+	__glXUnrefDrawable (&context->readPriv->base);
+
+    context->drawPriv = drawPriv;
+    context->readPriv = readPriv;
+
+    return status;
 }
 
 static int

@@ -5583,7 +5583,11 @@ xglDestroyDrawable (__GLXdrawable *drawable)
     __GLXdrawable *mesaDrawable = pBufferPriv->mesaDrawable;
 
     if (mesaDrawable)
-	(*mesaDrawable->destroy) (mesaDrawable);
+    {
+	mesaDrawable->refCount--;
+	if (!mesaDrawable->refCount)
+	    (*mesaDrawable->destroy) (mesaDrawable);
+    }
 
     if (pBufferPriv->pGC)
 	FreeGC (pBufferPriv->pGC, (GContext) 0);
@@ -6351,7 +6355,7 @@ xglScreenDestroy (__GLXscreen *screen)
     __GLXscreen    *mesaScreen = pScreen->mesaScreen;
 
     if (mesaScreen)
-	GlxScreenDestroy (mesaScreen);
+	(*mesaScreen->destroy) (mesaScreen);
 
     if (pScreen->GLXextensions)
 	xfree (pScreen->GLXextensions);

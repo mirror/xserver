@@ -131,11 +131,8 @@ void
 __glXUnrefDrawable(__GLXdrawable *glxPriv)
 {
     glxPriv->refCount--;
-    if (glxPriv->refCount == 0) {
-	/* remove the drawable from the drawable list */
-	FreeResourceByType(glxPriv->drawId, __glXDrawableRes, FALSE);
+    if (glxPriv->refCount == 0)
 	glxPriv->destroy(glxPriv);
-    }
 }
 
 GLboolean

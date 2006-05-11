@@ -181,6 +181,9 @@ static Bool DrawableGone(__GLXdrawable *glxPriv, XID xid)
 	}
     }
 
+    /* remove the drawable from the drawable list */
+    FreeResourceByType(glxPriv->drawId, __glXDrawableRes, FALSE);
+
     __glXUnrefDrawable(glxPriv);
 
     return True;
