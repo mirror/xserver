@@ -1,3 +1,30 @@
+2006-05-11  David Reveman  <davidr@novell.com>
+
+	* composite/compalloc.c (compRedirectWindow): Init borderClipX and
+	borderClipY to shut up valgrind.
+
+	* hw/xgl/glxext/xglglxext.c (xglDestroyDrawable): Destroy mesa
+	drawable when refCount is 0.
+	(xglScreenDestroy): Use screen destroy function.
+
+	* GL/mesa/X/xf86glx.c: We have to keep a references to all drawables
+	bound to a context as mesa need them until the context has been
+	updated with new drawables or has been destroyed.
+	(__glXMesaDrawableDestroy): Drawable might already be destroyed
+	mesa should not touch it.
+	(__glXMesaDrawableResize): XMesaResizeBuffers will update
+	the current context so only call it if the drawable we're
+	resizing is bound to the current context. It will be updated when
+	the context is made current if it's not bound to the current context.
+
+	* GL/glx/glxutil.c (__glXUnrefDrawable): Don't free resource here.
+
+	* GL/glx/glxscreens.c (PositionWindow): Flush context cache and
+	notify all context using drawable.
+
+	* GL/glx/glxext.c (DrawableGone): Free GLX drawable resource here
+	so that GLXdrawables can be ref-counted.
+
 2006-05-10  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/xglcompose.c (xglCompositeGeneral): Only use copy optimization
