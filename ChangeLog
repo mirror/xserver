@@ -1,3 +1,8 @@
+2006-05-19  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/xglxv.c (xglXvInitAdaptors): Disable YUY2 format as
+	it's not accelerated and the software fallback got issues.
+
 2006-05-11  David Reveman  <davidr@novell.com>
 
 	* composite/compalloc.c (compRedirectWindow): Init borderClipX and

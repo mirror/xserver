@@ -594,6 +594,11 @@ xglXvInitAdaptors (ScreenPtr pScreen)
     pAdaptor->nImages = sizeof (xvImages) / sizeof (XvImageRec);
     pAdaptor->pImages = xvImages;
 
+    /* XXX: Disable YUY2 format as it's not accelerated and the software
+       fallback got issues. */
+    pAdaptor->nImages = sizeof (xvImages) / sizeof (XvImageRec) - 1;
+    pAdaptor->pImages = &xvImages[1];
+
     /* TODO: Currently no attributes */
     pAdaptor->nAttributes = 0;
     pAdaptor->pAttributes = 0;
