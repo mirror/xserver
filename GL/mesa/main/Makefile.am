@@ -62,6 +62,7 @@ nodist_libmain_la_SOURCES = accum.c \
                     points.c \
                     polygon.c \
                     rastpos.c \
+                    rbadaptors.c \
                     renderbuffer.c \
                     state.c \
                     stencil.c \
