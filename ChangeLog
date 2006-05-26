@@ -1,3 +1,7 @@
+2006-05-26  David Reveman  <davidr@novell.com>
+
+	* hw/xgl/xglfill.c (xglFillSegment): Adjust for capStyle correctly.
+
 2006-05-19  David Reveman  <davidr@novell.com>
 
 	* hw/xgl/xglxv.c (xglXvInitAdaptors): Disable YUY2 format as

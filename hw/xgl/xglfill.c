@@ -585,15 +585,19 @@ xglFillSegment (DrawablePtr pDrawable,
 		{
 		    full.x1 = pSegInit->x1;
 		    full.x2 = pSegInit->x2;
+		    if (pGC->capStyle != CapNotLast)
+			full.x2++;
 		}
 		else
 		{
 		    full.x1 = pSegInit->x2;
-		    full.x2 = pSegInit->x1;
+		    full.x2 = pSegInit->x1 + 1;
+		    if (pGC->capStyle == CapNotLast)
+			full.x1++;
 		}
 
 		full.x1 += pDrawable->x;
-		full.x2 += pDrawable->x + 1;
+		full.x2 += pDrawable->x;
 		full.y1  = pSegInit->y1 + pDrawable->y;
 		full.y2  = full.y1 + 1;
 	    }
@@ -603,15 +607,19 @@ xglFillSegment (DrawablePtr pDrawable,
 		{
 		    full.y1 = pSegInit->y1;
 		    full.y2 = pSegInit->y2;
+		    if (pGC->capStyle != CapNotLast)
+			full.y2++;
 		}
 		else
 		{
 		    full.y1 = pSegInit->y2;
 		    full.y2 = pSegInit->y1;
+		    if (pGC->capStyle == CapNotLast)
+			full.y1++;
 		}
 
 		full.y1 += pDrawable->y;
-		full.y2 += pDrawable->y + 1;
+		full.y2 += pDrawable->y;
 		full.x1  = pSegInit->x1 + pDrawable->x;
 		full.x2  = full.x1 + 1;
 	    }
