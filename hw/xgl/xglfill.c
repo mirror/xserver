@@ -613,7 +613,7 @@ xglFillSegment (DrawablePtr pDrawable,
 		else
 		{
 		    full.y1 = pSegInit->y2;
-		    full.y2 = pSegInit->y1;
+		    full.y2 = pSegInit->y1 + 1;
 		    if (pGC->capStyle == CapNotLast)
 			full.y1++;
 		}
