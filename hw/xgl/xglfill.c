@@ -172,6 +172,7 @@ xglFillRect (DrawablePtr pDrawable,
     RegionPtr pClip = pGC->pCompositeClip;
     BoxPtr    pClipBox;
     BoxPtr    pExtent = REGION_EXTENTS (pGC->pScreen, pClip);
+    int	      fullX1, fullX2, fullY1, fullY2;
     BoxRec    part, full;
     BoxPtr    heapBox = NULL;
     BoxRec    stackBox[N_STACK_BOX];
@@ -181,21 +182,26 @@ xglFillRect (DrawablePtr pDrawable,
 
     while (nrect--)
     {
-	full.x1 = prect->x + pDrawable->x;
-	full.y1 = prect->y + pDrawable->y;
-	full.x2 = full.x1 + (int) prect->width;
-	full.y2 = full.y1 + (int) prect->height;
+	fullX1 = prect->x + pDrawable->x;
+	fullY1 = prect->y + pDrawable->y;
+	fullX2 = fullX1 + (int) prect->width;
+	fullY2 = fullY1 + (int) prect->height;
 
 	prect++;
 
-	if (full.x1 < pExtent->x1)
-	    full.x1 = pExtent->x1;
-	if (full.y1 < pExtent->y1)
-	    full.y1 = pExtent->y1;
-	if (full.x2 > pExtent->x2)
-	    full.x2 = pExtent->x2;
-	if (full.y2 > pExtent->y2)
-	    full.y2 = pExtent->y2;
+	if (fullX1 < pExtent->x1)
+	    fullX1 = pExtent->x1;
+	if (fullY1 < pExtent->y1)
+	    fullY1 = pExtent->y1;
+	if (fullX2 > pExtent->x2)
+	    fullX2 = pExtent->x2;
+	if (fullY2 > pExtent->y2)
+	    fullY2 = pExtent->y2;
+
+	full.x1 = fullX1;
+	full.y1 = fullY1;
+	full.x2 = fullX2;
+	full.y2 = fullY2;
 
 	if (full.x1 >= full.x2 || full.y1 >= full.y2)
 	    continue;
@@ -246,6 +252,7 @@ xglFillSpan (DrawablePtr pDrawable,
     RegionPtr pClip = pGC->pCompositeClip;
     BoxPtr    pClipBox;
     BoxPtr    pExtent = REGION_EXTENTS (pGC->pScreen, pClip);
+    int	      fullX1, fullX2, fullY1, fullY2;
     BoxRec    part, full;
     BoxPtr    heapBox = NULL;
     BoxRec    stackBox[N_STACK_BOX];
@@ -255,22 +262,27 @@ xglFillSpan (DrawablePtr pDrawable,
 
     while (n--)
     {
-	full.x1 = ppt->x;
-	full.y1 = ppt->y;
-	full.x2 = full.x1 + *pwidth;
-	full.y2 = full.y1 + 1;
+	fullX1 = ppt->x;
+	fullY1 = ppt->y;
+	fullX2 = fullX1 + *pwidth;
+	fullY2 = fullY1 + 1;
 
 	pwidth++;
 	ppt++;
 
-	if (full.x1 < pExtent->x1)
-	    full.x1 = pExtent->x1;
-	if (full.y1 < pExtent->y1)
-	    full.y1 = pExtent->y1;
-	if (full.x2 > pExtent->x2)
-	    full.x2 = pExtent->x2;
-	if (full.y2 > pExtent->y2)
-	    full.y2 = pExtent->y2;
+	if (fullX1 < pExtent->x1)
+	    fullX1 = pExtent->x1;
+	if (fullY1 < pExtent->y1)
+	    fullY1 = pExtent->y1;
+	if (fullX2 > pExtent->x2)
+	    fullX2 = pExtent->x2;
+	if (fullY2 > pExtent->y2)
+	    fullY2 = pExtent->y2;
+
+	full.x1 = fullX1;
+	full.y1 = fullY1;
+	full.x2 = fullX2;
+	full.y2 = fullY2;
 
 	if (full.x1 >= full.x2 || full.y1 >= full.y2)
 	    continue;
@@ -373,6 +385,7 @@ xglFillLine (DrawablePtr pDrawable,
     if (horizontalAndVertical)
     {
 	BoxPtr pClipBox;
+	int    fullX1, fullX2, fullY1, fullY2;
 	BoxRec part, full;
 	BoxPtr heapBox = NULL;
 	BoxRec stackBox[N_STACK_BOX];
@@ -403,49 +416,49 @@ xglFillLine (DrawablePtr pDrawable,
 	    {
 		if (dx > 0)
 		{
-		    full.x1 = pt.x + pDrawable->x;
+		    fullX1 = pt.x + pDrawable->x;
 
 		    if (npt || coincidentEndpoints)
-			full.x2 = full.x1 + dx;
+			fullX2 = fullX1 + dx;
 		    else
-			full.x2 = full.x1 + dx + 1;
+			fullX2 = fullX1 + dx + 1;
 		}
 		else
 		{
-		    full.x2 = pt.x + pDrawable->x + 1;
+		    fullX2 = pt.x + pDrawable->x + 1;
 
 		    if (npt || coincidentEndpoints)
-			full.x1 = full.x2 + dx;
+			fullX1 = fullX2 + dx;
 		    else
-			full.x1 = full.x2 + dx - 1;
+			fullX1 = fullX2 + dx - 1;
 		}
 
-		full.y1 = pt.y + pDrawable->y;
-		full.y2 = full.y1 + 1;
+		fullY1 = pt.y + pDrawable->y;
+		fullY2 = fullY1 + 1;
 	    }
 	    else
 	    {
 		if (dy > 0)
 		{
-		    full.y1 = pt.y + pDrawable->y;
+		    fullY1 = pt.y + pDrawable->y;
 
 		    if (npt || coincidentEndpoints)
-			full.y2 = full.y1 + dy;
+			fullY2 = fullY1 + dy;
 		    else
-			full.y2 = full.y1 + dy + 1;
+			fullY2 = fullY1 + dy + 1;
 		}
 		else
 		{
-		    full.y2 = pt.y + pDrawable->y + 1;
+		    fullY2 = pt.y + pDrawable->y + 1;
 
 		    if (npt || coincidentEndpoints)
-			full.y1 = full.y2 + dy;
+			fullY1 = fullY2 + dy;
 		    else
-			full.y1 = full.y2 + dy - 1;
+			fullY1 = fullY2 + dy - 1;
 		}
 
-		full.x1 = pt.x + pDrawable->x;
-		full.x2 = full.x1 + 1;
+		fullX1 = pt.x + pDrawable->x;
+		fullX2 = fullX1 + 1;
 	    }
 
 	    pt.x += dx;
@@ -453,14 +466,19 @@ xglFillLine (DrawablePtr pDrawable,
 
 	    ppt++;
 
-	    if (full.x1 < pExtent->x1)
-		full.x1 = pExtent->x1;
-	    if (full.y1 < pExtent->y1)
-		full.y1 = pExtent->y1;
-	    if (full.x2 > pExtent->x2)
-		full.x2 = pExtent->x2;
-	    if (full.y2 > pExtent->y2)
-		full.y2 = pExtent->y2;
+	    if (fullX1 < pExtent->x1)
+		fullX1 = pExtent->x1;
+	    if (fullY1 < pExtent->y1)
+		fullY1 = pExtent->y1;
+	    if (fullX2 > pExtent->x2)
+		fullX2 = pExtent->x2;
+	    if (fullY2 > pExtent->y2)
+		fullY2 = pExtent->y2;
+
+	    full.x1 = fullX1;
+	    full.y1 = fullY1;
+	    full.x2 = fullX2;
+	    full.y2 = fullY2;
 
 	    if (full.x1 >= full.x2 || full.y1 >= full.y2)
 		continue;
@@ -570,6 +588,7 @@ xglFillSegment (DrawablePtr pDrawable,
     if (horizontalAndVertical)
     {
 	BoxPtr pClipBox;
+	int    fullX1, fullX2, fullY1, fullY2;
 	BoxRec part, full;
 	BoxPtr heapBox = NULL;
 	BoxRec stackBox[N_STACK_BOX];
@@ -583,57 +602,62 @@ xglFillSegment (DrawablePtr pDrawable,
 	    {
 		if (pSegInit->x1 < pSegInit->x2)
 		{
-		    full.x1 = pSegInit->x1;
-		    full.x2 = pSegInit->x2;
+		    fullX1 = pSegInit->x1;
+		    fullX2 = pSegInit->x2;
 		    if (pGC->capStyle != CapNotLast)
-			full.x2++;
+			fullX2++;
 		}
 		else
 		{
-		    full.x1 = pSegInit->x2;
-		    full.x2 = pSegInit->x1 + 1;
+		    fullX1 = pSegInit->x2;
+		    fullX2 = pSegInit->x1 + 1;
 		    if (pGC->capStyle == CapNotLast)
-			full.x1++;
+			fullX1++;
 		}
 
-		full.x1 += pDrawable->x;
-		full.x2 += pDrawable->x;
-		full.y1  = pSegInit->y1 + pDrawable->y;
-		full.y2  = full.y1 + 1;
+		fullX1 += pDrawable->x;
+		fullX2 += pDrawable->x;
+		fullY1  = pSegInit->y1 + pDrawable->y;
+		fullY2  = fullY1 + 1;
 	    }
 	    else
 	    {
 		if (pSegInit->y1 < pSegInit->y2)
 		{
-		    full.y1 = pSegInit->y1;
-		    full.y2 = pSegInit->y2;
+		    fullY1 = pSegInit->y1;
+		    fullY2 = pSegInit->y2;
 		    if (pGC->capStyle != CapNotLast)
-			full.y2++;
+			fullY2++;
 		}
 		else
 		{
-		    full.y1 = pSegInit->y2;
-		    full.y2 = pSegInit->y1 + 1;
+		    fullY1 = pSegInit->y2;
+		    fullY2 = pSegInit->y1 + 1;
 		    if (pGC->capStyle == CapNotLast)
-			full.y1++;
+			fullY1++;
 		}
 
-		full.y1 += pDrawable->y;
-		full.y2 += pDrawable->y;
-		full.x1  = pSegInit->x1 + pDrawable->x;
-		full.x2  = full.x1 + 1;
+		fullY1 += pDrawable->y;
+		fullY2 += pDrawable->y;
+		fullX1  = pSegInit->x1 + pDrawable->x;
+		fullX2  = fullX1 + 1;
 	    }
 
 	    pSegInit++;
 
-	    if (full.x1 < pExtent->x1)
-		full.x1 = pExtent->x1;
-	    if (full.y1 < pExtent->y1)
-		full.y1 = pExtent->y1;
-	    if (full.x2 > pExtent->x2)
-		full.x2 = pExtent->x2;
-	    if (full.y2 > pExtent->y2)
-		full.y2 = pExtent->y2;
+	    if (fullX1 < pExtent->x1)
+		fullX1 = pExtent->x1;
+	    if (fullY1 < pExtent->y1)
+		fullY1 = pExtent->y1;
+	    if (fullX2 > pExtent->x2)
+		fullX2 = pExtent->x2;
+	    if (fullY2 > pExtent->y2)
+		fullY2 = pExtent->y2;
+
+	    full.x1 = fullX1;
+	    full.y1 = fullY1;
+	    full.x2 = fullX2;
+	    full.y2 = fullY2;
 
 	    if (full.x1 >= full.x2 || full.y1 >= full.y2)
 		continue;
