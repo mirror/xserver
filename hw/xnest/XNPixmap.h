@@ -22,7 +22,7 @@ extern int xnestPixmapPrivateIndex;
 #endif
 
 typedef struct {
-  Pixmap pixmap;
+  XCBPIXMAP pixmap;
 } xnestPrivPixmap;
 
 #ifdef PIXPRIV

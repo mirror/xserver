@@ -17,9 +17,10 @@ is" without express or implied warranty.
 #ifdef HAVE_XNEST_CONFIG_H
 #include <xnest-config.h>
 #endif
-
-#include <X11/X.h>
-#include <X11/Xproto.h>
+/*so we don't cause conflits with xcb.h*/
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
+#include <X11/XCB/xproto.h>
 #include "screenint.h"
 #include "input.h"
 #include "misc.h"
@@ -51,27 +52,29 @@ void
 InitOutput(ScreenInfo *screenInfo, int argc, char *argv[])
 {
   int i, j;
+  const XCBSetup *setup; 
 
   xnestOpenDisplay(argc, argv);
+  setup = XCBGetSetup(xnestConnection);
   
-  screenInfo->imageByteOrder = ImageByteOrder(xnestDisplay);
-  screenInfo->bitmapScanlineUnit = BitmapUnit(xnestDisplay);
-  screenInfo->bitmapScanlinePad = BitmapPad(xnestDisplay);
-  screenInfo->bitmapBitOrder = BitmapBitOrder(xnestDisplay);
+  screenInfo->imageByteOrder = setup->image_byte_order;
+  screenInfo->bitmapScanlineUnit = setup->bitmap_format_scanline_unit;
+  screenInfo->bitmapScanlinePad = setup->bitmap_format_scanline_pad;
+  screenInfo->bitmapBitOrder = setup->bitmap_format_bit_order;
   
   screenInfo->numPixmapFormats = 0;
   for (i = 0; i < xnestNumPixmapFormats; i++) 
-    for (j = 0; j < xnestNumDepths; j++)
+    for (j = 0; j < xnestNumDepth; j++)
       if ((xnestPixmapFormats[i].depth == 1) ||
           (xnestPixmapFormats[i].depth == xnestDepths[j])) {
-	screenInfo->formats[screenInfo->numPixmapFormats].depth = 
-	  xnestPixmapFormats[i].depth;
-	screenInfo->formats[screenInfo->numPixmapFormats].bitsPerPixel = 
-	  xnestPixmapFormats[i].bits_per_pixel;
-	screenInfo->formats[screenInfo->numPixmapFormats].scanlinePad = 
-	  xnestPixmapFormats[i].scanline_pad;
-	screenInfo->numPixmapFormats++;
-	break;
+        screenInfo->formats[screenInfo->numPixmapFormats].depth = 
+          xnestPixmapFormats[i].depth;
+        screenInfo->formats[screenInfo->numPixmapFormats].bitsPerPixel = 
+          xnestPixmapFormats[i].bits_per_pixel;
+        screenInfo->formats[screenInfo->numPixmapFormats].scanlinePad = 
+          xnestPixmapFormats[i].scanline_pad;
+        screenInfo->numPixmapFormats++;
+        break;
       }
   
   xnestWindowPrivateIndex = AllocateWindowPrivateIndex();
@@ -99,7 +102,7 @@ InitInput(int argc, char *argv[])
 
   mieqInit((DevicePtr)xnestKeyboardDevice, (DevicePtr)xnestPointerDevice);
 
-  AddEnabledDevice(XConnectionNumber(xnestDisplay));
+  AddEnabledDevice(XCBGetFileDescriptor(xnestConnection));
 
   RegisterBlockAndWakeupHandlers(xnestBlockHandler, xnestWakeupHandler, NULL);
 }

@@ -7,6 +7,7 @@ SRCS =	Args.c \
 	Cursor.c \
 	Display.c \
 	Display.h \
+	Drawable.c\
 	Drawable.h \
 	Events.c \
 	Events.h \

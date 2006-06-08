@@ -18,8 +18,10 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
-#include <X11/Xproto.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
+#include <X11/XCB/xproto.h>
+#include <X11/XCB/xcb_image.h> 
 #include "regionstr.h"
 #include "pixmapstr.h"
 #include "scrnintstr.h"
@@ -65,13 +67,15 @@ xnestCreatePixmap(ScreenPtr pScreen, int width, int height, int depth)
 #else
   pPixmap->devPrivate.ptr = (pointer)(pPixmap + 1);
 #endif
-  if (width && height)
-      xnestPixmapPriv(pPixmap)->pixmap = 
-	  XCreatePixmap(xnestDisplay, 
-			xnestDefaultWindows[pScreen->myNum],
-			width, height, depth);
-  else
-      xnestPixmapPriv(pPixmap)->pixmap = 0;
+  if (width && height){
+      xnestPixmapPriv(pPixmap)->pixmap = XCBPIXMAPNew(xnestConnection); 
+	  XCBCreatePixmap(xnestConnection,
+                      depth,
+                      xnestPixmapPriv(pPixmap)->pixmap,
+                      (XCBDRAWABLE)xnestDefaultWindows[pScreen->myNum],
+                      width, height);
+  } else
+      xnestPixmapPriv(pPixmap)->pixmap.xid = 0;
   
   return pPixmap;
 }
@@ -81,7 +85,7 @@ xnestDestroyPixmap(PixmapPtr pPixmap)
 {
   if(--pPixmap->refcnt)
     return TRUE;
-  XFreePixmap(xnestDisplay, xnestPixmap(pPixmap));
+  XCBFreePixmap(xnestConnection, xnestPixmap(pPixmap));
   xfree(pPixmap);
   return TRUE;
 }
@@ -89,21 +93,24 @@ xnestDestroyPixmap(PixmapPtr pPixmap)
 RegionPtr
 xnestPixmapToRegion(PixmapPtr pPixmap)
 {
-  XImage *ximage;
+  XCBImage *ximage;
   register RegionPtr pReg, pTmpReg;
   register int x, y;
   unsigned long previousPixel, currentPixel;
   BoxRec Box;
   Bool overlap;
   
-  ximage = XGetImage(xnestDisplay, xnestPixmap(pPixmap), 0, 0,
-		     pPixmap->drawable.width, pPixmap->drawable.height,
-		     1, XYPixmap);
+  ximage = XCBImageGet(xnestConnection,
+                      (XCBDRAWABLE)xnestPixmap(pPixmap),
+                      0, 0,
+                      pPixmap->drawable.width, pPixmap->drawable.height,
+                      1,
+                      XYPixmap);
   
   pReg = REGION_CREATE(pPixmap->drawable.pScreen, NULL, 1);
   pTmpReg = REGION_CREATE(pPixmap->drawable.pScreen, NULL, 1);
   if(!pReg || !pTmpReg) {
-      XDestroyImage(ximage);
+      XCBImageDestroy(ximage);
       return NullRegion;
   }
   
@@ -112,7 +119,7 @@ xnestPixmapToRegion(PixmapPtr pPixmap)
     Box.y2 = y + 1;
     previousPixel = 0L;
     for (x = 0; x < pPixmap->drawable.width; x++) {
-      currentPixel = XGetPixel(ximage, x, y);
+      currentPixel = XCBImageGetPixel(ximage, x, y);
       if (previousPixel != currentPixel) {
 	if (previousPixel == 0L) { 
 	  /* left edge */
@@ -136,7 +143,7 @@ xnestPixmapToRegion(PixmapPtr pPixmap)
   }
   
   REGION_DESTROY(pPixmap->drawable.pScreen, pTmpReg);
-  XDestroyImage(ximage);
+  XCBImageDestroy(ximage);
 
   REGION_VALIDATE(pPixmap->drawable.pScreen, pReg, &overlap);
 

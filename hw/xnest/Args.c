@@ -18,8 +18,9 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
-#include <X11/Xproto.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
+#include <X11/XCB/xproto.h>
 #include "screenint.h"
 #include "input.h"
 #include "misc.h"
@@ -49,7 +50,7 @@ Bool xnestUserBorderWidth = False;
 char *xnestWindowName = NULL;        
 int xnestNumScreens = 0;
 Bool xnestDoDirectColormaps = False;
-Window xnestParentWindow = 0;
+XCBWINDOW xnestParentWindow = {0};
 
 /* ddxInitGlobals - called by |InitGlobals| from os/util.c */
 void ddxInitGlobals(void)
@@ -174,7 +175,7 @@ ddxProcessArgument (int argc, char *argv[], int i)
   }
   if (!strcmp(argv[i], "-parent")) {
     if (++i < argc) {
-      xnestParentWindow = (XID) strtol (argv[i], (char**)NULL, 0);
+      xnestParentWindow.xid = (CARD32) strtol (argv[i], (char**)NULL, 0);
       return 2;
     }
   }

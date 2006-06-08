@@ -23,14 +23,14 @@ is" without express or implied warranty.
 #define MINCMAPS 1
 
 typedef struct {
-  Colormap colormap;
+  XCBCOLORMAP colormap;
 } xnestPrivColormap;
 
 typedef struct {
   int numCmapIDs;
-  Colormap *cmapIDs;
+  XCBCOLORMAP *cmapIDs;
   int numWindows;
-  Window *windows;
+  XCBWINDOW *windows;
   int index;
 } xnestInstalledColormapWindows;
 
@@ -49,8 +49,8 @@ void xnestDirectInstallColormaps(ScreenPtr pScreen);
 void xnestDirectUninstallColormaps(ScreenPtr pScreen);
 void xnestInstallColormap(ColormapPtr pCmap);
 void xnestUninstallColormap(ColormapPtr pCmap);
-int xnestListInstalledColormaps(ScreenPtr pScreen, Colormap *pCmapIDs);
-void xnestStoreColors(ColormapPtr pCmap, int nColors, xColorItem *pColors);
+int xnestListInstalledColormaps(ScreenPtr pScreen, XCBCOLORMAP *pCmapIDs);
+void xnestStoreColors(ColormapPtr pCmap, int nColors, XCBCOLORITEM *pColors);
 void xnestResolveColor(unsigned short *pRed, unsigned short *pGreen,
 		       unsigned short *pBlue, VisualPtr pVisual);
 Bool xnestCreateDefaultColormap(ScreenPtr pScreen);

@@ -18,8 +18,9 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
-#include <X11/Xproto.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
+#include <X11/XCB/xproto.h>
 #include "screenint.h"
 #include "input.h"
 #include "misc.h"
@@ -37,7 +38,7 @@ void
 xnestBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
 {
   xnestCollectExposures();
-  XFlush(xnestDisplay);
+  XCBFlush(xnestConnection);
 }
 
 void

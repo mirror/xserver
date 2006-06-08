@@ -1,15 +1,15 @@
 /* $Xorg: Font.c,v 1.3 2000/08/17 19:53:28 cpqbld Exp $ */
 /*
 
-Copyright 1993 by Davor Matic
+   Copyright 1993 by Davor Matic
 
-Permission to use, copy, modify, distribute, and sell this software
-and its documentation for any purpose is hereby granted without fee,
-provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in
-supporting documentation.  Davor Matic makes no representations about
-the suitability of this software for any purpose.  It is provided "as
-is" without express or implied warranty.
+   Permission to use, copy, modify, distribute, and sell this software
+   and its documentation for any purpose is hereby granted without fee,
+   provided that the above copyright notice appear in all copies and that
+   both that copyright notice and this permission notice appear in
+   supporting documentation.  Davor Matic makes no representations about
+   the suitability of this software for any purpose.  It is provided "as
+   is" without express or implied warranty.
 
 */
 /* $XFree86: xc/programs/Xserver/hw/xnest/Font.c,v 3.6 2003/07/16 01:38:51 dawes Exp $ */
@@ -18,9 +18,9 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
-#include <X11/Xatom.h>
-#include <X11/Xproto.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
+#include <X11/XCB/xproto.h>
 #include "misc.h"
 #include "regionstr.h"
 #include <X11/fonts/font.h>
@@ -34,58 +34,60 @@ is" without express or implied warranty.
 
 int xnestFontPrivateIndex;
 
-Bool
-xnestRealizeFont(ScreenPtr pScreen, FontPtr pFont)
+Bool xnestRealizeFont(ScreenPtr pScreen, FontPtr pFont)
 {
-  pointer priv;
-  Atom name_atom, value_atom;
-  int nprops;
-  FontPropPtr props;
-  int i;
-  char *name;
+    pointer priv;
+    XCBFONT font;
+    XCBATOM name_atom, value_atom;
 
-  FontSetPrivate(pFont, xnestFontPrivateIndex, NULL);
+    int nprops;
+    FontPropPtr props;
+    int i;
+    char *name;
 
-  if (requestingClient && XpClientIsPrintClient(requestingClient, NULL))
-      return True;
+    FontSetPrivate(pFont, xnestFontPrivateIndex, NULL);
 
-  name_atom = MakeAtom("FONT", 4, True);
-  value_atom = 0L;
+    if (requestingClient && XpClientIsPrintClient(requestingClient, NULL))
+        return True;
 
-  nprops = pFont->info.nprops;
-  props = pFont->info.props;
+    name_atom.xid = MakeAtom("FONT", 4, True);
+    value_atom.xid = 0L;
 
-  for (i = 0; i < nprops; i++)
-    if (props[i].name == name_atom) {
-      value_atom = props[i].value;
-      break;
-    }
+    nprops = pFont->info.nprops;
+    props = pFont->info.props;
 
-  if (!value_atom) return False;
+    for (i = 0; i < nprops; i++)
+        if (props[i].name == name_atom.xid) {
+            value_atom.xid = props[i].value;
+            break;
+        }
 
-  name = (char *)NameForAtom(value_atom);
+    if (!value_atom.xid) return False;
 
-  if (!name) return False;
+    name = (char *)NameForAtom(value_atom.xid);
 
-  priv = (pointer)xalloc(sizeof(xnestPrivFont));  
-  FontSetPrivate(pFont, xnestFontPrivateIndex, priv);
-  
-  xnestFontPriv(pFont)->font_struct = XLoadQueryFont(xnestDisplay, name);
+    if (!name) return False;
 
-  if (!xnestFontStruct(pFont)) return False;
-						     
-  return True;
+    priv = (pointer)xalloc(sizeof(xnestPrivFont));
+    FontSetPrivate(pFont, xnestFontPrivateIndex, priv);
+
+    xnestFontPriv(pFont)->font = XCBFONTNew(xnestConnection);
+    XCBOpenFont(xnestConnection, font, strlen(name), name);
+
+    if (!xnestFont(pFont).xid)
+        return False;
+
+    return True;
 }
 
 
-Bool
-xnestUnrealizeFont(ScreenPtr pScreen, FontPtr pFont)
+Bool xnestUnrealizeFont(ScreenPtr pScreen, FontPtr pFont)
 {
-  if (xnestFontPriv(pFont)) {
-    if (xnestFontStruct(pFont)) 
-      XFreeFont(xnestDisplay, xnestFontStruct(pFont));
-    xfree(xnestFontPriv(pFont));
-    FontSetPrivate(pFont, xnestFontPrivateIndex, NULL);
-  }
-  return True;
+    if (xnestFontPriv(pFont)) {
+        if (xnestFont(pFont).xid) 
+            XCBCloseFont(xnestConnection, xnestFont(pFont));
+        xfree(xnestFontPriv(pFont));
+        FontSetPrivate(pFont, xnestFontPrivateIndex, NULL);
+    }
+    return True;
 }

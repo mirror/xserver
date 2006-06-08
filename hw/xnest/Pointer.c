@@ -18,7 +18,8 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
 #include <X11/Xproto.h>
 #include "screenint.h"
 #include "inputstr.h"
@@ -37,43 +38,50 @@ is" without express or implied warranty.
 
 DeviceIntPtr xnestPointerDevice = NULL;
 
-void
-xnestChangePointerControl(DeviceIntPtr pDev, PtrCtrl *ctrl)
+void xnestChangePointerControl(DeviceIntPtr pDev, PtrCtrl *ctrl)
 {
-  XChangePointerControl(xnestDisplay, True, True, 
-			ctrl->num, ctrl->den, ctrl->threshold); 
+    XCBChangePointerControl(xnestConnection,
+            ctrl->num, ctrl->den,
+            ctrl->threshold,
+            True, True); 
 }
 
-int
-xnestPointerProc(DeviceIntPtr pDev, int onoff)
+int xnestPointerProc(DeviceIntPtr pDev, int onoff)
 {
-  CARD8 map[MAXBUTTONS];
-  int nmap;
-  int i;
+    CARD8 map[MAXBUTTONS];
+    XCBGetPointerMappingCookie c;
+    XCBGetPointerMappingRep *r;
+    int nmap;
+    int i;
 
-  switch (onoff)
+    switch (onoff)
     {
-    case DEVICE_INIT: 
-      nmap = XGetPointerMapping(xnestDisplay, map, MAXBUTTONS);
-      for (i = 0; i <= nmap; i++)
-	map[i] = i; /* buttons are already mapped */
-      InitPointerDeviceStruct(&pDev->public, map, nmap,
-			      miPointerGetMotionEvents,
-			      xnestChangePointerControl,
-			      miPointerGetMotionBufferSize());
-      break;
-    case DEVICE_ON: 
-      xnestEventMask |= XNEST_POINTER_EVENT_MASK;
-      for (i = 0; i < xnestNumScreens; i++)
-	XSelectInput(xnestDisplay, xnestDefaultWindows[i], xnestEventMask);
-      break;
-    case DEVICE_OFF: 
-      xnestEventMask &= ~XNEST_POINTER_EVENT_MASK;
-      for (i = 0; i < xnestNumScreens; i++)
-	XSelectInput(xnestDisplay, xnestDefaultWindows[i], xnestEventMask);
-      break;
-    case DEVICE_CLOSE: 
-      break;
+        case DEVICE_INIT: 
+            c = XCBGetPointerMapping(xnestConnection);
+            r = XCBGetPointerMappingReply(xnestConnection, c, NULL);
+            nmap = r->map_len;
+            XFree(r);
+            for (i = 0; i <= nmap; i++)
+                map[i] = i; /* buttons are already mapped */
+            InitPointerDeviceStruct(&pDev->public, map, nmap,
+                    miPointerGetMotionEvents,
+                    xnestChangePointerControl,
+                    miPointerGetMotionBufferSize());
+            break;
+        case DEVICE_ON: 
+            xnestEventMask |= XNEST_POINTER_EVENT_MASK;
+            for (i = 0; i < xnestNumScreens; i++)
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                                          XCBCWEventMask, &xnestEventMask);
+            break;
+        case DEVICE_OFF: 
+            xnestEventMask &= ~XNEST_POINTER_EVENT_MASK;
+            for (i = 0; i < xnestNumScreens; i++)
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                                          XCBCWEventMask, &xnestEventMask);
+            break;
+        case DEVICE_CLOSE: 
+            break;
     }
-  return Success;
+    return Success;
 }

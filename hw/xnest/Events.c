@@ -1,15 +1,15 @@
 /* $Xorg: Events.c,v 1.3 2000/08/17 19:53:28 cpqbld Exp $ */
 /*
 
-Copyright 1993 by Davor Matic
+   Copyright 1993 by Davor Matic
 
-Permission to use, copy, modify, distribute, and sell this software
-and its documentation for any purpose is hereby granted without fee,
-provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in
-supporting documentation.  Davor Matic makes no representations about
-the suitability of this software for any purpose.  It is provided "as
-is" without express or implied warranty.
+   Permission to use, copy, modify, distribute, and sell this software
+   and its documentation for any purpose is hereby granted without fee,
+   provided that the above copyright notice appear in all copies and that
+   both that copyright notice and this permission notice appear in
+   supporting documentation.  Davor Matic makes no representations about
+   the suitability of this software for any purpose.  It is provided "as
+   is" without express or implied warranty.
 
 */
 /* $XFree86: xc/programs/Xserver/hw/xnest/Events.c,v 1.2 2001/08/01 00:44:57 tsi Exp $ */
@@ -18,9 +18,10 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
-#include <X11/X.h>
+#include <X11/Xmd.h>
+#include <X11/XCB/xcb.h>
 #define NEED_EVENTS
-#include <X11/Xproto.h>
+#include <X11/XCB/xproto.h>
 #include "screenint.h"
 #include "input.h"
 #include "misc.h"
@@ -43,184 +44,186 @@ is" without express or implied warranty.
 
 CARD32 lastEventTime = 0;
 
-void
-ProcessInputEvents()
+void ProcessInputEvents()
 {
-  mieqProcessInputEvents();
-  miPointerUpdate();
+    mieqProcessInputEvents();
+    miPointerUpdate();
 }
 
-int
-TimeSinceLastInputEvent()
+int TimeSinceLastInputEvent()
 {
     if (lastEventTime == 0)
         lastEventTime = GetTimeInMillis();
     return GetTimeInMillis() - lastEventTime;
 }
 
-void
-SetTimeSinceLastInputEvent()
+void SetTimeSinceLastInputEvent()
 {
-  lastEventTime = GetTimeInMillis();
+    lastEventTime = GetTimeInMillis();
 }
 
-static Bool
-xnestExposurePredicate(Display *display, XEvent *event, char *args)
+static Bool xnestExposurePredicate(Display *display, XEvent *event, char *args)
 {
-  return (event->type == Expose || event->type == ProcessedExpose);
+    return (event->type == Expose || event->type == ProcessedExpose);
 }
 
-static Bool
-xnestNotExposurePredicate(Display *display, XEvent *event, char *args)
+static Bool xnestNotExposurePredicate(Display *display, XEvent *event, char *args)
 {
-  return !xnestExposurePredicate(display, event, args);
+    return !xnestExposurePredicate(display, event, args);
 }
 
-void
-xnestCollectExposures()
+void xnestCollectExposures()
 {
-  XEvent X;
-  WindowPtr pWin;
-  RegionRec Rgn;
-  BoxRec Box;
-  
-  while (XCheckIfEvent(xnestDisplay, &X, xnestExposurePredicate, NULL)) {
-    pWin = xnestWindowPtr(X.xexpose.window);
-    
-    if (pWin) {
-      Box.x1 = pWin->drawable.x + wBorderWidth(pWin) + X.xexpose.x;
-      Box.y1 = pWin->drawable.y + wBorderWidth(pWin) + X.xexpose.y;
-      Box.x2 = Box.x1 + X.xexpose.width;
-      Box.y2 = Box.y1 + X.xexpose.height;
-      
-      REGION_INIT(pWin->drawable.pScreen, &Rgn, &Box, 1);
-      
-      miWindowExposures(pWin, &Rgn, NullRegion); 
+    XCBGenericEvent *e;
+    XCBExposeEvent *evt;
+    WindowPtr pWin;
+    RegionRec Rgn;
+    BoxRec Box;
+
+    e = XCBPeekNextEvent(xnestConnection);
+    while ((e->response_type & ~0x80) == XCBExpose) {
+        evt = (XCBExposeEvent *)XCBWaitForEvent(xnestConnection);
+        pWin = xnestWindowPtr(evt->window);
+
+        if (pWin) {
+            Box.x1 = pWin->drawable.x + wBorderWidth(pWin) + evt->x;
+            Box.y1 = pWin->drawable.y + wBorderWidth(pWin) + evt->y;
+            Box.x2 = Box.x1 + evt->width;
+            Box.y2 = Box.y1 + evt->height;
+
+            REGION_INIT(pWin->drawable.pScreen, &Rgn, &Box, 1);
+
+            miWindowExposures(pWin, &Rgn, NullRegion); 
+        }
+        e = XCBPeekNextEvent(xnestConnection);
     }
-  }
 }
 
-void
-xnestQueueKeyEvent(int type, unsigned int keycode)
+void xnestQueueKeyEvent(int type, unsigned int keycode)
 {
-  xEvent x;
-  x.u.u.type = type;
-  x.u.u.detail = keycode;
-  x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
-  mieqEnqueue(&x);
+    xEvent x;
+    x.u.u.type = type;
+    x.u.u.detail = keycode;
+    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
+    mieqEnqueue(&x);
 }
 
-void
-xnestCollectEvents()
+void xnestCollectEvents()
 {
-  XEvent X;
-  xEvent x;
-  ScreenPtr pScreen;
+    XCBGenericEvent *e;
+    XCBMotionNotifyEvent *pev;
+    XCBEnterNotifyEvent  *eev;
+    XCBLeaveNotifyEvent  *lev;    
+    XCBGenericEvent ev;
+    ScreenPtr pScreen;
 
-  while (XCheckIfEvent(xnestDisplay, &X, xnestNotExposurePredicate, NULL)) {
-    switch (X.type) {
-    case KeyPress:
-      xnestUpdateModifierState(X.xkey.state);
-      xnestQueueKeyEvent(KeyPress, X.xkey.keycode);
-      break;
-      
-    case KeyRelease:
-      xnestUpdateModifierState(X.xkey.state);
-      xnestQueueKeyEvent(KeyRelease, X.xkey.keycode);
-      break;
-      
-    case ButtonPress:
-      xnestUpdateModifierState(X.xkey.state);
-      x.u.u.type = ButtonPress;
-      x.u.u.detail = X.xbutton.button;
-      x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
-      mieqEnqueue(&x);
-      break;
-      
-    case ButtonRelease:
-      xnestUpdateModifierState(X.xkey.state);
-      x.u.u.type = ButtonRelease;
-      x.u.u.detail = X.xbutton.button;
-      x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
-      mieqEnqueue(&x);
-      break;
-      
-    case MotionNotify:
+    e = XCBPeekNextEvent(xnestConnection);
+    while ((e->response_type & ~0x80) != XCBExpose) {
+        e = XCBWaitForEvent(xnestConnection);
+        switch (e->response_type) {
+            case XCBKeyPress:
+                xnestUpdateModifierState(((XCBKeyPressEvent *)e)->state);
+                xnestQueueKeyEvent(XCBKeyPress, ((XCBKeyPressEvent *)e)->detail.id);
+                break;
+
+            case XCBKeyRelease:
+                xnestUpdateModifierState(((XCBKeyReleaseEvent *)e)->state);
+                xnestQueueKeyEvent(KeyRelease, ((XCBKeyReleaseEvent *)e)->detail.id);
+                break;
+
+            case XCBButtonPress:
+                xnestUpdateModifierState(((XCBButtonPressEvent *)e)->state);
+                ((XCBButtonPressEvent *)e)->time.id = lastEventTime = GetTimeInMillis();
+                memcpy(&ev, e, sizeof(XCBGenericEvent));
+                mieqEnqueue((xEventPtr) &ev);
+                break;
+
+            case XCBButtonRelease:
+                xnestUpdateModifierState(((XCBButtonReleaseEvent *)e)->state);
+                ((XCBButtonReleaseEvent *)e)->time.id = lastEventTime = GetTimeInMillis();
+                memcpy(&ev, e, sizeof(XCBGenericEvent));
+                mieqEnqueue((xEventPtr) &ev);
+                break;
+
+            case XCBMotionNotify:
 #if 0
-      x.u.u.type = MotionNotify;
-      x.u.keyButtonPointer.rootX = X.xmotion.x;
-      x.u.keyButtonPointer.rootY = X.xmotion.y;
-      x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
-      mieqEnqueue(&x);
+                x.u.u.type = MotionNotify;
+                x.u.keyButtonPointer.rootX = X.xmotion.x;
+                x.u.keyButtonPointer.rootY = X.xmotion.y;
+                x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
+                mieqEnqueue(&x);
 #endif 
-      miPointerAbsoluteCursor (X.xmotion.x, X.xmotion.y, 
-			       lastEventTime = GetTimeInMillis());
-      break;
-      
-    case FocusIn:
-      if (X.xfocus.detail != NotifyInferior) {
-	pScreen = xnestScreen(X.xfocus.window);
-	if (pScreen)
-	  xnestDirectInstallColormaps(pScreen);
-      }
-      break;
-   
-    case FocusOut:
-      if (X.xfocus.detail != NotifyInferior) {
-	pScreen = xnestScreen(X.xfocus.window);
-	if (pScreen)
-	  xnestDirectUninstallColormaps(pScreen);
-      }
-      break;
+                pev = (XCBMotionNotifyEvent *)e;
+                miPointerAbsoluteCursor (pev->event_x, pev->event_y,
+                                         lastEventTime = GetTimeInMillis());
+                break;
 
-    case KeymapNotify:
-      break;
+            case XCBFocusIn:
+                if (((XFocusInEvent *)e)->detail != XCBNotifyDetailInferior) {
+                    pScreen = xnestScreen(((XCBFocusInEvent *)e)->event);
+                    if (pScreen)
+                        xnestDirectInstallColormaps(pScreen);
+                }
+                break;
 
-    case EnterNotify:
-      if (X.xcrossing.detail != NotifyInferior) {
-	pScreen = xnestScreen(X.xcrossing.window);
-	if (pScreen) {
-	  NewCurrentScreen(pScreen, X.xcrossing.x, X.xcrossing.y);
+            case XCBFocusOut:
+                if (((XFocusOutEvent *)e)->detail != XCBNotifyDetailInferior) {
+                    pScreen = xnestScreen(((XCBFocusOutEvent *)e)->event);
+                    if (pScreen)
+                        xnestDirectInstallColormaps(pScreen);
+                }
+                break;
+
+            case XCBKeymapNotify:
+                break;
+
+            case XCBEnterNotify:
+                eev = (XCBEnterNotifyEvent *)e;
+                if (eev->detail != XCBNotifyDetailInferior) {
+                    pScreen = xnestScreen(eev->event);
+                    if (pScreen) {
+                        NewCurrentScreen(pScreen, eev->event_x, eev->event_y);
 #if 0
-	  x.u.u.type = MotionNotify;
-	  x.u.keyButtonPointer.rootX = X.xcrossing.x;
-	  x.u.keyButtonPointer.rootY = X.xcrossing.y;
-	  x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
-	  mieqEnqueue(&x);
+                        x.u.u.type = MotionNotify;
+                        x.u.keyButtonPointer.rootX = X.xcrossing.x;
+                        x.u.keyButtonPointer.rootY = X.xcrossing.y;
+                        x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
+                        mieqEnqueue(&x);
 #endif
-	  miPointerAbsoluteCursor (X.xcrossing.x, X.xcrossing.y, 
-				   lastEventTime = GetTimeInMillis());
-	  xnestDirectInstallColormaps(pScreen);
-	}
-      }
-      break;
-      
-    case LeaveNotify:
-      if (X.xcrossing.detail != NotifyInferior) {
-	pScreen = xnestScreen(X.xcrossing.window);
-	if (pScreen) {
-	  xnestDirectUninstallColormaps(pScreen);
-	}	
-      }
-      break;
-      
-    case DestroyNotify:
-      if (xnestParentWindow != (Window) 0 &&
-	  X.xdestroywindow.window == xnestParentWindow)
-	exit (0);
-      break;
+                        miPointerAbsoluteCursor (eev->event_x, eev->event_y, 
+                                                 lastEventTime = GetTimeInMillis());
+                        xnestDirectInstallColormaps(pScreen);
+                    }
+                }
+                break;
 
-    case CirculateNotify:
-    case ConfigureNotify:
-    case GravityNotify:
-    case MapNotify:
-    case ReparentNotify:
-    case UnmapNotify:
-      break;
-      
-    default:
-      ErrorF("xnest warning: unhandled event\n");
-      break;
+            case XCBLeaveNotify:
+                lev = (XCBLeaveNotifyEvent *)e;                
+                if (lev->detail != XCBNotifyDetailInferior) {
+                    pScreen = xnestScreen(lev->event);
+                    if (pScreen) {
+                        xnestDirectUninstallColormaps(pScreen);
+                    }	
+                }
+                break;
+
+            case XCBDestroyNotify:
+                if (xnestParentWindow.xid != (CARD32) 0 &&
+                        ((XCBDestroyNotifyEvent *)e)->event.xid == xnestParentWindow.xid)
+                    exit (0);
+                break;
+
+            case XCBCirculateNotify:
+            case XCBConfigureNotify:
+            case XCBGravityNotify:
+            case XCBMapNotify:
+            case XCBReparentNotify:
+            case XCBUnmapNotify:
+                break;
+
+            default:
+                ErrorF("xnest warning: unhandled event\n");
+                break;
+        }
     }
-  }
 }

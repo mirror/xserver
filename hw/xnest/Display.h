@@ -22,25 +22,27 @@ is" without express or implied warranty.
 #define MAXDEPTH 32
 #define MAXVISUALSPERDEPTH 256
 
-extern Display *xnestDisplay;
-extern XVisualInfo *xnestVisuals;       
-extern int xnestNumVisuals;
-extern int xnestDefaultVisualIndex;
-extern Colormap *xnestDefaultColormaps;
-extern int xnestNumDefaultClormaps;
-extern int *xnestDepths;
-extern int xnestNumDepths;
-extern XPixmapFormatValues *xnestPixmapFormats;
-extern int xnestNumPixmapFormats;
-extern Pixel xnestBlackPixel;             
-extern Pixel xnestWhitePixel;             
-extern Drawable xnestDefaultDrawables[MAXDEPTH + 1];
-extern Pixmap xnestIconBitmap;
-extern Pixmap xnestScreenSaverPixmap;
-extern XlibGC xnestBitmapGC;
-extern unsigned long xnestEventMask;
+extern XCBConnection    *xnestConnection;
+extern XCBVISUALTYPE   **xnestVisuals;
+extern CARD8            *xnestDepthForVisual;
+extern int               xnestNumVisuals;
+extern int               xnestDefaultVisualIndex;
+extern XCBCOLORMAP      *xnestDefaultColormaps;
+extern int               xnestNumDefaultColormaps;
+extern CARD8            *xnestDepths;
+extern int               xnestNumDepth;
+extern XCBFORMAT        *xnestPixmapFormats;
+extern int               xnestNumPixmapFormats;
+extern CARD32            xnestBlackPixel;
+extern CARD32            xnestWhitePixel;
+extern XCBDRAWABLE       xnestDefaultDrawables[MAXDEPTH + 1];
+extern XCBPIXMAP         xnestIconBitmap;
+extern XCBPIXMAP         xnestScreenSaverPixmap;
+extern XCBGCONTEXT       xnestBitmapGC;
+extern unsigned long     xnestEventMask;
 
 void xnestOpenDisplay(int argc, char *argv[]);
 void xnestCloseDisplay(void);
+
 
 #endif /* XNESTCOMMON_H */

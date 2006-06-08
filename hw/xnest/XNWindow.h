@@ -18,14 +18,14 @@ is" without express or implied warranty.
 #define XNESTWINDOW_H
 
 typedef struct {
-  Window window;
-  Window parent;
+  XCBWINDOW window;
+  XCBWINDOW parent;
   int x;
   int y;
   unsigned int width;
   unsigned int height;
   unsigned int border_width;
-  Window sibling_above;
+  XCBWINDOW sibling_above;
 #ifdef SHAPE
   RegionPtr bounding_shape;
   RegionPtr clip_shape;
@@ -34,8 +34,8 @@ typedef struct {
 
 typedef struct {
   WindowPtr pWin;
-  Window window;
-} xnestWindowMatch;
+  XCBWINDOW window;
+} XnestWindowMatch;
 
 extern int xnestWindowPrivateIndex;
 
@@ -50,15 +50,13 @@ extern int xnestWindowPrivateIndex;
    xnestDefaultWindows[pWin->drawable.pScreen->myNum])
 
 #define xnestWindowSiblingAbove(pWin) \
-  ((pWin)->prevSib ? xnestWindow((pWin)->prevSib) : None)
+  ((pWin)->prevSib ? xnestWindow((pWin)->prevSib).xid : None)
 
 #define xnestWindowSiblingBelow(pWin) \
   ((pWin)->nextSib ? xnestWindow((pWin)->nextSib) : None)
 
-#define CWParent CWSibling
-#define CWStackingOrder CWStackMode
 
-WindowPtr xnestWindowPtr(Window window);
+WindowPtr xnestWindowPtr(XCBWINDOW window);
 Bool xnestCreateWindow(WindowPtr pWin);
 Bool xnestDestroyWindow(WindowPtr pWin);
 Bool xnestPositionWindow(WindowPtr pWin, int x, int y);

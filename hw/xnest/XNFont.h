@@ -19,7 +19,9 @@ is" without express or implied warranty.
 #define XNESTFONT_H
 
 typedef struct {
-  XFontStruct *font_struct;
+    /*where is this used? do I need a XFontStruct-like thing?*/
+// XFontStruct *font_struct;
+    XCBFONT font;
 } xnestPrivFont;
 
 extern int xnestFontPrivateIndex;
@@ -27,9 +29,7 @@ extern int xnestFontPrivateIndex;
 #define xnestFontPriv(pFont) \
   ((xnestPrivFont *)FontGetPrivate(pFont, xnestFontPrivateIndex))
 
-#define xnestFontStruct(pFont) (xnestFontPriv(pFont)->font_struct)
-
-#define xnestFont(pFont) (xnestFontStruct(pFont)->fid)
+#define xnestFont(pFont) (xnestFontPriv(pFont)->font)
 
 Bool xnestRealizeFont(ScreenPtr pScreen, FontPtr pFont);
 Bool xnestUnrealizeFont(ScreenPtr pScreen, FontPtr pFont);

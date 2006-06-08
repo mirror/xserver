@@ -17,10 +17,10 @@ is" without express or implied warranty.
 #ifndef XNESTSCREEN_H
 #define XNESTSCREEN_H
 
-extern Window xnestDefaultWindows[MAXSCREENS];
-extern Window xnestScreenSaverWindows[MAXSCREENS];
+extern XCBWINDOW xnestDefaultWindows[MAXSCREENS];
+extern XCBWINDOW xnestScreenSaverWindows[MAXSCREENS];
 
-ScreenPtr xnestScreen(Window window);
+ScreenPtr xnestScreen(XCBWINDOW window);
 Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[]);
 Bool xnestCloseScreen(int index, ScreenPtr pScreen);
 

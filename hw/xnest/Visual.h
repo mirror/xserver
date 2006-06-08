@@ -17,11 +17,10 @@ is" without express or implied warranty.
 #ifndef XNESTVISUAL_H
 #define XNESTVISUAL_H
 
-Visual *xnestVisual(VisualPtr pVisual);
-Visual *xnestVisualFromID(ScreenPtr pScreen, VisualID visual);
-Colormap xnestDefaultVisualColormap(Visual *visual);
+XCBVISUALTYPE *xnestVisual(VisualPtr pVisual);
+XCBVISUALTYPE *xnestVisualFromID(ScreenPtr pScreen, XCBVISUALID visual);
+XCBCOLORMAP xnestDefaultVisualColormap(XCBVISUALTYPE *visual);
 
-#define xnestDefaultVisual(pScreen) \
-  xnestVisualFromID((pScreen), (pScreen)->rootVisual)
+XCBVISUALTYPE* xnestGetDefaultVisual(ScreenPtr pScreen);
 
 #endif /* XNESTVISUAL_H */
