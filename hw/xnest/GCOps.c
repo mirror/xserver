@@ -142,10 +142,7 @@ static RegionPtr xnestBitBlitHelper(GCPtr pGC)
 
         pending = True;
         while (pending) {
-            event = XCBPeekNextEvent(xnestConnection);
-            if (xnestBitBlitPredicate(event))
-                event = XCBWaitForEvent(xnestConnection);
-
+            event = XCBWaitForEvent(xnestConnection);
             switch (event->response_type) {
                 case XCBNoExposure:
                     pending = False;
@@ -161,6 +158,9 @@ static RegionPtr xnestBitBlitHelper(GCPtr pGC)
                     REGION_APPEND(pGC->pScreen, pReg, pTmpReg);
                     pending = exp->count;
                     break;
+                default:
+                    xnestHandleEvent(event);
+
             }
         }
 
