@@ -874,8 +874,8 @@ fbComposite (CARD8      op,
 	maskAlphaMap = pMask->alphaMap != 0;
     }
 
-    /* YV12 is only used internally for XVideo */
-    if (pSrc->format == PICT_yv12)
+    /* YUV is only used internally for XVideo */
+    if (pSrc->format == PICT_yv12 || pSrc->format == PICT_yuy2)
     {
 #ifdef USE_MMX
 	/* non rotating transformation */
@@ -890,7 +890,12 @@ fbComposite (CARD8      op,
 	    case PICT_a8r8g8b8:
 	    case PICT_x8r8g8b8:
 		if (fbHaveMMX())
-		    func = fbCompositeSrc_yv12x8888mmx;
+		{
+		    if (pSrc->format == PICT_yv12)
+			func = fbCompositeSrc_yv12x8888mmx;
+		    else
+			func = fbCompositeSrc_yuy2x8888mmx;
+		}
 		break;
 	    }
 	}

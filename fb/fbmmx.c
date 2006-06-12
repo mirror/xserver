@@ -2416,9 +2416,9 @@ mmx_pack8888 (CARD8 *image)
 }
 
 static __inline__ CARD32
-loadyv12 (CARD8 *py,
-	  CARD8 *pu,
-	  CARD8 *pv)
+loadyuv (CARD8 *py,
+	 CARD8 *pu,
+	 CARD8 *pv)
 {
     INT16 y, u, v;
     INT32 r, g, b;
@@ -2560,7 +2560,7 @@ loadyv12_scanline (ScanlineBuf *slb,
 
     while (w && (unsigned long) py & 7)
     {
-	*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+	*((CARD32 *) pd) = loadyuv (py, pu, pv);
 
 	pd += 4;
 	py += 1;
@@ -2589,7 +2589,7 @@ loadyv12_scanline (ScanlineBuf *slb,
 
     while (w)
     {
-	*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+	*((CARD32 *) pd) = loadyuv (py, pu, pv);
 
 	pd += 4;
 	py += 1;
@@ -2598,6 +2598,51 @@ loadyv12_scanline (ScanlineBuf *slb,
 	{
 	    pu += 1;
 	    pv += 1;
+	}
+
+	w--;
+    }
+
+    return slb->line[i];
+}
+
+static __inline__ CARD8 *
+loadyuy2_scanline (ScanlineBuf *slb,
+		   int	       y,
+		   CARD8       *src,
+		   int	       stride,
+		   int	       x,
+		   int	       width)
+{
+    CARD8 *py, *pu, *pv, *pd;
+    int   i, w;
+
+    y = _y_to_scanline (slb, y);
+
+    for (i = 0; slb->lock[i]; i++);
+
+    slb->y[i]    = y;
+    slb->lock[i] = TRUE;
+
+    py = src + stride * (y >> 0);
+    pu = py + 1;
+    pv = py + 3;
+
+    pd = slb->line[i];
+
+    w = width;
+
+    while (w)
+    {
+	*((CARD32 *) pd) = loadyuv (py, pu, pv);
+
+	pd += 4;
+	py += 2;
+
+	if (w & 1)
+	{
+	    pu += 4;
+	    pv += 4;
 	}
 
 	w--;
@@ -2857,7 +2902,7 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 
 	    while (w && (unsigned long) py & 7)
 	    {
-		*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+		*((CARD32 *) pd) = loadyuv (py, pu, pv);
 
 		pd += 4;
 		py += 1;
@@ -2886,7 +2931,7 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 
 	    while (w)
 	    {
-		*((CARD32 *) pd) = loadyv12 (py, pu, pv);
+		*((CARD32 *) pd) = loadyuv (py, pu, pv);
 
 		pd += 4;
 		py += 1;
@@ -2914,6 +2959,216 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
     }
 
     _mm_empty ();
+}
+
+/* TODO: MMX code for yuy2 */
+void
+fbCompositeSrc_yuy2x8888mmx (CARD8      op,
+			     PicturePtr pSrc,
+			     PicturePtr pMask,
+			     PicturePtr pDst,
+			     INT16      xSrc,
+			     INT16      ySrc,
+			     INT16      xMask,
+			     INT16      yMask,
+			     INT16      xDst,
+			     INT16      yDst,
+			     CARD16     width,
+			     CARD16     height)
+{
+    PictTransform *transform = pSrc->transform;
+    CARD8	  *dst, *src;
+    FbBits	  *srcBits;
+    FbStride	  srcStride;
+    int		  srcXoff;
+    int		  srcYoff;
+    FbBits	  *dstBits;
+    FbStride	  dstStride;
+    int		  dstXoff;
+    int		  dstYoff;
+    int		  bpp, offset, w;
+    CARD8	  *pd;
+
+    fbGetDrawable (pSrc->pDrawable, srcBits, srcStride, bpp, srcXoff, srcYoff);
+    fbGetDrawable (pDst->pDrawable, dstBits, dstStride, bpp, dstXoff, dstYoff);
+
+    dst = (CARD8 *) dstBits;
+    dstStride *= sizeof (FbBits);
+
+    src = (CARD8 *) srcBits;
+    srcStride *= sizeof (FbBits);
+
+    if (transform)
+    {
+	/* transformation is a Y coordinate flip, this is achieved by
+	   moving start offsets for each plane and changing sign of stride */
+	if (pSrc->transform->matrix[0][0] == (1 << 16)  &&
+	    pSrc->transform->matrix[1][1] == -(1 << 16) &&
+	    pSrc->transform->matrix[0][2] == 0          &&
+	    pSrc->transform->matrix[1][2] == (pSrc->pDrawable->height << 16))
+	{
+	    src = src + (pSrc->pDrawable->height - 1) * srcStride;
+
+	    srcStride = -srcStride;
+
+	    transform = 0;
+	}
+    }
+
+    dst += dstStride * (yDst + dstYoff) + ((xDst + dstXoff) << 2);
+
+    if (transform)
+    {
+	ScanlineBuf slb;
+	CARD8	    _scanline_buf[8192];
+	CARD8	    *ps, *ps0, *ps1;
+	int	    x, x0, y, line, xStep, yStep;
+	int         distx, idistx, disty, idisty;
+	int	    srcEnd = pSrc->pDrawable->width << 16;
+
+	x0 = pSrc->transform->matrix[0][2] + ((xSrc + srcXoff) << 16);
+	y  = pSrc->transform->matrix[1][2] + ((ySrc + srcYoff) << 16);
+
+	xStep = pSrc->transform->matrix[0][0];
+	yStep = pSrc->transform->matrix[1][1];
+
+	init_scanline_buffer (&slb,
+			      _scanline_buf, sizeof (_scanline_buf),
+			      pSrc->pDrawable->width << 2,
+			      pSrc->pDrawable->height);
+
+	while (height--)
+	{
+	    disty  = (y >> 8) & 0xff;
+	    idisty = 256 - disty;
+	    line   = y >> 16;
+
+	    ps0 = get_scanline (&slb, line);
+	    ps1 = get_scanline (&slb, line + 1);
+
+	    if (!ps0)
+		ps0 = loadyuy2_scanline (&slb, line,
+					 src, srcStride,
+					 0, pSrc->pDrawable->width);
+
+	    if (!ps1)
+		ps1 = loadyuy2_scanline (&slb, line + 1,
+					 src, srcStride,
+					 0, pSrc->pDrawable->width);
+
+	    pd = dst;
+
+	    x = x0;
+	    w = width;
+
+	    if (pSrc->filter == PictFilterBilinear)
+	    {
+		while (w && x < 0)
+		{
+		    interpolate_bilinear_8888 (0, 256, disty, idisty,
+					       ps0, ps1, 0, pd);
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w && x < srcEnd)
+		{
+		    distx  = (x >> 8) & 0xff;
+		    idistx = 256 - distx;
+
+		    interpolate_bilinear_8888 (distx, idistx, disty, idisty,
+					       ps0, ps1, (x >> 14) & ~3, pd);
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w)
+		{
+		    interpolate_bilinear_8888 (256, 0, disty, idisty,
+					       ps0, ps1, (x >> 14) & ~3, pd);
+
+		    pd += 4;
+		    w  -= 1;
+		}
+	    }
+	    else
+	    {
+		while (w && x < 0)
+		{
+		    *(CARD32 *) pd = *(CARD32 *) ps0;
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w && x < srcEnd)
+		{
+		    *(CARD32 *) pd = ((CARD32 *) ps0)[x >> 16];
+
+		    x  += xStep;
+		    pd += 4;
+		    w  -= 1;
+		}
+
+		while (w)
+		{
+		    *(CARD32 *) pd = ((CARD32 *) ps0)[x >> 16];
+
+		    pd += 4;
+		    w  -= 1;
+		}
+	    }
+
+	    y   += yStep;
+	    dst += dstStride;
+
+	    release_scanlines (&slb);
+	}
+
+	fini_scanline_buffer (&slb);
+    }
+    else
+    {
+	CARD8 *py, *pu, *pv;
+
+	src += srcStride * (ySrc >> 0) + srcYoff + (xSrc + srcXoff);
+
+	while (height)
+	{
+	    py = src;
+	    pu = src + 1;
+	    pv = src + 3;
+	    pd = dst;
+
+	    w = width;
+
+	    while (w)
+	    {
+		*((CARD32 *) pd) = loadyuv (py, pu, pv);
+
+		pd += 4;
+		py += 2;
+
+		if (w & 1)
+		{
+		    pu += 4;
+		    pv += 4;
+		}
+
+		w--;
+	    }
+
+	    dst += dstStride;
+	    src += srcStride;
+
+	    height--;
+	}
+    }
 }
 
 #endif /* RENDER */

@@ -298,7 +298,7 @@ xglXvPutImage (ClientPtr     client,
     ScreenPtr	  pScreen = pDrawable->pScreen;
     PicturePtr	  pSrc;
     PictTransform transform;
-    int		  depth, bpp, noVisual = FALSE;
+    int		  depth, bpp, stride, noVisual = FALSE;
     CARD32	  format;
 
     XGL_SCREEN_PRIV (pScreen);
@@ -306,11 +306,14 @@ xglXvPutImage (ClientPtr     client,
     XGL_DRAWABLE_PIXMAP (pDrawable);
     XGL_PIXMAP_PRIV (pPixmap);
 
+    stride = ((srcWidth + 7) & ~7);
+
     switch (pImage->id) {
     case GLITZ_FOURCC_YUY2:
 	bpp = depth = 16;
 	format = PICT_yuy2;
 	noVisual = !pScreenPriv->pXvVisual[XGL_XV_FORMAT_YUY2].format.surface;
+	stride *= 2;
 	break;
     case GLITZ_FOURCC_YV12:
 	depth = bpp = 12;
@@ -321,6 +324,7 @@ xglXvPutImage (ClientPtr     client,
 	depth = 24;
 	bpp = 32;
 	format = PICT_x8r8g8b8;
+	stride *= 4;
 	break;
     default:
 	return BadImplementation;
@@ -339,7 +343,7 @@ xglXvPutImage (ClientPtr     client,
 				    srcWidth, srcHeight,
 				    depth, bpp, -1, (pointer) data);
 
-    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -((srcWidth + 7) & ~7);
+    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -stride;
 
     pPortPriv->pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
 
@@ -593,11 +597,6 @@ xglXvInitAdaptors (ScreenPtr pScreen)
 
     pAdaptor->nImages = sizeof (xvImages) / sizeof (XvImageRec);
     pAdaptor->pImages = xvImages;
-
-    /* XXX: Disable YUY2 format as it's not accelerated and the software
-       fallback got issues. */
-    pAdaptor->nImages = sizeof (xvImages) / sizeof (XvImageRec) - 1;
-    pAdaptor->pImages = &xvImages[1];
 
     /* TODO: Currently no attributes */
     pAdaptor->nAttributes = 0;
