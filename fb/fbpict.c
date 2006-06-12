@@ -902,12 +902,15 @@ fbComposite (CARD8      op,
 #endif
     }
     else if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
-        && !pSrc->transform && !(pMask && pMask->transform)
+        && !(pMask && pMask->transform)
         && !maskAlphaMap && !srcAlphaMap && !dstAlphaMap
 	&& (!pSrc->repeatType || srcRepeat)
 	&& (!pMask || (!pMask->repeatType || maskRepeat))
         && (pSrc->filter != PictFilterConvolution)
         && (!pMask || pMask->filter != PictFilterConvolution))
+    {
+	if (!pSrc->transform)
+	{
     switch (op) {
     case PictOpSrc:
 #ifdef USE_MMX
@@ -1257,6 +1260,51 @@ fbComposite (CARD8      op,
 	    }
 	}
 	break;
+    }
+	}
+	else if (op == PictOpOver && (pSrc->repeatType == RepeatPad ||
+				      pSrc->repeatType == RepeatNone))
+	{
+	    /* non rotating transformation */
+	    if (pSrc->transform->matrix[0][1] == 0 &&
+		pSrc->transform->matrix[1][0] == 0 &&
+		pSrc->transform->matrix[2][0] == 0 &&
+		pSrc->transform->matrix[2][1] == 0 &&
+		pSrc->transform->matrix[2][2] == 1 << 16)
+	    {
+		if (pMask)
+		{
+		    if (maskRepeat &&
+			pMask->pDrawable->width == 1 &&
+			pMask->pDrawable->height == 1)
+		    {
+			if (pSrc->format == PICT_x8r8g8b8 &&
+			    pDst->format == PICT_x8r8g8b8 &&
+			    pMask->format == PICT_a8)
+			{
+#ifdef USE_MMX
+			    if (fbHaveMMX())
+				func = fbCompositeSrc_8888x8x8888mmx;
+#endif
+			}
+		    }
+		}
+		else
+		{
+		    switch (pSrc->format) {
+		    case PICT_a8r8g8b8:
+			switch (pDst->format) {
+			case PICT_a8r8g8b8:
+			case PICT_x8r8g8b8:
+#ifdef USE_MMX
+			    if (fbHaveMMX())
+				func = fbCompositeSrc_8888x8888mmx;
+#endif
+			}
+		    }
+		}
+	    }
+	}
     }
 
     if (!func) {

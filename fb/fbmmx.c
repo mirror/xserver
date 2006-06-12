@@ -855,6 +855,187 @@ void fbComposeSetupMMX(void)
     } 
 }
 
+static __inline__ CARD8
+interpolate_bilinear (int   distx,
+		      int   idistx,
+		      int   disty,
+		      int   idisty,
+		      CARD8 tl,
+		      CARD8 tr,
+		      CARD8 bl,
+		      CARD8 br)
+{
+    return ((tl * idistx + tr * distx) * idisty +
+	    (bl * idistx + br * distx) * disty) >> 16;
+}
+
+static __inline__ CARD32
+interpolate_bilinear_8888 (int   distx,
+			   int   idistx,
+			   int   disty,
+			   int   idisty,
+			   CARD8 *l00,
+			   CARD8 *l01,
+			   CARD8 *l10,
+			   CARD8 *l11,
+			   int   x00,
+			   int   x01,
+			   int   x10,
+			   int   x11)
+{
+    CARD8 buffer[4];
+
+    buffer[0] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l00[x00], l01[x01],
+				      l10[x10], l11[x11]);
+
+    buffer[1] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l00[x00 + 1], l01[x01 + 1],
+				      l10[x10 + 1], l11[x11 + 1]);
+
+    buffer[2] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l00[x00 + 2], l01[x01 + 2],
+				      l10[x10 + 2], l11[x11 + 2]);
+
+    buffer[3] = interpolate_bilinear (distx, idistx, disty, idisty,
+				      l00[x00 + 3], l01[x01 + 3],
+				      l10[x10 + 3], l11[x11 + 3]);
+
+    return *((CARD32 *) buffer);
+}
+
+static __inline__ CARD32
+fetch_bilinear2_8888 (int   distx,
+		      int   idistx,
+		      int   disty,
+		      int   idisty,
+		      CARD8 *l0,
+		      CARD8 *l1,
+		      int   x0,
+		      int   x1)
+{
+    return interpolate_bilinear_8888 (distx,
+				      idistx,
+				      disty,
+				      idisty,
+				      l0,
+				      l0,
+				      l1,
+				      l1,
+				      x0,
+				      x0 + 4,
+				      x1,
+				      x1 + 4);
+}
+
+static __inline__ CARD32
+fetch_bilinear_8888 (int   distx,
+		     int   idistx,
+		     int   disty,
+		     int   idisty,
+		     CARD8 *l0,
+		     CARD8 *l1,
+		     int   x)
+{
+    return fetch_bilinear2_8888 (distx, idistx, disty, idisty, l0, l1, x, x);
+}
+
+static CARD32 _zero32x2[2] = { 0x0, 0x0 };
+static CARD8  *_zero8x8 = (CARD8 *) _zero32x2;
+
+static __inline__ int
+set_scale_steps (FbBits   *src,
+		 FbStride srcStride,
+		 int	  xStart,
+		 int	  xStep,
+		 int	  width,
+		 int	  line,
+		 int	  lastLine,
+		 int	  repeatType,
+		 CARD8	  **s0,
+		 CARD8	  **s1,
+		 int	  *x0,
+		 int	  *x0Step,
+		 int	  *x1,
+		 int	  *x1Step)
+{
+    if (line < 0)
+    {
+	if (repeatType == RepeatPad)
+	{
+	    *s0 = (CARD8 *) src;
+	    *s1 = (CARD8 *) src;
+
+	    *x0     = xStart;
+	    *x0Step = xStep;
+	    *x1     = xStart;
+	    *x1Step = xStep;
+	}
+	else
+	{
+	    if (line == -1)
+	    {
+		*s0 = _zero8x8;
+
+		*x0     = 0;
+		*x0Step = 0;
+
+		*s1 = (CARD8 *) src;
+
+		*x1     = xStart;
+		*x1Step = xStep;
+	    }
+	    else
+	    {
+		return 0;
+	    }
+	}
+    }
+    else if (line >= lastLine)
+    {
+	if (repeatType == RepeatPad)
+	{
+	    *s0 = (CARD8 *) (src + srcStride * lastLine);
+	    *s1 = (CARD8 *) (src + srcStride * lastLine);
+
+	    *x0     = xStart;
+	    *x0Step = xStep;
+	    *x1     = xStart;
+	    *x1Step = xStep;
+	}
+	else
+	{
+	    if (line == lastLine)
+	    {
+		*s0 = (CARD8 *) (src + srcStride * line);
+
+		*x0     = xStart;
+		*x0Step = xStep;
+
+		*s1 = _zero8x8;
+
+		*x1     = 0;
+		*x1Step = 0;
+	    }
+	    else
+	    {
+		return 0;
+	    }
+	}
+    }
+    else
+    {
+	*s0 = (CARD8 *) (src + srcStride * line);
+	*s1 = (CARD8 *) (src + srcStride * (line + 1));
+
+	*x0     = xStart;
+	*x0Step = xStep;
+	*x1     = xStart;
+	*x1Step = xStep;
+    }
+
+    return width;
+}
 
 /* ------------------ MMX code paths called from fbpict.c ----------------------- */
 
@@ -1150,109 +1331,333 @@ fbCompositeSrc_8888x8x8888mmx (CARD8	op,
     CHECKPOINT();
     
     fbComposeGetStart (pDst, xDst, yDst, CARD32, dstStride, dstLine, 1);
-    fbComposeGetStart (pSrc, xSrc, ySrc, CARD32, srcStride, srcLine, 1);
     fbComposeGetStart (pMask, xMask, yMask, CARD8, maskStride, maskLine, 1);
 
     mask = *maskLine << 24 | *maskLine << 16 | *maskLine << 8 | *maskLine;
     vmask = load8888 (mask);
     srca = MC(4x00ff);
-    
-    while (height--)
+
+    if (pSrc->transform)
     {
-	dst = dstLine;
-	dstLine += dstStride;
-	src = srcLine;
-	srcLine += srcStride;
-	w = width;
+	CARD8	 *src0, *src1;
+	int	 xStart, x, x0, x1, y, line, xStep, x0Step, x1Step, yStep;
+	int	 distx, idistx, disty, idisty;
+	int	 srcEnd = pSrc->pDrawable->width << 16;
+	int	 srcEndIndex = (pSrc->pDrawable->width - 1) << 16;
+	int	 lastLine = pSrc->pDrawable->height - 1;
+	FbStride srcStride;
+	int	 xOff, yOff;
+	int	 bpp;
+	__m64	 d, s;
 
-	while (w && (unsigned long)dst & 7)
+	fbGetDrawable (pSrc->pDrawable, srcLine, srcStride, bpp, xOff, yOff);
+
+	xStep = pSrc->transform->matrix[0][0];
+	yStep = pSrc->transform->matrix[1][1];
+
+	xStart = pSrc->transform->matrix[0][2] + xStep * (xSrc + xOff);
+	y      = pSrc->transform->matrix[1][2] + yStep * (ySrc + yOff);
+
+	while (height--)
 	{
-	    __m64 s = load8888 (*src);
-	    __m64 d = load8888 (*dst);
-	    
-	    *dst = store8888 (in_over (s, srca, vmask, d));
-	    
-	    w--;
-	    dst++;
-	    src++;
+	    disty  = (y >> 8) & 0xff;
+	    idisty = 256 - disty;
+	    line   = y >> 16;
+
+	    dst = dstLine;
+	    dstLine += dstStride;
+
+	    x = xStart;
+	    w = set_scale_steps (srcLine, srcStride,
+				 xStart, xStep, width, line, lastLine,
+				 pSrc->repeatType,
+				 &src0, &src1, &x0, &x0Step, &x1, &x1Step);
+
+	    if (pSrc->filter == PictFilterBilinear)
+	    {
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    if (w && x < 0)
+		    {
+			s = load8888 (fetch_bilinear_8888 (0, 255,
+							   disty, idisty,
+							   src0, src1,
+							   0));
+
+			while (w && x < 0)
+			{
+			    d = load8888 (*dst);
+
+			    *dst = store8888 (in_over (s, srca, vmask, d));
+
+			    x   += xStep;
+			    x0  += x0Step;
+			    x1  += x1Step;
+			    dst += 1;
+			    w   -= 1;
+			}
+		    }
+		}
+		else
+		{
+		    while (w && x < -xFixed1)
+		    {
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+
+		    while (w && x < 0)
+		    {
+			distx  = (x >> 8) & 0xff;
+			idistx = 256 - distx;
+
+			d = load8888 (*dst);
+			s = load8888 (
+			    interpolate_bilinear_8888 (distx, idistx,
+						       disty, idisty,
+						       _zero8x8, src0,
+						       _zero8x8, src1,
+						       0, 0, 0, 0));
+
+			*dst = store8888 (in_over (s, srca, vmask, d));
+
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+
+		while (w && x < srcEndIndex)
+		{
+		    distx  = (x >> 8) & 0xff;
+		    idistx = 256 - distx;
+
+		    d = load8888 (*dst);
+		    s = load8888 (fetch_bilinear2_8888 (distx, idistx,
+							disty, idisty,
+							src0, src1,
+							(x0 >> 14) & ~3,
+							(x1 >> 14) & ~3));
+
+		    *dst = store8888 (in_over (s, srca, vmask, d));
+
+		    x   += xStep;
+		    x0  += x0Step;
+		    x1  += x1Step;
+		    dst += 1;
+		    w   -= 1;
+		}
+
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    if (w)
+		    {
+			s = load8888 (fetch_bilinear_8888 (0, 255,
+							   disty, idisty,
+							   src0, src1,
+							   srcEndIndex >> 16));
+
+			while (w)
+			{
+			    d = load8888 (*dst);
+
+			    *dst = store8888 (in_over (s, srca, vmask, d));
+
+			    dst += 1;
+			    w   -= 1;
+			}
+		    }
+		}
+		else
+		{
+		    while (w && x < srcEnd)
+		    {
+			distx  = (x >> 8) & 0xff;
+			idistx = 256 - distx;
+
+			d = load8888 (*dst);
+			s = load8888 (
+			    interpolate_bilinear_8888 (distx, idistx,
+						       disty, idisty,
+						       src0, _zero8x8,
+						       src1, _zero8x8,
+						       (x0 >> 14) & ~3, 0,
+						       (x1 >> 14) & ~3, 0));
+
+			*dst = store8888 (in_over (s, srca, vmask, d));
+
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+	    }
+	    else
+	    {
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    s  = load8888 (*((CARD32 *) src0));
+
+		    while (w && x < 0)
+		    {
+			d = load8888 (*dst);
+
+			*dst = store8888 (in_over (s, srca, vmask, d));
+
+			x   += xStep;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+		else
+		{
+		    while (w && x < 0)
+		    {
+			x   += xStep;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+
+		while (w && x < srcEnd)
+		{
+		    d = load8888 (*dst);
+		    s = load8888 (((CARD32 *) src0)[x >> 16]);
+
+		    *dst = store8888 (in_over (s, srca, vmask, d));
+
+		    x   += xStep;
+		    dst += 1;
+		    w   -= 1;
+		}
+
+		if (w && pSrc->repeatType == RepeatPad)
+		{
+		    s  = load8888 (((CARD32 *) src0)[srcEndIndex >> 16]);
+
+		    while (w)
+		    {
+			d = load8888 (*dst);
+
+			*dst = store8888 (in_over (s, srca, vmask, d));
+
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+	    }
+
+	    y += yStep;
 	}
+    }
+    else
+    {
+	fbComposeGetStart (pSrc, xSrc, ySrc, CARD32, srcStride, srcLine, 1);
 
-	while (w >= 16)
+	while (height--)
 	{
-	    __m64 vd0 = *(__m64 *)(dst + 0);
-	    __m64 vd1 = *(__m64 *)(dst + 2);
-	    __m64 vd2 = *(__m64 *)(dst + 4);
-	    __m64 vd3 = *(__m64 *)(dst + 6);
-	    __m64 vd4 = *(__m64 *)(dst + 8);
-	    __m64 vd5 = *(__m64 *)(dst + 10);
-	    __m64 vd6 = *(__m64 *)(dst + 12);
-	    __m64 vd7 = *(__m64 *)(dst + 14);
+	    dst = dstLine;
+	    dstLine += dstStride;
+	    src = srcLine;
+	    srcLine += srcStride;
+	    w = width;
 
-	    __m64 vs0 = *(__m64 *)(src + 0);
-	    __m64 vs1 = *(__m64 *)(src + 2);
-	    __m64 vs2 = *(__m64 *)(src + 4);
-	    __m64 vs3 = *(__m64 *)(src + 6);
-	    __m64 vs4 = *(__m64 *)(src + 8);
-	    __m64 vs5 = *(__m64 *)(src + 10);
-	    __m64 vs6 = *(__m64 *)(src + 12);
-	    __m64 vs7 = *(__m64 *)(src + 14);
-
-	    vd0 = (__m64)pack8888 (
-		in_over (expand8888 (vs0, 0), srca, vmask, expand8888 (vd0, 0)),
-		in_over (expand8888 (vs0, 1), srca, vmask, expand8888 (vd0, 1)));
-	
-	    vd1 = (__m64)pack8888 (
-		in_over (expand8888 (vs1, 0), srca, vmask, expand8888 (vd1, 0)),
-		in_over (expand8888 (vs1, 1), srca, vmask, expand8888 (vd1, 1)));
-	
-	    vd2 = (__m64)pack8888 (
-		in_over (expand8888 (vs2, 0), srca, vmask, expand8888 (vd2, 0)),
-		in_over (expand8888 (vs2, 1), srca, vmask, expand8888 (vd2, 1)));
-	
-	    vd3 = (__m64)pack8888 (
-		in_over (expand8888 (vs3, 0), srca, vmask, expand8888 (vd3, 0)),
-		in_over (expand8888 (vs3, 1), srca, vmask, expand8888 (vd3, 1)));
-	
-	    vd4 = (__m64)pack8888 (
-		in_over (expand8888 (vs4, 0), srca, vmask, expand8888 (vd4, 0)),
-		in_over (expand8888 (vs4, 1), srca, vmask, expand8888 (vd4, 1)));
-	
-	    vd5 = (__m64)pack8888 (
-		in_over (expand8888 (vs5, 0), srca, vmask, expand8888 (vd5, 0)),
-		in_over (expand8888 (vs5, 1), srca, vmask, expand8888 (vd5, 1)));
-	
-	    vd6 = (__m64)pack8888 (
-		in_over (expand8888 (vs6, 0), srca, vmask, expand8888 (vd6, 0)),
-		in_over (expand8888 (vs6, 1), srca, vmask, expand8888 (vd6, 1)));
-	
-	    vd7 = (__m64)pack8888 (
-		in_over (expand8888 (vs7, 0), srca, vmask, expand8888 (vd7, 0)),
-		in_over (expand8888 (vs7, 1), srca, vmask, expand8888 (vd7, 1)));
-
-    	    *(__m64 *)(dst + 0) = vd0;
-	    *(__m64 *)(dst + 2) = vd1;
-	    *(__m64 *)(dst + 4) = vd2;
-	    *(__m64 *)(dst + 6) = vd3;
-	    *(__m64 *)(dst + 8) = vd4;
-	    *(__m64 *)(dst + 10) = vd5;
-	    *(__m64 *)(dst + 12) = vd6;
-	    *(__m64 *)(dst + 14) = vd7;
-	
-	    w -= 16;
-	    dst += 16;
-	    src += 16;
-	}
-	
-	while (w)
-	{
-	    __m64 s = load8888 (*src);
-	    __m64 d = load8888 (*dst);
+	    while (w && (unsigned long)dst & 7)
+	    {
+		__m64 s = load8888 (*src);
+		__m64 d = load8888 (*dst);
 	    
-	    *dst = store8888 (in_over (s, srca, vmask, d));
+		*dst = store8888 (in_over (s, srca, vmask, d));
 	    
-	    w--;
-	    dst++;
-	    src++;
+		w--;
+		dst++;
+		src++;
+	    }
+
+	    while (w >= 16)
+	    {
+		__m64 vd0 = *(__m64 *)(dst + 0);
+		__m64 vd1 = *(__m64 *)(dst + 2);
+		__m64 vd2 = *(__m64 *)(dst + 4);
+		__m64 vd3 = *(__m64 *)(dst + 6);
+		__m64 vd4 = *(__m64 *)(dst + 8);
+		__m64 vd5 = *(__m64 *)(dst + 10);
+		__m64 vd6 = *(__m64 *)(dst + 12);
+		__m64 vd7 = *(__m64 *)(dst + 14);
+
+		__m64 vs0 = *(__m64 *)(src + 0);
+		__m64 vs1 = *(__m64 *)(src + 2);
+		__m64 vs2 = *(__m64 *)(src + 4);
+		__m64 vs3 = *(__m64 *)(src + 6);
+		__m64 vs4 = *(__m64 *)(src + 8);
+		__m64 vs5 = *(__m64 *)(src + 10);
+		__m64 vs6 = *(__m64 *)(src + 12);
+		__m64 vs7 = *(__m64 *)(src + 14);
+
+		vd0 = (__m64)pack8888 (
+		    in_over (expand8888 (vs0, 0), srca, vmask, expand8888 (vd0, 0)),
+		    in_over (expand8888 (vs0, 1), srca, vmask, expand8888 (vd0, 1)));
+	
+		vd1 = (__m64)pack8888 (
+		    in_over (expand8888 (vs1, 0), srca, vmask, expand8888 (vd1, 0)),
+		    in_over (expand8888 (vs1, 1), srca, vmask, expand8888 (vd1, 1)));
+	
+		vd2 = (__m64)pack8888 (
+		    in_over (expand8888 (vs2, 0), srca, vmask, expand8888 (vd2, 0)),
+		    in_over (expand8888 (vs2, 1), srca, vmask, expand8888 (vd2, 1)));
+	
+		vd3 = (__m64)pack8888 (
+		    in_over (expand8888 (vs3, 0), srca, vmask, expand8888 (vd3, 0)),
+		    in_over (expand8888 (vs3, 1), srca, vmask, expand8888 (vd3, 1)));
+	
+		vd4 = (__m64)pack8888 (
+		    in_over (expand8888 (vs4, 0), srca, vmask, expand8888 (vd4, 0)),
+		    in_over (expand8888 (vs4, 1), srca, vmask, expand8888 (vd4, 1)));
+	
+		vd5 = (__m64)pack8888 (
+		    in_over (expand8888 (vs5, 0), srca, vmask, expand8888 (vd5, 0)),
+		    in_over (expand8888 (vs5, 1), srca, vmask, expand8888 (vd5, 1)));
+	
+		vd6 = (__m64)pack8888 (
+		    in_over (expand8888 (vs6, 0), srca, vmask, expand8888 (vd6, 0)),
+		    in_over (expand8888 (vs6, 1), srca, vmask, expand8888 (vd6, 1)));
+	
+		vd7 = (__m64)pack8888 (
+		    in_over (expand8888 (vs7, 0), srca, vmask, expand8888 (vd7, 0)),
+		    in_over (expand8888 (vs7, 1), srca, vmask, expand8888 (vd7, 1)));
+
+		*(__m64 *)(dst + 0) = vd0;
+		*(__m64 *)(dst + 2) = vd1;
+		*(__m64 *)(dst + 4) = vd2;
+		*(__m64 *)(dst + 6) = vd3;
+		*(__m64 *)(dst + 8) = vd4;
+		*(__m64 *)(dst + 10) = vd5;
+		*(__m64 *)(dst + 12) = vd6;
+		*(__m64 *)(dst + 14) = vd7;
+	
+		w -= 16;
+		dst += 16;
+		src += 16;
+	    }
+	
+	    while (w)
+	    {
+		__m64 s = load8888 (*src);
+		__m64 d = load8888 (*dst);
+	    
+		*dst = store8888 (in_over (s, srca, vmask, d));
+	    
+		w--;
+		dst++;
+		src++;
+	    }
 	}
     }
 
@@ -1277,61 +1682,286 @@ fbCompositeSrc_8888x8888mmx (CARD8	op,
     CARD32	*srcLine, *src;
     FbStride	dstStride, srcStride;
     CARD16	w;
-    __m64  srca;
     
     CHECKPOINT();
     
     fbComposeGetStart (pDst, xDst, yDst, CARD32, dstStride, dstLine, 1);
-    fbComposeGetStart (pSrc, xSrc, ySrc, CARD32, srcStride, srcLine, 1);
 
-    srca = MC (4x00ff);
-    
-    while (height--)
+    if (pSrc->transform)
     {
-	dst = dstLine;
-	dstLine += dstStride;
-	src = srcLine;
-	srcLine += srcStride;
-	w = width;
+	CARD8	 *src0, *src1;
+	int	 xStart, x, x0, x1, y, line, xStep, x0Step, x1Step, yStep;
+	int	 distx, idistx, disty, idisty;
+	int	 srcEnd = pSrc->pDrawable->width << 16;
+	int	 srcEndIndex = (pSrc->pDrawable->width - 1) << 16;
+	int	 lastLine = pSrc->pDrawable->height - 1;
+	FbStride srcStride;
+	int	 xOff, yOff;
+	int	 bpp;
+	__m64	 d, s, sa;
 
-	while (w && (unsigned long)dst & 7)
+	fbGetDrawable (pSrc->pDrawable, srcLine, srcStride, bpp, xOff, yOff);
+
+	xStep = pSrc->transform->matrix[0][0];
+	yStep = pSrc->transform->matrix[1][1];
+
+	xStart = pSrc->transform->matrix[0][2] + xStep * (xSrc + xOff);
+	y      = pSrc->transform->matrix[1][2] + yStep * (ySrc + yOff);
+
+	while (height--)
 	{
-	    __m64 s = load8888 (*src);
-	    __m64 d = load8888 (*dst);
-	    
-	    *dst = store8888 (over (s, expand_alpha (s), d));
-	    
-	    w--;
-	    dst++;
-	    src++;
-	}
+	    disty  = (y >> 8) & 0xff;
+	    idisty = 256 - disty;
+	    line   = y >> 16;
 
-	while (w >= 2)
+	    dst = dstLine;
+	    dstLine += dstStride;
+
+	    x = xStart;
+	    w = set_scale_steps (srcLine, srcStride,
+				 xStart, xStep, width, line, lastLine,
+				 pSrc->repeatType,
+				 &src0, &src1, &x0, &x0Step, &x1, &x1Step);
+
+	    if (pSrc->filter == PictFilterBilinear)
+	    {
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    if (w && x < 0)
+		    {
+			s = load8888 (fetch_bilinear_8888 (0, 255,
+							   disty, idisty,
+							   src0, src1,
+							   0));
+			sa = expand_alpha (s);
+
+			while (w && x < 0)
+			{
+			    d = load8888 (*dst);
+
+			    *dst = store8888 (over (s, sa, d));
+
+			    x   += xStep;
+			    x0  += x0Step;
+			    x1  += x1Step;
+			    dst += 1;
+			    w   -= 1;
+			}
+		    }
+		}
+		else
+		{
+		    while (w && x < -xFixed1)
+		    {
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+
+		    while (w && x < 0)
+		    {
+			distx  = (x >> 8) & 0xff;
+			idistx = 256 - distx;
+
+			d = load8888 (*dst);
+			s = load8888 (
+			    interpolate_bilinear_8888 (distx, idistx,
+						       disty, idisty,
+						       _zero8x8, src0,
+						       _zero8x8, src1,
+						       0, 0, 0, 0));
+
+			*dst = store8888 (over (s, expand_alpha (s), d));
+
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+
+		while (w && x < srcEndIndex)
+		{
+		    distx  = (x >> 8) & 0xff;
+		    idistx = 256 - distx;
+
+		    d = load8888 (*dst);
+		    s = load8888 (fetch_bilinear2_8888 (distx, idistx,
+							disty, idisty,
+							src0, src1,
+							(x0 >> 14) & ~3,
+							(x1 >> 14) & ~3));
+
+		    *dst = store8888 (over (s, expand_alpha (s), d));
+
+		    x   += xStep;
+		    x0  += x0Step;
+		    x1  += x1Step;
+		    dst += 1;
+		    w   -= 1;
+		}
+
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    if (w)
+		    {
+			s = load8888 (fetch_bilinear_8888 (0, 255,
+							   disty, idisty,
+							   src0, src1,
+							   srcEndIndex >> 16));
+			sa = expand_alpha (s);
+
+			while (w)
+			{
+			    d = load8888 (*dst);
+
+			    *dst = store8888 (over (s, sa, d));
+
+			    dst += 1;
+			    w   -= 1;
+			}
+		    }
+		}
+		else
+		{
+		    while (w && x < srcEnd + xFixed1)
+		    {
+			distx  = (x >> 8) & 0xff;
+			idistx = 256 - distx;
+
+			d = load8888 (*dst);
+			s = load8888 (
+			    interpolate_bilinear_8888 (distx, idistx,
+						       disty, idisty,
+						       src0, _zero8x8,
+						       src1, _zero8x8,
+						       (x0 >> 14) & ~3, 0,
+						       (x1 >> 14) & ~3, 0));
+
+			*dst = store8888 (over (s, expand_alpha (s), d));
+
+			x   += xStep;
+			x0  += x0Step;
+			x1  += x1Step;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+	    }
+	    else
+	    {
+		if (pSrc->repeatType == RepeatPad)
+		{
+		    s  = load8888 (*((CARD32 *) src0));
+		    sa = expand_alpha (s);
+
+		    while (w && x < 0)
+		    {
+			d = load8888 (*dst);
+
+			*dst = store8888 (over (s, sa, d));
+
+			x   += xStep;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+		else
+		{
+		    while (w && x < 0)
+		    {
+			x   += xStep;
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+
+		while (w && x < srcEnd)
+		{
+		    d = load8888 (*dst);
+		    s = load8888 (((CARD32 *) src0)[x >> 16]);
+
+		    *dst = store8888 (over (s, expand_alpha (s), d));
+
+		    x   += xStep;
+		    dst += 1;
+		    w   -= 1;
+		}
+
+		if (w && pSrc->repeatType == RepeatPad)
+		{
+		    s  = load8888 (((CARD32 *) src0)[srcEndIndex >> 16]);
+		    sa = expand_alpha (s);
+
+		    while (w)
+		    {
+			d = load8888 (*dst);
+
+			*dst = store8888 (over (s, sa, d));
+
+			dst += 1;
+			w   -= 1;
+		    }
+		}
+	    }
+
+	    y += yStep;
+	}
+    }
+    else
+    {
+	fbComposeGetStart (pSrc, xSrc, ySrc, CARD32, srcStride, srcLine, 1);
+
+	while (height--)
 	{
-	    __m64 vd = *(__m64 *)(dst + 0);
-	    __m64 vs = *(__m64 *)(src + 0);
-	    __m64 vs0 = expand8888 (vs, 0);
-	    __m64 vs1 = expand8888 (vs, 1);
+	    dst = dstLine;
+	    dstLine += dstStride;
+	    src = srcLine;
+	    srcLine += srcStride;
+	    w = width;
 
-	    *(__m64 *)dst = (__m64)pack8888 (
-		over (vs0, expand_alpha (vs0), expand8888 (vd, 0)),
-		over (vs1, expand_alpha (vs1), expand8888 (vd, 1)));
+	    while (w && (unsigned long)dst & 7)
+	    {
+		__m64 s = load8888 (*src);
+		__m64 d = load8888 (*dst);
 	    
-	    w -= 2;
-	    dst += 2;
-	    src += 2;
-	}
+		*dst = store8888 (over (s, expand_alpha (s), d));
+	    
+		w--;
+		dst++;
+		src++;
+	    }
+
+	    while (w >= 2)
+	    {
+		__m64 vd = *(__m64 *)(dst + 0);
+		__m64 vs = *(__m64 *)(src + 0);
+		__m64 vs0 = expand8888 (vs, 0);
+		__m64 vs1 = expand8888 (vs, 1);
+
+		*(__m64 *)dst = (__m64)pack8888 (
+		    over (vs0, expand_alpha (vs0), expand8888 (vd, 0)),
+		    over (vs1, expand_alpha (vs1), expand8888 (vd, 1)));
+	    
+		w -= 2;
+		dst += 2;
+		src += 2;
+	    }
 	
-	while (w)
-	{
-	    __m64 s = load8888 (*src);
-	    __m64 d = load8888 (*dst);
+	    while (w)
+	    {
+		__m64 s = load8888 (*src);
+		__m64 d = load8888 (*dst);
 	    
-	    *dst = store8888 (over (s, expand_alpha (s), d));
+		*dst = store8888 (over (s, expand_alpha (s), d));
 	    
-	    w--;
-	    dst++;
-	    src++;
+		w--;
+		dst++;
+		src++;
+	    }
 	}
     }
 
@@ -2307,6 +2937,95 @@ fbCompositeCopyAreammx (CARD8		op,
 		   width, height);
 }
 
+typedef struct _ScanlineBuf {
+    Bool   lock[2];
+    int    y[2];
+    CARD8 *line[2];
+    int   height;
+    CARD8 *heap;
+} ScanlineBuf;
+
+static Bool
+init_scanline_buffer (ScanlineBuf *slb,
+		      CARD8	  *buffer,
+		      int	  size,
+		      int	  length,
+		      int	  height)
+{
+    int i, s;
+
+    s = length << 1;
+
+    if (size < s)
+    {
+	slb->heap = xalloc (s);
+	if (!slb->heap)
+	    return FALSE;
+
+	buffer = slb->heap;
+    }
+    else
+    {
+	slb->heap = NULL;
+    }
+
+    for (i = 0; i < 2; i++)
+    {
+	slb->lock[i] = FALSE;
+	slb->y[i]    = SHRT_MAX;
+	slb->line[i] = buffer;
+
+	buffer += length;
+    }
+
+    slb->height = height;
+
+    return TRUE;
+}
+
+static void
+fini_scanline_buffer (ScanlineBuf *slb)
+{
+    if (slb->heap)
+	xfree (slb->heap);
+}
+
+static __inline__ void
+release_scanlines (ScanlineBuf *slb)
+{
+    int i;
+
+    for (i = 0; i < 2; i++)
+	slb->lock[i] = FALSE;
+}
+
+static __inline__ int
+_y_to_scanline (ScanlineBuf *slb,
+		int	    y)
+{
+    return (y < 0) ? 0 : (y >= slb->height) ? slb->height - 1 : y;
+}
+
+static __inline__ CARD8 *
+get_scanline (ScanlineBuf *slb,
+	      int	  y)
+{
+    int i;
+
+    y = _y_to_scanline (slb, y);
+
+    for (i = 0; i < 2; i++)
+    {
+	if (slb->y[i] == y)
+	{
+	    slb->lock[i] = TRUE;
+	    return slb->line[i];
+	}
+    }
+
+    return NULL;
+}
+
 typedef struct {
     ullong subYw;
     ullong U_green;
@@ -2440,95 +3159,6 @@ loadyuv (CARD8 *py,
 	(b >= 0 ? b < 0x1000000 ? (b >> 16) & 0x0000ff : 0x0000ff : 0);
 }
 
-typedef struct _ScanlineBuf {
-    Bool   lock[2];
-    int    y[2];
-    CARD8 *line[2];
-    int   height;
-    CARD8 *heap;
-} ScanlineBuf;
-
-static Bool
-init_scanline_buffer (ScanlineBuf *slb,
-		      CARD8	  *buffer,
-		      int	  size,
-		      int	  length,
-		      int	  height)
-{
-    int i, s;
-
-    s = length << 1;
-
-    if (size < s)
-    {
-	slb->heap = xalloc (s);
-	if (!slb->heap)
-	    return FALSE;
-
-	buffer = slb->heap;
-    }
-    else
-    {
-	slb->heap = NULL;
-    }
-
-    for (i = 0; i < 2; i++)
-    {
-	slb->lock[i] = FALSE;
-	slb->y[i]    = SHRT_MAX;
-	slb->line[i] = buffer;
-
-	buffer += length;
-    }
-
-    slb->height = height;
-
-    return TRUE;
-}
-
-static void
-fini_scanline_buffer (ScanlineBuf *slb)
-{
-    if (slb->heap)
-	xfree (slb->heap);
-}
-
-static __inline__ void
-release_scanlines (ScanlineBuf *slb)
-{
-    int i;
-
-    for (i = 0; i < 2; i++)
-	slb->lock[i] = FALSE;
-}
-
-static __inline__ int
-_y_to_scanline (ScanlineBuf *slb,
-		int	    y)
-{
-    return (y < 0) ? 0 : (y >= slb->height) ? slb->height - 1 : y;
-}
-
-static __inline__ CARD8 *
-get_scanline (ScanlineBuf *slb,
-	      int	  y)
-{
-    int i;
-
-    y = _y_to_scanline (slb, y);
-
-    for (i = 0; i < 2; i++)
-    {
-	if (slb->y[i] == y)
-	{
-	    slb->lock[i] = TRUE;
-	    return slb->line[i];
-	}
-    }
-
-    return NULL;
-}
-
 static __inline__ CARD8 *
 loadyv12_scanline (ScanlineBuf *slb,
 		   int	       y,
@@ -2651,47 +3281,6 @@ loadyuy2_scanline (ScanlineBuf *slb,
     return slb->line[i];
 }
 
-static __inline__ CARD8
-interpolate_bilinear (int   distx,
-		      int   idistx,
-		      int   disty,
-		      int   idisty,
-		      CARD8 tl,
-		      CARD8 tr,
-		      CARD8 bl,
-		      CARD8 br)
-{
-    return ((tl * idistx + tr * distx) * idisty +
-	    (bl * idistx + br * distx) * disty) >> 16;
-}
-
-static __inline__ void
-interpolate_bilinear_8888 (int   distx,
-			   int   idistx,
-			   int   disty,
-			   int   idisty,
-			   CARD8 *l0,
-			   CARD8 *l1,
-			   int   x,
-			   CARD8 buffer[4])
-{
-    buffer[0] = interpolate_bilinear (distx, idistx, disty, idisty,
-				      l0[x], l0[x + 4],
-				      l1[x], l1[x + 4]);
-
-    buffer[1] = interpolate_bilinear (distx, idistx, disty, idisty,
-				      l0[x + 1], l0[x + 5],
-				      l1[x + 1], l1[x + 5]);
-
-    buffer[2] = interpolate_bilinear (distx, idistx, disty, idisty,
-				      l0[x + 2], l0[x + 6],
-				      l1[x + 2], l1[x + 6]);
-
-    buffer[3] = interpolate_bilinear (distx, idistx, disty, idisty,
-				      l0[x + 3], l0[x + 7],
-				      l1[x + 3], l1[x + 7]);
-}
-
 /* TODO: MMX code for bilinear interpolation */
 void
 fbCompositeSrc_yv12x8888mmx (CARD8      op,
@@ -2776,12 +3365,13 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 	int	    x, x0, y, line, xStep, yStep;
 	int         distx, idistx, disty, idisty;
 	int	    srcEnd = pSrc->pDrawable->width << 16;
-
-	x0 = pSrc->transform->matrix[0][2] + ((xSrc + srcXoff) << 16);
-	y  = pSrc->transform->matrix[1][2] + ((ySrc + srcYoff) << 16);
+	int	    srcEndIndex = (pSrc->pDrawable->width - 1) << 16;
 
 	xStep = pSrc->transform->matrix[0][0];
 	yStep = pSrc->transform->matrix[1][1];
+
+	x0 = pSrc->transform->matrix[0][2] + xStep * (xSrc + srcXoff);
+	y  = pSrc->transform->matrix[1][2] + yStep * (ySrc + srcYoff);
 
 	init_scanline_buffer (&slb,
 			      _scanline_buf, sizeof (_scanline_buf),
@@ -2816,21 +3406,23 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 	    {
 		while (w && x < 0)
 		{
-		    interpolate_bilinear_8888 (0, 256, disty, idisty,
-					       ps0, ps1, 0, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (0, 256, disty, idisty,
+							  ps0, ps1, 0);
 
 		    x  += xStep;
 		    pd += 4;
 		    w  -= 1;
 		}
 
-		while (w && x < srcEnd)
+		while (w && x < srcEndIndex)
 		{
 		    distx  = (x >> 8) & 0xff;
 		    idistx = 256 - distx;
 
-		    interpolate_bilinear_8888 (distx, idistx, disty, idisty,
-					       ps0, ps1, (x >> 14) & ~3, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (distx, idistx,
+							  disty, idisty,
+							  ps0, ps1,
+							  (x >> 14) & ~3);
 
 		    x  += xStep;
 		    pd += 4;
@@ -2839,8 +3431,10 @@ fbCompositeSrc_yv12x8888mmx (CARD8      op,
 
 		while (w)
 		{
-		    interpolate_bilinear_8888 (256, 0, disty, idisty,
-					       ps0, ps1, (x >> 14) & ~3, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (256, 0,
+							  disty, idisty,
+							  ps0, ps1,
+							  (x >> 14) & ~3);
 
 		    pd += 4;
 		    w  -= 1;
@@ -3025,12 +3619,13 @@ fbCompositeSrc_yuy2x8888mmx (CARD8      op,
 	int	    x, x0, y, line, xStep, yStep;
 	int         distx, idistx, disty, idisty;
 	int	    srcEnd = pSrc->pDrawable->width << 16;
-
-	x0 = pSrc->transform->matrix[0][2] + ((xSrc + srcXoff) << 16);
-	y  = pSrc->transform->matrix[1][2] + ((ySrc + srcYoff) << 16);
+	int	    srcEndIndex = (pSrc->pDrawable->width - 1) << 16;
 
 	xStep = pSrc->transform->matrix[0][0];
 	yStep = pSrc->transform->matrix[1][1];
+
+	x0 = pSrc->transform->matrix[0][2] + xStep * (xSrc + srcXoff);
+	y  = pSrc->transform->matrix[1][2] + yStep * (ySrc + srcYoff);
 
 	init_scanline_buffer (&slb,
 			      _scanline_buf, sizeof (_scanline_buf),
@@ -3065,21 +3660,23 @@ fbCompositeSrc_yuy2x8888mmx (CARD8      op,
 	    {
 		while (w && x < 0)
 		{
-		    interpolate_bilinear_8888 (0, 256, disty, idisty,
-					       ps0, ps1, 0, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (0, 256, disty, idisty,
+							  ps0, ps1, 0);
 
 		    x  += xStep;
 		    pd += 4;
 		    w  -= 1;
 		}
 
-		while (w && x < srcEnd)
+		while (w && x < srcEndIndex)
 		{
 		    distx  = (x >> 8) & 0xff;
 		    idistx = 256 - distx;
 
-		    interpolate_bilinear_8888 (distx, idistx, disty, idisty,
-					       ps0, ps1, (x >> 14) & ~3, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (distx, idistx,
+							  disty, idisty,
+							  ps0, ps1,
+							  (x >> 14) & ~3);
 
 		    x  += xStep;
 		    pd += 4;
@@ -3088,8 +3685,9 @@ fbCompositeSrc_yuy2x8888mmx (CARD8      op,
 
 		while (w)
 		{
-		    interpolate_bilinear_8888 (256, 0, disty, idisty,
-					       ps0, ps1, (x >> 14) & ~3, pd);
+		    *(CARD32 *) pd = fetch_bilinear_8888 (256, 0, disty, idisty,
+							  ps0, ps1,
+							  (x >> 14) & ~3);
 
 		    pd += 4;
 		    w  -= 1;
