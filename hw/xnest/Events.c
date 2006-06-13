@@ -160,7 +160,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
             break;
 
         case XCBFocusIn:
-            if (((XFocusInEvent *)e)->detail != XCBNotifyDetailInferior) {
+            if (((XCBFocusInEvent *)e)->detail != XCBNotifyDetailInferior) {
                 pScreen = xnestScreen(((XCBFocusInEvent *)e)->event);
                 if (pScreen)
                     xnestDirectInstallColormaps(pScreen);
@@ -168,7 +168,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
             break;
 
         case XCBFocusOut:
-            if (((XFocusOutEvent *)e)->detail != XCBNotifyDetailInferior) {
+            if (((XCBFocusOutEvent *)e)->detail != XCBNotifyDetailInferior) {
                 pScreen = xnestScreen(((XCBFocusOutEvent *)e)->event);
                 if (pScreen)
                     xnestDirectInstallColormaps(pScreen);
@@ -239,6 +239,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
 
         default:
             ErrorF("xnest warning: unhandled event %d\n", e->response_type & ~0x80);
+            ErrorF("Sequence number: %d\n", e->sequence);
             break;
     }
 }
@@ -246,8 +247,40 @@ void xnestHandleEvent(XCBGenericEvent *e)
 void xnestCollectEvents()
 {
     XCBGenericEvent *e;
+    XCBGenericError *err;
+    XCBRequestError *re;
+    XCBIDChoiceError *ide;
+    XCBFontError     *fe;
+    XCBWindowError   *we;
 
+    e = XCBWaitForEvent(xnestConnection);
     while ((e = XCBPollForEvent(xnestConnection, NULL)) != NULL) {
-        xnestHandleEvent(e);
+        if (!e->response_type) {
+            err = (XCBGenericError *)e;
+            ErrorF("File: %s Error: %d\n", __FILE__, err->error_code);
+            switch(err->error_code){
+                case XCBMatch:
+                    re = (XCBRequestError *)err;
+                    ErrorF("XCBMatch: Bad Value %x (Decimal %d)\n", re->bad_value, re->bad_value);
+                    break;
+                case XCBIDChoice:
+                    ide = (XCBIDChoiceError *)err;
+                    ErrorF("XCBIDChoice: Bad Value %x (Decimal %d)\n", ide->bad_value, ide->bad_value);
+                    break;
+                case XCBFont:
+                    fe = (XCBFontError *)err;
+                    ErrorF("XCBFont: Bad Value %x (Decimal %d)\n", fe->bad_value, fe->bad_value);
+                    break;
+                case XCBWindow:
+                    we = (XCBWindowError *)err;
+                    ErrorF("XCBWindow: Bad Value %x (Decimal %d)\n", we->bad_value, we->bad_value);
+                    break;
+                default:
+                    break;
+                    }
+        }
+        else
+            xnestHandleEvent(e);
     }
 }
+

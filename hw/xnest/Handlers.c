@@ -37,7 +37,7 @@ is" without express or implied warranty.
 void
 xnestBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
 {
-  xnestCollectExposures();
+  xnestCollectEvents();
   XCBFlush(xnestConnection);
 }
 

@@ -42,9 +42,9 @@
 
 Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
 {
-    XCBImage *ximage;
     XCBPIXMAP source, mask;
     int pad;
+    int size;
     XCBCURSOR c;
     unsigned long valuemask;
     XCBParamsGC values;
@@ -67,64 +67,44 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     mask = XCBPIXMAPNew(xnestConnection);
 
     XCBCreatePixmap(xnestConnection,
-                    1,
+                    xnestDefaultDepth,
                     source,
                     (XCBDRAWABLE)xnestDefaultWindows[pScreen->myNum],
                     pCursor->bits->width,
                     pCursor->bits->height);
 
     XCBCreatePixmap(xnestConnection, 
-                    1,
+                    xnestDefaultDepth,
                     mask,
                     (XCBDRAWABLE) xnestDefaultWindows[pScreen->myNum],
                     pCursor->bits->width,
                     pCursor->bits->height);
 
     pad =  XCBGetSetup(xnestConnection)->bitmap_format_scanline_pad;
-    ximage = XCBImageCreate(xnestConnection, 
-                            1,
-                            XCBImageFormatXYBitmap,
-                            0, 
-                            (BYTE *)pCursor->bits->source,
-                            pCursor->bits->width,
-                            pCursor->bits->height,
-                            pad,//8,//BitmapPad(xnestConnection),
-                            0);
-    XCBImageInit(ximage);
-
-    XCBImagePut(xnestConnection,
-                (XCBDRAWABLE) source,
+    /*not sure if this is right*/
+    size = (((pCursor->bits->width + pad - 1) & -pad) >> 3) * pCursor->bits->height;
+    XCBPutImage(xnestConnection,
+                XCBImageFormatXYBitmap,
+                (XCBDRAWABLE)source,
                 xnestBitmapGC,
-                ximage,
-                0,
-                0,
-                0,
-                0,
                 pCursor->bits->width,
-                pCursor->bits->height);
-
-    XFree(ximage);
-
-    ximage = XCBImageCreate(xnestConnection,
-                            1,
-                            XCBImageFormatXYBitmap,
-                            0,
-                            (BYTE *)pCursor->bits->mask,
-                            pCursor->bits->width,
-                            pCursor->bits->height,
-                            pad,//8,//BitmapPad(xnestConnection),
-                            0);
-    XCBImageInit(ximage);
-
-    XCBImagePut(xnestConnection,
+                pCursor->bits->height,
+                0,0,                    /*dst_x, dst_y*/
+                pad,
+                1,                      /*depth*/
+                size,      /*length..correct??*/
+                pCursor->bits->source);             /*bits*/
+    XCBPutImage(xnestConnection,
+                XCBImageFormatXYBitmap,
                 (XCBDRAWABLE)mask,
                 xnestBitmapGC,
-                ximage,
-                0, 0, 0, 0,
                 pCursor->bits->width,
-                pCursor->bits->height);
-
-    XFree(ximage);
+                pCursor->bits->height,
+                0,0,                    /*dst_x, dst_y*/
+                pad,
+                1,                      /*depth*/
+                size,      /*length..correct??*/
+                 pCursor->bits->mask);             /*bits*/
 
     pCursor->devPriv[pScreen->myNum] = (pointer)xalloc(sizeof(xnestPrivCursor));
     c = XCBCURSORNew(xnestConnection);

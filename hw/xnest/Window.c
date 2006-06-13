@@ -104,7 +104,7 @@ Bool xnestCreateWindow(WindowPtr pWin)
                     param.colormap = xnestDefaultVisualColormap(visual).xid;
             }
             else 
-                visual = XCBCopyFromParent;
+                vid.id = XCBCopyFromParent;
         }
         else { /* root windows have their own colormaps at creation time */
             vid.id = wVisual(pWin);
@@ -126,7 +126,7 @@ Bool xnestCreateWindow(WindowPtr pWin)
             pWin->drawable.height,
             pWin->borderWidth,
             pWin->drawable.class,
-            visual->visual_id,
+            vid,
             mask,
             &param);
     xnestWindowPriv(pWin)->parent = xnestWindowParent(pWin);

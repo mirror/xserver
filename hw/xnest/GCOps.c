@@ -126,6 +126,7 @@ static Bool xnestBitBlitPredicate(XCBGenericEvent *event)
 
 static RegionPtr xnestBitBlitHelper(GCPtr pGC)
 {
+    int err;
     if (!pGC->graphicsExposures) 
         return NullRegion;
     else {
@@ -142,7 +143,7 @@ static RegionPtr xnestBitBlitHelper(GCPtr pGC)
 
         pending = True;
         while (pending) {
-            event = XCBWaitForEvent(xnestConnection);
+            event = XCBPollForEvent(xnestConnection, &err);
             switch (event->response_type) {
                 case XCBNoExposure:
                     pending = False;
@@ -159,6 +160,7 @@ static RegionPtr xnestBitBlitHelper(GCPtr pGC)
                     pending = exp->count;
                     break;
                 default:
+                    ErrorF("File: %s Error: %d\n", __FILE__, err);
                     xnestHandleEvent(event);
 
             }

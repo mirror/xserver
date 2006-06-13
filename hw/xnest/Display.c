@@ -133,6 +133,7 @@ void xnestOpenDisplay(int argc, char *argv[])
     xnestVisuals = xnestListVisuals(xnestConnection, &xnestDepthForVisual, &xnestNumVisuals);
     screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;
     root = (XCBDRAWABLE)XCBSetupRootsIter(XCBGetSetup(xnestConnection)).data->root;
+    xnestDefaultDepth = screen->root_depth;
     
     if (!xnestVisuals)
         FatalError("Unable to find any visuals");
@@ -220,7 +221,7 @@ void xnestOpenDisplay(int argc, char *argv[])
         xnestBorderWidth = 1;
     xnestIconBitmap = XCBPIXMAPNew(xnestConnection);
     XCBCreatePixmap(xnestConnection, /*connection*/
-                    1,               /*depth*/
+                    xnestDefaultDepth,/*depth*/
                     xnestIconBitmap, /*pixmap*/
                     root,            /*drawable*/
                     icon_width,icon_height); /*width,height*/
@@ -237,12 +238,12 @@ void xnestOpenDisplay(int argc, char *argv[])
 
     xnestScreenSaverPixmap = XCBPIXMAPNew(xnestConnection);
     XCBCreatePixmap(xnestConnection, /*connection*/
-                    1,               /*depth*/
+                    xnestDefaultDepth, /*depth*/
                     xnestScreenSaverPixmap, /*pixmap*/
                     root,            /*drawable*/
                     icon_width,icon_height); /*width,height*/
     XCBPutImage(xnestConnection,        /*connection*/
-                XCBImageFormatXYPixmap, /*format*/
+                XCBImageFormatXYBitmap, /*format*/
                 (XCBDRAWABLE)xnestScreenSaverPixmap,/*drawable*/
                 xnestBitmapGC,          /*gc*/
                 icon_width,icon_height, /*width, height*/

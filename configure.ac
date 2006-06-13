@@ -933,7 +933,7 @@ fi
 dnl Xnest DDX
 
 AC_MSG_CHECKING([whether to build Xnest DDX])
-PKG_CHECK_MODULES(XNESTMODULES, [xfont xext x11 xau $XDMCP_MODULES], [have_xnest=yes], [have_xnest=no])
+PKG_CHECK_MODULES(XNESTMODULES, [xfont xext  xau xcb xcb-shape xcb-image xcb-aux xcb-icccm $XDMCP_MODULES], [have_xnest=yes], [have_xnest=no])
 if test "x$XNEST" = xauto; then
 	XNEST="$have_xnest"
 fi
