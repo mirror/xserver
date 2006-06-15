@@ -43,6 +43,8 @@ static ColormapPtr InstalledMaps[MAXSCREENS];
 Bool xnestCreateColormap(ColormapPtr pCmap)
 {
     VisualPtr pVisual;
+    XCBVISUALID vid;
+    XCBSCREEN *screen;
     XCBGenericError *e;
     XCBRGB *colors;
     int i, ncolors;
@@ -56,13 +58,15 @@ Bool xnestCreateColormap(ColormapPtr pCmap)
     ncolors = pVisual->ColormapEntries;
 
     pCmap->devPriv = (pointer)xalloc(sizeof(xnestPrivColormap));
+    screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;
 
     xnestColormapPriv(pCmap)->colormap = XCBCOLORMAPNew(xnestConnection);
+    vid = screen->root_visual;//pCmap->pScreen->rootVisual.id;    
     XCBCreateColormap(xnestConnection,
             (pVisual->class & DynamicClass) ?  AllocAll : AllocNone,
             xnestColormapPriv(pCmap)->colormap,
             xnestDefaultWindows[pCmap->pScreen->myNum],
-            xnestVisual(pVisual)->visual_id);
+            vid);
 
 
     switch (pVisual->class) {

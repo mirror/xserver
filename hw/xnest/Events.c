@@ -257,7 +257,7 @@ void xnestCollectEvents()
     while ((e = XCBPollForEvent(xnestConnection, NULL)) != NULL) {
         if (!e->response_type) {
             err = (XCBGenericError *)e;
-            ErrorF("File: %s Error: %d\n", __FILE__, err->error_code);
+            ErrorF("File: %s Error: %d, Sequence %d\n", __FILE__, err->error_code, err->sequence);
             switch(err->error_code){
                 case XCBMatch:
                     re = (XCBRequestError *)err;

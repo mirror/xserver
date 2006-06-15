@@ -107,28 +107,29 @@ Bool xnestCreateWindow(WindowPtr pWin)
                 vid.id = XCBCopyFromParent;
         }
         else { /* root windows have their own colormaps at creation time */
-            vid.id = wVisual(pWin);
+            vid.id =  wVisual(pWin);
             visual = xnestVisualFromID(pWin->drawable.pScreen, vid);      
             pCmap = (ColormapPtr)LookupIDByType(wColormap(pWin), RT_COLORMAP);
             mask |= CWColormap;
             param.colormap = xnestColormap(pCmap).xid;
+            vid = visual->visual_id;
         }
     }
 
     xnestWindowPriv(pWin)->window = XCBWINDOWNew(xnestConnection);
     XCBAuxCreateWindow(xnestConnection,
-            pWin->drawable.depth, 
-            xnestWindowPriv(pWin)->window,
-            xnestWindowParent(pWin),
-            pWin->origin.x - wBorderWidth(pWin),
-            pWin->origin.y - wBorderWidth(pWin),
-            pWin->drawable.width,
-            pWin->drawable.height,
-            pWin->borderWidth,
-            pWin->drawable.class,
-            vid,
-            mask,
-            &param);
+                       pWin->drawable.depth, 
+                       xnestWindowPriv(pWin)->window,
+                       xnestWindowParent(pWin),
+                       pWin->origin.x - wBorderWidth(pWin),
+                       pWin->origin.y - wBorderWidth(pWin),
+                       pWin->drawable.width,
+                       pWin->drawable.height,
+                       pWin->borderWidth,
+                       pWin->drawable.class,
+                       vid,
+                       mask,
+                       &param);
     xnestWindowPriv(pWin)->parent = xnestWindowParent(pWin);
     xnestWindowPriv(pWin)->x = pWin->origin.x - wBorderWidth(pWin);
     xnestWindowPriv(pWin)->y = pWin->origin.y - wBorderWidth(pWin);

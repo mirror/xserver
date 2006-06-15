@@ -38,7 +38,7 @@ XCBVISUALTYPE *xnestVisual(VisualPtr pVisual)
         if (pVisual->class == xnestVisuals[i]->_class &&
                 pVisual->bitsPerRGBValue == xnestVisuals[i]->bits_per_rgb_value &&
                 pVisual->ColormapEntries == xnestVisuals[i]->colormap_entries &&
-                /*pVisual->nplanes == xnestVisuals[i]->depth && er. help*/
+                pVisual->nplanes == xnestDepths[i] &&
                 pVisual->redMask == xnestVisuals[i]->red_mask &&
                 pVisual->greenMask == xnestVisuals[i]->green_mask &&
                 pVisual->blueMask == xnestVisuals[i]->blue_mask)

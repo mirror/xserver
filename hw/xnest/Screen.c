@@ -389,10 +389,11 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
                                       XCBCWEventMask,
                                       &xnestEventMask);
         } else {
-            vid.id = pScreen->rootVisual;
+            //vid.id = pScreen->rootVisual;
+            vid = screen->root_visual;
             xnestDefaultWindows[pScreen->myNum] = XCBWINDOWNew(xnestConnection);
             XCBAuxCreateWindow(xnestConnection, 
-                               pScreen->rootDepth,
+                               xnestDefaultDepth,
                                xnestDefaultWindows[pScreen->myNum],
                                screen->root,
                                xnestX + POSITION_OFFSET,
