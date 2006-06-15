@@ -62,25 +62,25 @@ static XCBVISUALTYPE **xnestListVisuals(XCBConnection *c, CARD8 **depths, int *n
     XCBVISUALTYPEIter viter;
     XCBDEPTHIter      diter;
     XCBSCREEN        *screen;
-    XCBVISUALTYPE   **vis = NULL;
+    static XCBVISUALTYPE   **vis = NULL;
     /*reserve for NULL termination*/
-    int               nvis = 1;
+    int               nvis = 0;
     int               i = 0;
 
     screen = XCBSetupRootsIter(XCBGetSetup(c)).data;
     diter = XCBSCREENAllowedDepthsIter(screen);
-    for (; diter.rem; XCBDEPTHNext(&diter)) {
+    *depths = NULL;
+    for ( ; diter.rem; XCBDEPTHNext(&diter)) {
         viter = XCBDEPTHVisualsIter (diter.data);
         nvis += viter.rem;
-        vis = xrealloc(vis, sizeof(XCBVISUALTYPE) * (nvis+1));
-        *depths = xrealloc(*depths, sizeof(CARD8) * (nvis+1));
-        vis[nvis-1] = NULL;
+        vis = Xrealloc(vis, sizeof(XCBVISUALTYPE) * (nvis+1));
+        *depths = Xrealloc(*depths, sizeof(CARD8) * (nvis+1));
         for ( ; viter.rem; XCBVISUALTYPENext(&viter)){
             (*depths)[i] = diter.data->depth;
             vis[i++] = viter.data;
         }
     }
-    *numvisuals = nvis-1;
+    *numvisuals = i;
     return vis;
 }
 
@@ -100,7 +100,7 @@ static CARD8 *xnestListDepths(XCBConnection *c, int *numdepths)
     for (; diter.rem; XCBDEPTHNext(&diter)) {
         depths[i++]=diter.data->depth;
     }
-    *numdepths = ndepth-1;
+    *numdepths = ndepth;
     return depths;
 }
 
@@ -185,8 +185,7 @@ void xnestOpenDisplay(int argc, char *argv[])
 
     for (i=0; i < xnestNumPixmapFormats; i++) {
         for (j=0; j < xnestNumDepth; j++) {
-            if ((xnestPixmapFormats[i].depth == xnestDepths[j])||
-                (xnestPixmapFormats[i].depth == 1 )) {
+            if ((xnestPixmapFormats[i].depth == xnestDepths[j])|| (xnestPixmapFormats[i].depth == 1 )) {
                 xnestDefaultDrawables[xnestPixmapFormats[i].depth].pixmap = XCBPIXMAPNew(xnestConnection);
                 XCBCreatePixmap(xnestConnection,
                                 xnestPixmapFormats[i].depth,

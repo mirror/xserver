@@ -143,7 +143,7 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
     DepthPtr            depths;
     int numVisuals,     numDepths;
     int                 i, j, depthIndex;
-    unsigned long       valuemask;
+    unsigned long       valuemask = 0;
     XCBGetGeometryRep  *rattr;
     XCBGetGeometryCookie cattr;
     XCBParamsCW         param;
@@ -151,6 +151,7 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
     VisualID            defaultVisual;
     int                 rootDepth;
     XCBSCREEN          *screen;
+    XCBVISUALID         vid;
 
     if (!(AllocateWindowPrivate(pScreen, xnestWindowPrivateIndex,
                     sizeof(xnestPrivWin))  &&
@@ -387,20 +388,22 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
                                       xnestDefaultWindows[pScreen->myNum],
                                       XCBCWEventMask,
                                       &xnestEventMask);
-        } else
+        } else {
+            vid.id = pScreen->rootVisual;
             xnestDefaultWindows[pScreen->myNum] = XCBWINDOWNew(xnestConnection);
-                XCBAuxCreateWindow(xnestConnection, 
-                                pScreen->rootDepth,
-                                xnestDefaultWindows[pScreen->myNum],
-                                screen->root,
-                                xnestX + POSITION_OFFSET,
-                                xnestY + POSITION_OFFSET,
-                                xnestWidth, xnestHeight,
-                                xnestBorderWidth,
-                                InputOutput,
-                                xnestGetDefaultVisual(pScreen)->visual_id,
-                                valuemask, 
-                                &param);
+            XCBAuxCreateWindow(xnestConnection, 
+                               pScreen->rootDepth,
+                               xnestDefaultWindows[pScreen->myNum],
+                               screen->root,
+                               xnestX + POSITION_OFFSET,
+                               xnestY + POSITION_OFFSET,
+                               xnestWidth, xnestHeight,
+                               xnestBorderWidth,
+                               XCBWindowClassInputOutput,
+                               vid,
+                               valuemask, 
+                               &param);
+        }
 
         if (!xnestWindowName)
             xnestWindowName = argv[0];

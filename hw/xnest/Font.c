@@ -71,7 +71,8 @@ Bool xnestRealizeFont(ScreenPtr pScreen, FontPtr pFont)
     priv = (pointer)xalloc(sizeof(xnestPrivFont));
     FontSetPrivate(pFont, xnestFontPrivateIndex, priv);
 
-    xnestFontPriv(pFont)->font = XCBFONTNew(xnestConnection);
+    font = XCBFONTNew(xnestConnection);
+    xnestFontPriv(pFont)->font = font;
     XCBOpenFont(xnestConnection, font, strlen(name), name);
 
     if (!xnestFont(pFont).xid)

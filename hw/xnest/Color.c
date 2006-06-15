@@ -43,6 +43,7 @@ static ColormapPtr InstalledMaps[MAXSCREENS];
 Bool xnestCreateColormap(ColormapPtr pCmap)
 {
     VisualPtr pVisual;
+    XCBGenericError *e;
     XCBRGB *colors;
     int i, ncolors;
     CARD32 *pixels;
@@ -115,10 +116,9 @@ Bool xnestCreateColormap(ColormapPtr pCmap)
                 blue += blueInc;
                 if (blue > pVisual->blueMask) blue = 0L;
             }
-
             c = XCBQueryColors(xnestConnection, xnestColormap(pCmap), ncolors, pixels);
             xfree(pixels);
-            rep = XCBQueryColorsReply(xnestConnection, c, 0);
+            rep = XCBQueryColorsReply(xnestConnection, c, &e);
             colors = XCBQueryColorsColors(rep);
             for (i = 0; i < ncolors; i++) {
                 pCmap->red[i].co.local.red = colors[i].red;
