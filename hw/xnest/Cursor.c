@@ -49,7 +49,6 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     XCBCURSOR c;
     unsigned long valuemask;
     XCBParamsGC values;
-#if 0
     valuemask = XCBGCFunction   | 
                 XCBGCPlaneMask  | 
                 XCBGCForeground |
@@ -87,7 +86,7 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     size = (((pCursor->bits->width + pad - 1) & -pad) >> 3) * pCursor->bits->height;
     d.pixmap = source;
     XCBPutImage(xnestConnection,
-                XCBImageFormatZPixmap,
+                XCBImageFormatXYBitmap,
                 d,
                 xnestBitmapGC,
                 pCursor->bits->width,
@@ -99,7 +98,7 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
                 pCursor->bits->source);             /*bits*/
     d.pixmap = mask;
     XCBPutImage(xnestConnection,
-                XCBImageFormatZPixmap,
+                XCBImageFormatXYBitmap,
                 d,
                 xnestBitmapGC,
                 pCursor->bits->width,
@@ -109,9 +108,7 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
                 1,                      /*depth*/
                 size,      /*length..correct??*/
                  pCursor->bits->mask);             /*bits*/
-#endif
     pCursor->devPriv[pScreen->myNum] = (pointer)xalloc(sizeof(xnestPrivCursor));
-#if 0
     c = XCBCURSORNew(xnestConnection);
     xnestCursorPriv(pCursor, pScreen)->cursor = c.xid;
     XCBCreateCursor(xnestConnection,
@@ -129,7 +126,6 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
 
     XCBFreePixmap(xnestConnection, source);
     XCBFreePixmap(xnestConnection, mask);
-#endif
     return True;
 }
 

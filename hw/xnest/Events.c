@@ -253,7 +253,6 @@ void xnestCollectEvents()
     XCBFontError     *fe;
     XCBWindowError   *we;
 
-    e = XCBWaitForEvent(xnestConnection);
     while ((e = XCBPollForEvent(xnestConnection, NULL)) != NULL) {
         if (!e->response_type) {
             err = (XCBGenericError *)e;
@@ -278,9 +277,10 @@ void xnestCollectEvents()
                 default:
                     break;
                     }
-        }
-        else
+        } else {
+            ErrorF("Handling event %x(%d) serial %d\n", e->response_type, e->response_type, e->sequence);
             xnestHandleEvent(e);
+        }
     }
 }
 

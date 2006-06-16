@@ -76,26 +76,26 @@ void xnestQueryBestSize(int class, unsigned short *pWidth, unsigned short *pHeig
 void xnestPutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
         int w, int h, int leftPad, int format, char *pImage)
 {
-    XCBImage *img;
-    img = XCBImageCreate(xnestConnection,
-                         depth,
-                         format,
-                         0, /*offset*/
-                         (BYTE *)pImage,
-                         w, h,
-                         leftPad,
-                         0 /*bytes_per_line, initialized in XCBImageInit*/);
-    if (img) {
-        XCBImageInit(img);
-        XCBImagePut(xnestConnection,
-                    xnestDrawable(pDrawable),
-                    xnestGC(pGC),
-                    img,
-                    0, 0, /*offsets*/
-                    x, y,
-                    w, h);
-        XCBImageDestroy(img);
-    }  
+    int size, pad;
+    int bpp;
+    int i;
+    for (i=0; i<xnestNumPixmapFormats; i++) {
+        if (xnestPixmapFormats[i].depth == depth) {
+            pad = xnestPixmapFormats[i].scanline_pad;
+            bpp = xnestPixmapFormats[i].bits_per_pixel;
+        }
+    }
+    size = (((bpp * w + pad - 1) & -pad) >> 3)*h;
+    XCBPutImage(xnestConnection,
+                format,
+                xnestDrawable(pDrawable),
+                xnestGC(pGC),
+                w, h,
+                x, y,
+                leftPad,
+                depth,
+                size,
+                (CARD8*) pImage+leftPad);
 }
 
 void xnestGetImage(DrawablePtr pDrawable, int x, int y, int w, int h,
