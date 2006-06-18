@@ -24,6 +24,7 @@ nodist_libmain_la_SOURCES = accum.c \
                     api_loopback.c \
                     api_noop.c \
                     api_validate.c \
+                    arrayobj.c \
                     attrib.c \
                     blend.c \
                     bufferobj.c \
