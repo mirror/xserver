@@ -1300,7 +1300,9 @@ fbComposite (CARD8      op,
 			    if (fbHaveMMX())
 				func = fbCompositeSrc_8888x8888mmx;
 #endif
+			    break;
 			}
+			break;
 		    }
 		}
 	    }
