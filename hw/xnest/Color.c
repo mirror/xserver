@@ -61,9 +61,9 @@ Bool xnestCreateColormap(ColormapPtr pCmap)
     screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;
 
     xnestColormapPriv(pCmap)->colormap = XCBCOLORMAPNew(xnestConnection);
-    vid = screen->root_visual;//pCmap->pScreen->rootVisual.id;    
+    vid = screen->root_visual;   
     XCBCreateColormap(xnestConnection,
-            (pVisual->class & DynamicClass) ?  AllocAll : AllocNone,
+            (pVisual->class & DynamicClass) ?  XCBColormapAllocAll : XCBColormapAllocNone,
             xnestColormapPriv(pCmap)->colormap,
             xnestDefaultWindows[pCmap->pScreen->myNum],
             vid);
@@ -213,8 +213,7 @@ void xnestSetInstalledColormapWindows(ScreenPtr pScreen)
     XCBParamsCW params;
     int numWindows;
 
-    icws.cmapIDs = (XCBCOLORMAP *)xalloc(pScreen->maxInstalledCmaps *
-            sizeof(XCBCOLORMAP));
+    icws.cmapIDs = (XCBCOLORMAP *)xalloc(pScreen->maxInstalledCmaps*sizeof(XCBCOLORMAP));
     icws.numCmapIDs = xnestListInstalledColormaps(pScreen, icws.cmapIDs);
     icws.numWindows = 0;
     WalkTree(pScreen, xnestCountInstalledColormapWindows, (pointer)&icws);
@@ -235,21 +234,8 @@ void xnestSetInstalledColormapWindows(ScreenPtr pScreen)
     if (!xnestSameInstalledColormapWindows(icws.windows, icws.numWindows)) {
         if (xnestOldInstalledColormapWindows)
             xfree(xnestOldInstalledColormapWindows);
-/* Hm, how do I deal with _XSERVER64 in XCB?
-#ifdef _XSERVER64
-        {
-            int i;
-            Window64 *windows = (Window64 *)xalloc(numWindows * sizeof(Window64));
 
-            for(i = 0; i < numWindows; ++i)
-                windows[i] = icws.windows[i];
-            xnestSetWmColormapWindows(xnestDisplay, xnestDefaultWindows[pScreen->myNum],
-                    windows, numWindows);
-            xfree(windows);
-        }
-#else*/
         xnestSetWmColormapWindows(xnestConnection, xnestDefaultWindows[pScreen->myNum], icws.windows, numWindows);
-/*#endif*/
 
         xnestOldInstalledColormapWindows = icws.windows;
         xnestNumOldInstalledColormapWindows = icws.numWindows;
@@ -277,10 +263,10 @@ void xnestSetInstalledColormapWindows(ScreenPtr pScreen)
                         RT_COLORMAP);
 
             params.colormap = xnestColormap(pCmap).xid;
-            XCBAuxChangeWindowAttributes(xnestConnection, 
-                                         xnestDefaultWindows[pScreen->myNum],
+            /*XCBAuxChangeWindowAttributes(xnestConnection, 
+                                         xnestDefaultRoots[pScreen->myNum],
                                          XCBCWColormap,
-                                         &params);
+                                         &params);*/
            /* XSetWindowColormap(xnestDisplay, 
                     xnestDefaultWindows[pScreen->myNum],
                     xnestColormap(pCmap));*/
@@ -296,19 +282,8 @@ void xnestSetScreenSaverColormapWindow(ScreenPtr pScreen)
     if (xnestOldInstalledColormapWindows)
         xfree(xnestOldInstalledColormapWindows);
 
-/*#ifdef _XSERVER64
-    {
-        Window64 window;
-
-        window = xnestScreenSaverWindows[pScreen->myNum];
-        xnestSetWMColormapWindows(xnestConnection, xnestDefaultWindows[pScreen->myNum],
-                &window, 1);
-        xnestScreenSaverWindows[pScreen->myNum] = window;
-    }
-#else*/
     xnestSetWmColormapWindows(xnestConnection, xnestDefaultWindows[pScreen->myNum],
             &xnestScreenSaverWindows[pScreen->myNum], 1);
-//#endif /* _XSERVER64 */
 
     xnestOldInstalledColormapWindows = NULL;
     xnestNumOldInstalledColormapWindows = 0;

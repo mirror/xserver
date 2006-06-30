@@ -42,10 +42,12 @@
 
 Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
 {
+    /*do we really want to realize the pointer here?*/
     XCBPIXMAP source, mask;
-    XCBDRAWABLE d;
     int pad;
     int size;
+    int bpp;
+    int i;
     XCBCURSOR c;
     unsigned long valuemask;
     XCBParamsGC values;
@@ -66,28 +68,33 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     source = XCBPIXMAPNew(xnestConnection);
     mask = XCBPIXMAPNew(xnestConnection);
 
-    d.window = xnestDefaultWindows[pScreen->myNum];
     XCBCreatePixmap(xnestConnection,
                     xnestDefaultDepth,
                     source,
-                    d,
+                    (XCBDRAWABLE)xnestDefaultWindows[pScreen->myNum],
                     pCursor->bits->width,
                     pCursor->bits->height);
 
     XCBCreatePixmap(xnestConnection, 
                     xnestDefaultDepth,
                     mask,
-                    d,
+                    (XCBDRAWABLE)xnestDefaultWindows[pScreen->myNum],
                     pCursor->bits->width,
                     pCursor->bits->height);
 
-    pad =  XCBGetSetup(xnestConnection)->bitmap_format_scanline_pad;
+    for (i=0; i<xnestNumPixmapFormats; i++) {
+        if (xnestPixmapFormats[i].depth == 1) {
+            pad = xnestPixmapFormats[i].scanline_pad;
+            bpp = xnestPixmapFormats[i].bits_per_pixel;
+            break;
+        }
+    }
+
     /*not sure if this is right*/
-    size = (((pCursor->bits->width + pad - 1) & -pad) >> 3) * pCursor->bits->height;
-    d.pixmap = source;
+    size = (((bpp * pCursor->bits->width + pad - 1) & -pad) >> 3) * pCursor->bits->height;
     XCBPutImage(xnestConnection,
                 XCBImageFormatXYBitmap,
-                d,
+                (XCBDRAWABLE)source,
                 xnestBitmapGC,
                 pCursor->bits->width,
                 pCursor->bits->height,
@@ -96,10 +103,9 @@ Bool xnestRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
                 1,                      /*depth*/
                 size,      /*length..correct??*/
                 pCursor->bits->source);             /*bits*/
-    d.pixmap = mask;
     XCBPutImage(xnestConnection,
                 XCBImageFormatXYBitmap,
-                d,
+                (XCBDRAWABLE)mask,
                 xnestBitmapGC,
                 pCursor->bits->width,
                 pCursor->bits->height,

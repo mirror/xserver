@@ -133,8 +133,10 @@ void xnestChangeKeyboardControl(DeviceIntPtr pDev, KeybdCtrl *ctrl)
 #endif
 }
 
+/*FIXME: XCB Doesn't currently support XKB. */
 int xnestKeyboardProc(DeviceIntPtr pDev, int onoff)
 {
+
     const XCBSetup *setup;
     XCBGetModifierMappingCookie modmapcook;
     XCBGetModifierMappingRep   *modmaprep;
@@ -151,9 +153,10 @@ int xnestKeyboardProc(DeviceIntPtr pDev, int onoff)
     CARD8 modmap[MAP_LENGTH];
     int i, j;
 
+    noXkbExtension=TRUE;
     switch (onoff)
     {
-        case DEVICE_INIT: 
+        case DEVICE_INIT:
             modmapcook = XCBGetModifierMapping(xnestConnection);
             modmaprep = XCBGetModifierMappingReply(xnestConnection, modmapcook, NULL);
             modifier_keymap = XCBGetModifierMappingKeycodes(modmaprep);
@@ -161,115 +164,54 @@ int xnestKeyboardProc(DeviceIntPtr pDev, int onoff)
             setup = XCBGetSetup(xnestConnection);
             min_keycode = setup->min_keycode;
             max_keycode = setup->max_keycode;
-#if 0
-//#ifdef _XSERVER64
-            {
-                KeySym64 *keymap64;
-                int i, len;
-                keymap64 = XGetKeyboardMapping(xnestDisplay,
-                        min_keycode,
-                        max_keycode - min_keycode + 1,
-                        &mapWidth);
-                len = (max_keycode - min_keycode + 1) * mapWidth;
-                keymap = (KeySym *)xalloc(len * sizeof(KeySym));
-                for(i = 0; i < len; ++i)
-                    keymap[i] = keymap64[i];
-                XFree(keymap64);
-            }
-//#else
-#endif
+
             keymapcook = XCBGetKeyboardMapping(xnestConnection, 
                     min_keycode,
                     min_keycode.id-max_keycode.id+1);
             keymaprep = XCBGetKeyboardMappingReply(xnestConnection, keymapcook, NULL);
             keymap = XCBGetKeyboardMappingKeysyms(keymaprep);
             mapWidth = keymaprep->length;
-            //XFree(keymap); Do we leak? X doesn't like freeing this...
-            /*#endif*/
 
             for (i = 0; i < MAP_LENGTH; i++)
                 modmap[i] = 0;
-            for (j = 0; j < 8; j++)
+            for (j = 0; j < 8; j++) {
                 for(i = 0; i < keycodes_per_mod; i++) {
                     CARD8 keycode;
                     if ((keycode = modifier_keymap[j * keycodes_per_mod + i].id))
                         modmap[keycode] |= 1<<j;
                 }
-            //XFree(modifier_keymap); Freeing this also doesn't want to work..
+            }
 
             keySyms.minKeyCode = min_keycode.id;
             keySyms.maxKeyCode = max_keycode.id;
             keySyms.mapWidth = mapWidth;
             keySyms.map = (KeySym *)keymap;
-/*
-#ifdef XKB
-            if (noXkbExtension) {
-XkbError:
-#endif*/
-                ctlcook = XCBGetKeyboardControl(xnestConnection);
-                ctlvals = XCBGetKeyboardControlReply(xnestConnection, ctlcook, NULL);
-                memmove(defaultKeyboardControl.autoRepeats, 
-                        ctlvals->auto_repeats, 
-                        sizeof(ctlvals->auto_repeats));
-                InitKeyboardDeviceStruct(&pDev->public, 
-                                         &keySyms, 
-                                         modmap, 
-                                         xnestBell, 
-                                         xnestChangeKeyboardControl);
-/*
-#ifdef XKB
-            } else {
-                FILE *file;
-                XkbConfigRtrnRec config;
 
-                XkbComponentNamesRec names;
-                char *rules, *model, *layout, *variants, *options;
+            ctlcook = XCBGetKeyboardControl(xnestConnection);
+            ctlvals = XCBGetKeyboardControlReply(xnestConnection, ctlcook, NULL);
+            memmove(defaultKeyboardControl.autoRepeats, ctlvals->auto_repeats, sizeof(ctlvals->auto_repeats));
+            InitKeyboardDeviceStruct(&pDev->public, 
+                    &keySyms, 
+                    modmap, 
+                    xnestBell, 
+                    xnestChangeKeyboardControl);
 
-                XkbDescPtr xkb;
-                int op, event, error, major, minor;
-
-                if (XkbQueryExtension(xnestConnection, &op, &event, &error, &major, &minor) == 0) {
-                    ErrorF("Unable to initialize XKEYBOARD extension.\n");
-                    goto XkbError;
-                }
-                xkb = XkbGetKeyboard(xnestDisplay, XkbGBN_AllComponentsMask, XkbUseCoreKbd);
-                if (xkb == NULL || xkb->geom == NULL) {
-                    ErrorF("Couldn't get keyboard.\n");
-                    goto XkbError;
-                }
-                XkbGetControls(xnestDisplay, XkbAllControlsMask, xkb);
-
-                memset(&names, 0, sizeof(XkbComponentNamesRec));
-                rules = XKB_DFLT_RULES_FILE;
-                model = XKB_DFLT_KB_MODEL;
-                layout = XKB_DFLT_KB_LAYOUT;
-                variants = XKB_DFLT_KB_VARIANT;
-                options = XKB_DFLT_KB_OPTIONS;
-
-                XkbSetRulesDflts(rules, model, layout, variants, options);
-                XkbInitKeyboardDeviceStruct(pDev, &names, &keySyms, modmap,
-                        xnestBell, xnestChangeKeyboardControl);
-                XkbDDXChangeControls(pDev, xkb->ctrls, xkb->ctrls);
-                XkbFreeKeyboard(xkb, 0, False);
-            }
-#endif
-#ifdef _XSERVER64
-              xfree(keymap);
-#else*/
-            //XFree(keymap); or this...
-/*#endif*/
             break;
         case DEVICE_ON:
+            /*
             xnestEventMask |= XNEST_KEYBOARD_EVENT_MASK;
             for (i = 0; i < xnestNumScreens; i++)
-                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultRoots[i], 
                         XCBCWEventMask, &xnestEventMask);
+                        */
             break;
         case DEVICE_OFF: 
+            /*
             xnestEventMask &= ~XNEST_KEYBOARD_EVENT_MASK;
             for (i = 0; i < xnestNumScreens; i++)
-                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultRoots[i], 
                         XCBCWEventMask, &xnestEventMask);
+            */
             break;
         case DEVICE_CLOSE: 
             break;

@@ -340,8 +340,8 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
     pScreen->DestroyColormap = xnestDestroyColormap;
     pScreen->InstallColormap = xnestInstallColormap;
     pScreen->UninstallColormap = xnestUninstallColormap;
-    pScreen->ListInstalledColormaps = xnestListInstalledColormaps;
-    pScreen->StoreColors = xnestStoreColors;
+    pScreen->ListInstalledColormaps = (ListInstalledColormapsProcPtr) xnestListInstalledColormaps;
+    pScreen->StoreColors = (StoreColorsProcPtr) xnestStoreColors;
     pScreen->ResolveColor = xnestResolveColor;
 
     pScreen->BitmapToRegion = xnestPixmapToRegion;
@@ -388,13 +388,28 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
                                       xnestDefaultWindows[pScreen->myNum],
                                       XCBCWEventMask,
                                       &xnestEventMask);
+            sizeHints = AllocSizeHints();
+            SizeHintsSetFlagPPosition(sizeHints);
+            SizeHintsSetFlagPSize(sizeHints);
+            SizeHintsSetFlagPMaxSize(sizeHints);
+            SizeHintsSetPosition(sizeHints, False, xnestX + POSITION_OFFSET, xnestY + POSITION_OFFSET);
+            SizeHintsSetSize(sizeHints, 0, xnestWidth, xnestHeight);
+            SizeHintsSetMaxSize(sizeHints, xnestWidth, xnestHeight);        
+            if (xnestUserGeometry & XValue || xnestUserGeometry & YValue)
+                SizeHintsSetFlagUSPosition(sizeHints);
+            if (xnestUserGeometry & WidthValue || xnestUserGeometry & HeightValue)
+                SizeHintsSetFlagUSSize(sizeHints);
+            /*FIXME: set name and the like properly!*/
+            SetWMNormalHints(xnestConnection, xnestDefaultWindows[pScreen->myNum], sizeHints);
+            XCBMapWindow(xnestConnection, xnestDefaultWindows[pScreen->myNum]);
         } else {
             //vid.id = pScreen->rootVisual;
             vid = screen->root_visual;
-            xnestDefaultWindows[pScreen->myNum] = XCBWINDOWNew(xnestConnection);
+            xnestDefaultWindows[pScreen->myNum] = screen->root;
+            /*xnestDefaultRoots[pScreen->myNum] = XCBWINDOWNew(xnestConnection);
             XCBAuxCreateWindow(xnestConnection, 
                                xnestDefaultDepth,
-                               xnestDefaultWindows[pScreen->myNum],
+                               xnestDefaultRoots[pScreen->myNum],
                                screen->root,
                                xnestX + POSITION_OFFSET,
                                xnestY + POSITION_OFFSET,
@@ -403,26 +418,13 @@ Bool xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
                                XCBWindowClassInputOutput,
                                vid,
                                valuemask, 
-                               &param);
+                               &param);*/
         }
 
         if (!xnestWindowName)
             xnestWindowName = argv[0];
 
-        sizeHints = AllocSizeHints();
-        SizeHintsSetFlagPPosition(sizeHints);
-        SizeHintsSetFlagPSize(sizeHints);
-        SizeHintsSetFlagPMaxSize(sizeHints);
-        SizeHintsSetPosition(sizeHints, False, xnestX + POSITION_OFFSET, xnestY + POSITION_OFFSET);
-        SizeHintsSetSize(sizeHints, 0, xnestWidth, xnestHeight);
-        SizeHintsSetMaxSize(sizeHints, xnestWidth, xnestHeight);        
-        if (xnestUserGeometry & XValue || xnestUserGeometry & YValue)
-            SizeHintsSetFlagUSPosition(sizeHints);
-        if (xnestUserGeometry & WidthValue || xnestUserGeometry & HeightValue)
-            SizeHintsSetFlagUSSize(sizeHints);
-        /*FIXME: set name and the like properly!*/
-        SetWMNormalHints(xnestConnection, xnestDefaultWindows[pScreen->myNum], sizeHints);
-        XCBMapWindow(xnestConnection, xnestDefaultWindows[pScreen->myNum]);
+
 
         valuemask = CWBackPixmap | CWColormap;
         param.back_pixmap = xnestScreenSaverPixmap.xid;

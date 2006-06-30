@@ -69,16 +69,19 @@ int xnestPointerProc(DeviceIntPtr pDev, int onoff)
                     miPointerGetMotionBufferSize());
             break;
         case DEVICE_ON: 
-            xnestEventMask |= XNEST_POINTER_EVENT_MASK;
+/*            xnestEventMask |= XNEST_POINTER_EVENT_MASK;
             for (i = 0; i < xnestNumScreens; i++)
-                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultRoots[i], 
                                           XCBCWEventMask, &xnestEventMask);
+                                          */
             break;
         case DEVICE_OFF: 
             xnestEventMask &= ~XNEST_POINTER_EVENT_MASK;
+/*
             for (i = 0; i < xnestNumScreens; i++)
-                XCBChangeWindowAttributes(xnestConnection, xnestDefaultWindows[i], 
+                XCBChangeWindowAttributes(xnestConnection, xnestDefaultRoots[i], 
                                           XCBCWEventMask, &xnestEventMask);
+*/
             break;
         case DEVICE_CLOSE: 
             break;

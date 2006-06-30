@@ -32,6 +32,9 @@ is" without express or implied warranty.
 #include "Display.h"
 #include "Args.h"
 
+#include <X11/extensions/XKB.h>
+#include <X11/extensions/XKBsrv.h>
+#include <X11/extensions/XKBconfig.h>
 char *xnestDisplayName = NULL;        
 Bool xnestSynchronize = False;
 Bool xnestFullGeneration = False;
@@ -55,6 +58,7 @@ XCBWINDOW xnestParentWindow = {0};
 /* ddxInitGlobals - called by |InitGlobals| from os/util.c */
 void ddxInitGlobals(void)
 {
+    noXkbExtension=TRUE;
 }
 
 int

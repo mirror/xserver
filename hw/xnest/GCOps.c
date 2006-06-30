@@ -83,6 +83,7 @@ void xnestPutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
         if (xnestPixmapFormats[i].depth == depth) {
             pad = xnestPixmapFormats[i].scanline_pad;
             bpp = xnestPixmapFormats[i].bits_per_pixel;
+            break;
         }
     }
     size = (((bpp * w + pad - 1) & -pad) >> 3)*h;

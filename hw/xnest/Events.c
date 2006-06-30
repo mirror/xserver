@@ -30,6 +30,7 @@
 #include "servermd.h"
 
 #include "mi.h"
+#include "dix.h"
 
 #include "Xnest.h"
 
@@ -72,33 +73,6 @@ static Bool xnestNotExposurePredicate(Display *display, XEvent *event, char *arg
     return !xnestExposurePredicate(display, event, args);
 }
 
-/*void xnestCollectExposures()
-{
-    XCBGenericEvent *e;
-    XCBExposeEvent *evt;
-    WindowPtr pWin;
-    RegionRec Rgn;
-    BoxRec Box;
-
-    e = XCBPeekNextEvent(xnestConnection);
-    while ((e->response_type & ~0x80) == XCBExpose) {
-        evt = (XCBExposeEvent *)XCBWaitForEvent(xnestConnection);
-        pWin = xnestWindowPtr(evt->window);
-
-        if (pWin) {
-            Box.x1 = pWin->drawable.x + wBorderWidth(pWin) + evt->x;
-            Box.y1 = pWin->drawable.y + wBorderWidth(pWin) + evt->y;
-            Box.x2 = Box.x1 + evt->width;
-            Box.y2 = Box.y1 + evt->height;
-
-            REGION_INIT(pWin->drawable.pScreen, &Rgn, &Box, 1);
-
-            miWindowExposures(pWin, &Rgn, NullRegion); 
-        }
-        e = XCBPeekNextEvent(xnestConnection);
-    }
-}*/
-
 void xnestQueueKeyEvent(int type, unsigned int keycode)
 {
     xEvent x;
@@ -110,26 +84,37 @@ void xnestQueueKeyEvent(int type, unsigned int keycode)
 
 void xnestHandleEvent(XCBGenericEvent *e)
 {
-    XCBMotionNotifyEvent *pev;
-    XCBEnterNotifyEvent  *eev;
-    XCBLeaveNotifyEvent  *lev;    
-    XCBExposeEvent       *xev;
-    XCBGenericEvent ev;
+    XCBMotionNotifyEvent    *pev;
+    XCBEnterNotifyEvent     *eev;
+    XCBLeaveNotifyEvent     *lev;    
+    XCBExposeEvent          *xev;
+    XCBResizeRequestEvent   *rev;
+    XCBConfigureNotifyEvent *cev;
+    xEvent ev;
     ScreenPtr pScreen;
     WindowPtr pWin;
+    WindowPtr pSib;
     RegionRec Rgn;
     BoxRec Box;
 
 
     switch (e->response_type & ~0x80) {
         case XCBKeyPress:
+            ErrorF("Key Pressed\n");
             xnestUpdateModifierState(((XCBKeyPressEvent *)e)->state);
-            xnestQueueKeyEvent(XCBKeyPress, ((XCBKeyPressEvent *)e)->detail.id);
+            ((XCBKeyPressEvent *)e)->time.id = lastEventTime = GetTimeInMillis();
+            memcpy(&ev, e, sizeof(XCBGenericEvent));
+            mieqEnqueue(&ev);
+
+            //xnestQueueKeyEvent(XCBKeyPress, ((XCBKeyPressEvent *)e)->detail.id);
             break;
 
         case XCBKeyRelease:
             xnestUpdateModifierState(((XCBKeyReleaseEvent *)e)->state);
-            xnestQueueKeyEvent(KeyRelease, ((XCBKeyReleaseEvent *)e)->detail.id);
+            ((XCBKeyReleaseEvent *)e)->time.id = lastEventTime = GetTimeInMillis();
+            memcpy(&ev, e, sizeof(XCBGenericEvent));
+            mieqEnqueue(&ev);
+            //xnestQueueKeyEvent(KeyRelease, ((XCBKeyReleaseEvent *)e)->detail.id);
             break;
 
         case XCBButtonPress:
@@ -191,6 +176,9 @@ void xnestHandleEvent(XCBGenericEvent *e)
                     x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis();
                     mieqEnqueue(&x);
 #endif
+                    ErrorF("Entry Notify\n");
+                    XCBTIMESTAMP t = { XCBCurrentTime };
+                    XCBSetInputFocus(xnestConnection, RevertToNone, eev->child, t);
                     miPointerAbsoluteCursor (eev->event_x, eev->event_y, 
                             lastEventTime = GetTimeInMillis());
                     xnestDirectInstallColormaps(pScreen);
@@ -227,10 +215,40 @@ void xnestHandleEvent(XCBGenericEvent *e)
                 miWindowExposures(pWin, &Rgn, NullRegion); 
             }
             break;
+        case XCBResizeRequest:
+            rev = (XCBResizeRequestEvent *)e;
+            pWin = xnestWindowPtr(rev->window);     
+            rev->window = xnestWindow(xnestWindowPtr(rev->window));
+            memcpy(&ev, cev, sizeof(XCBGenericEvent));            
+            if (pWin) {
+                DeliverEvents(pWin, &ev, 1, NULL);
+            } 
+            break;
+
+        case XCBConfigureNotify:
+            cev = (XCBConfigureNotifyEvent *)e;
+            pWin = xnestWindowPtr(cev->event);
+            cev->event = xnestWindow(xnestWindowPtr(cev->event));
+            cev->window = xnestWindow(xnestWindowPtr(cev->window));
+            pSib = xnestWindowPtr(cev->above_sibling);
+            if (pSib)
+                cev->above_sibling = xnestWindow(pSib);
+            memcpy(&ev, cev, sizeof(XCBGenericEvent));
+            if (pWin) {
+                DeliverEvents(pWin, &ev, 1, NULL);
+            }
+            break;
+            /*
+            pWin = xnestWindowPtr(cev->event);
+            pSib = xnestWindowPtr(cev->above_sibling);
+            if (pWin)
+                miSlideAndSizeWindow(pWin, cev->x, cev->y, cev->width, cev->height, pSib);
+            break;
+            */
         case XCBNoExposure:
         case XCBGraphicsExposure:
         case XCBCirculateNotify:
-        case XCBConfigureNotify:
+
         case XCBGravityNotify:
         case XCBMapNotify:
         case XCBReparentNotify:
@@ -238,8 +256,8 @@ void xnestHandleEvent(XCBGenericEvent *e)
             break;
 
         default:
-            ErrorF("xnest warning: unhandled event %d\n", e->response_type & ~0x80);
-            ErrorF("Sequence number: %d\n", e->sequence);
+            ErrorF("****xnest warning: unhandled event %d\n", e->response_type & ~0x80);
+            ErrorF("****Sequence number: %d\n", e->sequence);
             break;
     }
 }
@@ -256,7 +274,7 @@ void xnestCollectEvents()
     while ((e = XCBPollForEvent(xnestConnection, NULL)) != NULL) {
         if (!e->response_type) {
             err = (XCBGenericError *)e;
-            ErrorF("File: %s Error: %d, Sequence %d\n", __FILE__, err->error_code, err->sequence);
+            ErrorF("****** File: %s Error: %d, Sequence %d\n", __FILE__, err->error_code, err->sequence);
             switch(err->error_code){
                 case XCBMatch:
                     re = (XCBRequestError *)err;

@@ -76,11 +76,20 @@ WindowPtr xnestWindowPtr(XCBWINDOW window)
 
 Bool xnestCreateWindow(WindowPtr pWin)
 {
-    unsigned long mask;
-    XCBParamsCW param;
+    unsigned long  mask;
+    XCBParamsCW    param;
     XCBVISUALTYPE *visual;
     XCBVISUALID    vid;
-    ColormapPtr pCmap;
+    XCBSCREEN     *screen;
+    ColormapPtr    pCmap;
+
+    /* special case creating the root window. We don't want to actually create it, so
+     * we just set it's XID to the backing server's root.*/
+    screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;    
+    if (xnestIsRoot(pWin)) {
+        xnestWindowPriv(pWin)->window = screen->root;
+        return True;
+    }
 
     if (pWin->drawable.class == XCBWindowClassInputOnly) {
         mask = 0L;
@@ -88,7 +97,10 @@ Bool xnestCreateWindow(WindowPtr pWin)
     }
     else {
         mask = XCBCWEventMask | XCBCWBackingStore;
-        param.event_mask = XCBEventMaskExposure;
+        param.event_mask = (1<<25)-1;
+            /*XCBEventMaskExposure|XCBEventMaskKeyPress|XCBEventMaskKeyRelease|XCBEventMaskButtonPress
+            |XCBEventMaskButtonRelease|XCBEventMaskEnterWindow|XCBEventMaskLeaveWindow|XCBEventMaskPointerMotion
+            |XCBEventMaskFocusChange|XCBEventMaskStructureNotify;*/
         param.backing_store = XCBBackingStoreNotUseful;
 
         if (pWin->parent) {
@@ -115,6 +127,8 @@ Bool xnestCreateWindow(WindowPtr pWin)
             vid = visual->visual_id;
         }
     }
+    if (xnestWindowParent(pWin).xid == screen->root.xid)
+        ErrorF("****Root Window Is Parent***");
 
     xnestWindowPriv(pWin)->window = XCBWINDOWNew(xnestConnection);
     XCBAuxCreateWindow(xnestConnection,
@@ -140,10 +154,8 @@ Bool xnestCreateWindow(WindowPtr pWin)
     if (pWin->nextSib)
         xnestWindowPriv(pWin->nextSib)->sibling_above = xnestWindow(pWin);
 #ifdef SHAPE
-    xnestWindowPriv(pWin)->bounding_shape = 
-        REGION_CREATE(pWin->drawable.pScreen, NULL, 1);
-    xnestWindowPriv(pWin)->clip_shape = 
-        REGION_CREATE(pWin->drawable.pScreen, NULL, 1);
+    xnestWindowPriv(pWin)->bounding_shape = REGION_CREATE(pWin->drawable.pScreen, NULL, 1);
+    xnestWindowPriv(pWin)->clip_shape = REGION_CREATE(pWin->drawable.pScreen, NULL, 1);
 #endif /* SHAPE */
 
     if (!pWin->parent) /* only the root window will have the right colormap */
@@ -345,6 +357,8 @@ Bool xnestChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
 
 Bool xnestRealizeWindow(WindowPtr pWin)
 {
+    if (xnestIsRoot(pWin))
+        return True;
     xnestConfigureWindow(pWin, XCBConfigWindowStackMode);
 #ifdef SHAPE
     xnestShapeWindow(pWin);
@@ -406,7 +420,7 @@ void xnestWindowExposures(WindowPtr pWin, RegionPtr pRgn, RegionPtr other_expose
     XCBWINDOW window;
     BoxRec Box;
 
-    XCBSync(xnestConnection, NULL);
+    XCBFlush(xnestConnection);
 
     window = xnestWindow(pWin);
     /* Commenting this will probably lead to excessive expose events, but since XCB doesn't give the
