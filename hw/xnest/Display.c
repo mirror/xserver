@@ -210,10 +210,10 @@ void xnestOpenDisplay(int argc, char *argv[])
 
     if (xnestParentWindow.xid  == 0) {
         if (!(xnestUserGeometry & WidthValue))
-            xnestWidth = 3 * screen->width_in_pixels / 4;
+            xnestWidth = screen->width_in_pixels;
 
         if (!(xnestUserGeometry & HeightValue))
-            xnestHeight = 3 * screen->height_in_pixels / 4;
+            xnestHeight = screen->height_in_pixels;
     }
 
     if (!xnestUserBorderWidth)

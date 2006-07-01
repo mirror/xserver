@@ -96,7 +96,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
     WindowPtr pSib;
     RegionRec Rgn;
     BoxRec Box;
-
+    lastEventTime = GetTimeInMillis();
 
     switch (e->response_type & ~0x80) {
         case XCBKeyPress:
@@ -219,15 +219,16 @@ void xnestHandleEvent(XCBGenericEvent *e)
             rev = (XCBResizeRequestEvent *)e;
             pWin = xnestWindowPtr(rev->window);     
             rev->window = xnestWindow(xnestWindowPtr(rev->window));
-            memcpy(&ev, cev, sizeof(XCBGenericEvent));            
+            memcpy(&ev, rev, sizeof(XCBGenericEvent));            
             if (pWin) {
                 DeliverEvents(pWin, &ev, 1, NULL);
+                //miSlideAndSizeWindow(pWin, pWin->drawable.x, pWin->drawable.y, rev->width, rev->height, NULL);
             } 
             break;
 
         case XCBConfigureNotify:
             cev = (XCBConfigureNotifyEvent *)e;
-            pWin = xnestWindowPtr(cev->event);
+            pWin = xnestWindowPtr(cev->window);
             cev->event = xnestWindow(xnestWindowPtr(cev->event));
             cev->window = xnestWindow(xnestWindowPtr(cev->window));
             pSib = xnestWindowPtr(cev->above_sibling);
@@ -236,13 +237,13 @@ void xnestHandleEvent(XCBGenericEvent *e)
             memcpy(&ev, cev, sizeof(XCBGenericEvent));
             if (pWin) {
                 DeliverEvents(pWin, &ev, 1, NULL);
+                //miSlideAndSizeWindow(pWin, cev->x, cev->y, cev->width, cev->height, pSib);
             }
             break;
             /*
             pWin = xnestWindowPtr(cev->event);
             pSib = xnestWindowPtr(cev->above_sibling);
             if (pWin)
-                miSlideAndSizeWindow(pWin, cev->x, cev->y, cev->width, cev->height, pSib);
             break;
             */
         case XCBNoExposure:
@@ -253,7 +254,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
         case XCBMapNotify:
         case XCBReparentNotify:
         case XCBUnmapNotify:
-            break;
+           // break;
 
         default:
             ErrorF("****xnest warning: unhandled event %d\n", e->response_type & ~0x80);
@@ -275,26 +276,7 @@ void xnestCollectEvents()
         if (!e->response_type) {
             err = (XCBGenericError *)e;
             ErrorF("****** File: %s Error: %d, Sequence %d\n", __FILE__, err->error_code, err->sequence);
-            switch(err->error_code){
-                case XCBMatch:
-                    re = (XCBRequestError *)err;
-                    ErrorF("XCBMatch: Bad Value %x (Decimal %d)\n", re->bad_value, re->bad_value);
-                    break;
-                case XCBIDChoice:
-                    ide = (XCBIDChoiceError *)err;
-                    ErrorF("XCBIDChoice: Bad Value %x (Decimal %d)\n", ide->bad_value, ide->bad_value);
-                    break;
-                case XCBFont:
-                    fe = (XCBFontError *)err;
-                    ErrorF("XCBFont: Bad Value %x (Decimal %d)\n", fe->bad_value, fe->bad_value);
-                    break;
-                case XCBWindow:
-                    we = (XCBWindowError *)err;
-                    ErrorF("XCBWindow: Bad Value %x (Decimal %d)\n", we->bad_value, we->bad_value);
-                    break;
-                default:
-                    break;
-                    }
+
         } else {
             ErrorF("Handling event %x(%d) serial %d\n", e->response_type, e->response_type, e->sequence);
             xnestHandleEvent(e);

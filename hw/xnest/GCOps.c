@@ -145,6 +145,8 @@ static RegionPtr xnestBitBlitHelper(GCPtr pGC)
         pending = True;
         while (pending) {
             event = XCBPollForEvent(xnestConnection, &err);
+            if (!event)
+                break;
             switch (event->response_type) {
                 case XCBNoExposure:
                     pending = False;

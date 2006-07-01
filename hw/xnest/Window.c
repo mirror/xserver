@@ -97,7 +97,7 @@ Bool xnestCreateWindow(WindowPtr pWin)
     }
     else {
         mask = XCBCWEventMask | XCBCWBackingStore;
-        param.event_mask = (1<<25)-1;
+        param.event_mask = ((1<<25)-1) & ~(XCBEventMaskSubstructureRedirect|XCBEventMaskPointerMotionHint|XCBEventMaskResizeRedirect);
             /*XCBEventMaskExposure|XCBEventMaskKeyPress|XCBEventMaskKeyRelease|XCBEventMaskButtonPress
             |XCBEventMaskButtonRelease|XCBEventMaskEnterWindow|XCBEventMaskLeaveWindow|XCBEventMaskPointerMotion
             |XCBEventMaskFocusChange|XCBEventMaskStructureNotify;*/
