@@ -1,15 +1,15 @@
 /* $Xorg: Init.c,v 1.3 2000/08/17 19:53:28 cpqbld Exp $ */
 /*
 
-Copyright 1993 by Davor Matic
+   Copyright 1993 by Davor Matic
 
-Permission to use, copy, modify, distribute, and sell this software
-and its documentation for any purpose is hereby granted without fee,
-provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in
-supporting documentation.  Davor Matic makes no representations about
-the suitability of this software for any purpose.  It is provided "as
-is" without express or implied warranty.
+   Permission to use, copy, modify, distribute, and sell this software
+   and its documentation for any purpose is hereby granted without fee,
+   provided that the above copyright notice appear in all copies and that
+   both that copyright notice and this permission notice appear in
+   supporting documentation.  Davor Matic makes no representations about
+   the suitability of this software for any purpose.  It is provided "as
+   is" without express or implied warranty.
 
 */
 /* $XFree86: xc/programs/Xserver/hw/xnest/Init.c,v 3.24 2003/01/15 02:34:14 torrey Exp $ */
@@ -48,63 +48,80 @@ is" without express or implied warranty.
 
 Bool xnestDoFullGeneration = True;
 
-void
-InitOutput(ScreenInfo *screenInfo, int argc, char *argv[])
+
+void InitOutput(ScreenInfo *screenInfo, int argc, char *argv[])
 {
-  int i, j;
-  const XCBSetup *setup; 
+    int i, j;
+    const XCBSetup *setup; 
 
-  xnestOpenDisplay(argc, argv);
-  setup = XCBGetSetup(xnestConnection);
-  
-  screenInfo->imageByteOrder = setup->image_byte_order;
-  screenInfo->bitmapScanlineUnit = setup->bitmap_format_scanline_unit;
-  screenInfo->bitmapScanlinePad = setup->bitmap_format_scanline_pad;
-  screenInfo->bitmapBitOrder = setup->bitmap_format_bit_order;
-  
-  screenInfo->numPixmapFormats = 0;
-  for (i = 0; i < xnestNumPixmapFormats; i++) 
-    for (j = 0; j < xnestNumDepth; j++)
-      if ((xnestPixmapFormats[i].depth == 1) ||
-          (xnestPixmapFormats[i].depth == xnestDepths[j])) {
-        screenInfo->formats[screenInfo->numPixmapFormats].depth = 
-          xnestPixmapFormats[i].depth;
-        screenInfo->formats[screenInfo->numPixmapFormats].bitsPerPixel = 
-          xnestPixmapFormats[i].bits_per_pixel;
-        screenInfo->formats[screenInfo->numPixmapFormats].scanlinePad = 
-          xnestPixmapFormats[i].scanline_pad;
-        screenInfo->numPixmapFormats++;
-        break;
-      }
-  
-  xnestWindowPrivateIndex = AllocateWindowPrivateIndex();
-  xnestGCPrivateIndex = AllocateGCPrivateIndex();
-  xnestFontPrivateIndex = AllocateFontPrivateIndex();
-  
-  if (!xnestNumScreens) xnestNumScreens = 1;
+    xnestOpenDisplay(argc, argv);
+    setup = XCBGetSetup(xnestConnection);
 
-  for (i = 0; i < xnestNumScreens; i++)
-    AddScreen(xnestOpenScreen, argc, argv);
 
-  xnestNumScreens = screenInfo->numScreens;
+    screenInfo->imageByteOrder = setup->image_byte_order;
+    screenInfo->bitmapScanlineUnit = setup->bitmap_format_scanline_unit;
+    screenInfo->bitmapScanlinePad = setup->bitmap_format_scanline_pad;
+    screenInfo->bitmapBitOrder = setup->bitmap_format_bit_order;
 
-  xnestDoFullGeneration = xnestFullGeneration;
+    /**
+     * list the pixmap formats the backing server supports.
+     * FIXME: how do we get Xscreen to regenerate this properly?
+     * should this only connect to backing servers with compatible
+     * pixmap formats?
+     **/
+    screenInfo->numPixmapFormats = 0;
+    for (i = 0; i < xnestNumPixmapFormats; i++) {
+        for (j = 0; j < xnestNumDepth; j++) {
+            if ((xnestPixmapFormats[i].depth == 1) ||
+                    (xnestPixmapFormats[i].depth == xnestDepths[j])) {
+                screenInfo->formats[screenInfo->numPixmapFormats].depth = 
+                    xnestPixmapFormats[i].depth;
+                screenInfo->formats[screenInfo->numPixmapFormats].bitsPerPixel = 
+                    xnestPixmapFormats[i].bits_per_pixel;
+                screenInfo->formats[screenInfo->numPixmapFormats].scanlinePad = 
+                    xnestPixmapFormats[i].scanline_pad;
+                screenInfo->numPixmapFormats++;
+                break;
+            }
+        }
+    }
+
+    xnestWindowPrivateIndex = AllocateWindowPrivateIndex();
+    xnestGCPrivateIndex = AllocateGCPrivateIndex();
+    xnestFontPrivateIndex = AllocateFontPrivateIndex();
+
+    if (!xnestNumScreens) 
+        xnestNumScreens = 1;
+
+    for (i = 0; i < xnestNumScreens; i++)
+        AddScreen(xnestOpenScreen, argc, argv);
+
+    xnestNumScreens = screenInfo->numScreens;
+
+    xnestDoFullGeneration = xnestFullGeneration;
+
+    /**
+     * Add a tree representing the windows on the backing server, so that
+     * we can represent reparenting windows inside windows on other servers.
+     * don't need to create the root window's WindowPtr, this is handled
+     * when the DIX tells us to create the root window.
+     **/
+    //xscreenInitBackingWindows(xnestConnection, XCBSetupRootsIter(XCBGetSetup(xnestConnection)).data->root);
 }
 
-void
-InitInput(int argc, char *argv[])
+void InitInput(int argc, char *argv[])
 {
-  xnestPointerDevice = AddInputDevice(xnestPointerProc, TRUE);
-  xnestKeyboardDevice = AddInputDevice(xnestKeyboardProc, TRUE);
+    xnestPointerDevice = AddInputDevice(xnestPointerProc, TRUE);
+    xnestKeyboardDevice = AddInputDevice(xnestKeyboardProc, TRUE);
 
-  RegisterPointerDevice(xnestPointerDevice);
-  RegisterKeyboardDevice(xnestKeyboardDevice);
+    RegisterPointerDevice(xnestPointerDevice);
+    RegisterKeyboardDevice(xnestKeyboardDevice);
 
-  mieqInit((DevicePtr)xnestKeyboardDevice, (DevicePtr)xnestPointerDevice);
+    mieqInit((DevicePtr)xnestKeyboardDevice, (DevicePtr)xnestPointerDevice);
 
-  AddEnabledDevice(XCBGetFileDescriptor(xnestConnection));
+    AddEnabledDevice(XCBGetFileDescriptor(xnestConnection));
 
-  RegisterBlockAndWakeupHandlers(xnestBlockHandler, xnestWakeupHandler, NULL);
+    RegisterBlockAndWakeupHandlers(xnestBlockHandler, xnestWakeupHandler, NULL);
 }
 
 /*
@@ -112,18 +129,18 @@ InitInput(int argc, char *argv[])
  */
 void AbortDDX()
 {
-  xnestDoFullGeneration = True;
-  xnestCloseDisplay();
+    xnestDoFullGeneration = True;
+    xnestCloseDisplay();
 }
 
 /* Called by GiveUp(). */
 void ddxGiveUp()
 {
-  AbortDDX();
+    AbortDDX();
 }
 
 #ifdef __DARWIN__
-void
+    void
 DarwinHandleGUI(int argc, char *argv[])
 {
 }
@@ -131,15 +148,13 @@ DarwinHandleGUI(int argc, char *argv[])
 void GlxExtensionInit();
 void GlxWrapInitVisuals(void *procPtr);
 
-void
-DarwinGlxExtensionInit()
+void DarwinGlxExtensionInit()
 {
     GlxExtensionInit();
 }
 
-void
-DarwinGlxWrapInitVisuals(
-    void *procPtr)
+void DarwinGlxWrapInitVisuals(
+        void *procPtr)
 {
     GlxWrapInitVisuals(procPtr);
 }

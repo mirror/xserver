@@ -16,6 +16,10 @@ is" without express or implied warranty.
 
 #ifndef XNESTWINDOW_H
 #define XNESTWINDOW_H
+typedef enum  {
+    XSCREEN_OWNED_XSCREEN, /*Xscreen owns the window*/
+    XSCREEN_OWNED_BACKING,   /*The backing server owns the window*/
+} XscreenWindowOwner;
 
 typedef struct {
   XCBWINDOW window;
@@ -30,7 +34,12 @@ typedef struct {
   RegionPtr bounding_shape;
   RegionPtr clip_shape;
 #endif /* SHAPE */
+  /* is this a window from the backing server, or
+   * is it a window on Xscreen? true for window on
+   * backing server.*/
+  XscreenWindowOwner owner;
 } xnestPrivWin;
+
 
 typedef struct {
   WindowPtr pWin;

@@ -90,14 +90,22 @@ void xnestHandleEvent(XCBGenericEvent *e)
     XCBExposeEvent          *xev;
     XCBResizeRequestEvent   *rev;
     XCBConfigureNotifyEvent *cev;
+    XCBButtonPressEvent     *bpe;
+    XCBButtonReleaseEvent   *bre;
+    XCBReparentNotifyEvent  *ev_reparent;
+    XCBCreateNotifyEvent    *ev_create;
+    XCBGetGeometryCookie gcook;
+    XCBGetGeometryRep   *grep;
+    CARD32 ev_mask;
     xEvent ev;
     ScreenPtr pScreen;
     WindowPtr pWin;
     WindowPtr pSib;
+    WindowPtr pParent;
     RegionRec Rgn;
     BoxRec Box;
     lastEventTime = GetTimeInMillis();
-
+    
     switch (e->response_type & ~0x80) {
         case XCBKeyPress:
             ErrorF("Key Pressed\n");
@@ -119,7 +127,8 @@ void xnestHandleEvent(XCBGenericEvent *e)
 
         case XCBButtonPress:
             xnestUpdateModifierState(((XCBButtonPressEvent *)e)->state);
-            ((XCBButtonPressEvent *)e)->time.id = lastEventTime = GetTimeInMillis();
+            bpe = (XCBButtonPressEvent *)e;
+            bpe->time.id = lastEventTime = GetTimeInMillis();
             memcpy(&ev, e, sizeof(XCBGenericEvent));
             mieqEnqueue((xEventPtr) &ev);
             break;
@@ -140,8 +149,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
             mieqEnqueue(&x);
 #endif 
             pev = (XCBMotionNotifyEvent *)e;
-            miPointerAbsoluteCursor (pev->event_x, pev->event_y,
-                    lastEventTime = GetTimeInMillis());
+            miPointerAbsoluteCursor (pev->event_x, pev->event_y, lastEventTime = GetTimeInMillis());
             break;
 
         case XCBFocusIn:
@@ -179,8 +187,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
                     ErrorF("Entry Notify\n");
                     XCBTIMESTAMP t = { XCBCurrentTime };
                     XCBSetInputFocus(xnestConnection, RevertToNone, eev->child, t);
-                    miPointerAbsoluteCursor (eev->event_x, eev->event_y, 
-                            lastEventTime = GetTimeInMillis());
+                    miPointerAbsoluteCursor (eev->event_x, eev->event_y, lastEventTime = GetTimeInMillis());
                     xnestDirectInstallColormaps(pScreen);
                 }
             }
@@ -215,46 +222,90 @@ void xnestHandleEvent(XCBGenericEvent *e)
                 miWindowExposures(pWin, &Rgn, NullRegion); 
             }
             break;
-        case XCBResizeRequest:
-            rev = (XCBResizeRequestEvent *)e;
-            pWin = xnestWindowPtr(rev->window);     
-            rev->window = xnestWindow(xnestWindowPtr(rev->window));
-            memcpy(&ev, rev, sizeof(XCBGenericEvent));            
-            if (pWin) {
-                DeliverEvents(pWin, &ev, 1, NULL);
-                //miSlideAndSizeWindow(pWin, pWin->drawable.x, pWin->drawable.y, rev->width, rev->height, NULL);
-            } 
-            break;
 
         case XCBConfigureNotify:
             cev = (XCBConfigureNotifyEvent *)e;
             pWin = xnestWindowPtr(cev->window);
-            cev->event = xnestWindow(xnestWindowPtr(cev->event));
-            cev->window = xnestWindow(xnestWindowPtr(cev->window));
-            pSib = xnestWindowPtr(cev->above_sibling);
-            if (pSib)
-                cev->above_sibling = xnestWindow(pSib);
-            memcpy(&ev, cev, sizeof(XCBGenericEvent));
-            if (pWin) {
+            if (xnestWindowPriv(pWin)->owner == XSCREEN_OWNED_XSCREEN) {
+                pScreen = pWin->drawable.pScreen;
+                pSib = xnestWindowPtr(cev->above_sibling);
+                cev->event = xnestWindow(xnestWindowPtr(cev->event));
+                cev->window = xnestWindow(xnestWindowPtr(cev->window));
+                if (pSib)
+                    cev->above_sibling = xnestWindow(pSib);
+                memcpy(&ev, cev, sizeof(XCBGenericEvent));
                 DeliverEvents(pWin, &ev, 1, NULL);
-                //miSlideAndSizeWindow(pWin, cev->x, cev->y, cev->width, cev->height, pSib);
+            }
+            pWin->origin.x = pWin->drawable.x + wBorderWidth(pWin) + cev->x;
+            pWin->origin.y = pWin->drawable.y + wBorderWidth(pWin) + cev->y;
+            pWin->drawable.height = cev->height;
+            pWin->drawable.width = cev->width;
+            ErrorF("drawable->x: %d, drawable->y: %d, origin->x: %d, origin->y: %d\n",
+                   pWin->drawable.x, pWin->drawable.y, pWin->origin.x, pWin->origin.y);
+                break;
+
+        case XCBReparentNotify:
+            /*Reparent windows. This is to track non-xscreen managed windows and their
+             * relationship to xscreen managed windows. It should be harmless to poke at 
+             * the relationships on xscreen managed windows too, I think.. or will it? FIXME and
+             * test.*/
+            ev_reparent = (XCBReparentNotifyEvent *)e;
+            pParent = xnestWindowPtr(ev_reparent->parent);
+            pWin = xnestWindowPtr(ev_reparent->window);
+            ReparentWindow(pWin, pParent, ev_reparent->x, ev_reparent->y, wClient(pWin));
+            break;
+
+        case XCBCreateNotify:
+            ev_create = (XCBCreateNotifyEvent *)e;
+            pParent = xnestWindowPtr(ev_create->parent);
+            /*make sure we didn't create this window. If we did, ignore it, we already track it*/
+            pWin = xnestWindowPtr(ev_create->window);
+            if (!pWin) {
+                gcook = XCBGetGeometry(xnestConnection, (XCBDRAWABLE)ev_create->window);
+
+                pWin = AllocateWindow(pScreen);
+
+                xnestWindowPriv(pWin)->window = ev_create->window;
+                xnestWindowPriv(pWin)->sibling_above = (XCBWINDOW){0};
+                xnestWindowPriv(pWin)->owner = XSCREEN_OWNED_BACKING;
+
+                pWin->parent = pParent;
+
+                grep = XCBGetGeometryReply(xnestConnection, gcook, NULL);
+                pWin->origin.x = grep->x;
+                pWin->origin.y = grep->y;
+                pWin->drawable.width = grep->width;
+                pWin->drawable.height = grep->height;
+                wClient(pWin) = serverClient;
+                pWin->drawable.id = FakeClientID(0);
+
+                pWin->firstChild = NULL;
+                pWin->lastChild = NULL;            
+                pWin->prevSib = NULL;
+                pWin->optional = NULL;
+                pWin->valdata = NULL;
+
+                REGION_NULL(pScreen, &pWin->winSize);
+                REGION_NULL(pScreen, &pWin->borderSize);
+                REGION_NULL(pScreen, &pWin->clipList);
+                REGION_NULL(pScreen, &pWin->borderClip);
+
+                /*set drawable relative to parent. FIXME: is this correct?*/
+                pWin->drawable.x = pWin->origin.x - pWin->parent->origin.x + wBorderWidth(pWin);
+                pWin->drawable.y = pWin->origin.y - pWin->parent->origin.y + wBorderWidth(pWin);
+                ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;
+                XCBChangeWindowAttributes(xnestConnection, ev_create->window, XCBCWEventMask, &ev_mask);
             }
             break;
-            /*
-            pWin = xnestWindowPtr(cev->event);
-            pSib = xnestWindowPtr(cev->above_sibling);
-            if (pWin)
-            break;
-            */
+
         case XCBNoExposure:
         case XCBGraphicsExposure:
         case XCBCirculateNotify:
 
         case XCBGravityNotify:
         case XCBMapNotify:
-        case XCBReparentNotify:
         case XCBUnmapNotify:
-           // break;
+            // break;
 
         default:
             ErrorF("****xnest warning: unhandled event %d\n", e->response_type & ~0x80);
