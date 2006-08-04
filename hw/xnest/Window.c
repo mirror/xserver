@@ -110,67 +110,22 @@ static void xscreenInitBackingWindows(XCBConnection *c, WindowPtr pParent)
         /*if we're not already tracking this one*/
         pWin = xnestWindowPtr(child[i]);
         if (!pWin) {
+            ErrorF("Adding window %d\n", child[i]);
             gcook = XCBGetGeometry(c, (XCBDRAWABLE)child[i]);
-
-            pWin = AllocateWindow(pScreen);
-
-            pWin->firstChild = NULL;
-            pWin->lastChild = NULL;            
-            pWin->prevSib = NULL;
-            pWin->optional = NULL;
-            pWin->valdata = NULL;            
-            pWin->parent = xnestWindowPtr(w);
-            wClient(pWin) = serverClient;
-            pWin->drawable.id = FakeClientID(0);
-
-            REGION_NULL(pScreen, &pWin->winSize);
-            REGION_NULL(pScreen, &pWin->borderSize);
-            REGION_NULL(pScreen, &pWin->clipList);
-            REGION_NULL(pScreen, &pWin->borderClip);
-
-            xnestWindowPriv(pWin)->window = child[i];
-            xnestWindowPriv(pWin)->parent = w;
-            xnestWindowPriv(pWin)->sibling_above = (i>0) ? child[i-1] : (XCBWINDOW){0};
-            xnestWindowPriv(pWin)->owner = XSCREEN_OWNED_BACKING;
-
-
             grep = XCBGetGeometryReply(c, gcook, NULL);
-            pWin->origin.x = grep->x;
-            pWin->origin.y = grep->y;
-            pWin->drawable.width = grep->width;
-            pWin->drawable.height = grep->height;
 
-            if (pWin->parent) {
-                /*set drawable relative to parent. FIXME: is this correct?*/
-                pWin->drawable.x = pWin->origin.x - pWin->parent->origin.x + wBorderWidth(pWin);
-                pWin->drawable.y = pWin->origin.y - pWin->parent->origin.y + wBorderWidth(pWin);
-            } else {
-                /*root window*/
-                pWin->drawable.x = pWin->origin.x;
-                pWin->drawable.y = pWin->origin.y;
-            }
+            pWin = xnestTrackWindow(child[i], pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
+
             /*listen to events on the new window*/
-            ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;
+            ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;;
             XCBChangeWindowAttributes(xnestConnection, child[i], XCBCWEventMask, &ev_mask);
+        } else {
+            ErrorF("Skipping %d\n", child[i]);
         }
 
-        /**
-         * append the window into the list. 
-         * NB: This reorders the WindowPtrs for windows we created in Xscreen.
-         * IS THIS RIGHT?!?
-         **/
-        if (!pParent->firstChild)
-            pParent->firstChild = pWin;
-        if (pPrev)
-            pPrev->nextSib = pWin;
-        pParent->lastChild = pWin;
-        pWin->prevSib = pPrev;
-        /*this is the last sibling in the list*/
-        pWin->nextSib = NULL;
-        pPrev = pWin;
+        xnestInsertWindow(pWin, pParent);
         /*and recurse, adding this window's children*/
         xscreenInitBackingWindows(c, pWin);
-        /*FIXME: insert the window into the stack*/
     }
 }
 
@@ -187,9 +142,13 @@ Bool xnestCreateWindow(WindowPtr pWin)
      * we just set it's XID to the backing server's root.*/
     screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;    
     if (xnestIsRoot(pWin)) {
+        ErrorF("Created Window\n");
         xnestWindowPriv(pWin)->window = screen->root;
+        mask = XCBEventMaskSubstructureNotify|XCBEventMaskPointerMotion;
+        XCBChangeWindowAttributes(xnestConnection, screen->root, XCBCWEventMask, &mask);
         /*now that we've created the root window, we can do the backing windows*/
         xscreenInitBackingWindows(xnestConnection, pWin);
+        ErrorF("Root window: %d\n", screen->root);
         return True;
     }
 

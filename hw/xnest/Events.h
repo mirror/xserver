@@ -24,6 +24,7 @@ is" without express or implied warranty.
 extern CARD32 lastEventTime;
 
 void SetTimeSinceLastInputEvent(void);
+void xnestHandleEvent(XCBGenericEvent *e);
 void xnestCollectExposures(void);
 void xnestCollectEvents(void);
 void xnestQueueKeyEvent(int type, unsigned int keycode);

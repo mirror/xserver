@@ -67,6 +67,7 @@ extern int xnestWindowPrivateIndex;
 #define xnestIsRoot(pWin) \
     ((pWin) == WindowTable[(pWin)->drawable.pScreen->myNum])
 
+
 WindowPtr xnestWindowPtr(XCBWINDOW window);
 Bool xnestCreateWindow(WindowPtr pWin);
 Bool xnestDestroyWindow(WindowPtr pWin);

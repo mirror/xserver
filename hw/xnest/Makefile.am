@@ -30,6 +30,8 @@ SRCS =	Args.c \
 	Visual.c \
 	Visual.h \
 	Window.c \
+	WindowFuncs.h \
+	WindowFuncs.c \
 	XNCursor.h \
 	Xnest.h \
 	XNFont.h \

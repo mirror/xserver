@@ -34,6 +34,7 @@
 #include "Xnest.h"
 
 #include "Display.h"
+#include "Events.h"
 #include "Screen.h"
 #include "XNGC.h"
 #include "XNFont.h"
