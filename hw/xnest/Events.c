@@ -231,7 +231,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
 
         case XCBConfigureNotify:
             cev = (XCBConfigureNotifyEvent *)e;
-            pWin = xnestWindowPtr(cev->event);
+            pWin = xnestWindowPtr(cev->window);
             pSib = xnestWindowPtr(cev->above_sibling);
             pParent = pWin->parent;
             pScreen = pWin->drawable.pScreen;
@@ -259,6 +259,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
             pParent = xnestWindowPtr(ev_reparent->parent);
             pWin = xnestWindowPtr(ev_reparent->window);
 
+            ErrorF("ReparentNotify\n");
             DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
             ErrorF("Reparenting %d to %d\n", (int) ev_reparent->window.xid, (int)ev_reparent->parent.xid);
             /*we'll assume the root can't be reparented, and as such, pParent is _always_ valid*/
@@ -273,21 +274,27 @@ void xnestHandleEvent(XCBGenericEvent *e)
             if (!pWin) {
                 ErrorF("Adding new window\n");
 
+                /*track window*/
                 pWin = xnestTrackWindow(ev_create->window,
                                   pParent, /*parent WindowPtr*/
                                   ev_create->x, ev_create->y, /*x, y*/
                                   ev_create->width, ev_create->height,/*w, h*/
                                   ev_create->border_width);
-                if (!pWin) {
-                    ErrorF("AAGGHH! NULL WINDOW IN CREATE! SEPPUKU!");
-                    exit(1);
-                }
+                /* Now we grab the server and walk this window's children, since
+                 * otherwise we have a nice race condition, where child windows are
+                 * created before we ask for notifications*/
+                XCBGrabServer(xnestConnection);
+                xscreenTrackChildren(pWin);
+                XCBUngrabServer(xnestConnection);
                 xnestInsertWindow(pWin, pParent);
 
+                /*and ask so we know about new children of this window*/
                 ev_mask = XCBEventMaskStructureNotify;
                 XCBChangeWindowAttributes(xnestConnection, ev_create->window, XCBCWEventMask, &ev_mask);
             } 
             ErrorF("-- Added win %d\n", (int)pWin->drawable.id);
+            ErrorF("\n\n---------CreateNotify--------\n\n");
+            DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
             break;
         case XCBNoExposure:
         case XCBGraphicsExposure:

@@ -86,6 +86,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
 {
     WindowPtr pWin;
     ScreenPtr pScreen;
+    XCBWINDOW *child;
 
     pWin = xnestWindowPtr(w);
     if (pWin && xnestIsRoot(pWin))
@@ -180,7 +181,6 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
     SetBorderSize (pWin);
     /*FIXME! THIS IS FUCKED. ONLY FOR TESTING.*/
     pWin->drawable.depth = 24;
-
     return pWin;
 }
 
@@ -208,6 +208,56 @@ void xnestInsertWindow(WindowPtr pWin, WindowPtr pParent)
         else
             pParent->lastChild = pWin;
         pParent->firstChild = pWin;
+    }
+}
+
+
+void xscreenTrackChildren(WindowPtr pParent)
+{
+    int i;
+    XCBWINDOW *child;
+    XCBQueryTreeCookie   qcook;
+    XCBQueryTreeRep     *qrep;
+    XCBGetGeometryCookie gcook;
+    XCBGetGeometryRep   *grep;
+    XCBWINDOW            w = {0};
+    ScreenPtr pScreen;
+    WindowPtr pWin = NULL;
+    WindowPtr pPrev = NULL;
+    CARD32 ev_mask;
+
+
+    /*FIXME: THIS IS WRONG! How do I get the screen?
+     * No issue though, so far, since I only work with one screen.
+     * pScreen = xnestScreen(w);
+     */
+    w = xnestWindowPriv(pParent)->window;
+    pScreen = screenInfo.screens[0];
+    qcook = XCBQueryTree(xnestConnection, w);
+    qrep = XCBQueryTreeReply(xnestConnection, qcook, NULL);
+    child = XCBQueryTreeChildren(qrep);
+    /* Walk through the windows, initializing the privates.
+     * FIXME: initialize x, y, and pWin contents.. how? */
+    for (i=0; i < qrep->children_len; i++){
+        /*if we're not already tracking this one*/
+        pWin = xnestWindowPtr(child[i]);
+        if (!pWin) {
+            ErrorF("Adding window %d\n", child[i]);
+            gcook = XCBGetGeometry(xnestConnection, (XCBDRAWABLE)child[i]);
+            grep = XCBGetGeometryReply(xnestConnection, gcook, NULL);
+
+            pWin = xnestTrackWindow(child[i], pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
+
+            /*listen to events on the new window*/
+            ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;;
+            XCBChangeWindowAttributes(xnestConnection, child[i], XCBCWEventMask, &ev_mask);
+        } else {
+            ErrorF("Skipping %d\n", child[i]);
+        }
+
+        xnestInsertWindow(pWin, pParent);
+        /*and recurse, adding this window's children*/
+        xscreenTrackChildren(pWin);
     }
 }
 /**

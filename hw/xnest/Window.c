@@ -80,54 +80,7 @@ WindowPtr xnestWindowPtr(XCBWINDOW window)
  * we can let Xscreen tell windows that they've been reparented,
  * and other fun stuff.
  **/
-static void xscreenInitBackingWindows(XCBConnection *c, WindowPtr pParent)
-{
-    int i;
-    XCBWINDOW *child;
-    XCBQueryTreeCookie   qcook;
-    XCBQueryTreeRep     *qrep;
-    XCBGetGeometryCookie gcook;
-    XCBGetGeometryRep   *grep;
-    XCBWINDOW            w = {0};
-    ScreenPtr pScreen;
-    WindowPtr pWin = NULL;
-    WindowPtr pPrev = NULL;
-    CARD32 ev_mask;
 
-
-    /*FIXME: THIS IS WRONG! How do I get the screen?
-     * No issue though, so far, since I only work with one screen.
-     * pScreen = xnestScreen(w);
-     */
-    w = xnestWindow(pParent);
-    pScreen = screenInfo.screens[0];
-    qcook = XCBQueryTree(c, w);
-    qrep = XCBQueryTreeReply(c, qcook, NULL);
-    child = XCBQueryTreeChildren(qrep);
-    /* Walk through the windows, initializing the privates.
-     * FIXME: initialize x, y, and pWin contents.. how? */
-    for (i=0; i < qrep->children_len; i++){
-        /*if we're not already tracking this one*/
-        pWin = xnestWindowPtr(child[i]);
-        if (!pWin) {
-            ErrorF("Adding window %d\n", child[i]);
-            gcook = XCBGetGeometry(c, (XCBDRAWABLE)child[i]);
-            grep = XCBGetGeometryReply(c, gcook, NULL);
-
-            pWin = xnestTrackWindow(child[i], pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
-
-            /*listen to events on the new window*/
-            ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;;
-            XCBChangeWindowAttributes(xnestConnection, child[i], XCBCWEventMask, &ev_mask);
-        } else {
-            ErrorF("Skipping %d\n", child[i]);
-        }
-
-        xnestInsertWindow(pWin, pParent);
-        /*and recurse, adding this window's children*/
-        xscreenInitBackingWindows(c, pWin);
-    }
-}
 
 Bool xnestCreateWindow(WindowPtr pWin)
 {
@@ -142,13 +95,20 @@ Bool xnestCreateWindow(WindowPtr pWin)
      * we just set it's XID to the backing server's root.*/
     screen = XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data;    
     if (xnestIsRoot(pWin)) {
-        ErrorF("Created Window\n");
+
         xnestWindowPriv(pWin)->window = screen->root;
+
         mask = XCBEventMaskSubstructureNotify|XCBEventMaskPointerMotion;
         XCBChangeWindowAttributes(xnestConnection, screen->root, XCBCWEventMask, &mask);
+
         /*now that we've created the root window, we can do the backing windows*/
-        xscreenInitBackingWindows(xnestConnection, pWin);
+        XCBGrabServer(xnestConnection);
+        xscreenTrackChildren(pWin);
+        XCBUngrabServer(xnestConnection);
         ErrorF("Root window: %d\n", screen->root);
+        ErrorF(__FUNCTION__);
+        DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
+
         return True;
     }
 
