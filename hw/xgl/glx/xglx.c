@@ -25,6 +25,7 @@
 
 #include "xglx.h"
 
+#include <X11/extensions/Xinerama.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/extensions/dpms.h>
 #include <X11/cursorfont.h>
@@ -132,16 +133,23 @@ static char	 *xDisplayName = 0;
 static Display	 *xdisplay     = 0;
 static int	 xscreen;
 static CARD32	 lastEventTime = 0;
-static ScreenPtr currentScreen = 0;
 static Bool	 softCursor    = FALSE;
 static Bool	 fullscreen    = TRUE;
 static Bool	 xDpms         = FALSE;
 static int	 displayOffset = 0;
+static int	 numScreen     = 1;
+static int	 primaryScreen = 0;
 
 static Bool randrExtension = FALSE;
 static int  randrEvent, randrError;
 
 static glitz_drawable_format_t *xglxScreenFormat = 0;
+
+static RegionRec screenRegion;
+static BoxPtr	 screenRect  = NULL;
+static int	 nScreenRect = 0;
+
+static Window currentEventWindow = None;
 
 static Bool
 xglxAllocatePrivates (ScreenPtr pScreen)
@@ -192,7 +200,7 @@ xglxRandRGetInfo (ScreenPtr pScreen,
 	sizes	    = XRRConfigSizes (xconfig, &nSizes);
 	currentRate = XRRConfigCurrentRate (xconfig);
 
-	if (pScreenPriv->fullscreen)
+	if (pScreenPriv->fullscreen && nScreenRect == 0)
 	{
 	    Rotation rotation;
 
@@ -281,7 +289,7 @@ xglxRandRSetConfig (ScreenPtr	    pScreen,
 
 	for (i = 0; i < nSizes; i++)
 	{
-	    if (pScreenPriv->fullscreen)
+	    if (pScreenPriv->fullscreen && nScreenRect == 0)
 	    {
 		if (sizes[i].width   == pSize->width   &&
 		    sizes[i].height  == pSize->height  &&
@@ -423,9 +431,8 @@ xglxWindowExposures (WindowPtr pWin,
 static void
 xglxEnqueueEvents (void)
 {
-    ScreenPtr pScreen = currentScreen;
-    XEvent    X;
-    xEvent    x;
+    XEvent X;
+    xEvent x;
 
     while (XCheckIfEvent (xdisplay, &X, xglxNotExposurePredicate, NULL))
     {
@@ -464,11 +471,26 @@ xglxEnqueueEvents (void)
 	    mieqEnqueue (&x);
 	    break;
 	case EnterNotify:
-	    if (X.xcrossing.detail != NotifyInferior)
+	    if (!nScreenRect && X.xcrossing.detail != NotifyInferior)
 	    {
+		ScreenPtr pScreen = 0;
+		int	  i;
+
+		for (i = 0; i < screenInfo.numScreens; i++)
+		{
+		    XGLX_SCREEN_PRIV (screenInfo.screens[i]);
+
+		    if (pScreenPriv->win == X.xcrossing.window)
+		    {
+			pScreen	= screenInfo.screens[i];
+			break;
+		    }
+		}
+
 		if (pScreen)
 		{
 		    NewCurrentScreen (pScreen, X.xcrossing.x, X.xcrossing.y);
+
 		    x.u.u.type = MotionNotify;
 		    x.u.u.detail = 0;
 		    x.u.keyButtonPointer.rootX = X.xcrossing.x;
@@ -656,7 +678,25 @@ xglxSetCursorPosition (ScreenPtr pScreen,
 {
     XGLX_SCREEN_PRIV (pScreen);
 
-    XWarpPointer (xdisplay, pScreenPriv->win, pScreenPriv->win,
+    if (currentEventWindow != pScreenPriv->win)
+    {
+	currentEventWindow = pScreenPriv->win;
+
+	if (nScreenRect)
+	    XGrabPointer (xdisplay,
+			  currentEventWindow,
+			  TRUE,
+			  ButtonPressMask   |
+			  ButtonReleaseMask |
+			  PointerMotionMask,
+			  GrabModeAsync,
+			  GrabModeAsync,
+			  currentEventWindow,
+			  None,
+			  CurrentTime);
+    }
+
+    XWarpPointer (xdisplay, currentEventWindow, pScreenPriv->win,
 		  0, 0, 0, 0, x, y);
 
     if (generateEvent)
@@ -732,13 +772,12 @@ xglxScreenInit (int	  index,
     XEvent		    xevent;
     glitz_drawable_format_t *format;
     glitz_drawable_t	    *drawable;
+    int			    x = 0, y = 0;
 
     format = xglxScreenFormat;
 
     if (!xglxAllocatePrivates (pScreen))
 	return FALSE;
-
-    currentScreen = pScreen;
 
     pScreenPriv = XGLX_GET_SCREEN_PRIV (pScreen);
 
@@ -784,6 +823,24 @@ xglxScreenInit (int	  index,
 
 	    XRRFreeScreenConfigInfo (xconfig);
 	}
+
+	if (nScreenRect)
+	{
+	    int w, h;
+
+	    x = screenRect[index].x1;
+	    y = screenRect[index].y1;
+	    w = screenRect[index].x2 - x;
+	    h = screenRect[index].y2 - y;
+
+	    xglScreenInfo.widthMm = (xglScreenInfo.widthMm * w) /
+		xglScreenInfo.width;
+	    xglScreenInfo.width   = w;
+
+	    xglScreenInfo.heightMm = (xglScreenInfo.heightMm * h) /
+		xglScreenInfo.height;
+	    xglScreenInfo.height   = h;
+	}
     }
     else if (xglScreenInfo.width == 0 || xglScreenInfo.height == 0)
     {
@@ -794,7 +851,7 @@ xglxScreenInit (int	  index,
     xswa.colormap = pScreenPriv->colormap;
 
     pScreenPriv->win =
-	XCreateWindow (xdisplay, pScreenPriv->root, 0, 0,
+	XCreateWindow (xdisplay, pScreenPriv->root, x, y,
 		       xglScreenInfo.width, xglScreenInfo.height, 0,
 		       vinfo->depth, InputOutput, vinfo->visual,
 		       CWColormap, &xswa);
@@ -810,9 +867,13 @@ xglxScreenInit (int	  index,
 
     if (fullscreen)
     {
-	normalHints->x = 0;
-	normalHints->y = 0;
+	normalHints->x = x;
+	normalHints->y = y;
 	normalHints->flags |= PPosition;
+    }
+    else
+    {
+	currentEventWindow = pScreenPriv->win;
     }
 
     classHint = XAllocClassHint ();
@@ -1000,7 +1061,8 @@ xglxInitOutput (ScreenInfo *pScreenInfo,
 
     xglxScreenFormat = format;
 
-    AddScreen (xglxScreenInit, argc, argv);
+    for (i = 0; i < numScreen; i++)
+	AddScreen (xglxScreenInit, argc, argv);
 }
 
 static void
@@ -1011,30 +1073,35 @@ xglxBlockHandler (pointer   blockData,
     XEvent    X;
     RegionRec region;
     BoxRec    box;
+    ScreenPtr pScreen;
+    int	      i;
 
-    XGL_SCREEN_PRIV (currentScreen);
-
-    while (XCheckIfEvent (xdisplay, &X, xglxExposurePredicate, NULL))
+    for (i = 0; i < screenInfo.numScreens; i++)
     {
-	ScreenPtr pScreen = currentScreen;
+	pScreen = screenInfo.screens[i];
 
-	box.x1 = X.xexpose.x;
-	box.y1 = X.xexpose.y;
-	box.x2 = box.x1 + X.xexpose.width;
-	box.y2 = box.y1 + X.xexpose.height;
+	XGL_SCREEN_PRIV (pScreen);
 
-	REGION_INIT (currentScreen, &region, &box, 1);
+	while (XCheckIfEvent (xdisplay, &X, xglxExposurePredicate, NULL))
+	{
+	    box.x1 = X.xexpose.x;
+	    box.y1 = X.xexpose.y;
+	    box.x2 = box.x1 + X.xexpose.width;
+	    box.y2 = box.y1 + X.xexpose.height;
 
-	WalkTree (pScreen, xglxWindowExposures, &region);
+	    REGION_INIT (pScreen, &region, &box, 1);
 
-	REGION_UNINIT (pScreen, &region);
+	    WalkTree (pScreen, xglxWindowExposures, &region);
+
+	    REGION_UNINIT (pScreen, &region);
+	}
+
+	if (!xglSyncSurface (&pScreenPriv->pScreenPixmap->drawable))
+	    FatalError (XGL_SW_FAILURE_STRING);
+
+	glitz_surface_flush (pScreenPriv->surface);
+	glitz_drawable_flush (pScreenPriv->drawable);
     }
-
-    if (!xglSyncSurface (&pScreenPriv->pScreenPixmap->drawable))
-	FatalError (XGL_SW_FAILURE_STRING);
-
-    glitz_surface_flush (pScreenPriv->surface);
-    glitz_drawable_flush (pScreenPriv->drawable);
 
     XFlush (xdisplay);
 }
@@ -1376,6 +1443,8 @@ xglxUseMsg (void)
     ErrorF ("-fullscreen            run fullscreen\n");
     ErrorF ("-display string        display name of the real server\n");
     ErrorF ("-softcursor            force software cursor\n");
+    ErrorF ("-scrns                 number of screens to generate\n");
+    ErrorF ("-primary num           xinerama screen to use as first screen\n");
 
     if (!xDisplayName)
 	xglxUseXorgMsg ();
@@ -1456,6 +1525,32 @@ xglxProcessArgument (int  argc,
 	softCursor = TRUE;
 	return 1;
     }
+    else if (!strcmp (argv[i], "-scrns"))
+    {
+	if ((i + 1) < argc)
+	{
+	    int n;
+
+	    n = atoi (argv[i + 1]);
+	    if (n > 1 && n <= MAXSCREENS)
+		numScreen = n;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+    else if (!strcmp (argv[i], "-primary"))
+    {
+	if ((i + 1) < argc)
+	{
+	    primaryScreen = atoi (argv[i + 1]);
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
     else if (!xDisplayName)
     {
 	return xglxProcessXorgArgument (argc, argv, i);
@@ -1479,6 +1574,8 @@ xglxGiveUp (void)
 void
 xglxOsVendorInit (void)
 {
+    miRegionInit (&screenRegion, NULL, 0);
+
     if (!xdisplay)
     {
 	char *name = xDisplayName;
@@ -1520,6 +1617,56 @@ xglxOsVendorInit (void)
 	    XSetScreenSaver (xdisplay, 0, interval,
 			     preferBlanking, allowExposures);
 	    XResetScreenSaver (xdisplay);
+
+	    if (XineramaIsActive (xdisplay))
+	    {
+		XineramaScreenInfo *info;
+		int		   nInfo = 0;
+		RegionRec	   region;
+		BoxRec		   box;
+		BoxPtr		   rect;
+		int		   i;
+
+		info = XineramaQueryScreens (xdisplay, &nInfo);
+
+		for (i = 0; i < nInfo; i++)
+		{
+		    box.x1 = info[i].x_org;
+		    box.y1 = info[i].y_org;
+		    box.x2 = box.x1 + info[i].width;
+		    box.y2 = box.y1 + info[i].height;
+
+		    if (miRectIn (&screenRegion, &box) == rgnOUT)
+		    {
+			rect = Xrealloc (screenRect,
+					 sizeof (BoxRec) * (nScreenRect + 1));
+			if (!rect)
+			    continue;
+
+			if (nScreenRect &&
+			    info[i].screen_number == primaryScreen)
+			{
+			    memmove (rect + 1, rect,
+				     sizeof (BoxRec) * nScreenRect);
+			    *rect = box;
+			}
+			else
+			{
+			    rect[nScreenRect] = box;
+			    screenRect = rect;
+			}
+
+			nScreenRect++;
+
+			miRegionInit (&region, &box, 1);
+			miUnion (&screenRegion, &screenRegion, &region);
+			miRegionUninit (&region);
+		    }
+		}
+	    }
+
+	    if (nScreenRect > 1 && nScreenRect <= MAXSCREENS)
+		numScreen = nScreenRect;
 	}
 
 	if (!glitz_glx_find_window_format (xdisplay, xscreen, 0, NULL, 0))
