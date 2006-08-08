@@ -152,6 +152,37 @@ xglScreenInit (ScreenPtr pScreen)
 	    xglSetVisualTypes (screenInfo.formats[i].depth, 0, 0, 0, 0);
     }
 
+    fbSetVisualTypesAndMasks (depth, (1 << TrueColor),
+			      v->pPixel->bitsPerRGB,
+			      v->pPixel->masks.red_mask,
+			      v->pPixel->masks.green_mask,
+			      v->pPixel->masks.blue_mask);
+
+    for (i = 0; i < screenInfo.numPixmapFormats; i++)
+    {
+	Pixel rm = 0, gm = 0, bm = 0;
+	int   bitsPerRGB = 0;
+
+	if (screenInfo.formats[i].depth == depth)
+	    continue;
+
+	for (v = xglVisuals; v; v = v->next)
+	{
+	    if (v->pPixel->depth == screenInfo.formats[i].depth)
+	    {
+		rm = v->pPixel->masks.red_mask;
+		gm = v->pPixel->masks.green_mask;
+		bm = v->pPixel->masks.blue_mask;
+
+		bitsPerRGB = v->pPixel->bitsPerRGB;
+		break;
+	    }
+	}
+
+	fbSetVisualTypesAndMasks (screenInfo.formats[i].depth,
+				  0, bitsPerRGB, rm, gm, bm);
+    }
+
     pScreenPriv->pVisual = 0;
 
 #ifdef GLXEXT
