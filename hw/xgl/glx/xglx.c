@@ -1443,7 +1443,7 @@ xglxUseMsg (void)
     ErrorF ("-fullscreen            run fullscreen\n");
     ErrorF ("-display string        display name of the real server\n");
     ErrorF ("-softcursor            force software cursor\n");
-    ErrorF ("-scrns                 number of screens to generate\n");
+    ErrorF ("-scrns num             number of screens to generate\n");
     ErrorF ("-primary num           xinerama screen to use as first screen\n");
 
     if (!xDisplayName)
