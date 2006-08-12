@@ -43,8 +43,16 @@ void DBG_xnestListWindows(XCBWINDOW w)
 {
     XCBWINDOW *child;
     WindowPtr pWin;
+    XCBGenericError *err;
     XCBQueryTreeCookie   qcook;
     XCBQueryTreeRep     *qrep;
+    XCBGetGeometryCookie gcook;
+    XCBGetGeometryRep   *grep;
+    XCBGetGeometryRep    back_grep;
+    XCBGetWindowAttributesCookie acook;
+    XCBGetWindowAttributesRep   *arep;
+    XCBGetWindowAttributesRep    back_arep;
+
     static int splvl = 0;
     int i,j;
 
@@ -54,7 +62,7 @@ void DBG_xnestListWindows(XCBWINDOW w)
      * pScreen = xnestScreen(w);
      */
     qcook = XCBQueryTree(xnestConnection, w);
-    qrep = XCBQueryTreeReply(xnestConnection, qcook, NULL);
+    qrep = XCBQueryTreeReply(xnestConnection, qcook, &err);
     child = XCBQueryTreeChildren(qrep);
     /* Walk through the windows, initializing the privates.
      * FIXME: initialize x, y, and pWin contents.. how? */
@@ -63,9 +71,36 @@ void DBG_xnestListWindows(XCBWINDOW w)
         pWin = xnestWindowPtr(child[i]);
         for (j=0; j<splvl; j++)
             ErrorF(" ");
-        ErrorF("Window %d, pWin 0x%x ", w.xid, pWin);
-        if (!pWin)
-            ErrorF("********************WARNING: NULL WINDOW********************");
+
+        gcook = XCBGetGeometry(xnestConnection, (XCBDRAWABLE)child[i]);
+        acook = XCBGetWindowAttributes(xnestConnection, child[i]);
+
+        grep = XCBGetGeometryReply(xnestConnection, gcook, &err);
+        if (err) {
+            ErrorF("Error %d\n", err->error_code);
+            exit(1);
+        }
+
+        arep = XCBGetWindowAttributesReply(xnestConnection, acook, &err);
+        if (err) {
+            ErrorF("Error %d\n", err->error_code);
+            exit(1);
+        }
+
+        if (pWin) {
+            ErrorF("Window %d, Internal %d, (%d, %d), (%d, %d)....(%d, %d), (%d,%d), Event mask 0x%x",
+                    child[i].xid, pWin->drawable.id,
+                    pWin->drawable.x, pWin->drawable.y,
+                    pWin->drawable.width, pWin->drawable.height,
+                    grep->x, grep->y,
+                    grep->width, grep->height,
+                    arep->your_event_mask);
+        } else {
+            ErrorF("Window %d, <NOT TRACKED INTERNALLY!!!!!!>, (%d, %d), (%d,%d), Event mask 0x%x",
+                    grep->x, grep->y,
+                    grep->width, grep->height,
+                    arep->your_event_mask);
+        }
         ErrorF("\n");
         /*and recurse, adding this window's children*/
         splvl++;
@@ -82,7 +117,7 @@ void DBG_xnestListWindows(XCBWINDOW w)
  * This function is used to set up a window that's already been created
  * on the backing server, which means I don't want to actually _create_ it.
  **/
-WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int width, int height, int bw)
+WindowPtr xscreenTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int width, int height, int bw)
 {
     WindowPtr pWin;
     ScreenPtr pScreen;
@@ -105,7 +140,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
     pWin->optional = (WindowOptPtr)NULL;
     pWin->cursorIsNone = TRUE;
 
-    pWin->backingStore = NotUseful;
+    pWin->backingStore = NotUseful;file:///home/ori/.mozilla/firefox/eysrj7gz.default/bookmarks.html
     pWin->DIXsaveUnder = FALSE;
     pWin->backStorage = (pointer) NULL;
 
@@ -130,7 +165,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
 #ifdef COMPOSITE
     pWin->redirectDraw = 0;
 #endif
-    
+
     pWin->parent = pParent;
     pWin->drawable = pParent->drawable;
 
@@ -138,6 +173,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
     pWin->origin.y = y + bw;
     pWin->drawable.width = width;
     pWin->drawable.height = height;
+    pWin->borderWidth = bw;
     pWin->drawable.x = pParent->drawable.x + x + bw;
     pWin->drawable.y = pParent->drawable.y + y + bw;   
     pWin->drawable.type = DRAWABLE_WINDOW;
@@ -154,7 +190,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
     xnestWindowPriv(pWin)->height = pWin->drawable.height;
     xnestWindowPriv(pWin)->sibling_above = (XCBWINDOW){0};
     xnestWindowPriv(pWin)->owner = XSCREEN_OWNED_BACKING;
-   
+
     pWin->borderIsPixel = pParent->borderIsPixel;
     pWin->border = pParent->border;
     if (pWin->borderIsPixel == FALSE)
@@ -171,6 +207,7 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
     pWin->valdata = NULL;
 
     REGION_NULL(pScreen, &pWin->winSize);
+    xnestWindowPriv(pWin)->clip_shape = NULL;
     REGION_NULL(pScreen, &pWin->borderSize);
     REGION_NULL(pScreen, &pWin->clipList);
     REGION_NULL(pScreen, &pWin->borderClip);
@@ -179,16 +216,73 @@ WindowPtr xnestTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int wid
 
     SetWinSize (pWin);
     SetBorderSize (pWin);
-    /*FIXME! THIS IS FUCKED. ONLY FOR TESTING.*/
+    /*FIXME! THIS IS FUCKED. ONLY FOR TESTING Need to actually get the resolution properly.*/
     pWin->drawable.depth = 24;
     return pWin;
+}
+
+int xscreenHandleConfigure(WindowPtr pWin, XCBWINDOW sib, int x, int y, int w, int h, int bw)
+{
+    WindowPtr pSib = NullWindow;
+    WindowPtr pParent = pWin->parent;
+    xEvent event;
+
+    if (xnestWindowPriv(pWin)->owner == XSCREEN_OWNED_XSCREEN){
+        event.u.u.type = ConfigureNotify;
+        event.u.configureNotify.window = pWin->drawable.id;
+        if (pSib)
+            event.u.configureNotify.aboveSibling = sib.xid;
+        else
+            event.u.configureNotify.aboveSibling = 0;
+        event.u.configureNotify.x = x;
+        event.u.configureNotify.y = y;
+        event.u.configureNotify.width = w;
+        event.u.configureNotify.height = h;
+        event.u.configureNotify.borderWidth = bw;
+        event.u.configureNotify.override = pWin->overrideRedirect;
+        DeliverEvents(pWin, &event, 1, NullWindow);
+    } else {
+        pWin->origin.x = x + bw;
+        pWin->origin.y = y + bw;
+        pWin->drawable.x = x + bw + pParent->drawable.x;
+        pWin->drawable.y = y + bw + pParent->drawable.y;
+    }
+}
+
+void break_here(void){
+    printf("********************************************************BREAK!!!\n");
+}
+
+void xnestRemoveWindow(WindowPtr pWin)
+{
+    WindowPtr pPrev;
+    WindowPtr pNext;
+    WindowPtr pParent;
+    
+    pPrev = pWin->prevSib;
+    pNext = pWin->nextSib;
+    pParent = pWin->parent;
+
+    if (pPrev)
+        pPrev->nextSib = pNext;
+    else
+        pParent->firstChild = pNext;
+
+    if (pNext)
+        pNext->prevSib = pPrev;
+    else
+        pWin->lastChild = pPrev;
+
+    pWin->nextSib = NULL;
+    pWin->prevSib = NULL;
 }
 
 void xnestInsertWindow(WindowPtr pWin, WindowPtr pParent) 
 {
     WindowPtr pPrev;
-    
-    pPrev = RealChildHead(pParent);
+
+    pPrev = pParent->firstChild;// RealChildHead(pParent);
+    pWin->parent = pParent;
     if (pPrev)
     {
         pWin->nextSib = pPrev->nextSib;
@@ -209,6 +303,8 @@ void xnestInsertWindow(WindowPtr pWin, WindowPtr pParent)
             pParent->lastChild = pWin;
         pParent->firstChild = pWin;
     }
+    if (pWin->nextSib == pWin)
+        break_here();
 }
 
 
@@ -246,15 +342,17 @@ void xscreenTrackChildren(WindowPtr pParent)
             gcook = XCBGetGeometry(xnestConnection, (XCBDRAWABLE)child[i]);
             grep = XCBGetGeometryReply(xnestConnection, gcook, NULL);
 
-            pWin = xnestTrackWindow(child[i], pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
+            pWin = xscreenTrackWindow(child[i], pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
 
             /*listen to events on the new window*/
             ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;;
             XCBChangeWindowAttributes(xnestConnection, child[i], XCBCWEventMask, &ev_mask);
         } else {
-            ErrorF("Skipping %d\n", child[i]);
+            ErrorF("*****Skipping %d\n", child[i]);
         }
 
+        if (xnestWindowPriv(pWin)->owner != XSCREEN_OWNED_BACKING && pWin->parent)
+            xnestRemoveWindow(pWin);
         xnestInsertWindow(pWin, pParent);
         /*and recurse, adding this window's children*/
         xscreenTrackChildren(pWin);
@@ -268,21 +366,20 @@ void xscreenTrackChildren(WindowPtr pParent)
  **/
 
 int xnestReparentWindow(register WindowPtr pWin, register WindowPtr pParent,
-               int x, int y, ClientPtr client)
+        int x, int y, ClientPtr client)
 {
     WindowPtr pPrev, pPriorParent;
-    Bool WasMapped = (Bool)(pWin->mapped);
+//    Bool WasMapped = (Bool)(pWin->mapped);
     int bw = wBorderWidth (pWin);
     register ScreenPtr pScreen;
 
     pScreen = pWin->drawable.pScreen;
 
-    if (WasMapped)
-        UnmapWindow(pWin, FALSE);
+//    if (WasMapped)
+//        UnmapWindow(pWin, FALSE);
 
 
     /* take out of sibling chain */
-
     pPriorParent = pPrev = pWin->parent;
     if (pPrev->firstChild == pWin)
         pPrev->firstChild = pWin->nextSib;
@@ -296,7 +393,7 @@ int xnestReparentWindow(register WindowPtr pWin, register WindowPtr pParent,
 
     /* insert at begining of pParent */
     pWin->parent = pParent;
-    pPrev = RealChildHead(pParent);
+    pPrev = pParent->firstChild;//RealChildHead(pParent);
     if (pPrev)
     {
         pWin->nextSib = pPrev->nextSib;
@@ -317,6 +414,7 @@ int xnestReparentWindow(register WindowPtr pWin, register WindowPtr pParent,
             pParent->lastChild = pWin;
         pParent->firstChild = pWin;
     }
+    
 
     pWin->origin.x = x + bw;
     pWin->origin.y = y + bw;
@@ -326,14 +424,12 @@ int xnestReparentWindow(register WindowPtr pWin, register WindowPtr pParent,
     /* clip to parent */
     SetWinSize (pWin);
     SetBorderSize (pWin);
-    if (pScreen->ReparentWindow)
-        (*pScreen->ReparentWindow)(pWin, pPriorParent);
     (*pScreen->PositionWindow)(pWin, pWin->drawable.x, pWin->drawable.y);
-    ResizeChildrenWinSize(pWin, 0, 0, 0, 0);
-   //CheckWindowOptionalNeed(pWin);
+    //ResizeChildrenWinSize(pWin, 0, 0, 0, 0);
+    //CheckWindowOptionalNeed(pWin);
 
-    if (WasMapped)
-        MapWindow(pWin, client);
+//    if (WasMapped)
+//        MapWindow(pWin, client);
     RecalculateDeliverableEvents(pWin);
     return(Success);
 }

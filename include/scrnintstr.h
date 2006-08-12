@@ -591,8 +591,7 @@ typedef struct _ScreenInfo {
     int		bitmapScanlinePad;
     int		bitmapBitOrder;
     int		numPixmapFormats;
-    PixmapFormatRec
-		formats[MAXFORMATS];
+    PixmapFormatRec formats[MAXFORMATS];
     int		arraySize;
     int		numScreens;
     ScreenPtr	screens[MAXSCREENS];

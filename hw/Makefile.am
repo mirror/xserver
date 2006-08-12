@@ -14,6 +14,10 @@ if XNEST
 XNEST_SUBDIRS = xnest
 endif
 
+if XNEST
+XSCREEN_SUBDIRS = xscreen
+endif
+
 if XWIN
 XWIN_SUBDIRS = xwin
 endif
@@ -34,8 +38,9 @@ SUBDIRS =			\
 	$(XWIN_SUBDIRS)		\
 	$(XVFB_SUBDIRS)		\
 	$(XNEST_SUBDIRS)	\
-	$(DMX_SUBDIRS)          \
-        $(KDRIVE_SUBDIRS)
+	$(XSCREEN_SUBDIRS)  \
+	$(DMX_SUBDIRS)      \
+	$(KDRIVE_SUBDIRS)
 
 DIST_SUBDIRS = dmx xfree86 vfb xnest xwin darwin kdrive xgl
 

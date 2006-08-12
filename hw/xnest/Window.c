@@ -105,6 +105,7 @@ Bool xnestCreateWindow(WindowPtr pWin)
         XCBGrabServer(xnestConnection);
         xscreenTrackChildren(pWin);
         XCBUngrabServer(xnestConnection);
+
         ErrorF("Root window: %d\n", screen->root);
         ErrorF(__FUNCTION__);
         DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
@@ -223,7 +224,7 @@ void xnestConfigureWindow(WindowPtr pWin, unsigned int mask)
     unsigned int valuemask;
     XCBParamsConfigureWindow values;
 
-    if (mask & XCBConfigWindowSibling &&
+    if ((mask & XCBConfigWindowSibling) &&
             xnestWindowPriv(pWin)->parent.xid != xnestWindowParent(pWin).xid) {
         XCBReparentWindow(xnestConnection,
                 xnestWindow(pWin), 

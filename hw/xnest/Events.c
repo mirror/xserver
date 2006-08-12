@@ -233,6 +233,15 @@ void xnestHandleEvent(XCBGenericEvent *e)
             cev = (XCBConfigureNotifyEvent *)e;
             pWin = xnestWindowPtr(cev->window);
             pSib = xnestWindowPtr(cev->above_sibling);
+
+            xscreenHandleConfigure(pWin, pSib ? xnestWindow(pSib).xid : 0, 
+                                   cev->x, cev->y,
+                                   cev->width, cev->height);
+            break;
+#if 0
+            cev = (XCBConfigureNotifyEvent *)e;
+            pWin = xnestWindowPtr(cev->window);
+            pSib = xnestWindowPtr(cev->above_sibling);
             pParent = pWin->parent;
             pScreen = pWin->drawable.pScreen;
             
@@ -250,6 +259,9 @@ void xnestHandleEvent(XCBGenericEvent *e)
             cfg_data[i++] = 0;
             ConfigureWindow(pWin, cfg_mask, cfg_data, wClient(pWin));
             break;
+#endif
+
+#if 0
         case XCBReparentNotify:
             /*Reparent windows. This is to track non-xscreen managed windows and their
              * relationship to xscreen managed windows. It should be harmless to poke at 
@@ -260,12 +272,13 @@ void xnestHandleEvent(XCBGenericEvent *e)
             pWin = xnestWindowPtr(ev_reparent->window);
 
             ErrorF("ReparentNotify\n");
-            DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
             ErrorF("Reparenting %d to %d\n", (int) ev_reparent->window.xid, (int)ev_reparent->parent.xid);
             /*we'll assume the root can't be reparented, and as such, pParent is _always_ valid*/
             xnestReparentWindow(pWin, pParent, ev_reparent->x, ev_reparent->y, wClient(pWin));
-            break;
+            //DBG_xnestListWindows(XCBSetupRootsIter(XCBGetSetup (xnestConnection)).data->root);
 
+            break;
+#endif
         case XCBCreateNotify:
             ev_create = (XCBCreateNotifyEvent *)e;
             pParent = xnestWindowPtr(ev_create->parent);
@@ -275,7 +288,7 @@ void xnestHandleEvent(XCBGenericEvent *e)
                 ErrorF("Adding new window\n");
 
                 /*track window*/
-                pWin = xnestTrackWindow(ev_create->window,
+                pWin = xscreenTrackWindow(ev_create->window,
                                   pParent, /*parent WindowPtr*/
                                   ev_create->x, ev_create->y, /*x, y*/
                                   ev_create->width, ev_create->height,/*w, h*/
@@ -294,14 +307,13 @@ void xnestHandleEvent(XCBGenericEvent *e)
             } 
             ErrorF("-- Added win %d\n", (int)pWin->drawable.id);
             ErrorF("\n\n---------CreateNotify--------\n\n");
-            DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
+            //DBG_xnestListWindows(XCBSetupRootsIter(XCBGetSetup (xnestConnection)).data->root);
             break;
         case XCBNoExposure:
         case XCBGraphicsExposure:
         case XCBCirculateNotify:
 
         case XCBGravityNotify:
-#if 0
         case XCBMapNotify:
             ev_map = (XCBMapNotifyEvent *)e;
             pWin = xnestWindowPtr(ev_map->window);
@@ -317,7 +329,6 @@ void xnestHandleEvent(XCBGenericEvent *e)
             pWin->mapped = 0;
             break;
 
-#endif
         default:
             ErrorF("****xnest warning: unhandled event %d\n", e->response_type & ~0x80);
             ErrorF("****Sequence number: %d\n", e->sequence);
@@ -338,8 +349,8 @@ void xnestCollectEvents()
         if (!e->response_type) {
             err = (XCBGenericError *)e;
             ErrorF("****** File: %s Error: %d, Sequence %d\n", __FILE__, err->error_code, err->sequence);
-
         } else {
+            ErrorF("Handling event %d\n", e->response_type & ~0x80);
             xnestHandleEvent(e);
         }
     }

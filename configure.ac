@@ -429,6 +429,7 @@ AC_ARG_ENABLE(xorg,    	      AS_HELP_STRING([--enable-xorg], [Build Xorg server
 AC_ARG_ENABLE(dmx,    	      AS_HELP_STRING([--enable-dmx], [Build DMX server (default: auto)]), [DMX=$enableval], [DMX=auto])
 AC_ARG_ENABLE(xvfb,    	      AS_HELP_STRING([--enable-xvfb], [Build Xvfb server (default: yes)]), [XVFB=$enableval], [XVFB=yes])
 AC_ARG_ENABLE(xnest,   	      AS_HELP_STRING([--enable-xnest], [Build Xnest server (default: auto)]), [XNEST=$enableval], [XNEST=auto])
+AC_ARG_ENABLE(xscreen, 	      AS_HELP_STRING([--enable-xnest], [Build Xscreen server (default: auto)]), [XNEST=$enableval], [XNEST=auto])
 AC_ARG_ENABLE(xwin,    	      AS_HELP_STRING([--enable-xwin], [Build XWin server (default: auto)]), [XWIN=$enableval], [XWIN=auto])
 AC_ARG_ENABLE(xprint,         AS_HELP_STRING([--enable-xprint], [Build Xprint extension and server (default: auto)]), [XPRINT=$enableval], [XPRINT=auto])
 AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (default: no)]), [XGL=$enableval], [XGL=no])
@@ -945,6 +946,20 @@ if test "x$XNEST" = xyes; then
 	AC_SUBST([XNEST_LIBS])
 fi
 
+dnl Xscreen DDX
+
+AC_MSG_CHECKING([whether to build Xscreen DDX])
+PKG_CHECK_MODULES(XSCREENMODULES, [xfont xext  xau xcb xcb-shape xcb-image xcb-aux xcb-icccm $XDMCP_MODULES], [have_xscreen=yes], [have_xscreen=no])
+if test "x$XSCREEN" = xauto; then
+	XSCREEN="$have_xscreen"
+fi
+AC_MSG_RESULT([$XSCREEN])
+AM_CONDITIONAL(XSCREEN, [test "x$XSCREEN" = xyes])
+
+if test "x$XSCREEN" = xyes; then
+	XSCREEN_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $CWRAP_LIB $OS_LIB"
+	AC_SUBST([XSCREEN_LIBS])
+fi
 
 dnl Xorg DDX
 
@@ -1704,6 +1719,7 @@ hw/xgl/glx/module/Makefile
 hw/xgl/glxext/Makefile
 hw/xgl/glxext/module/Makefile
 hw/xnest/Makefile
+hw/xscreen/Makefile
 hw/xwin/Makefile
 hw/darwin/Makefile
 hw/kdrive/Makefile

@@ -31,18 +31,21 @@ is" without express or implied warranty.
 #include "Xnest.h"
 
 #include "Display.h"
+#include "WindowFuncs.h"
 #include "Events.h"
 #include "Handlers.h"
 
-void
-xnestBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
+void xnestBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
 {
-  xnestCollectEvents();
-  XCBFlush(xnestConnection);
+    DBG_xnestListWindows(XCBSetupRootsIter (XCBGetSetup (xnestConnection)).data->root);
+    ErrorF("\n\n\nBlock\n");
+
+    xnestCollectEvents();
+    XCBFlush(xnestConnection);
 }
 
-void
-xnestWakeupHandler(pointer blockData, int result, pointer pReadMask)
+void xnestWakeupHandler(pointer blockData, int result, pointer pReadMask)
 {
+   ErrorF("\n\n\nWakeup\n");
   xnestCollectEvents();
 }
