@@ -81,7 +81,8 @@ void InitOutput(ScreenInfo *si, int argc, char *argv[])
      * going to be putting in barely-tested code
      **/
     si->numScreens = 1;
-    AddScreen(xsOpenScreen, argc, argv);
+    if (AddScreen(xsOpenScreen, argc, argv) < 0)
+        FatalError("Failed to initialize screen 0\n");
     /*si->numVideoScreens = ... what do I do with this?;*/
 
 }

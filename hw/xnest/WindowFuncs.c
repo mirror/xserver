@@ -140,7 +140,7 @@ WindowPtr xscreenTrackWindow(XCBWINDOW w, WindowPtr pParent, int x, int y, int w
     pWin->optional = (WindowOptPtr)NULL;
     pWin->cursorIsNone = TRUE;
 
-    pWin->backingStore = NotUseful;file:///home/ori/.mozilla/firefox/eysrj7gz.default/bookmarks.html
+    pWin->backingStore = NotUseful;
     pWin->DIXsaveUnder = FALSE;
     pWin->backStorage = (pointer) NULL;
 
