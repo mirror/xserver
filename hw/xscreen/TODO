@@ -1,0 +1,6 @@
+- Implement all Window functions
+- Finish the Window Creation bits
+- Initialize the keyboard properly
+    (Do we want to do XKB? just forward events from the backing server?)
+- Fonts
+- Shape extension

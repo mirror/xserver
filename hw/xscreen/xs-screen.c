@@ -22,7 +22,6 @@
 #include "mi.h"
 
 #include "xs-globals.h"
-#include "xs-types.h"
 #include "xs-gc.h"
 #include "xs-font.h"
 #include "xs-gcops.h"
@@ -63,7 +62,7 @@ static void xsScreenSetProcs(ScreenPtr pScreen)
     pScreen->RealizeWindow = xsRealizeWindow;
     pScreen->UnrealizeWindow = xsUnrealizeWindow;
     pScreen->PostValidateTree = NULL;
-    pScreen->WindowExposures = xsWindowExposures;
+    //pScreen->WindowExposures = xsWindowExposures;
     pScreen->PaintWindowBackground = xsPaintWindowBackground;
     pScreen->PaintWindowBorder = xsPaintWindowBorder;
     pScreen->CopyWindow = xsCopyWindow;
