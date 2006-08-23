@@ -32,6 +32,9 @@
  **/
 void InitInput(int argc, char *argv[])
 {
+    /*shut up GCC.*/
+    argc++;
+    argv++;
 }
 
 void xsInitPixmapFormats(const XCBSetup *setup, PixmapFormatRec fmts[])
@@ -52,9 +55,10 @@ void xsInitPixmapFormats(const XCBSetup *setup, PixmapFormatRec fmts[])
  **/
 void InitOutput(ScreenInfo *si, int argc, char *argv[])
 {
-    int screennum;
+    int             screennum;
     const XCBSetup *setup;
-    char *display;
+    XCBSCREEN      *screen;
+    char           *display;
 
     /*FIXME: add a "-display" option*/
     /*Globals Globals Everywhere.*/
@@ -70,17 +74,24 @@ void InitOutput(ScreenInfo *si, int argc, char *argv[])
 
     setup = XCBGetSetup(xsConnection);
 
+    /*set up the root window*/
+    screen = XCBSetupRootsIter(setup).data;
+    xsBackingRoot.window = screen->root;
+    /*initialize the ScreenInfo pixmap/image fields*/
     si->imageByteOrder = setup->image_byte_order;
     si->bitmapScanlineUnit = setup->bitmap_format_scanline_unit;
     si->bitmapBitOrder = setup->bitmap_format_bit_order;
     si->numPixmapFormats = setup->pixmap_formats_len;
     xsInitPixmapFormats(setup, si->formats);
+
+    /*initialize the private indexes for stuff*/
     /**
      * NB: If anyone cares about multiple screens in Xscreen,
      * they can add support. I don't care about it, and I'm not
      * going to be putting in barely-tested code
      **/
-    si->numScreens = 1;
+    si->numScreens = 0;
+    /*eww. AddScren increments si->numScreens.*/
     if (AddScreen(xsOpenScreen, argc, argv) < 0)
         FatalError("Failed to initialize screen 0\n");
     /*si->numVideoScreens = ... what do I do with this?;*/

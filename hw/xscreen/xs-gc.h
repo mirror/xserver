@@ -3,12 +3,12 @@
 
 typedef struct {
   XCBGCONTEXT gc;
-} xsPrivGC;
+} XscreenPrivGC;
 
 extern int xsGCPrivateIndex;
 
 #define XS_GC_PRIV(pGC) \
-  ((xsPrivGC *)((pGC)->devPrivates[xsGCPrivateIndex].ptr))
+  ((XscreenPrivGC *)((pGC)->devPrivates[xsGCPrivateIndex].ptr))
 
 Bool xsCreateGC(GCPtr pGC);
 void xsValidateGC(GCPtr pGC, unsigned long changes, DrawablePtr pDrawable);

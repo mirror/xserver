@@ -15,9 +15,9 @@ typedef enum {
 
 extern XCBConnection *xsConnection;
 extern XCBDRAWABLE    xsDefaultDrawables[MAXDEPTH];
-extern XCBDRAWABLE    xsDefaultWindow;
+extern XCBDRAWABLE    xsBackingRoot;
 extern int            xsFontPrivateIndex;
 extern int            xsGCPrivateIndex;
 extern int            xsWindowPrivateIndex;
-
+void xsAllocPrivateIndecies(ScreenPtr pScreen);
 #endif

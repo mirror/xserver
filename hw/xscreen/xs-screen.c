@@ -67,6 +67,10 @@ static void xsScreenSetProcs(ScreenPtr pScreen)
     pScreen->PaintWindowBorder = xsPaintWindowBorder;
     pScreen->CopyWindow = xsCopyWindow;
     pScreen->ClipNotify = xsClipNotify;
+    
+    /* Pixmap procedures */
+    pScreen->CreatePixmap = xsCreatePixmap;
+    pScreen->DestroyPixmap = xsDestroyPixmap;
 
     /* Backing store procedures */
     pScreen->SaveDoomedAreas = NULL;
@@ -109,5 +113,7 @@ static void xsScreenSetProcs(ScreenPtr pScreen)
 Bool xsOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
 {
     xsScreenSetProcs(pScreen);
+    xsAllocPrivateIndecies(pScreen);
+
     return TRUE;
 }

@@ -47,7 +47,7 @@ void xsQueryBestSize(int class, unsigned short *pWidth, unsigned short *pHeight,
     XCBQueryBestSizeRep    *r;
 
 
-    c = XCBQueryBestSize(xsConnection, class, (XCBDRAWABLE)xsDefaultWindow, *pWidth,*pHeight);
+    c = XCBQueryBestSize(xsConnection, class, (XCBDRAWABLE)xsBackingRoot, *pWidth,*pHeight);
     r = XCBQueryBestSizeReply(xsConnection, c, NULL);
 
     *pWidth = r->width;

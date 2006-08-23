@@ -109,7 +109,7 @@ PixmapPtr xsCreatePixmap(ScreenPtr pScreen, int width, int height, int depth)
         XCBCreatePixmap(xsConnection,
                 depth,
                 XS_PIXMAP_PRIV(pPixmap)->pixmap,
-                (XCBDRAWABLE)xsDefaultWindow,
+                xsBackingRoot,
                 width, height);
     } else
         XS_PIXMAP_PRIV(pPixmap)->pixmap.xid = 0;

@@ -499,7 +499,7 @@ Bool xsChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
         ColormapPtr pCmap;
         pCmap = LookupIDByType(wColormap(pWin), RT_COLORMAP);
         param.colormap = XS_CMAP_PRIV(pCmap)->colormap.xid;
-        //xsSetInstalledColormapWindows(pWin->drawable.pScreen);
+        xsSetInstalledColormapWindows(pWin->drawable.pScreen);
     }
     if (mask & XCBCWCursor) /* this is handeled in cursor code */
         mask &= ~XCBCWCursor;

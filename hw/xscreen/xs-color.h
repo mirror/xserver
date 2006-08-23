@@ -19,7 +19,7 @@ int  xsListInstalledColormaps(ScreenPtr pScreen, XCBCOLORMAP *pCmapIDs);
 void xsStoreColors(ColormapPtr pCmap, int nColors, XCBCOLORITEM *pColors);
 void xsResolveColor(CARD16 *r, CARD16 *g, CARD16 *b, VisualPtr pVisual);
 
-//void xsSetInstalledColormapWindows(ScreenPtr pScreen);
+void xsSetInstalledColormapWindows(ScreenPtr pScreen);
 //void xsSetScreenSaverColormapWindow(ScreenPtr pScreen);
 //void xsDirectInstallColormaps(ScreenPtr pScreen);
 //void xsDirectUninstallColormaps(ScreenPtr pScreen);
