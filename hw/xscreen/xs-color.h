@@ -1,6 +1,9 @@
 #ifndef _XS_COLOR_INCL_ 
 #define _XS_COLOR_INCL_
 
+/* Borrowed from Xnest. Seems Xnest pulled it from it's ass. Will use for now*/
+#define MAXCMAPS 1
+
 typedef struct {
   XCBCOLORMAP colormap;
 } XscreenPrivColormap;

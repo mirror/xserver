@@ -1,4 +1,4 @@
-#ifdef HAVE_XNEST_CONFIG_H
+#ifdef HAVE_XS_CONFIG_H
 #include <xs-config.h>
 #endif
 #include <X11/Xmd.h>

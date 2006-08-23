@@ -108,6 +108,6 @@ static void xsScreenSetProcs(ScreenPtr pScreen)
 
 Bool xsOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
 {
-    xsSetScreenProcs(pScreen);
+    xsScreenSetProcs(pScreen);
     return TRUE;
 }

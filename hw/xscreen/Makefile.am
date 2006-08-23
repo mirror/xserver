@@ -1,7 +1,11 @@
 bin_PROGRAMS = Xscreen
 
-Xscreen_SOURCES = xs-event.c \
+Xscreen_SOURCES = xs-color.h \
+				  xs-color.c \
+				  xs-event.c \
 				  xs-event.h \
+				  xs-font.h \
+				  xs-font.c \
 				  xs-gc.c \
 				  xs-gcops.c \
 				  xs-gcops.h \
@@ -13,6 +17,8 @@ Xscreen_SOURCES = xs-event.c \
 				  xs-pixmap.h \
 				  xs-screen.c \
 				  xs-screen.h \
+				  xs-visual.h \
+				  xs-visual.c \
 				  xs-window.c \
 				  xs-window.h \
 				  $(top_srcdir)/Xext/dpmsstubs.c \

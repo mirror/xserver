@@ -1,5 +1,5 @@
-#ifndef XNESTGC_H
-#define XNESTGC_H
+#ifndef _XS_GC_INCL_ 
+#define _XS_GC_INCL_ 
 
 typedef struct {
   XCBGCONTEXT gc;
@@ -20,4 +20,4 @@ void xsDestroyClip(GCPtr pGC);
 void xsDestroyClipHelper(GCPtr pGC);
 void xsCopyClip(GCPtr pGCDst, GCPtr pGCSrc);
 
-#endif /* XNESTGC_H */
+#endif 

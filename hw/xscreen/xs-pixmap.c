@@ -14,7 +14,7 @@ is" without express or implied warranty.
 */
 /* $XFree86: xc/programs/Xserver/hw/xs/Pixmap.c,v 3.7 2003/07/16 01:38:51 dawes Exp $ */
 
-#ifdef HAVE_XNEST_CONFIG_H
+#ifdef HAVE_XS_CONFIG_H
 #include <xs-config.h>
 #endif
 

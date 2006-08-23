@@ -1,6 +1,6 @@
-/* $Xorg: GCOps.h,v 1.3 2000/08/17 19:53:28 cpqbld Exp $ */
 /*
 
+Copyright 2006 by Ori Bernstein
 Copyright 1993 by Davor Matic
 
 Permission to use, copy, modify, distribute, and sell this software
@@ -12,7 +12,6 @@ the suitability of this software for any purpose.  It is provided "as
 is" without express or implied warranty.
 
 */
-/* $XFree86$ */
 
 #ifndef XNESTGCOPS_H
 #define XNESTGCOPS_H

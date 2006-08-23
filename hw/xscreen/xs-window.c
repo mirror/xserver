@@ -1,4 +1,4 @@
-#ifdef HAVE_XNEST_CONFIG_H
+#ifdef HAVE_XS_CONFIG_H
 #include <xs-config.h>
 #endif
 #include <X11/Xmd.h>
@@ -58,14 +58,62 @@ WindowPtr xsGetWindow(XCBWINDOW window)
     return wm.pWin;
 }
 
+/**
+ * Removes a window from the window tree, rearranging the siblings.
+ **/
+void xsRemoveWindow(WindowPtr pWin)
+{
+    WindowPtr pPrev;
+    WindowPtr pNext;
+    WindowPtr pParent;
+    
+    pPrev = pWin->prevSib;
+    pNext = pWin->nextSib;
+    pParent = pWin->parent;
 
+    if (pPrev)
+        pPrev->nextSib = pNext;
+    else
+        pParent->firstChild = pNext;
+
+    if (pNext)
+        pNext->prevSib = pPrev;
+    else
+        pWin->lastChild = pPrev;
+
+    pWin->nextSib = NULL;
+    pWin->prevSib = NULL;
+}
 /**
  * Inserts a window into the window tree.
  * pParent must NOT be NULL, ie: this must NOT be called on the root window.
  **/
-void xsInstallWindow(WindowPtr pWin, WindowPtr pParent)
+void xsInsertWindow(WindowPtr pWin, WindowPtr pParent)
 {
-    
+    WindowPtr pPrev;
+
+    pPrev = pParent->firstChild;// RealChildHead(pParent);
+    pWin->parent = pParent;
+    if (pPrev)
+    {
+        pWin->nextSib = pPrev->nextSib;
+        if (pPrev->nextSib)
+            pPrev->nextSib->prevSib = pWin;
+        else
+            pParent->lastChild = pWin;
+        pPrev->nextSib = pWin;
+        pWin->prevSib = pPrev;
+    }
+    else
+    {
+        pWin->nextSib = pParent->firstChild;
+        pWin->prevSib = NullWindow;
+        if (pParent->firstChild)
+            pParent->firstChild->prevSib = pWin;
+        else
+            pParent->lastChild = pWin;
+        pParent->firstChild = pWin;
+    } 
 }
 
 /**
@@ -218,7 +266,7 @@ static void xsTrackChildren(WindowPtr pParent, CARD32 ev_mask)
         } else {
             xsRemoveWindow(pWin);
         }
-        xsInstallWindow(pParent, pWin);
+        xsInsertWindow(pParent, pWin);
     }
 }
 
@@ -451,7 +499,7 @@ Bool xsChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
         ColormapPtr pCmap;
         pCmap = LookupIDByType(wColormap(pWin), RT_COLORMAP);
         param.colormap = XS_CMAP_PRIV(pCmap)->colormap.xid;
-        xsSetInstalledColormapWindows(pWin->drawable.pScreen);
+        //xsSetInstalledColormapWindows(pWin->drawable.pScreen);
     }
     if (mask & XCBCWCursor) /* this is handeled in cursor code */
         mask &= ~XCBCWCursor;
@@ -479,7 +527,7 @@ void xsConfigureWindow(WindowPtr pWin, CARD32 mask)
     values.y = pWin->origin.y;
     values.width = pWin->drawable.width;
     values.height = pWin->drawable.height;
-    values.border_width = wBorder(pWin);
+    values.border_width = wBorderWidth(pWin);
 
     XCBAuxConfigureWindow(xsConnection, XS_WINDOW_PRIV(pWin)->window, mask, &values);
 

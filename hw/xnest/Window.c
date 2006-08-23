@@ -14,8 +14,8 @@
 */
 /* $XFree86: xc/programs/Xserver/hw/xnest/Window.c,v 3.7 2001/10/28 03:34:11 tsi Exp $ */
 
-#ifdef HAVE_XNEST_CONFIG_H
-#include <xnest-config.h>
+#ifdef HAVE_XS_CONFIG_H
+#include <xs-config.h>
 #endif
 
 #include <X11/Xmd.h>
