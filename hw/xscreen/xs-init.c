@@ -25,17 +25,6 @@
 
 #include "mi.h"
 
-/**
- * DIX hooks for initializing input and output.
- * XKB stuff is not supported yet, since it's currently missing in
- * XCB.
- **/
-void InitInput(int argc, char *argv[])
-{
-    /*shut up GCC.*/
-    argc++;
-    argv++;
-}
 
 void xsInitPixmapFormats(const XCBSetup *setup, PixmapFormatRec fmts[])
 {
