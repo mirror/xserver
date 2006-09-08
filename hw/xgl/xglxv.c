@@ -306,7 +306,7 @@ xglXvPutImage (ClientPtr     client,
     XGL_DRAWABLE_PIXMAP (pDrawable);
     XGL_PIXMAP_PRIV (pPixmap);
 
-    stride = ((srcWidth + 7) & ~7);
+    stride = ((width + 7) & ~7);
 
     switch (pImage->id) {
     case GLITZ_FOURCC_YUY2:
