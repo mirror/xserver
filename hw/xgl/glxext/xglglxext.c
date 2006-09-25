@@ -41,6 +41,7 @@
 #include "glapitable.h"
 #include "glxext.h"
 #include "micmap.h"
+#include "compint.h"
 
 #define XGL_MAX_TEXTURE_UNITS      8
 #define XGL_MAX_ATTRIB_STACK_DEPTH 16
@@ -5611,6 +5612,7 @@ xglCreateDrawable (__GLXcontext *context,
     ScreenPtr	    pScreen = pDrawable->pScreen;
     xglGLBufferPtr  pBufferPriv;
     xglVisualPtr    v;
+    Bool	    useMesa;
 
     XGL_SCREEN_PRIV (pScreen);
     XGL_DRAWABLE_PIXMAP (pDrawable);
@@ -5687,24 +5689,55 @@ xglCreateDrawable (__GLXcontext *context,
 	pBufferPriv->pVisual = v;
     }
 
-    if ((pDrawable->type == DRAWABLE_WINDOW)
+    useMesa = TRUE;
+
+    if (pDrawable->type == DRAWABLE_WINDOW)
+    {
 
 #ifdef COMPOSITE
-	&& (pBufferPriv->pVisual
+	if (pBufferPriv->pVisual)
+	{
+	    useMesa = FALSE;
+	}
+	else
+	{
+	    WindowPtr pWin = (WindowPtr) pDrawable;
 
 	    /* this is a root window, can't be redirected */
-	    || (!((WindowPtr) pDrawable)->parent))
+	    if (!pWin->parent)
+	    {
+		useMesa = FALSE;
+	    }
+	    else
+	    {
+		CompScreenPtr cs = GetCompScreen (pScreen);
+
+		/* allow native GL with overlay windows */
+		for (; pWin; pWin = pWin->parent)
+		{
+		    if (pWin == cs->pOverlayWin)
+		    {
+			useMesa = FALSE;
+			break;
+		    }
+		}
+	    }
+	}
+#else
+	    useMesa = FALSE;
 #endif
 
-	)
-    {
-	pBufferPriv->pDrawable = pDrawable;
     }
-    else
+
+    if (useMesa)
     {
 	pBufferPriv->mesaDrawable = (*mesaContext->createDrawable) (mesaContext,
 								    pDrawable,
 								    drawId);
+    }
+    else
+    {
+	pBufferPriv->pDrawable = pDrawable;
     }
 
     return &pBufferPriv->base;
