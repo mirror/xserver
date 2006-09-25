@@ -44,6 +44,11 @@
 #include "randrstr.h"
 #endif
 
+#ifdef PANORAMIX
+#include <X11/extensions/panoramiXproto.h>
+#include "extnsionst.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -506,6 +511,170 @@ xglxEnqueueEvents (void)
 	}
     }
 }
+
+#ifdef PANORAMIX
+
+static int xglxXineramaGeneration = -1;
+
+static void
+xglxXineramaResetProc (ExtensionEntry *extEntry)
+{
+}
+
+static int
+xglxProcXineramaQueryVersion (ClientPtr client)
+{
+    xPanoramiXQueryVersionReply	rep;
+    register int		n;
+    int				majorVersion, minorVersion;
+
+    REQUEST_SIZE_MATCH (xPanoramiXQueryVersionReq);
+
+    XineramaQueryVersion (xdisplay, &majorVersion, &minorVersion);
+
+    rep.type	       = X_Reply;
+    rep.length	       = 0;
+    rep.sequenceNumber = client->sequence;
+    rep.majorVersion   = majorVersion;
+    rep.minorVersion   = minorVersion;
+
+    if (client->swapped)
+    {
+	swaps (&rep.sequenceNumber, n);
+	swapl (&rep.length, n);
+	swaps (&rep.majorVersion, n);
+	swaps (&rep.minorVersion, n);
+    }
+
+    WriteToClient (client, sizeof (xPanoramiXQueryVersionReply), (char *) &rep);
+
+    return client->noClientException;
+}
+
+static int
+xglxProcXineramaIsActive (ClientPtr client)
+{
+    xXineramaIsActiveReply rep;
+
+    REQUEST_SIZE_MATCH (xXineramaIsActiveReq);
+
+    rep.type	       = X_Reply;
+    rep.length	       = 0;
+    rep.sequenceNumber = client->sequence;
+    rep.state	       = XineramaIsActive (xdisplay);
+
+    if (client->swapped)
+    {
+	register int n;
+
+	swaps (&rep.sequenceNumber, n);
+	swapl (&rep.length, n);
+	swapl (&rep.state, n);
+    }
+
+    WriteToClient (client, sizeof (xXineramaIsActiveReply), (char *) &rep);
+
+    return client->noClientException;
+}
+
+static int
+xglxProcXineramaQueryScreens (ClientPtr client)
+{
+    xXineramaQueryScreensReply rep;
+    xXineramaScreenInfo	       scratch;
+    XineramaScreenInfo	       *info;
+    int			       n;
+
+    REQUEST_SIZE_MATCH (xXineramaQueryScreensReq);
+
+    info = XineramaQueryScreens (xdisplay, &n);
+
+    rep.type	       = X_Reply;
+    rep.sequenceNumber = client->sequence;
+    rep.number	       = n;
+    rep.length	       = n * sz_XineramaScreenInfo >> 2;
+
+    if (client->swapped)
+    {
+	register int n;
+
+	swaps (&rep.sequenceNumber, n);
+	swapl (&rep.length, n);
+	swapl (&rep.number, n);
+    }
+
+    WriteToClient (client, sizeof (xXineramaQueryScreensReply), (char *) &rep);
+
+    if (info)
+    {
+	xXineramaScreenInfo scratch;
+	int		    i;
+
+	for (i = 0; i < rep.number; i++)
+	{
+	    scratch.x_org  = info[i].x_org;
+	    scratch.y_org  = info[i].y_org;
+	    scratch.width  = info[i].width;
+	    scratch.height = info[i].height;
+
+	    if (client->swapped)
+	    {
+		register int n;
+
+		swaps (&scratch.x_org, n);
+		swaps (&scratch.y_org, n);
+		swaps (&scratch.width, n);
+		swaps (&scratch.height, n);
+	    }
+
+	    WriteToClient (client, sz_XineramaScreenInfo, (char *) &scratch);
+	}
+
+	XFree (info);
+    }
+
+    return client->noClientException;
+}
+
+static int
+xglxProcXineramaDispatch (ClientPtr client)
+{
+    REQUEST (xReq);
+
+    switch (stuff->data) {
+    case X_PanoramiXQueryVersion:
+	return xglxProcXineramaQueryVersion (client);
+    case X_XineramaIsActive:
+	return xglxProcXineramaIsActive (client);
+    case X_XineramaQueryScreens:
+	return xglxProcXineramaQueryScreens (client);
+    }
+
+    return BadRequest;
+}
+
+static Bool
+xglxXineramaInit (void)
+{
+    ExtensionEntry *extEntry;
+
+    if (xglxXineramaGeneration != serverGeneration)
+    {
+	extEntry = AddExtension (PANORAMIX_PROTOCOL_NAME, 0,0,
+				 xglxProcXineramaDispatch,
+				 xglxProcXineramaDispatch,
+				 xglxXineramaResetProc,
+				 StandardMinorOpcode);
+	if (!extEntry)
+	    return FALSE;
+
+	xglxXineramaGeneration = serverGeneration;
+    }
+
+    return TRUE;
+}
+
+#endif
 
 static void
 xglxConstrainCursor (ScreenPtr pScreen,
@@ -1060,6 +1229,11 @@ xglxInitOutput (ScreenInfo *pScreenInfo,
 		       format->color.blue_size);
 
     xglxScreenFormat = format;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+	xglxXineramaInit ();
+#endif
 
     for (i = 0; i < numScreen; i++)
 	AddScreen (xglxScreenInit, argc, argv);
@@ -1618,7 +1792,13 @@ xglxOsVendorInit (void)
 			     preferBlanking, allowExposures);
 	    XResetScreenSaver (xdisplay);
 
-	    if (XineramaIsActive (xdisplay))
+	    if (XineramaIsActive (xdisplay)
+
+#ifdef PANORAMIX
+		&& noPanoramiXExtension
+#endif
+
+		)
 	    {
 		XineramaScreenInfo *info;
 		int		   nInfo = 0;
