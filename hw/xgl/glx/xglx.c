@@ -591,8 +591,17 @@ xglxProcXineramaQueryScreens (ClientPtr client)
 
     rep.type	       = X_Reply;
     rep.sequenceNumber = client->sequence;
-    rep.number	       = n;
-    rep.length	       = n * sz_XineramaScreenInfo >> 2;
+
+    if (info)
+    {
+	rep.number = n;
+	rep.length = n * sz_XineramaScreenInfo >> 2;
+    }
+    else
+    {
+	rep.number = 0;
+	rep.length = 0;
+    }
 
     if (client->swapped)
     {
