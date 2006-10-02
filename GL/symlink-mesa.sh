@@ -158,6 +158,8 @@ symlink_mesa_main() {
     action macros.h
     action matrix.c
     action matrix.h
+    action mipmap.c
+    action mipmap.h
     action mm.c
     action mm.h
     action mtypes.h
@@ -464,10 +466,13 @@ symlink_mesa_shader_slang_library() {
     src_dir src/mesa/shader/slang/library
     dst_dir mesa/shader/slang/library
 
+    action slang_builtin_vec4_gc.h
     action slang_common_builtin_gc.h
     action slang_core_gc.h
     action slang_fragment_builtin_gc.h
     action slang_shader_syn.h
+    action slang_pp_directives_syn.h
+    action slang_pp_expression_syn.h
     action slang_pp_version_syn.h
     action slang_vertex_builtin_gc.h
 }        
