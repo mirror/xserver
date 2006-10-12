@@ -201,6 +201,12 @@ xglUseMsg (void)
 	    "set bpp's to use with pixel buffer objects\n");
     ErrorF ("-accel TYPE[@WIDTH[/MIN]xHEIGHT[/MIN]][:METHOD] "
 	    "offscreen acceleration\n");
+
+#ifdef XEVDEV
+    ErrorF ("-kbd file              evdev file to read keyboard events\n");
+    ErrorF ("-ptr file              evdev file to read pointer events\n");
+#endif
+
 }
 
 int
@@ -282,6 +288,33 @@ xglProcessArgument (int	 argc,
 
 	return 2;
     }
+
+#ifdef XEVDEV
+    else if (!strcmp (argv[i], "-kbd"))
+    {
+	if ((i + 1) < argc)
+	{
+	    kbdEvdevFile = argv[i + 1];
+	    useEvdev = TRUE;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+    else if (!strcmp (argv[i], "-ptr"))
+    {
+	if ((i + 1) < argc)
+	{
+	    ptrEvdevFile = argv[i + 1];
+	    useEvdev = TRUE;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+#endif
 
     return 0;
 }

@@ -54,6 +54,12 @@ xglScreenInfoRec xglScreenInfo = {
     }
 };
 
+#ifdef XEVDEV
+Bool useEvdev = FALSE;
+char *kbdEvdevFile = "/dev/input/event0";
+char *ptrEvdevFile = "/dev/input/event1";
+#endif
+
 #ifdef GLXEXT
 static Bool loadGlx = TRUE;
 

@@ -13,3 +13,6 @@
 
 /* Default XGL module search path */
 #undef XGL_MODULE_PATH
+
+/* Use X evdev */
+#undef XEVDEV

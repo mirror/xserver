@@ -26,6 +26,7 @@ AM_CFLAGS =			       \
 	-I$(top_srcdir)/GL/include     \
 	-I@MESA_SOURCE@/include	       \
 	-I@MESA_SOURCE@/src/mesa/glapi \
+	$(XEVDEV_CFLAGS)	       \
 	$(XGLMODULES_CFLAGS)
 
 noinst_LIBRARIES = libxgl.a
@@ -78,6 +79,7 @@ Xgl_LDADD =		   \
 	libxgl.a	   \
 	$(XORG_CORE_LIBS)  \
 	$(XGL_LIBS)	   \
+	$(XEVDEV_LIBS)	   \
 	$(XGLMODULES_LIBS) \
 	$(XSERVER_LIBS)
 

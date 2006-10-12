@@ -1602,6 +1602,19 @@ xglxInitInput (int  argc,
 {
     DeviceIntPtr pKeyboard, pPointer;
 
+#ifdef XEVDEV
+    if (useEvdev)
+    {
+	xglInitInput (argc, argv);
+
+	RegisterBlockAndWakeupHandlers (xglxBlockHandler,
+					xglWakeupHandler,
+					NULL);
+
+	return;
+    }
+#endif
+
     pPointer  = AddInputDevice (xglxPointerProc, TRUE);
     pKeyboard = AddInputDevice (xglxKeybdProc, TRUE);
 

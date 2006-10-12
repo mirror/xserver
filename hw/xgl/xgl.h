@@ -508,6 +508,18 @@ xglKbdCtrl (DeviceIntPtr pDevice,
 void
 xglInitInput (int argc, char **argv);
 
+#ifdef XEVDEV
+
+extern Bool useEvdev;
+extern char *kbdEvdevFile;
+extern char *ptrEvdevFile;
+
+void
+xglWakeupHandler (pointer blockData,
+		  int	  result,
+		  pointer pReadMask);
+
+#endif
 
 /* xgloutput.c */
 

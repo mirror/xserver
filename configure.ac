@@ -384,6 +384,7 @@ AC_ARG_ENABLE(install-libxf86config,
 				[Install libxf86config (default: disabled)]),
 				[INSTALL_LIBXF86CONFIG=$enableval],
 				[INSTALL_LIBXF86CONFIG=no])
+AC_ARG_ENABLE(xevdev,           AS_HELP_STRING([--enable-xevdev], [Build X evdev support (default: disabled)]), [XEVDEV=$enableval], [XEVDEV=no])
 
 dnl Extensions.
 AC_ARG_ENABLE(composite,      AS_HELP_STRING([--disable-composite], [Build Composite extension (default: enabled)]), [COMPOSITE=$enableval], [COMPOSITE=yes])
@@ -785,6 +786,15 @@ fi
 AM_CONDITIONAL(USE_RGB_BUILTIN, [test "x$USE_RGB_BUILTIN" = xyes])
 if test "x$USE_RGB_BUILTIN" = xyes; then
 	AC_DEFINE(USE_RGB_BUILTIN, 1, [Use built-in RGB color database])
+fi
+
+AM_CONDITIONAL(XEVDEV, [test "x$XEVDEV" = xyes])
+if test "x$XEVDEV" != xno; then
+	AC_DEFINE(XEVDEV, 1, [Build X evdev support])
+
+	PKG_CHECK_MODULES([XEVDEV], [x-input-evdev])
+	AC_SUBST(XEVDEV_CFLAGS)
+	AC_SUBST(XEVDEV_LIBS)
 fi
 
 VENDOR_RELEASE="((($VERSION_MAJOR) * 10000000) + (($VERSION_MINOR) * 100000) + (($VERSION_PATCH) * 1000) + $VERSION_SNAP)"

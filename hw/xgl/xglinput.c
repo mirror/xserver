@@ -35,6 +35,147 @@
 
 #define NUM_BUTTONS 7
 
+#ifdef XEVDEV
+#include <X11/Xevdev.h>
+
+static CARD32 lastEventTime = 0;
+
+static int EventToXserver[] = {
+    0,      1,      2,      3,      4,      5,      6,      7,
+    8,      9,      10,     11,     12,     13,     14,     15,
+    16,     17,     18,     19,     20,     21,     22,     23,
+    24,     25,     26,     27,     28,     29,     30,     31,
+    32,     33,     34,     35,     36,     37,     38,     39,
+    40,     41,     42,     43,     44,     45,     46,     47,
+    48,     49,     50,     51,     52,     53,     54,     55,
+    56,     57,     58,     59,     60,     61,     62,     63,
+    64,     65,     66,     67,     68,     69,     70,     71,
+    72,     73,     74,     75,     76,     77,     78,     79,
+    80,     81,     82,     83,     84,     85,     86,     87,
+    88,     203,    90,     91,     92,     93,     94,     126,
+    100,    101,    104,    99,     105,    101,    89,     90,
+    91,     92,     94,     95,     96,     97,     98,     99,
+    112,    113,    114,    115,    214,    117,    118,    102,
+    120,    126,    122,    123,    124,    125,    126,    127,
+    128,    129,    130,    131,    132,    133,    134,    135,
+    136,    137,    138,    109,    140,    141,    215,    219,
+    144,    145,    146,    147,    148,    149,    150,    151,
+    152,    153,    154,    155,    156,    157,    158,    159,
+    160,    161,    162,    163,    164,    165,    166,    167,
+    168,    169,    170,    171,    172,    173,    174,    175,
+    176,    177,    178,    179,    180,    181,    182,    183,
+    184,    185,    186,    187,    188,    189,    190,    191,
+    192,    193,    194,    195,    196,    197,    198,    199,
+    200,    201,    202,    203,    204,    205,    206,    207,
+    208,    209,    210,    211,    212,    213,    214,    215,
+    216,    217,    218,    219,    220,    221,    222,    223,
+    224,    225,    226,    227,    228,    229,    230,    231,
+    232,    233,    234,    235,    236,    237,    238,    239,
+    240,    241,    242,    243,    244,    245,    246,    247,
+    248
+};
+
+static void
+xglEvdevReadInput (void)
+{
+    struct input_event ie;
+    xEvent             x;
+    int                i;
+
+    while (EvdevCheckIfEvent (&ie))
+    {
+	switch (ie.type) {
+	case EV_REL:
+	    switch (ie.code) {
+	    case REL_X:
+		miPointerDeltaCursor (ie.value, 0,
+				      lastEventTime = GetTimeInMillis ());
+		break;
+	    case REL_Y:
+		miPointerDeltaCursor (0, ie.value,
+				      lastEventTime = GetTimeInMillis ());
+		break;
+	    case REL_WHEEL:
+		if (ie.value > 0)
+		{
+		    x.u.u.detail = 4;
+		}
+		else
+		{
+		    x.u.u.detail = 5;
+		    ie.value *= -1;
+		}
+
+		for (i = 0; i < ie.value; i++)
+		{
+		    x.u.u.type = ButtonPress;
+		    mieqEnqueue (&x);
+
+		    x.u.u.type = ButtonRelease;
+		    mieqEnqueue (&x);
+		}
+		break;
+	    case REL_HWHEEL:
+		if (ie.value > 0)
+		{
+		    x.u.u.detail = 6;
+		}
+		else
+		{
+		    x.u.u.detail = 7;
+		    ie.value *= -1;
+		}
+
+		for (i = 0; i < ie.value; i++)
+		{
+		    x.u.u.type = ButtonPress;
+		    mieqEnqueue (&x);
+
+		    x.u.u.type = ButtonRelease;
+		    mieqEnqueue (&x);
+		}
+		break;
+	    }
+	    break;
+	case EV_ABS:
+	    break;
+	case EV_KEY:
+	    if (ie.code >= BTN_MOUSE && ie.type < BTN_JOYSTICK)
+	    {
+		x.u.u.type = ie.value ? ButtonPress : ButtonRelease;
+		switch (ie.code) {
+		case BTN_LEFT:
+		    x.u.u.detail = 1;
+		    break;
+		case BTN_MIDDLE:
+		    x.u.u.detail = 2;
+		    break;
+		case BTN_RIGHT:
+		    x.u.u.detail = 3;
+		    break;
+		default:
+		    x.u.u.detail = 2;
+		    break;
+		}
+
+		x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+		mieqEnqueue(&x);
+		break;
+	    }
+	    else
+	    {
+		x.u.u.type = ie.value ? KeyPress : KeyRelease;
+		x.u.u.detail = EventToXserver[ie.code] + 8;
+		x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
+		mieqEnqueue (&x);
+	    }
+	case EV_SYN:
+	    break;
+	}
+    }
+}
+#endif
+
 int
 xglMouseProc (DeviceIntPtr pDevice,
 	      int	   onoff)
@@ -227,19 +368,43 @@ xglKeybdProc (DeviceIntPtr pDevice,
 	if (pDev != LookupKeyboardDevice ())
 	    return !Success;
 
+#ifdef XEVDEV
+	if (useEvdev)
+	{
+	    EvdevInit (pDevice);
+	    return Success;
+	}
+#endif
 	ret = InitKeyboardDeviceStruct (pDev,
 					&xglKeySyms,
 					xglModMap,
 					xglBell,
 					xglKbdCtrl);
+
 	if (!ret)
 	    return BadImplementation;
 	break;
     case DEVICE_ON:
 	pDev->on = TRUE;
+
+#ifdef XEVDEV
+	/* When evdev input is set the events are grabbed per default.
+	 * EvdevGrabKeyboard is need to be changed to XGrabKeyboard
+	 * xlib function thus Xgl will be able to choose if want or not
+	 * be grabbed. */
+	if (useEvdev)
+	    EvdevGrabKeyboard ();
+#endif
+
 	break;
     case DEVICE_OFF:
     case DEVICE_CLOSE:
+
+#ifdef XEVDEV
+	if (useEvdev)
+	    EvdevUngrabKeyboard ();
+#endif
+
 	pDev->on = FALSE;
 	break;
     }
@@ -252,6 +417,11 @@ xglInitInput (int argc, char **argv)
 {
     DeviceIntPtr pKeyboard, pPointer;
 
+#ifdef XEVDEV
+    if (useEvdev)
+	OpenEvdevInput (kbdEvdevFile, ptrEvdevFile, xglEvdevReadInput);
+#endif
+
     pPointer  = AddInputDevice (xglMouseProc, TRUE);
     pKeyboard = AddInputDevice (xglKeybdProc, TRUE);
 
@@ -260,4 +430,11 @@ xglInitInput (int argc, char **argv)
 
     miRegisterPointerDevice (screenInfo.screens[0], pPointer);
     mieqInit (&pKeyboard->public, &pPointer->public);
+}
+
+void
+xglWakeupHandler (pointer blockData,
+		  int     result,
+		  pointer pReadMask)
+{
 }
