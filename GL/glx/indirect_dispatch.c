@@ -3690,7 +3690,7 @@ int __glXDisp_AreTexturesResidentEXT(__GLXclientState *cl, GLbyte *pc)
         GLboolean retval;
         GLboolean answerBuffer[200];
         GLboolean * residences = __glXGetAnswerBuffer(cl, n, answerBuffer, sizeof(answerBuffer), 1);
-        retval = CALL_AreTexturesResidentEXT( GET_DISPATCH(), (
+        retval = CALL_AreTexturesResident( GET_DISPATCH(), (
             n,
              (const GLuint *)(pc +  4),
             residences
@@ -3714,7 +3714,7 @@ int __glXDisp_GenTexturesEXT(__GLXclientState *cl, GLbyte *pc)
 
         GLuint answerBuffer[200];
         GLuint * textures = __glXGetAnswerBuffer(cl, n * 4, answerBuffer, sizeof(answerBuffer), 4);
-        CALL_GenTexturesEXT( GET_DISPATCH(), (
+        CALL_GenTextures( GET_DISPATCH(), (
             n,
             textures
         ) );
@@ -3734,7 +3734,7 @@ int __glXDisp_IsTextureEXT(__GLXclientState *cl, GLbyte *pc)
     pc += __GLX_VENDPRIV_HDR_SIZE;
     if ( cx != NULL ) {
         GLboolean retval;
-        retval = CALL_IsTextureEXT( GET_DISPATCH(), (
+        retval = CALL_IsTexture( GET_DISPATCH(), (
             *(GLuint   *)(pc +  0)
         ) );
         __glXSendReply(cl->client, dummy_answer, 0, 0, GL_FALSE, retval);
