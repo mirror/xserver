@@ -4,7 +4,7 @@
 extern int xsWindowPrivateIndex;
 
 typedef struct {
-  XCBWINDOW window;
+  xcb_window_t window;
   XSOwnership owned;
 } XscreenPrivWindow;
 
@@ -29,7 +29,7 @@ Bool xsUnrealizeWindow(WindowPtr pWin);
 Bool xsPaintWindowBorder(WindowPtr pWin, RegionPtr pRegion, int what);
 void xsPaintWindowBackground(WindowPtr pWin, RegionPtr pRegion, int what);
 Bool xsPositionWindow(WindowPtr pWin, int x, int y);
-void xsConfigureWindow(WindowPtr pWin, CARD32 mask);
+void xsConfigureWindow(WindowPtr pWin, uint32_t mask);
 
 void xsWindowExposures(WindowPtr pWin, RegionPtr pRgn, RegionPtr pOther);
 void xsCopyWindow(WindowPtr pWin, xPoint old_orig, RegionPtr old_rgn);

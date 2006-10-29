@@ -1,7 +1,7 @@
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_aux.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_aux.h>
 #include "scrnintstr.h"
 #include "window.h"
 #include "windowstr.h"
@@ -21,17 +21,17 @@ static ColormapPtr xsInstalledMap;
  **/
 Bool xsCreateColormap(ColormapPtr pCmap)
 {
-    XCBVISUALID vid;
+    xcb_visualid_t vid;
     VisualPtr pVis;
 
     pVis = pCmap->pVisual;
     pCmap->devPriv = xalloc(sizeof(XscreenPrivColormap));
-    XS_CMAP_PRIV(pCmap)->colormap = XCBCOLORMAPNew(xsConnection);
+    XS_CMAP_PRIV(pCmap)->colormap = xcb_generate_id(xsConnection);
     vid = xsGetVisual(pVis)->visual_id;   
-    XCBCreateColormap(xsConnection,
-                      (pVis->class & DynamicClass) ?  XCBColormapAllocAll : XCBColormapAllocNone,
+    xcb_create_colormap(xsConnection,
+                      (pVis->class & DynamicClass) ?  XCB_COLORMAP_ALLOC_ALL : XCB_COLORMAP_ALLOC_NONE,
                       XS_CMAP_PRIV(pCmap)->colormap,
-                      xsBackingRoot.window,
+                      xsBackingRoot,
                       vid);
 }
 
@@ -40,7 +40,7 @@ Bool xsCreateColormap(ColormapPtr pCmap)
  **/
 void xsDestroyColormap(ColormapPtr pCmap)
 {
-    XCBFreeColormap(xsConnection, XS_CMAP_PRIV(pCmap)->colormap);
+    xcb_free_colormap(xsConnection, XS_CMAP_PRIV(pCmap)->colormap);
     xfree(pCmap->devPriv);
 }
 
@@ -53,7 +53,7 @@ void xsSetInstalledColormapWindows(ScreenPtr pScreen)
 void xsDirectUninstallColormaps(ScreenPtr pScreen)
 {
     int i, n;
-    XCBCOLORMAP pCmapIDs[MAXCMAPS];
+    xcb_colormap_t pCmapIDs[MAXCMAPS];
 
     /*do I want this? What does it do?
     if (!xsDoDirectColormaps) 
@@ -64,11 +64,12 @@ void xsDirectUninstallColormaps(ScreenPtr pScreen)
     for (i = 0; i < n; i++) {
         ColormapPtr pCmap;
 
-        pCmap = (ColormapPtr)LookupIDByType(pCmapIDs[i].xid, RT_COLORMAP);
+        pCmap = (ColormapPtr)LookupIDByType(pCmapIDs[i], RT_COLORMAP);
         if (pCmap)
-            XCBUninstallColormap(xsConnection, XS_CMAP_PRIV(pCmap)->colormap);
+            xcb_uninstall_colormap(xsConnection, XS_CMAP_PRIV(pCmap)->colormap);
     }
 }
+
 void xsInstallColormap(ColormapPtr pCmap)
 {
     int index;
@@ -104,18 +105,18 @@ void xsUninstallColormap(ColormapPtr pCmap)
     }
 }
 
-void xsStoreColors(ColormapPtr pCmap, int nColors, XCBCOLORITEM *pColors)
+void xsStoreColors(ColormapPtr pCmap, int nColors, xcb_coloritem_t *pColors)
 {
 }
 
-void xsResolveColor(CARD16 *r, CARD16 *g, CARD16 *b, VisualPtr pVisual)
+void xsResolveColor(uint16_t *r, uint16_t *g, uint16_t *b, VisualPtr pVisual)
 {
 }
 
-int xsListInstalledColormaps(ScreenPtr pScreen, XCBCOLORMAP *pCmapIDs)
+int xsListInstalledColormaps(ScreenPtr pScreen, xcb_colormap_t *pCmapIDs)
 {
     if (xsInstalledMap) {
-        pCmapIDs->xid = xsInstalledMap->mid;
+        pCmapIDs = xsInstalledMap->mid;
         return 1;
     }
     else

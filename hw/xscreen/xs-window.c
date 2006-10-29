@@ -2,10 +2,10 @@
 #include <xs-config.h>
 #endif
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_image.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_image.h>
 #include "regionstr.h"
 #include <X11/fonts/fontstruct.h>
 #include "gcstruct.h"
@@ -25,20 +25,20 @@
 #include "xs-gc.h"
 
 /*Forward decls*/
-static WindowPtr xsTrackWindow(XCBWINDOW win, WindowPtr pParent);
+static WindowPtr xsTrackWindow(xcb_window_t win, WindowPtr pParent);
 
 /**
  * returns the WindowPtr of a window with a given XID on the backing server.
  * if the window is not tracked by Xnest, NULL is returned.
  **/
 typedef struct {
-    XCBWINDOW win;
+    xcb_window_t win;
     WindowPtr pWin;
 } XsWindowMatch;
 
 static int xsMatchFunc(WindowPtr pWin, XsWindowMatch *wm)
 {
-    if (wm->win.xid == XS_WINDOW_PRIV(pWin)->window.xid) {
+    if (wm->win == XS_WINDOW_PRIV(pWin)->window) {
         wm->pWin = pWin;
         return WT_STOPWALKING;
     }
@@ -46,10 +46,9 @@ static int xsMatchFunc(WindowPtr pWin, XsWindowMatch *wm)
         return WT_WALKCHILDREN;
 }
 
-WindowPtr xsGetWindow(XCBWINDOW window)
+static WindowPtr xsGetWindow(xcb_window_t window)
 {
     XsWindowMatch wm;
-    int i;
 
     wm.pWin = NULL;
     wm.win = window;
@@ -61,7 +60,7 @@ WindowPtr xsGetWindow(XCBWINDOW window)
 /**
  * Removes a window from the window tree, rearranging the siblings.
  **/
-void xsRemoveWindow(WindowPtr pWin)
+static void xsRemoveWindow(WindowPtr pWin)
 {
     WindowPtr pPrev;
     WindowPtr pNext;
@@ -88,7 +87,7 @@ void xsRemoveWindow(WindowPtr pWin)
  * Inserts a window into the window tree.
  * pParent must NOT be NULL, ie: this must NOT be called on the root window.
  **/
-void xsInsertWindow(WindowPtr pWin, WindowPtr pParent)
+static void xsInsertWindow(WindowPtr pWin, WindowPtr pParent)
 {
     WindowPtr pPrev;
 
@@ -130,7 +129,7 @@ void xsInsertWindow(WindowPtr pWin, WindowPtr pParent)
  **/
 static void xsInitWindow(WindowPtr pWin, WindowPtr pParent, int x, int y, int w, int h, int bw)
 {
-    XCBWINDOW win;
+    xcb_window_t win;
     int parent_x, parent_y;
 
     win = XS_WINDOW_PRIV(pWin)->window;
@@ -239,30 +238,30 @@ static void xsInitWindow(WindowPtr pWin, WindowPtr pParent, int x, int y, int w,
  * the backing server *must* be grabbed when calling this function, since this
  * function doesn't do the server grab on it's own
  **/
-static void xsTrackChildren(WindowPtr pParent, CARD32 ev_mask)
+static void xsTrackChildren(WindowPtr pParent, uint32_t ev_mask)
 {
-    XCBWINDOW             win;
+    xcb_window_t             win;
     WindowPtr             pWin;
-    XCBQueryTreeCookie    qcook;
-    XCBQueryTreeRep      *qrep;
-    XCBGetGeometryCookie  gcook;
-    XCBGetGeometryRep    *grep;
-    XCBWINDOW            *child;
+    xcb_query_tree_cookie_t    qcook;
+    xcb_query_tree_reply_t      *qrep;
+    xcb_get_geometry_cookie_t  gcook;
+    xcb_get_geometry_reply_t    *grep;
+    xcb_window_t            *child;
     int                   i;
 
     win = XS_WINDOW_PRIV(pParent)->window;
-    qcook = XCBQueryTree(xsConnection, win);
-    qrep = XCBQueryTreeReply(xsConnection, qcook, NULL);
-    child = XCBQueryTreeChildren(qrep);
+    qcook = xcb_query_tree(xsConnection, win);
+    qrep = xcb_query_tree_reply(xsConnection, qcook, NULL);
+    child = xcb_query_tree_children(qrep);
     for (i=0; i < qrep->children_len; i++) {
         pWin = xsGetWindow(child[i]);
         if (!pWin){
-            gcook = XCBGetGeometry(xsConnection, (XCBDRAWABLE)child[i]);
-            grep = XCBGetGeometryReply(xsConnection, gcook, NULL);
+            gcook = xcb_get_geometry(xsConnection, (xcb_drawable_t)child[i]);
+            grep = xcb_get_geometry_reply(xsConnection, gcook, NULL);
             pWin = AllocateWindow(pParent->drawable.pScreen);
             XS_WINDOW_PRIV(pWin)->window = child[i];
             xsInitWindow(pWin, pParent, grep->x, grep->y, grep->width, grep->height, grep->border_width);
-            XCBChangeWindowAttributes(xsConnection, child[i], XCBCWEventMask, &ev_mask);
+            xcb_change_window_attributes(xsConnection, child[i], XCB_CW_EVENT_MASK, &ev_mask);
         } else {
             xsRemoveWindow(pWin);
         }
@@ -274,16 +273,16 @@ static void xsTrackChildren(WindowPtr pParent, CARD32 ev_mask)
  * Allocates a new WindowPtr, and tracks it, inserting it into the
  * window tree. Assumes that pParent is the parent of the window.
  **/
-static WindowPtr xsTrackWindow(XCBWINDOW win, WindowPtr pParent)
+static WindowPtr xsTrackWindow(xcb_window_t win, WindowPtr pParent)
 {
     WindowPtr pWin;
-    CARD32 ev_mask;
-    XCBGetGeometryCookie  gcook;
-    XCBGetGeometryRep    *grep;
+    uint32_t ev_mask;
+    xcb_get_geometry_cookie_t  gcook;
+    xcb_get_geometry_reply_t    *grep;
 
     pWin = AllocateWindow(pParent->drawable.pScreen);
-    gcook = XCBGetGeometry(xsConnection, (XCBDRAWABLE)win);
-    grep = XCBGetGeometryReply(xsConnection, gcook, NULL);
+    gcook = xcb_get_geometry(xsConnection, (xcb_drawable_t)win);
+    grep = xcb_get_geometry_reply(xsConnection, gcook, NULL);
 
     /*initialize the window*/
     xsInitWindow(pWin, pParent, 
@@ -292,13 +291,13 @@ static WindowPtr xsTrackWindow(XCBWINDOW win, WindowPtr pParent)
                  grep->border_width);
 
     /*set the event mask*/
-    ev_mask = XCBEventMaskSubstructureNotify|XCBEventMaskStructureNotify;
-    XCBChangeWindowAttributes(xsConnection, win, XCBCWEventMask, &ev_mask);
+    ev_mask = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY|XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+    xcb_change_window_attributes(xsConnection, win, XCB_CW_EVENT_MASK, &ev_mask);
 
     /*make sure we've got all the children of the window*/
-    XCBGrabServer(xsConnection);
+    xcb_grab_server(xsConnection);
     xsTrackChildren(pWin, ev_mask);
-    XCBUngrabServer(xsConnection);
+    xcb_ungrab_server(xsConnection);
     return pWin;
 }
 
@@ -309,15 +308,15 @@ static WindowPtr xsTrackWindow(XCBWINDOW win, WindowPtr pParent)
  **/
 Bool xsCreateWindow(WindowPtr pWin)
 {
-    CARD32      mask;
-    CARD32      ev_mask;
-    XCBSCREEN  *screen;
-    XCBVISUALID vid;
-    XCBParamsCW params;
+    uint32_t      mask;
+    uint32_t      ev_mask;
+    xcb_screen_t  *screen;
+    xcb_visualid_t vid;
+    xcb_params_cw_t params;
 
     /* Inits too much for CreateWindow calls, but.. well.. otherwise we'd
      * duplicate code. */
-    screen =  XCBSetupRootsIter (XCBGetSetup (xsConnection)).data;
+    screen =  xcb_setup_roots_iterator (xcb_get_setup (xsConnection)).data;
     /**
      * We need to special-case creating the root window, since
      * it's representation on the backing server has already been
@@ -327,7 +326,7 @@ Bool xsCreateWindow(WindowPtr pWin)
         XS_WINDOW_PRIV(pWin)->window = screen->root;
 
 #if 0
-        /*FIXME! do we need to do this?
+        /*FIXME! do we need to do this?*/
         /*initialize the root window*/
         xsInitWindow(pWin, NULL,  /*root has no parent*/
                      0, 0,        /*origin at 0, 0*/
@@ -337,36 +336,35 @@ Bool xsCreateWindow(WindowPtr pWin)
 #endif
 
         /*we want to listen to both motion and creation events on the root*/
-        mask = XCBEventMaskSubstructureNotify | XCBEventMaskPointerMotion;
-        XCBChangeWindowAttributes(xsConnection, screen->root, XCBCWEventMask, &ev_mask);
+        mask = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_POINTER_MOTION;
+        xcb_change_window_attributes(xsConnection, screen->root, XCB_CW_EVENT_MASK, &ev_mask);
 
         /*track the children of the root window*/
-        XCBGrabServer(xsConnection);
+        xcb_grab_server(xsConnection);
             xsTrackChildren(pWin, ev_mask);
-        XCBUngrabServer(xsConnection);
+        xcb_ungrab_server(xsConnection);
         return TRUE;
     }
 
-    if (pWin->drawable.class == XCBWindowClassInputOnly) {
-        0L;
-        vid.id = XCBCopyFromParent;
+    if (pWin->drawable.class == XCB_WINDOW_CLASS_INPUT_ONLY) {
+        vid = XCB_COPY_FROM_PARENT;
     } else {
         if (pWin->optional && pWin->optional->visual != wVisual(pWin->parent)) {
             ErrorF("Need to get visuals");
             exit(1);
         } else {
-             vid.id = XCBCopyFromParent;
+             vid = XCB_COPY_FROM_PARENT;
         }
     }
     /*we want all the important events on the window*/
     params.event_mask = ((1<<25)-1) &
-                        ~(XCBEventMaskSubstructureRedirect |
-                          XCBEventMaskPointerMotionHint    |
-                          XCBEventMaskResizeRedirect);
+                        ~(XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
+                          XCB_EVENT_MASK_POINTER_MOTION_HINT    |
+                          XCB_EVENT_MASK_RESIZE_REDIRECT);
 
     /*If we're not creating the root window, continue as normal*/
-    XS_WINDOW_PRIV(pWin)->window = XCBWINDOWNew(xsConnection);
-    XCBAuxCreateWindow(xsConnection,
+    XS_WINDOW_PRIV(pWin)->window = xcb_generate_id(xsConnection);
+    xcb_aux_create_window(xsConnection,
                        pWin->drawable.depth, 
                        XS_WINDOW_PRIV(pWin)->window,
                        XS_WINDOW_PRIV(pWin->parent)->window,
@@ -379,6 +377,7 @@ Bool xsCreateWindow(WindowPtr pWin)
                        vid,
                        mask,
                        &params);
+    return TRUE;
 }
 
 /**
@@ -393,8 +392,8 @@ Bool xsDestroyWindow(WindowPtr pWin)
      * Might be wrong about this though.*/
     if (XS_WINDOW_PRIV(pWin)->owned != XS_OWNED)
         return FALSE;
-    XCBDestroyWindow(xsConnection, XS_WINDOW_PRIV(pWin)->window);
-    XS_WINDOW_PRIV(pWin)->window = (XCBWINDOW){0};
+    xcb_destroy_window(xsConnection, XS_WINDOW_PRIV(pWin)->window);
+    XS_WINDOW_PRIV(pWin)->window = (xcb_window_t){0};
     return TRUE;
 }
 
@@ -404,13 +403,13 @@ Bool xsDestroyWindow(WindowPtr pWin)
  **/
 Bool xsPositionWindow(WindowPtr pWin, int x, int y)
 {
-    CARD32 list[2];
+    uint32_t list[2];
 
     list[0] = x;
     list[1] = y;
-    XCBConfigureWindow(xsConnection,
+    xcb_configure_window(xsConnection,
                        XS_WINDOW_PRIV(pWin)->window,
-                       XCBConfigWindowX | XCBConfigWindowY,
+                       XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
                        list);
     return TRUE;
 }
@@ -421,91 +420,91 @@ Bool xsPositionWindow(WindowPtr pWin, int x, int y)
 
 Bool xsChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
 {
-    XCBParamsCW param;
+    xcb_params_cw_t param;
     PixmapPtr pPixmap;
 
-    if (mask & XCBCWBackPixmap) {
+    if (mask & XCB_CW_BACK_PIXMAP) {
         switch (pWin->backgroundState) {
-            case XCBBackPixmapNone:
+            case XCB_BACK_PIXMAP_NONE:
                 param.back_pixmap = 0;
                 break;
 
-            case XCBBackPixmapParentRelative:
-                param.back_pixmap = XCBBackPixmapParentRelative;
+            case XCB_BACK_PIXMAP_PARENT_RELATIVE:
+                param.back_pixmap = XCB_BACK_PIXMAP_PARENT_RELATIVE;
                 break;
 
             /*X server internal things.*/
             case BackgroundPixmap:
                 pPixmap = pWin->background.pixmap;
-                param.back_pixmap = XS_PIXMAP_PRIV(pPixmap)->pixmap.xid;
+                param.back_pixmap = XS_PIXMAP_PRIV(pPixmap)->pixmap;
                 break;
 
             case BackgroundPixel:
-                mask &= ~XCBCWBackPixmap;
+                mask &= ~XCB_CW_BACK_PIXMAP;
                 break;
         }
     }
 
-    if (mask & XCBCWBackPixel) {
+    if (mask & XCB_CW_BACK_PIXEL) {
         if (pWin->backgroundState == BackgroundPixel)
             param.back_pixel = pWin->background.pixel;
         else
             mask &= ~CWBackPixel;
     }
     
-    if (mask & XCBCWBorderPixmap) {
+    if (mask & XCB_CW_BORDER_PIXMAP) {
         if (pWin->borderIsPixel)
             mask &= ~CWBorderPixmap;
         else
             pPixmap = pWin->border.pixmap;
-            param.border_pixmap = XS_PIXMAP_PRIV(pPixmap)->pixmap.xid;
+            param.border_pixmap = XS_PIXMAP_PRIV(pPixmap)->pixmap;
     }
     
-    if (mask & XCBCWBorderPixel) {
+    if (mask & XCB_CW_BORDER_PIXEL) {
         if (pWin->borderIsPixel)
             param.border_pixel = pWin->border.pixel;
         else
-            mask &= ~XCBCWBorderPixel;
+            mask &= ~XCB_CW_BORDER_PIXEL;
     }
 
-    if (mask & XCBCWBitGravity) 
+    if (mask & XCB_CW_BIT_GRAVITY) 
         param.bit_gravity = pWin->bitGravity;
 
-    if (mask & XCBCWWinGravity) /* dix does this for us */
+    if (mask & XCB_CW_WIN_GRAVITY) /* dix does this for us */
         mask &= ~CWWinGravity;
 
-    if (mask & XCBCWBackingStore) /* this is really not useful */
+    if (mask & XCB_CW_BACKING_STORE) /* this is really not useful */
         mask &= ~CWBackingStore;
 
-    if (mask & XCBCWBackingPlanes) /* this is really not useful */
+    if (mask & XCB_CW_BACKING_PLANES) /* this is really not useful */
         mask &= ~CWBackingPlanes;
 
-    if (mask & XCBCWBackingPixel) /* this is really not useful */ 
+    if (mask & XCB_CW_BACKING_PIXEL) /* this is really not useful */ 
         mask &= ~CWBackingPixel;
 
-    if (mask & XCBCWOverrideRedirect)
+    if (mask & XCB_CW_OVERRIDE_REDIRECT)
         param.override_redirect = pWin->overrideRedirect;
 
-    if (mask & XCBCWSaveUnder) /* this is really not useful */
+    if (mask & XCB_CW_SAVE_UNDER) /* this is really not useful */
         mask &= ~CWSaveUnder;
 
-    if (mask & XCBCWEventMask) /* events are handled elsewhere */
+    if (mask & XCB_CW_EVENT_MASK) /* events are handled elsewhere */
         mask &= ~CWEventMask;
 
-    if (mask & XCBCWDontPropagate) /* events are handled elsewhere */
+    if (mask & XCB_CW_DONT_PROPAGATE) /* events are handled elsewhere */
         mask &= ~CWDontPropagate; 
     
-    if (mask & XCBCWColormap) {
+    if (mask & XCB_CW_COLORMAP) {
         ColormapPtr pCmap;
         pCmap = LookupIDByType(wColormap(pWin), RT_COLORMAP);
-        param.colormap = XS_CMAP_PRIV(pCmap)->colormap.xid;
+        param.colormap = XS_CMAP_PRIV(pCmap)->colormap;
         xsSetInstalledColormapWindows(pWin->drawable.pScreen);
     }
-    if (mask & XCBCWCursor) /* this is handeled in cursor code */
-        mask &= ~XCBCWCursor;
+    if (mask & XCB_CW_CURSOR) /* this is handeled in cursor code */
+        mask &= ~XCB_CW_CURSOR;
 
     if (mask)
-        XCBAuxChangeWindowAttributes(xsConnection, XS_WINDOW_PRIV(pWin)->window, mask, &param);
+        xcb_aux_change_window_attributes(xsConnection, XS_WINDOW_PRIV(pWin)->window, mask, &param);
 }
 
 /**
@@ -514,11 +513,11 @@ Bool xsChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
  * configuring a window with a zero mask) and that the cost of actually
  * doing a configure for extra values is unneeded.
  **/
-void xsConfigureWindow(WindowPtr pWin, CARD32 mask)
+void xsConfigureWindow(WindowPtr pWin, uint32_t mask)
 {
     WindowPtr                pSib;
-    CARD32                   vmask;
-    XCBParamsConfigureWindow values;
+    uint32_t                   vmask;
+    xcb_params_configure_window_t values;
 
     /* We fill the entire structure here, and let the mask weed out the
      * extra data */
@@ -529,22 +528,22 @@ void xsConfigureWindow(WindowPtr pWin, CARD32 mask)
     values.height = pWin->drawable.height;
     values.border_width = wBorderWidth(pWin);
 
-    XCBAuxConfigureWindow(xsConnection, XS_WINDOW_PRIV(pWin)->window, mask, &values);
+    xcb_aux_configure_window(xsConnection, XS_WINDOW_PRIV(pWin)->window, mask, &values);
 
-    if (mask & XCBConfigWindowStackMode) {
+    if (mask & XCB_CONFIG_WINDOW_STACK_MODE) {
         /*get top sibling*/
         for (pSib = pWin; pSib->prevSib != NULL; pSib = pSib->prevSib);
 
-        vmask = XCBConfigWindowStackMode;
-        values.stack_mode = XCBStackModeAbove;
-        XCBAuxConfigureWindow(xsConnection, XS_WINDOW_PRIV(pSib)->window, vmask, &values); 
+        vmask = XCB_CONFIG_WINDOW_STACK_MODE;
+        values.stack_mode = XCB_STACK_MODE_ABOVE;
+        xcb_aux_configure_window(xsConnection, XS_WINDOW_PRIV(pSib)->window, vmask, &values); 
 
         /* the rest of siblings */
         for (pSib = pSib->nextSib; pSib != NullWindow; pSib = pSib->nextSib) {
-            vmask = XCBConfigWindowSibling | XCBConfigWindowStackMode;
-            values.sibling = XS_WINDOW_PRIV(pSib)->window.xid;
+            vmask = XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE;
+            values.sibling = XS_WINDOW_PRIV(pSib)->window;
             values.stack_mode = Below;
-            XCBAuxConfigureWindow(xsConnection, XS_WINDOW_PRIV(pSib)->window, vmask, &values);
+            xcb_aux_configure_window(xsConnection, XS_WINDOW_PRIV(pSib)->window, vmask, &values);
         }
     }
 }
@@ -557,8 +556,8 @@ Bool xsRealizeWindow(WindowPtr pWin)
 {
     if (XS_IS_ROOT(pWin))
         return TRUE;
-    xsConfigureWindow(pWin, XCBConfigWindowStackMode);
-    XCBMapWindow(xsConnection, XS_WINDOW_PRIV(pWin)->window);
+    xsConfigureWindow(pWin, XCB_CONFIG_WINDOW_STACK_MODE);
+    xcb_map_window(xsConnection, XS_WINDOW_PRIV(pWin)->window);
     return TRUE;    
 }
 
@@ -567,7 +566,7 @@ Bool xsRealizeWindow(WindowPtr pWin)
  **/
 Bool xsUnrealizeWindow(WindowPtr pWin)
 {
-    XCBUnmapWindow(xsConnection, XS_WINDOW_PRIV(pWin)->window);
+    xcb_unmap_window(xsConnection, XS_WINDOW_PRIV(pWin)->window);
     return TRUE;
 }
 
@@ -578,7 +577,7 @@ void xsPaintWindowBackground(WindowPtr pWin, RegionPtr pRegion, int what)
 
     pBox = REGION_RECTS(pRegion);
     for (i = 0; i < REGION_NUM_RECTS(pRegion); i++)
-        XCBClearArea(xsConnection,
+        xcb_clear_area(xsConnection,
                      FALSE,
                      XS_WINDOW_PRIV(pWin)->window,
                      pBox[i].x1 - pWin->drawable.x,
@@ -600,5 +599,5 @@ void xsCopyWindow(WindowPtr pWin, xPoint oldOrigin, RegionPtr oldRegion)
 
 void xsClipNotify(WindowPtr pWin, int dx, int dy)
 {
-    xsConfigureWindow(pWin, XCBConfigWindowStackMode);
+    xsConfigureWindow(pWin, XCB_CONFIG_WINDOW_STACK_MODE);
 }

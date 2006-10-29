@@ -1,5 +1,5 @@
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
+#include <xcb/xcb.h>
 #include "screenint.h"
 #include "scrnintstr.h"
 
@@ -7,9 +7,9 @@
 #include "xs-gc.h"
 #include "xs-window.h"
 
-XCBConnection *xsConnection;
-XCBDRAWABLE    xsDefaultDrawables[MAXDEPTH];
-XCBDRAWABLE    xsBackingRoot;
+xcb_connection_t *xsConnection;
+xcb_drawable_t    xsDefaultDrawables[MAXDEPTH];
+xcb_drawable_t    xsBackingRoot;
 int            xsFontPrivateIndex;
 int            xsGCPrivateIndex;
 int            xsWindowPrivateIndex;

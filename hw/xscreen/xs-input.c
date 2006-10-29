@@ -19,10 +19,10 @@
 /* need to include Xmd before XCB stuff, or
  * things get redeclared.*/
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/shape.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/shape.h>
 
 #include "gcstruct.h"
 #include "window.h"
@@ -66,9 +66,9 @@ void OsVendorInit()
 {
 }
 
-void xsChangePointerControl(DeviceIntPtr pDev UNUSED, PtrCtrl *ctl)
+static void xsChangePointerControl(DeviceIntPtr pDev UNUSED, PtrCtrl *ctl)
 {
-    XCBChangePointerControl(xsConnection, 
+    xcb_change_pointer_control(xsConnection, 
                             ctl->num, ctl->den,
                             ctl->threshold,
                             TRUE, TRUE);
@@ -76,19 +76,19 @@ void xsChangePointerControl(DeviceIntPtr pDev UNUSED, PtrCtrl *ctl)
 /**
  * Manages initializing and setting up the pointer.
  **/
-int xsPtrProc(DeviceIntPtr pDev, int state)
+static int xsPtrProc(DeviceIntPtr pDev, int state)
 {
-    CARD8 map[MAX_BUTTONS];
-    XCBGetPointerMappingCookie c;
-    XCBGetPointerMappingRep *r;
+    uint8_t map[MAX_BUTTONS];
+    xcb_get_pointer_mapping_cookie_t c;
+    xcb_get_pointer_mapping_reply_t *r;
     int nmap;
     int i;
 
     switch (state)
     {
         case DEVICE_INIT: 
-            c = XCBGetPointerMapping(xsConnection);
-            r = XCBGetPointerMappingReply(xsConnection, c, NULL);
+            c = xcb_get_pointer_mapping(xsConnection);
+            r = xcb_get_pointer_mapping_reply(xsConnection, c, NULL);
             nmap = r->map_len;
             for (i = 0; i <= nmap; i++)
                 map[i] = i; /* buttons are already mapped */
@@ -110,13 +110,13 @@ int xsPtrProc(DeviceIntPtr pDev, int state)
  **/
 
 /* no-op function */
-void xsBell(int vol UNUSED, DeviceIntPtr pDev UNUSED, pointer ctl UNUSED, int wtf_is_this UNUSED)
+static void xsBell(int vol UNUSED, DeviceIntPtr pDev UNUSED, pointer ctl UNUSED, int wtf_is_this UNUSED)
 {
     return;
 }
 
 /*no-op function*/
-void xsKbdCtl(DeviceIntPtr pDev UNUSED, KeybdCtrl *ctl UNUSED)
+static void xsKbdCtl(DeviceIntPtr pDev UNUSED, KeybdCtrl *ctl UNUSED)
 {
 }
 
@@ -124,29 +124,29 @@ void xsKbdCtl(DeviceIntPtr pDev UNUSED, KeybdCtrl *ctl UNUSED)
 /**
  * Manages initializing and setting up the keyboard.
  **/
-int xsKbdProc(DeviceIntPtr pDev, int state)
+static int xsKbdProc(DeviceIntPtr pDev, int state)
 {   
-    const XCBSetup              *setup;
-    XCBGetKeyboardMappingCookie  mapcook;
-    XCBGetKeyboardMappingRep    *maprep;
-    XCBGetModifierMappingCookie  modcook;
-    XCBGetModifierMappingRep    *modrep;
-    XCBGetKeyboardControlCookie  ctlcook;
-    XCBGetKeyboardControlRep    *ctlrep;
+    const xcb_setup_t              *setup;
+    xcb_get_keyboard_mapping_cookie_t  mapcook;
+    xcb_get_keyboard_mapping_reply_t    *maprep;
+    xcb_get_modifier_mapping_cookie_t  modcook;
+    xcb_get_modifier_mapping_reply_t    *modrep;
+    xcb_get_keyboard_control_cookie_t  ctlcook;
+    xcb_get_keyboard_control_reply_t    *ctlrep;
 
 
-    XCBKEYCODE  min;
-    XCBKEYCODE  max;
-    XCBKEYSYM  *keysyms;
-    XCBKEYCODE *modcodes;
+    xcb_keycode_t  min;
+    xcb_keycode_t  max;
+    xcb_keysym_t  *keysyms;
+    xcb_keycode_t *modcodes;
 
     KeySymsRec  keys;
-    CARD8       modmap[MAP_LENGTH] = {0};
-    CARD8       keycode;
+    uint8_t       modmap[MAP_LENGTH] = {0};
+    uint8_t       keycode;
     int         i;
     int         j;
 
-    setup = XCBGetSetup(xsConnection);
+    setup = xcb_get_setup(xsConnection);
     switch (state) 
     {
         case DEVICE_INIT:
@@ -154,36 +154,36 @@ int xsKbdProc(DeviceIntPtr pDev, int state)
             max = setup->max_keycode;
 
             /*do all the requests*/
-            mapcook = XCBGetKeyboardMapping(xsConnection, min, max.id - min.id);
-            modcook = XCBGetModifierMapping(xsConnection);
-            ctlcook = XCBGetKeyboardControl(xsConnection);
+            mapcook = xcb_get_keyboard_mapping(xsConnection, min, max - min);
+            modcook = xcb_get_modifier_mapping(xsConnection);
+            ctlcook = xcb_get_keyboard_control(xsConnection);
 
             /*wait for the keyboard mapping*/
-            maprep = XCBGetKeyboardMappingReply(xsConnection, mapcook, NULL);
-            keysyms = XCBGetKeyboardMappingKeysyms(maprep);
+            maprep = xcb_get_keyboard_mapping_reply(xsConnection, mapcook, NULL);
+            keysyms = xcb_get_keyboard_mapping_keysyms(maprep);
 
             /* initialize the keycode list*/
-            keys.minKeyCode = min.id;
-            keys.maxKeyCode = max.id;
+            keys.minKeyCode = min;
+            keys.maxKeyCode = max;
             keys.mapWidth = maprep->keysyms_per_keycode;
             keys.map = (KeySym *)keysyms;
             
             /*wait for the modifier mapping*/
-            modrep = XCBGetModifierMappingReply(xsConnection, modcook, NULL);
-            modcodes = XCBGetModifierMappingKeycodes(modrep);
+            modrep = xcb_get_modifier_mapping_reply(xsConnection, modcook, NULL);
+            modcodes = xcb_get_modifier_mapping_keycodes(modrep);
 
 
             /*initialize the modifiers*/
             for (j = 0; j < 8; j++) {
                 for (i = 0; i < modrep->keycodes_per_modifier; i++) {
-                    keycode = modcodes[j * modrep->keycodes_per_modifier + i].id;
+                    keycode = modcodes[j * modrep->keycodes_per_modifier + i];
                     if (keycode != 0)
                         modmap[keycode] |= 1<<j;
                 }
             }
 
             /*wait for the ctl values*/
-            ctlrep = XCBGetKeyboardControlReply(xsConnection, ctlcook, NULL);
+            ctlrep = xcb_get_keyboard_control_reply(xsConnection, ctlcook, NULL);
             /*initialize the auto repeats*/
             memmove(defaultKeyboardControl.autoRepeats,
                     ctlrep->auto_repeats,
@@ -206,13 +206,13 @@ int xsKbdProc(DeviceIntPtr pDev, int state)
  * XCB.
  **/
 
-void xsBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
+static void xsBlockHandler(pointer blockData, OSTimePtr pTimeout, pointer pReadMask)
 {
     /*handle events here*/
-    XCBFlush(xsConnection);
+    xcb_flush(xsConnection);
 }
 
-void xsWakeupHandler(pointer blockData, int result, pointer pReadMask)
+static void xsWakeupHandler(pointer blockData, int result, pointer pReadMask)
 {
     /*handle events here*/
 }
@@ -227,7 +227,7 @@ void InitInput(int argc, char *argv[])
 
     mieqInit(xsKbd, xsPtr);
 
-    AddEnabledDevice(XCBGetFileDescriptor(xsConnection));
+    AddEnabledDevice(xcb_get_file_descriptor(xsConnection));
     RegisterBlockAndWakeupHandlers(xsBlockHandler, xsWakeupHandler, NULL);
 }
 

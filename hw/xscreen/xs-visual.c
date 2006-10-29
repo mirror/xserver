@@ -19,23 +19,23 @@
 #endif
 
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xproto.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
 #include "scrnintstr.h"
 #include "dix.h"
 #include "mi.h"
 #include "mibstore.h"
 
 static int           num_visuals = 0;
-static XCBVISUALTYPE *visuals;
-static CARD8         *depths;
+static xcb_visualtype_t *visuals;
+static uint8_t         *depths;
 
-void xsInitVisuals()
+static void xsInitVisuals(void)
 {
     /*initialize the visuals*/
 }
 
-XCBVISUALTYPE *xsGetVisual(VisualPtr pVisual)
+xcb_visualtype_t *xsGetVisual(VisualPtr pVisual)
 {
     int i;
 
@@ -52,30 +52,30 @@ XCBVISUALTYPE *xsGetVisual(VisualPtr pVisual)
     return NULL;
 }
 
-XCBVISUALTYPE *visualFromID(ScreenPtr pScreen, XCBVISUALID visual)
+static xcb_visualtype_t *visualFromID(ScreenPtr pScreen, xcb_visualid_t visual)
 {
     int i;
 
     for (i = 0; i < pScreen->numVisuals; i++)
-        if (pScreen->visuals[i].vid == visual.id)
+        if (pScreen->visuals[i].vid == visual)
             return xsGetVisual(&pScreen->visuals[i]);
 
     return NULL;
 }
 
-XCBVISUALTYPE *xsGetDefaultVisual(ScreenPtr pScreen)
+static xcb_visualtype_t *xsGetDefaultVisual(ScreenPtr pScreen)
 {
-    XCBVISUALID v;
+    xcb_visualid_t v;
 
-    v.id = pScreen->rootVisual;
+    v = pScreen->rootVisual;
     return visualFromID(pScreen, v);
 }
 
 /*
-XCBCOLORMAP xsDefaultVisualColormap(XCBVISUALTYPE *visual)
+xcb_colormap_t xsDefaultVisualColormap(xcb_visualtype_t *visual)
 {
     int i;
-    XCBCOLORMAP noneCmap = { 0 };
+    xcb_colormap_t noneCmap = { 0 };
 
     for (i = 0; i < num_visuals; i++)
         if (&visuals[i] == visual)

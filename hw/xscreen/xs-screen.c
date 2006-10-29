@@ -7,10 +7,10 @@
 /* need to include Xmd before XCB stuff, or
  * things get redeclared.*/
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/shape.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/shape.h>
 #include "scrnintstr.h"
 #include "dix.h"
 #include "mi.h"

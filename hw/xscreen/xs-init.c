@@ -7,10 +7,10 @@
 /* need to include Xmd before XCB stuff, or
  * things get redeclared.*/
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/shape.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/shape.h>
 
 #include "gcstruct.h"
 #include "window.h"
@@ -26,12 +26,12 @@
 #include "mi.h"
 
 
-void xsInitPixmapFormats(const XCBSetup *setup, PixmapFormatRec fmts[])
+static void xsInitPixmapFormats(const xcb_setup_t *setup, PixmapFormatRec fmts[])
 {
-    XCBFORMAT *bs_fmts; /*formats on backing server*/
+    xcb_format_t *bs_fmts; /*formats on backing server*/
     int i;
 
-    bs_fmts = XCBSetupPixmapFormats(setup);
+    bs_fmts = xcb_setup_pixmap_formats(setup);
     for (i = 0; i < setup->pixmap_formats_len; i++) {
         fmts[i].depth = bs_fmts[i].depth;
         fmts[i].bitsPerPixel = bs_fmts[i].bits_per_pixel;
@@ -45,13 +45,13 @@ void xsInitPixmapFormats(const XCBSetup *setup, PixmapFormatRec fmts[])
 void InitOutput(ScreenInfo *si, int argc, char *argv[])
 {
     int             screennum;
-    const XCBSetup *setup;
-    XCBSCREEN      *screen;
+    const xcb_setup_t *setup;
+    xcb_screen_t      *screen;
     char           *display;
 
     /*FIXME: add a "-display" option*/
     /*Globals Globals Everywhere.*/
-    xsConnection = XCBConnect(NULL, &screennum);
+    xsConnection = xcb_connect(NULL, &screennum);
 
     if (!xsConnection) { /* failure to connect */
         /* prettify the display name */
@@ -61,11 +61,11 @@ void InitOutput(ScreenInfo *si, int argc, char *argv[])
         FatalError("Unable to open display \"%s\".\n", display);
     }
 
-    setup = XCBGetSetup(xsConnection);
+    setup = xcb_get_setup(xsConnection);
 
     /*set up the root window*/
-    screen = XCBSetupRootsIter(setup).data;
-    xsBackingRoot.window = screen->root;
+    screen = xcb_setup_roots_iterator(setup).data;
+    xsBackingRoot = screen->root;
     /*initialize the ScreenInfo pixmap/image fields*/
     si->imageByteOrder = setup->image_byte_order;
     si->bitmapScanlineUnit = setup->bitmap_format_scanline_unit;

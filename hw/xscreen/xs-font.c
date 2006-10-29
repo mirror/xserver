@@ -2,10 +2,10 @@
 #include <xs-config.h>
 #endif
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_image.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_image.h>
 #include "regionstr.h"
 #include <X11/fonts/fontstruct.h>
 #include "gcstruct.h"
@@ -23,8 +23,8 @@
 Bool xsRealizeFont(ScreenPtr pScreen, FontPtr pFont)
 {
     pointer priv;
-    XCBFONT font;
-    XCBATOM name_atom, value_atom;
+    xcb_font_t font;
+    xcb_atom_t name_atom, value_atom;
 
     int nprops;
     FontPropPtr props;
@@ -33,33 +33,33 @@ Bool xsRealizeFont(ScreenPtr pScreen, FontPtr pFont)
 
     FontSetPrivate(pFont, xsFontPrivateIndex, NULL);
 
-    name_atom.xid = MakeAtom("FONT", 4, TRUE);
-    value_atom.xid = 0L;
+    name_atom = MakeAtom("FONT", 4, TRUE);
+    value_atom = 0L;
 
     nprops = pFont->info.nprops;
     props = pFont->info.props;
 
     for (i = 0; i < nprops; i++) {
-        if (props[i].name == name_atom.xid) {
-            value_atom.xid = props[i].value;
+        if (props[i].name == name_atom) {
+            value_atom = props[i].value;
             break;
         }
     }
-    if (!value_atom.xid)
+    if (!value_atom)
         return FALSE;
 
-    name = NameForAtom(value_atom.xid);
+    name = NameForAtom(value_atom);
     if (!name)
         return FALSE;
 
     priv = xalloc(sizeof(XscreenPrivFont));
     FontSetPrivate(pFont, xsFontPrivateIndex, priv);
 
-    font = XCBFONTNew(xsConnection);
+    font = xcb_generate_id(xsConnection);
     XS_FONT_PRIV(pFont)->font = font;
-    XCBOpenFont(xsConnection, font, strlen(name), name);
+    xcb_open_font(xsConnection, font, strlen(name), name);
 
-    if (!XS_FONT_PRIV(pFont)->font.xid)
+    if (!XS_FONT_PRIV(pFont)->font)
         return FALSE;
 
     return TRUE;
@@ -68,8 +68,8 @@ Bool xsRealizeFont(ScreenPtr pScreen, FontPtr pFont)
 Bool xsUnrealizeFont(ScreenPtr pScreen, FontPtr pFont)
 {
     if (XS_FONT_PRIV(pFont)) {
-        if (XS_FONT_PRIV(pFont)->font.xid) 
-            XCBCloseFont(xsConnection, XS_FONT_PRIV(pFont)->font);
+        if (XS_FONT_PRIV(pFont)->font) 
+            xcb_close_font(xsConnection, XS_FONT_PRIV(pFont)->font);
         xfree(XS_FONT_PRIV(pFont));
         FontSetPrivate(pFont, xsFontPrivateIndex, NULL);
     }

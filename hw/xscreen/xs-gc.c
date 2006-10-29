@@ -18,9 +18,9 @@
 #endif
 
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_aux.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_aux.h>
 #include "gcstruct.h"
 #include "windowstr.h"
 #include "pixmapstr.h"
@@ -80,8 +80,8 @@ Bool xsCreateGC(GCPtr pGC)
 
     pGC->miTranslate = 1;
 
-    XS_GC_PRIV(pGC)->gc = XCBGCONTEXTNew(xsConnection);
-    XCBCreateGC(xsConnection, 
+    XS_GC_PRIV(pGC)->gc = xcb_generate_id(xsConnection);
+    xcb_create_gc(xsConnection, 
                 XS_GC_PRIV(pGC)->gc,
                 xsDefaultDrawables[pGC->depth],
                 0L,
@@ -99,107 +99,107 @@ void xsValidateGC(GCPtr pGC, unsigned long changes, DrawablePtr pDrawable)
 
 void xsChangeGC(GCPtr pGC, unsigned long mask)
 {
-    XCBParamsGC values;
+    xcb_params_gc_t values;
 
-    if (mask & XCBGCFunction)
+    if (mask & XCB_GC_FUNCTION)
         values.function = pGC->alu;
 
-    if (mask & XCBGCPlaneMask)
+    if (mask & XCB_GC_PLANE_MASK)
         values.plane_mask = pGC->planemask;
 
-    if (mask & XCBGCForeground)
+    if (mask & XCB_GC_FOREGROUND)
         values.foreground = pGC->fgPixel;
 
-    if (mask & XCBGCBackground)
+    if (mask & XCB_GC_BACKGROUND)
         values.background = pGC->bgPixel;
 
-    if (mask & XCBGCLineWidth)
+    if (mask & XCB_GC_LINE_WIDTH)
         values.line_width = pGC->lineWidth;
 
-    if (mask & XCBGCLineStyle)
+    if (mask & XCB_GC_LINE_STYLE)
         values.line_style = pGC->lineStyle;
 
-    if (mask & XCBGCCapStyle)
+    if (mask & XCB_GC_CAP_STYLE)
         values.cap_style = pGC->capStyle;
 
-    if (mask & XCBGCJoinStyle)
+    if (mask & XCB_GC_JOIN_STYLE)
         values.join_style = pGC->joinStyle;
 
-    if (mask & XCBGCFillStyle)
+    if (mask & XCB_GC_FILL_STYLE)
         values.fill_style = pGC->fillStyle;
 
-    if (mask & XCBGCFillRule)
+    if (mask & XCB_GC_FILL_RULE)
         values.fill_rule = pGC->fillRule;
 
-    if (mask & XCBGCTile) {
+    if (mask & XCB_GC_TILE) {
         if (pGC->tileIsPixel)
             mask &= ~GCTile;
         else
-            values.tile = XS_PIXMAP_PRIV(pGC->tile.pixmap)->pixmap.xid;
+            values.tile = XS_PIXMAP_PRIV(pGC->tile.pixmap)->pixmap;
     }
 
-    if (mask & XCBGCStipple)
-        values.stipple = XS_PIXMAP_PRIV(pGC->stipple)->pixmap.xid;
+    if (mask & XCB_GC_STIPPLE)
+        values.stipple = XS_PIXMAP_PRIV(pGC->stipple)->pixmap;
 
-    if (mask & XCBGCTileStippleOriginX)
+    if (mask & XCB_GC_TILE_STIPPLE_ORIGIN_X)
         values.tile_stipple_originX = pGC->patOrg.x;
 
-    if (mask & XCBGCTileStippleOriginY)
+    if (mask & XCB_GC_TILE_STIPPLE_ORIGIN_Y)
         values.tile_stipple_originY = pGC->patOrg.y;
 
-    if (mask & XCBGCFont)
-        values.font = XS_FONT_PRIV(pGC->font)->font.xid;
+    if (mask & XCB_GC_FONT)
+        values.font = XS_FONT_PRIV(pGC->font)->font;
 
-    if (mask & XCBGCSubwindowMode)
+    if (mask & XCB_GC_SUBWINDOW_MODE)
         values.subwindow_mode = pGC->subWindowMode;
 
-    if (mask & XCBGCGraphicsExposures)
+    if (mask & XCB_GC_GRAPHICS_EXPOSURES)
         values.graphics_exposures = pGC->graphicsExposures;
 
-    if (mask & XCBGCClipOriginY)
+    if (mask & XCB_GC_CLIP_ORIGIN_Y)
         values.clip_originX = pGC->clipOrg.x;
 
-    if (mask & XCBGCClipOriginX)
+    if (mask & XCB_GC_CLIP_ORIGIN_X)
         values.clip_originY = pGC->clipOrg.y;
 
-    if (mask & XCBGCClipMask) /* this is handled in change clip */
+    if (mask & XCB_GC_CLIP_MASK) /* this is handled in change clip */
         mask &= ~GCClipMask;
 
-    if (mask & XCBGCDashOffset)
+    if (mask & XCB_GC_DASH_OFFSET)
         values.dash_offset = pGC->dashOffset;
 
-    if (mask & XCBGCDashList) {
+    if (mask & XCB_GC_DASH_LIST) {
         mask &= ~GCDashList;
-        XCBSetDashes(xsConnection, 
+        xcb_set_dashes(xsConnection, 
                      XS_GC_PRIV(pGC)->gc, 
                      pGC->dashOffset, 
                      pGC->numInDashList,
-                     (BYTE *)pGC->dash);
+                     (uint8_t *)pGC->dash);
     }
 
-    if (mask & XCBGCArcMode)
+    if (mask & XCB_GC_ARC_MODE)
         values.arc_mode = pGC->arcMode;
 
     if (mask)
-        XCBAuxChangeGC(xsConnection, XS_GC_PRIV(pGC)->gc, mask, &values);
+        xcb_aux_change_gc(xsConnection, XS_GC_PRIV(pGC)->gc, mask, &values);
 }
 
 void xsCopyGC(GCPtr pGCSrc, unsigned long mask, GCPtr pGCDst)
 {
-    XCBCopyGC(xsConnection, XS_GC_PRIV(pGCSrc)->gc, XS_GC_PRIV(pGCDst)->gc, mask);
+    xcb_copy_gc(xsConnection, XS_GC_PRIV(pGCSrc)->gc, XS_GC_PRIV(pGCDst)->gc, mask);
 }
 
 void xsDestroyGC(GCPtr pGC)
 {
-    XCBFreeGC(xsConnection, XS_GC_PRIV(pGC)->gc);
+    xcb_free_gc(xsConnection, XS_GC_PRIV(pGC)->gc);
 }
 
 void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
 {
     int i, size;
     BoxPtr pBox;
-    XCBRECTANGLE *pRects;
-    XCBParamsGC param;
+    xcb_rectangle_t *pRects;
+    xcb_params_gc_t param;
 
     xsDestroyClipHelper(pGC);
 
@@ -207,7 +207,7 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
     {
         case CT_NONE:
             param.mask = None;
-            XCBAuxChangeGC(xsConnection, XS_GC_PRIV(pGC)->gc, XCBGCClipMask, &param);
+            xcb_aux_change_gc(xsConnection, XS_GC_PRIV(pGC)->gc, XCB_GC_CLIP_MASK, &param);
             break;
 
         case CT_REGION:
@@ -221,8 +221,8 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
                 pRects[i].width = pBox[i].x2 - pBox[i].x1;
                 pRects[i].height = pBox[i].y2 - pBox[i].y1;
             }
-            XCBSetClipRectangles(xsConnection, 
-                    XCBClipOrderingUnsorted,
+            xcb_set_clip_rectangles(xsConnection, 
+                    XCB_CLIP_ORDERING_UNSORTED,
                     XS_GC_PRIV(pGC)->gc, 
                     0, 0,
                     nRects,
@@ -231,8 +231,8 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
             break;
 
         case CT_PIXMAP:
-            param.mask = XS_PIXMAP_PRIV((PixmapPtr)pValue)->pixmap.xid;
-            XCBAuxChangeGC(xsConnection, XS_GC_PRIV(pGC)->gc, XCBGCClipMask, &param);
+            param.mask = XS_PIXMAP_PRIV((PixmapPtr)pValue)->pixmap;
+            xcb_aux_change_gc(xsConnection, XS_GC_PRIV(pGC)->gc, XCB_GC_CLIP_MASK, &param);
             /*
              * Need to change into region, so subsequent uses are with
              * current pixmap contents.
@@ -244,17 +244,17 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
             break;
 
         case CT_UNSORTED:
-            XCBSetClipRectangles(xsConnection,
-                    XCBClipOrderingUnsorted,
+            xcb_set_clip_rectangles(xsConnection,
+                    XCB_CLIP_ORDERING_UNSORTED,
                     XS_GC_PRIV(pGC)->gc, 
                     pGC->clipOrg.x,
                     pGC->clipOrg.y,
                     nRects,
-                    (XCBRECTANGLE *)pValue);
+                    (xcb_rectangle_t *)pValue);
             break;
         case CT_YSORTED:
-            XCBSetClipRectangles(xsConnection,
-                    XCBClipOrderingYSorted,
+            xcb_set_clip_rectangles(xsConnection,
+                    XCB_CLIP_ORDERING_Y_SORTED,
                     XS_GC_PRIV(pGC)->gc, 
                     pGC->clipOrg.x,
                     pGC->clipOrg.y,
@@ -262,8 +262,8 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
                     pValue);
             break;
         case CT_YXSORTED:
-            XCBSetClipRectangles(xsConnection,
-                    XCBClipOrderingYXSorted,
+            xcb_set_clip_rectangles(xsConnection,
+                    XCB_CLIP_ORDERING_YX_SORTED,
                     XS_GC_PRIV(pGC)->gc, 
                     pGC->clipOrg.x,
                     pGC->clipOrg.y,
@@ -271,8 +271,8 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
                     pValue);
             break;
         case CT_YXBANDED:
-            XCBSetClipRectangles(xsConnection,
-                    XCBClipOrderingYXBanded,
+            xcb_set_clip_rectangles(xsConnection,
+                    XCB_CLIP_ORDERING_YX_BANDED,
                     XS_GC_PRIV(pGC)->gc, 
                     pGC->clipOrg.x,
                     pGC->clipOrg.y,
@@ -311,11 +311,11 @@ void xsChangeClip(GCPtr pGC, int type, pointer pValue, int nRects)
 
 void xsDestroyClip(GCPtr pGC)
 {
-    XCBParamsGC param;
+    xcb_params_gc_t param;
     param.mask = None;
     xsDestroyClipHelper(pGC);
 
-    XCBAuxChangeGC(xsConnection, XS_GC_PRIV(pGC)->gc, XCBGCClipMask, &param);
+    xcb_aux_change_gc(xsConnection, XS_GC_PRIV(pGC)->gc, XCB_GC_CLIP_MASK, &param);
 
 
     pGC->clientClipType = CT_NONE;

@@ -19,9 +19,9 @@ is" without express or implied warranty.
 #endif
 
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_image.h> 
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_image.h> 
 #include "regionstr.h"
 #include "pixmapstr.h"
 #include "scrnintstr.h"
@@ -38,7 +38,7 @@ int XS_PIXMAP_PRIVIndex;
 #endif
 
 static int xsNumFormats;
-static XCBFORMAT *xsFormats;
+static xcb_format_t *xsFormats;
 
 /**
  * Initializes the list of available formats, used
@@ -46,11 +46,11 @@ static XCBFORMAT *xsFormats;
  **/
 void xsInitFormats()
 {
-    const XCBSetup *setup;
+    const xcb_setup_t *setup;
         
-    setup = XCBGetSetup(xsConnection);
-    xsNumFormats = XCBSetupPixmapFormatsLength(setup);
-    xsFormats = XCBSetupPixmapFormats(setup);
+    setup = xcb_get_setup(xsConnection);
+    xsNumFormats = xcb_setup_pixmap_formats_length(setup);
+    xsFormats = xcb_setup_pixmap_formats(setup);
 }
 
 /**
@@ -105,14 +105,14 @@ PixmapPtr xsCreatePixmap(ScreenPtr pScreen, int width, int height, int depth)
     pPixmap->devPrivate.ptr = (pointer)(pPixmap + 1);
 #endif
     if (width && height){
-        XS_PIXMAP_PRIV(pPixmap)->pixmap = XCBPIXMAPNew(xsConnection); 
-        XCBCreatePixmap(xsConnection,
+        XS_PIXMAP_PRIV(pPixmap)->pixmap = xcb_generate_id(xsConnection); 
+        xcb_create_pixmap(xsConnection,
                 depth,
                 XS_PIXMAP_PRIV(pPixmap)->pixmap,
                 xsBackingRoot,
                 width, height);
     } else
-        XS_PIXMAP_PRIV(pPixmap)->pixmap.xid = 0;
+        XS_PIXMAP_PRIV(pPixmap)->pixmap = 0;
 
     return pPixmap;
 }
@@ -124,7 +124,7 @@ Bool xsDestroyPixmap(PixmapPtr pPixmap)
 {
     if(--pPixmap->refcnt)
         return TRUE;
-    XCBFreePixmap(xsConnection, XS_PIXMAP_PRIV(pPixmap)->pixmap);
+    xcb_free_pixmap(xsConnection, XS_PIXMAP_PRIV(pPixmap)->pixmap);
     xfree(pPixmap);
     return TRUE;
 }
@@ -134,15 +134,15 @@ Bool xsDestroyPixmap(PixmapPtr pPixmap)
  **/
 RegionPtr xsPixmapToRegion(PixmapPtr pPixmap)
 {
-    XCBImage *ximage;
+    xcb_image_t *ximage;
     register RegionPtr pReg, pTmpReg;
     register int x, y;
     unsigned long previousPixel, currentPixel;
     BoxRec Box;
     Bool overlap;
 
-    ximage = XCBImageGet(xsConnection,
-                        (XCBDRAWABLE)XS_PIXMAP_PRIV(pPixmap)->pixmap,
+    ximage = xcb_image_get(xsConnection,
+                        (xcb_drawable_t)XS_PIXMAP_PRIV(pPixmap)->pixmap,
                         0, 0,
                         pPixmap->drawable.width, pPixmap->drawable.height,
                         1,
@@ -151,7 +151,7 @@ RegionPtr xsPixmapToRegion(PixmapPtr pPixmap)
     pReg = REGION_CREATE(pPixmap->drawable.pScreen, NULL, 1);
     pTmpReg = REGION_CREATE(pPixmap->drawable.pScreen, NULL, 1);
     if(!pReg || !pTmpReg) {
-        XCBImageDestroy(ximage);
+        xcb_image_destroy(ximage);
         return NullRegion;
     }
 
@@ -160,7 +160,7 @@ RegionPtr xsPixmapToRegion(PixmapPtr pPixmap)
         Box.y2 = y + 1;
         previousPixel = 0L;
         for (x = 0; x < pPixmap->drawable.width; x++) {
-            currentPixel = XCBImageGetPixel(ximage, x, y);
+            currentPixel = xcb_image_get_pixel(ximage, x, y);
             if (previousPixel != currentPixel) {
                 if (previousPixel == 0L) { 
                     /* left edge */
@@ -184,7 +184,7 @@ RegionPtr xsPixmapToRegion(PixmapPtr pPixmap)
     }
 
     REGION_DESTROY(pPixmap->drawable.pScreen, pTmpReg);
-    XCBImageDestroy(ximage);
+    xcb_image_destroy(ximage);
 
     REGION_VALIDATE(pPixmap->drawable.pScreen, pReg, &overlap);
 

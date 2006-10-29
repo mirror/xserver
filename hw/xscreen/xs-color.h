@@ -5,7 +5,7 @@
 #define MAXCMAPS 1
 
 typedef struct {
-  XCBCOLORMAP colormap;
+  xcb_colormap_t colormap;
 } XscreenPrivColormap;
 
 #define XS_CMAP_PRIV(pCmap) \
@@ -15,9 +15,9 @@ Bool xsCreateColormap(ColormapPtr pCmap);
 void xsDestroyColormap(ColormapPtr pCmap);
 void xsInstallColormap(ColormapPtr pCmap);
 void xsUninstallColormap(ColormapPtr pCmap);
-int  xsListInstalledColormaps(ScreenPtr pScreen, XCBCOLORMAP *pCmapIDs);
-void xsStoreColors(ColormapPtr pCmap, int nColors, XCBCOLORITEM *pColors);
-void xsResolveColor(CARD16 *r, CARD16 *g, CARD16 *b, VisualPtr pVisual);
+int  xsListInstalledColormaps(ScreenPtr pScreen, xcb_colormap_t *pCmapIDs);
+void xsStoreColors(ColormapPtr pCmap, int nColors, xcb_coloritem_t *pColors);
+void xsResolveColor(uint16_t *r, uint16_t *g, uint16_t *b, VisualPtr pVisual);
 
 void xsSetInstalledColormapWindows(ScreenPtr pScreen);
 //void xsSetScreenSaverColormapWindow(ScreenPtr pScreen);

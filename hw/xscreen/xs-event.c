@@ -2,10 +2,10 @@
 #include <xs-config.h>
 #endif
 #include <X11/Xmd.h>
-#include <X11/XCB/xcb.h>
-#include <X11/XCB/xcb_aux.h>
-#include <X11/XCB/xproto.h>
-#include <X11/XCB/xcb_image.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_image.h>
 #include "regionstr.h"
 #include "gcstruct.h"
 #include "scrnintstr.h"
@@ -18,16 +18,16 @@
 #include "xs-globals.h"
 #include "xs-window.h"
 
-void xsDoConfigure(XCBConfigureNotifyEvent *e)
+void xsDoConfigure(xcb_configure_notify_event_t *e)
 {
 }
 
-void xsHandleEvent(XCBGenericEvent *evt)
+void xsHandleEvent(xcb_generic_event_t *evt)
 {
     switch (evt->response_type & ~0x80)
     {
-        case XCBConfigureNotify:
-            xsDoConfigure((XCBConfigureNotifyEvent *)evt);
+        case XCB_CONFIGURE_NOTIFY:
+            xsDoConfigure((xcb_configure_notify_event_t *)evt);
             break;
         default:
             ErrorF("Warning: Unhandled Event");

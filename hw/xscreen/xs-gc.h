@@ -2,7 +2,7 @@
 #define _XS_GC_INCL_ 
 
 typedef struct {
-  XCBGCONTEXT gc;
+  xcb_gcontext_t gc;
 } XscreenPrivGC;
 
 extern int xsGCPrivateIndex;

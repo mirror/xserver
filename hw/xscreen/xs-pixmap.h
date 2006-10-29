@@ -6,7 +6,7 @@ extern int xsPixmapPrivateIndex;
 #endif
 
 typedef struct {
-  XCBPIXMAP pixmap;
+  xcb_pixmap_t pixmap;
   XSOwnership owned;
 } XscreenPrivPixmap;
 
@@ -18,7 +18,7 @@ typedef struct {
   ((XscreenPrivPixmap *)((pPixmap)->devPrivate.ptr))
 #endif
 
-void      xsInitFormats();
+void      xsInitFormats(void);
 int       xsPixmapCalcSize(int depth, int w, int h);
 PixmapPtr xsCreatePixmap(ScreenPtr pScreen, int width, int height, int depth);
 Bool      xsDestroyPixmap(PixmapPtr pPixmap);

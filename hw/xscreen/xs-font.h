@@ -2,7 +2,7 @@
 #define _XS_FONT_INCL_
 
 typedef struct {
-    XCBFONT font;
+    xcb_font_t font;
 } XscreenPrivFont;
 
 
