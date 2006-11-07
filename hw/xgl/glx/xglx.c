@@ -1294,6 +1294,9 @@ xglxWakeupHandler (pointer blockData,
 		   int     result,
 		   pointer pReadMask)
 {
+#ifdef XEVDEV
+    if (!useEvdev)
+#endif    	    
     xglxEnqueueEvents ();
 }
 
@@ -1533,9 +1536,25 @@ xglxKeybdProc (DeviceIntPtr pDevice,
     } break;
     case DEVICE_ON:
 	pDev->on = TRUE;
+
+#ifdef XEVDEV
+        /* When evdev input is set the events are grabbed per default.
+         * EvdevGrabKeyboard is need to be changed to XGrabKeyboard
+         * xlib function thus Xgl will be able to choose if want or not
+         * be grabbed. */
+        if (useEvdev)
+            EvdevGrabKeyboard ();
+#endif
+
 	break;
     case DEVICE_OFF:
     case DEVICE_CLOSE:
+
+#ifdef XEVDEV
+	if (useEvdev)
+	    EvdevUngrabKeyboard ();
+#endif
+
 	pDev->on = FALSE;
 	break;
     }
@@ -1604,15 +1623,7 @@ xglxInitInput (int  argc,
 
 #ifdef XEVDEV
     if (useEvdev)
-    {
-	xglInitInput (argc, argv);
-
-	RegisterBlockAndWakeupHandlers (xglxBlockHandler,
-					xglWakeupHandler,
-					NULL);
-
-	return;
-    }
+	OpenEvdevInput (kbdEvdevFile, ptrEvdevFile, xglEvdevReadInput);
 #endif
 
     pPointer  = AddInputDevice (xglxPointerProc, TRUE);

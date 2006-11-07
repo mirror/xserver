@@ -75,7 +75,7 @@ static int EventToXserver[] = {
     248
 };
 
-static void
+void
 xglEvdevReadInput (void)
 {
     struct input_event ie;
@@ -368,13 +368,6 @@ xglKeybdProc (DeviceIntPtr pDevice,
 	if (pDev != LookupKeyboardDevice ())
 	    return !Success;
 
-#ifdef XEVDEV
-	if (useEvdev)
-	{
-	    EvdevInit (pDevice);
-	    return Success;
-	}
-#endif
 	ret = InitKeyboardDeviceStruct (pDev,
 					&xglKeySyms,
 					xglModMap,
@@ -386,25 +379,9 @@ xglKeybdProc (DeviceIntPtr pDevice,
 	break;
     case DEVICE_ON:
 	pDev->on = TRUE;
-
-#ifdef XEVDEV
-	/* When evdev input is set the events are grabbed per default.
-	 * EvdevGrabKeyboard is need to be changed to XGrabKeyboard
-	 * xlib function thus Xgl will be able to choose if want or not
-	 * be grabbed. */
-	if (useEvdev)
-	    EvdevGrabKeyboard ();
-#endif
-
 	break;
     case DEVICE_OFF:
     case DEVICE_CLOSE:
-
-#ifdef XEVDEV
-	if (useEvdev)
-	    EvdevUngrabKeyboard ();
-#endif
-
 	pDev->on = FALSE;
 	break;
     }
@@ -416,11 +393,6 @@ void
 xglInitInput (int argc, char **argv)
 {
     DeviceIntPtr pKeyboard, pPointer;
-
-#ifdef XEVDEV
-    if (useEvdev)
-	OpenEvdevInput (kbdEvdevFile, ptrEvdevFile, xglEvdevReadInput);
-#endif
 
     pPointer  = AddInputDevice (xglMouseProc, TRUE);
     pKeyboard = AddInputDevice (xglKeybdProc, TRUE);

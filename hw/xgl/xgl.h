@@ -515,6 +515,9 @@ extern char *kbdEvdevFile;
 extern char *ptrEvdevFile;
 
 void
+xglEvdevReadInput (void);
+
+void
 xglWakeupHandler (pointer blockData,
 		  int	  result,
 		  pointer pReadMask);
