@@ -39,7 +39,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "resource.h"
 #include "fb.h"
 
-#if !defined(XFree86Server) && !defined(LG3D)
+#ifndef XFree86Server
 ColormapPtr FbInstalledMaps[MAXSCREENS];
 
 int
@@ -454,6 +454,14 @@ fbInitVisuals (VisualPtr    *visualp,
     int		nvtype;
     int		vtype;
     fbVisualsPtr   visuals, nextVisuals;
+
+#ifdef LG3D
+    /* Workaround for Xvfb visuals bug */
+    if (getenv("LG3D") != NULL) {
+	return miInitVisuals(visualp, depthp, nvisualp, ndepthp, rootDepthp,
+			     defaultVisp, sizes, bitsPerRGB, -1);
+    }
+#endif /* LG3D */
 
     /* none specified, we'll guess from pixmap formats */
     if (!fbVisuals) 
