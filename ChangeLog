@@ -1,0 +1,14 @@
+
+2006-02-28  Deron Johnson <deron.johnson@sun.com>
+        * configure.ac
+        * Xext/Makefile.am
+	* Xext/lge.c
+	* Xext/lgeint.h
+        * mi/miinitext.c
+	* include/globals.h
+	* os/utils.c
+	* dix/Makefile.am
+	* dix/events.c	
+	* dix/xytosubwin.c
+        * xkb/xkbPrKeyEv.c
+	

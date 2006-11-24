@@ -184,4 +184,8 @@ extern Bool noXIdleExtension;
 extern Bool noXvExtension;
 #endif
 
+#ifdef LG3D
+extern Bool noLgeExtension;
+#endif
+
 #endif /* !_XSERV_GLOBAL_H_ */

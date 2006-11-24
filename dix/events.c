@@ -161,6 +161,23 @@ xEvent *xeviexE;
 #include "dixgrabs.h"
 #include "dispatch.h"
 
+#ifdef LG3D
+
+#include <X11/extensions/damagewire.h>
+#include "../Xext/lgeint.h"
+
+extern void
+fillSpriteTraceFromRootToWin (WindowPtr pWin);
+
+extern WindowPtr XYToSubWindow (WindowPtr pWin, int x, int y, 
+				int *xWinRel, int *yWinRel);
+
+Bool PointInBorderSize(WindowPtr pWin, int x, int y);
+
+extern Window GetLgPrwFromSprite(void);
+
+#endif /* LG3D */
+
 #define EXTENSION_EVENT_BASE  64
 
 #define NoSuchEvent 0x80000000	/* so doesn't match NoEventMask */
@@ -224,10 +241,18 @@ static struct {
  * windows between the root and the current pointer window each time a button
  * or key goes down. The grabs on each of those windows must be checked.
  */
+#ifdef LG3D
+WindowPtr *spriteTrace = (WindowPtr *)NULL;
+WindowPtr lgeCurrentRootWin;
+#define ROOT spriteTrace[0]
+int spriteTraceSize = 0;
+int spriteTraceGood;
+#else
 static WindowPtr *spriteTrace = (WindowPtr *)NULL;
 #define ROOT spriteTrace[0]
 static int spriteTraceSize = 0;
 static int spriteTraceGood;
+#endif /* LG3D */
 
 static  struct {
     CursorPtr	current;
@@ -248,6 +273,15 @@ static  struct {
     WindowPtr	confineWin;	/* confine window */ 
 #endif
 } sprite;			/* info about the cursor sprite */
+
+#ifdef LG3D
+typedef struct virtual_sprite {
+    WindowPtr win;              /* The top-level window the sprite is in (or PRW) */
+    HotSpot   hot;		/* Sprite location relative to win */
+} VirtualSprite;
+
+static VirtualSprite virtualSprite = { NULL, {0, 0} };
+#endif /* LG3D */
 
 #ifdef XEVIE
 _X_EXPORT WindowPtr xeviewin;
@@ -1149,7 +1183,28 @@ ComputeFreezes()
 	count = replayDev->sync.evcount;
 	syncEvents.replayDev = (DeviceIntPtr)NULL;
 
+#ifdef LG3D	
+	{ WindowPtr pWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW);
+	  if (lgeDisplayServerIsAlive && GetLgePRWForRoot(pWin)) {
+	      if (sprite.hotPhys.pScreen != pWin->drawable.pScreen) {
+		  w = XYToSubWindow(pWin, 
+				    xE->u.keyButtonPointer.eventX, xE->u.keyButtonPointer.eventY,
+				    &virtualSprite.hot.x, &virtualSprite.hot.y);
+		  if (IsWinLgePRWOne(w->drawable.id)) {
+		      ErrorF("ComputeFreezes %d %d seq %d\n", (int)xE->u.keyButtonPointer.event,
+			     (int)w->drawable.id, xE->u.u.sequenceNumber);
+		  }
+	      } else {
+    	    	w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);	
+	      }
+	  } else {
+	      w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);	
+	  }
+	}
+#else
         w = XYToWindow( XE_KBPTR.rootX, XE_KBPTR.rootY);
+#endif /* LG3D */
+
 	for (i = 0; i < spriteTraceGood; i++)
 	{
 	    if (syncEvents.replayWin == spriteTrace[i])
@@ -1759,6 +1814,151 @@ MaybeDeliverEventsToClient(register WindowPtr pWin, xEvent *pEvents,
     return 2;
 }
 
+#ifdef LG3D
+
+/*
+** Returns true if the event type is one which was generated
+** by an input device. These are the only types of events
+** which been sent to the Display Server so they are the only
+** types of events which have the event field already set.
+**
+** TODO: this macro does not yet support XINPUT devices.
+*/
+
+#define EVENT_IS_DEVICE_EVENT(e) \
+    ((e)->u.u.type == KeyPress      || \
+     (e)->u.u.type == KeyRelease    || \
+     (e)->u.u.type == ButtonPress   || \
+     (e)->u.u.type == ButtonRelease || \
+     (e)->u.u.type == MotionNotify)
+
+static void
+lgeFixUpEventFromPRW(
+    xEvent *xE,
+    WindowPtr pWin,
+    Window child,
+    Bool calcChild)
+{
+    XE_KBPTR.root = ROOT->drawable.id;
+
+    /* 
+    ** If the non-3D event is going to the DS (e.g. because 
+    ** of a grab) make the the coordinates relative to the PRW 
+    ** (that is, screen absolute),
+    */
+
+    if (!IsWinLgePRWOne(XE_KBPTR.event)) {
+	WindowPtr pOldWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW);
+	if (pOldWin != NULL) {
+	    XE_KBPTR.eventX = XE_KBPTR.rootX;
+	    XE_KBPTR.eventY = XE_KBPTR.rootY;
+	}
+    }
+
+    XE_KBPTR.event = pWin->drawable.id;
+
+    if (sprite.hot.pScreen != pWin->drawable.pScreen)
+    {
+	XE_KBPTR.sameScreen = xFalse;
+        /*
+	XE_KBPTR.child = None;
+	XE_KBPTR.eventX = 0;
+	XE_KBPTR.eventY = 0;
+	*/
+    } else {
+	XE_KBPTR.sameScreen = xTrue;
+    }
+}
+
+static void
+lgeFixUpEventFromXWindow(
+    xEvent *xE,
+    WindowPtr pWin,
+    Window child,
+    Bool calcChild)
+{
+    Window eventWindowOld = INVALID;
+
+    if (calcChild)
+    {
+        WindowPtr w=spriteTrace[spriteTraceGood-1];
+	/* If the search ends up past the root should the child field be 
+	   set to none or should the value in the argument be passed 
+	   through. It probably doesn't matter since everyone calls 
+	   this function with child == None anyway. */
+
+        while (w) 
+        {
+            /* If the source window is same as event window, child should be
+	       none.  Don't bother going all all the way back to the root. */
+
+ 	    if (w == pWin)
+	    { 
+   		child = None;
+ 		break;
+	    }
+	    
+	    if (w->parent == pWin)
+	    {
+		child = w->drawable.id;
+		break;
+            }
+ 	    w = w->parent;
+        } 	    
+    }
+
+    XE_KBPTR.root = WindowTable[sprite.hotPhys.pScreen->myNum]->drawable.id;    
+    eventWindowOld = XE_KBPTR.event;
+    XE_KBPTR.event = pWin->drawable.id;
+
+    XE_KBPTR.sameScreen = xTrue;
+    if (sprite.hot.pScreen != pWin->drawable.pScreen)
+    {
+	XE_KBPTR.sameScreen = xFalse;
+	/*
+	XE_KBPTR.child = None;
+	XE_KBPTR.eventX = 0;
+	XE_KBPTR.eventY = 0;
+	*/
+	/* TODO: Amir commented this out. Does we really want to not return? */
+	return;
+    }
+
+    XE_KBPTR.child = child;
+
+    /* 
+    ** The only events needing fixup at this point are mouse events
+    ** where the event window has been changed.
+    */
+    if ((xE->u.u.type == ButtonPress   ||
+	 xE->u.u.type == ButtonRelease  ||
+	 xE->u.u.type == MotionNotify)  &&
+	eventWindowOld != XE_KBPTR.event) {
+
+	/* TODO: it would be good to avoid a resource lookup here. Some sort of 
+	   caching might optimize this */
+	WindowPtr pOuterWin = (WindowPtr) LookupIDByType(eventWindowOld, RT_WINDOW);
+	if (pOuterWin == NULL) {
+	    /*
+	    ** This can happen if the window has died since the pick on the window
+	    ** occurred. So we don't need to be verbose about it.
+	    ErrorF("Error: FixupEventFromWindow: outer window %d, not found. No XY fix up occuring.\n",
+	           eventWindowOld);
+	    */
+	} else {
+	    /* 
+	    ** Make the event coords relative to the destination window
+	    ** instead of relative to the outer window.
+	    */
+	    XE_KBPTR.eventX -= pWin->drawable.x - pOuterWin->drawable.x;
+	    XE_KBPTR.eventY -= pWin->drawable.y - pOuterWin->drawable.y;
+	    /*ErrorF("new eventxy = %d, %d", XE_KBPTR.eventX, XE_KBPTR.eventY);*/
+	}		    
+    }
+}
+
+#endif /* LG3D */
+
 static void
 FixUpEventFromWindow(
     xEvent *xE,
@@ -1766,6 +1966,17 @@ FixUpEventFromWindow(
     Window child,
     Bool calcChild)
 {
+#ifdef LG3D
+    if (lgeDisplayServerIsAlive && GetLgePRWForRoot(pWin)) {
+	if (EVENT_IS_DEVICE_EVENT(xE) && IsWinLgePRWOne(pWin->drawable.id)) {
+	    lgeFixUpEventFromPRW(xE, pWin, child, calcChild);
+	} else {
+	    lgeFixUpEventFromXWindow(xE, pWin, child, calcChild);
+	}
+	return;
+    }
+#endif /* LG3D */
+
     if (calcChild)
     {
         WindowPtr w=spriteTrace[spriteTraceGood-1];
@@ -1812,6 +2023,163 @@ FixUpEventFromWindow(
 	XE_KBPTR.eventY = 0;
     }
 }
+
+#ifdef LG3D
+
+/* 
+** Fix LG3D bug 293.
+** This is similar to CheckMotion, but for button events 
+*/
+
+static WindowPtr
+lg3dDetermineButtonDestWindow (xEvent *xE, WindowPtr spriteWin)
+{
+   WindowPtr pEventWin;
+   WindowPtr pDestWin;
+   int       xDummy, yDummy;
+
+   if (!lgeDisplayServerIsAlive) {
+       /* Backwards compatibility: the LG DS isn't running */
+       return spriteWin;
+   } 
+
+   if (IsWinLgePRWOne(XE_KBPTR.event)) {
+       /* This is a 3D event. Always send these to the PRW */
+       return GetLgePRWWinFor(XE_KBPTR.event);
+   }
+
+   /* 
+   ** At this point, we know that it is a 2D native window event.
+   ** Determine the appropriate subwindow to which the event should be sent.
+   */
+   pEventWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW); 
+   if (pEventWin == NULL) {
+       /* 
+       ** This may happen if the top-level destination window has been destroyed
+       ** since the pick was performed. So just make sure that the event is discarded.
+       */
+       return NULL;
+   }
+
+   pDestWin = XYToSubWindow(pEventWin, XE_KBPTR.eventX, XE_KBPTR.eventY,
+			    &xDummy, &yDummy);
+
+   return pDestWin;
+}
+
+static int
+DeliverDeviceEventsXorg(register WindowPtr pWin, register xEvent *xE, GrabPtr grab, 
+			register WindowPtr stopAt, DeviceIntPtr dev, int count)
+{
+    Window child = None;
+    int type = xE->u.u.type;
+    Mask filter = filters[type];
+    int deliveries = 0;
+#ifdef LG3D
+    WindowPtr tmpWin;
+#endif /* LG3D */
+
+    if (type & EXTENSION_EVENT_BASE)
+    {
+	register OtherInputMasks *inputMasks;
+	int mskidx = dev->id;
+
+	inputMasks = wOtherInputMasks(pWin);
+	if (inputMasks && !(filter & inputMasks->deliverableEvents[mskidx]))
+	    return 0;
+	while (pWin)
+	{
+	    if (inputMasks && (inputMasks->inputEvents[mskidx] & filter))
+	    {
+		FixUpEventFromWindow(xE, pWin, child, FALSE);
+		deliveries = DeliverEventsToWindow(pWin, xE, count, filter,
+						   grab, mskidx);
+		if (deliveries > 0)
+		    return deliveries;
+	    }
+#ifdef LG3D
+	    tmpWin = (pWin->parent) ? pWin->parent : pWin;
+#endif /* LG3D */
+	    if ((deliveries < 0) ||
+		(pWin == stopAt) ||
+#ifdef LG3D
+		/*
+		** Stop propogating when the parent of the window is the PRW.
+		** This prevents events that are not caught by any X11 window from
+		** being sent back to the the Display Server, because the DS can
+		** misinterpret these.
+		** TODO: we need to decide if a server change is the best way to 
+		** deal with this problem, or whether the DS or WM can do something 
+		** about it.
+		*/
+		(lgeDisplayServerIsAlive && (pWin->parent)
+		&& pWin->parent->drawable.id == IsWinLgePRWOne(tmpWin->drawable.id)) ||
+#endif /* LG3D */
+		(inputMasks &&
+		 (filter & inputMasks->dontPropagateMask[mskidx])))
+		return 0;
+	    child = pWin->drawable.id;
+	    pWin = pWin->parent;
+	    if (pWin)
+		inputMasks = wOtherInputMasks(pWin);
+	}
+    }
+    else
+    {
+	if (!(filter & pWin->deliverableEvents))
+	    return 0;
+	while (pWin)
+	{
+	    if ((wOtherEventMasks(pWin)|pWin->eventMask) & filter)
+	    {
+		FixUpEventFromWindow(xE, pWin, child, FALSE);
+		deliveries = DeliverEventsToWindow(pWin, xE, count, filter,
+						   grab, 0);
+		if (deliveries > 0)
+		    return deliveries;
+	    }
+#ifdef LG3D
+	    tmpWin = (pWin->parent) ? pWin->parent : pWin;
+#endif /* LG3D */
+	    if ((deliveries < 0) ||
+		(pWin == stopAt) ||
+#ifdef LG3D
+		/* See comment above */		
+		(lgeDisplayServerIsAlive 		
+		&& pWin->parent->drawable.id == IsWinLgePRWOne(tmpWin->drawable.id)) ||
+#endif /* LG3D */
+		(filter & wDontPropagateMask(pWin)))
+		return 0;
+	    child = pWin->drawable.id;
+	    pWin = pWin->parent;
+	}
+    }
+    return 0;
+}
+
+int
+DeliverDeviceEvents (WindowPtr pSpriteWin, xEvent *xE, GrabPtr grab, 
+		     WindowPtr stopAt, DeviceIntPtr dev, int count)
+{
+    int ret;
+
+    /* 
+    ** Fix LG3D bug 293: make sure that we send button events for
+    ** 2D to a subwindow of the top-level window that the DS Picker
+    ** has chosen.
+    */
+    if (xE->u.u.type == ButtonPress || xE->u.u.type == ButtonRelease) {
+	WindowPtr pDestWin = lg3dDetermineButtonDestWindow(xE, pSpriteWin);
+	if (pDestWin == NULL) return 0;
+	ret = DeliverDeviceEventsXorg(pDestWin, xE, grab, stopAt, dev, count);
+    } else {
+	ret = DeliverDeviceEventsXorg(pSpriteWin, xE, grab, stopAt, dev, count);
+    }
+
+    return ret;
+}
+
+#else
 
 int
 DeliverDeviceEvents(register WindowPtr pWin, register xEvent *xE, GrabPtr grab, 
@@ -1876,6 +2244,8 @@ DeliverDeviceEvents(register WindowPtr pWin, register xEvent *xE, GrabPtr grab,
     return 0;
 }
 
+#endif /* LG3D */
+
 /* not useful for events that propagate up the tree or extension events */
 _X_EXPORT int
 DeliverEvents(register WindowPtr pWin, register xEvent *xE, int count, 
@@ -1916,7 +2286,11 @@ DeliverEvents(register WindowPtr pWin, register xEvent *xE, int count,
 }
 
 
+#ifdef LG3D
+Bool 
+#else
 static Bool 
+#endif /* LG3D */
 PointInBorderSize(WindowPtr pWin, int x, int y)
 {
     BoxRec box;
@@ -2036,10 +2410,58 @@ CheckMotion(xEvent *xE)
 	XE_KBPTR.rootY = sprite.hot.y;
     }
 
+#ifdef LG3D
+   if (lgeDisplayServerIsAlive
+       && (GetLgPrwFromSprite() != INVALID)) {
+
+	if (xE == NULL) {
+	    /* WindowsRestructured case */
+	    /* TODO: this may change */
+	    sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
+	    virtualSprite.hot.x = sprite.hot.x - sprite.win->drawable.x;
+	    virtualSprite.hot.y = sprite.hot.y - sprite.win->drawable.y;
+	} else if (XE_KBPTR.event == IsWinLgePRWOne(XE_KBPTR.event)) {
+	    /* 3D Event */
+	    sprite.win = GetLgePRWWinFor(XE_KBPTR.event);
+	    virtualSprite.hot.x = sprite.hot.x;
+	    virtualSprite.hot.y = sprite.hot.y;
+
+	    /* We must keep the sprite trace up-to-date */
+	    if (sprite.win != NULL) {
+		fillSpriteTraceFromRootToWin(sprite.win);
+	    }
+	} else {
+	    /* Normal X Event */
+	    WindowPtr pEventWin = (WindowPtr) LookupIDByType(XE_KBPTR.event, RT_WINDOW); 
+	    if (pEventWin == NULL) {
+		/* 
+		** TODO: this may not be the best way to handle this case,
+		** but it's better than doing an XYToWindow, because XYToWindow
+		** may return the PRW, and if we send a native window event to 
+		** the PRW there won't be a corresponding evinfo, so the DS will crash.
+		*/
+		return FALSE;
+	    }
+	    lgeCurrentRootWin = WindowTable[sprite.hotPhys.pScreen->myNum];
+	    sprite.win = XYToSubWindow(pEventWin, 
+				       XE_KBPTR.eventX, XE_KBPTR.eventY,
+				       &virtualSprite.hot.x, &virtualSprite.hot.y);
+	}
+	virtualSprite.win = sprite.win;
+
+    } else {
+	sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
+    }
+#ifdef XEVIE
+    xeviewin = sprite.win;
+#endif
+#else
 #ifdef XEVIE
     xeviewin =
 #endif
     sprite.win = XYToWindow(sprite.hot.x, sprite.hot.y);
+#endif /* LG3D */
+
 #ifdef notyet
     if (!(sprite.win->deliverableEvents &
 	  Motion_Filter(inputInfo.pointer->button))
@@ -2845,7 +3267,16 @@ drawable.id:0;
     else
 	DeliverFocusedEvent(keybd, xE, sprite.win, count);
     if (deactivateGrab)
+#ifdef LG3D
+    /* Make sure any queued events which are released are sent to the DS */
+    { int prevComesFromDS = lgeEventComesFromDS;
+      lgeEventComesFromDS = 0;   
+      (*keybd->DeactivateGrab)(keybd);
+      lgeEventComesFromDS = prevComesFromDS;
+    }
+#else
         (*keybd->DeactivateGrab)(keybd);
+#endif /* LG3D */
 
 #ifdef XACE
     XaceHook(XACE_KEY_AVAIL, xE, keybd, count);
@@ -2913,6 +3344,36 @@ ProcessPointerEvent (register xEvent *xE, register DeviceIntPtr mouse, int count
       }
     }
 #endif
+
+#ifdef LG3D
+    if (lgeDisplayServerIsAlive && 
+	!lgePickerClient->clientGone &&
+	!lgeEventComesFromDS) {
+	Window prw = GetLgPrwFromSprite();
+	if (prw != INVALID) {
+	    xEvent *e = xE;
+	    int i;
+
+	    for (i = 0; i < count; i++, e++) {
+		/*
+		  ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
+		  e->u.u.type, e->u.keyButtonPointer.rootX, 
+		  e->u.keyButtonPointer.rootY,
+		  e->u.keyButtonPointer.state);
+		  */
+		
+		/* Note: the root id of raw device events on LG screens is the prw */
+		e->u.keyButtonPointer.root = prw;
+
+		e->u.keyButtonPointer.child = 0;
+
+		WriteEventsToClient(lgePickerClient, 1, e);
+	    }
+
+	    return;
+	}
+    }
+#endif /* LG3D */
 
     if (!syncEvents.playingEvents)
 	NoticeTime(xE)
@@ -2995,7 +3456,16 @@ ProcessPointerEvent (register xEvent *xE, register DeviceIntPtr mouse, int count
 	DeliverDeviceEvents(sprite.win, xE, NullGrab, NullWindow,
 			    mouse, count);
     if (deactivateGrab)
+#ifdef LG3D
+    /* Make sure any queued events which are released are sent to the DS */
+    { int prevComesFromDS = lgeEventComesFromDS;
+      lgeEventComesFromDS = 0;   
+      (*mouse->DeactivateGrab)(mouse);
+      lgeEventComesFromDS = prevComesFromDS;
+    }
+#else
         (*mouse->DeactivateGrab)(mouse);
+#endif /* LG3D */
 }
 
 #define AtMostOneClient \
@@ -3979,8 +4449,29 @@ ProcQueryPointer(ClientPtr client)
     if (sprite.hot.pScreen == pWin->drawable.pScreen)
     {
 	rep.sameScreen = xTrue;
+#ifdef LG3D
+	/* 
+	** TODO: this only works when pWin is the top-level
+        ** window (or a descendent of the top level window)
+	** of the current virtual sprite window. We haven't
+	** yet figured out what the semantics should be for
+	** the case where this is not true.
+	*/
+        if (lgeDisplayServerIsAlive &&
+    	    (GetLgPrwFromSprite() != INVALID) &&
+	    virtualSprite.win != NULL) {
+	    rep.winX = virtualSprite.win->drawable.x + virtualSprite.hot.x -
+		       pWin->drawable.x;
+            rep.winY = virtualSprite.win->drawable.y + virtualSprite.hot.y -
+		       pWin->drawable.y;
+	} else {
+	    rep.winX = sprite.hot.x - pWin->drawable.x;
+	    rep.winY = sprite.hot.y - pWin->drawable.y;
+	}
+#else
 	rep.winX = sprite.hot.x - pWin->drawable.x;
 	rep.winY = sprite.hot.y - pWin->drawable.y;
+#endif /* LG3D */
 	for (t = sprite.win; t; t = t->parent)
 	    if (t->parent == pWin)
 	    {
@@ -4597,3 +5088,17 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
 	(void)WriteToClient(pClient, count * sizeof(xEvent), (char *) events);
     }
 }
+
+#ifdef LG3D
+
+Window
+GetLgPrwFromSprite(void)
+{
+    WindowPtr pWin = GetLgePRWForRoot(WindowTable[sprite.hotPhys.pScreen->myNum]);
+    if (pWin == NULL) {
+	return INVALID;
+    }
+    return pWin->drawable.id;
+}
+
+#endif /* LG3D */

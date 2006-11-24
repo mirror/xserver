@@ -420,6 +420,7 @@ AC_ARG_ENABLE(appgroup,       AS_HELP_STRING([--disable-appgroup], [Build XC-APP
 AC_ARG_ENABLE(xcalibrate,     AS_HELP_STRING([--enable-xcalibrate], [Build XCalibrate extension (default: disabled)]), [XCALIBRATE=$enableval], [XCALIBRATE=no])
 AC_ARG_ENABLE(tslib,          AS_HELP_STRING([--enable-tslib], [Build kdrive tslib touchscreen support (default: disabled)]), [TSLIB=$enableval], [TSLIB=no])
 AC_ARG_ENABLE(xevie,          AS_HELP_STRING([--disable-xevie], [Build XEvIE extension (default: enabled)]), [XEVIE=$enableval], [XEVIE=yes])
+AC_ARG_ENABLE(lge,            AS_HELP_STRING([--disable-lge], [Build Project Looking Glass extension (default: enabled)]), [LGE=$enableval], [LGE=yes])
 AC_ARG_ENABLE(cup,            AS_HELP_STRING([--disable-cup], [Build TOG-CUP extension (default: enabled)]), [CUP=$enableval], [CUP=yes])
 AC_ARG_ENABLE(evi,            AS_HELP_STRING([--disable-evi], [Build Extended-Visual-Information extension (default: enabled)]), [EVI=$enableval], [EVI=yes])
 AC_ARG_ENABLE(multibuffer,    AS_HELP_STRING([--enable-multibuffer], [Build Multibuffer extension (default: disabled)]), [MULTIBUFFER=$enableval], [MULTIBUFFER=no])
@@ -648,6 +649,12 @@ if test "x$XEVIE" = xyes; then
 	REQUIRED_MODULES="$REQUIRED_MODULES evieproto"
 fi
 
+AM_CONDITIONAL(LGE, [test "x$LGE" = xyes])
+if test "x$LGE" = xyes; then
+	AC_DEFINE(LGE, 1, [Build Project Looking Glass extension])
+	REQUIRED_MODULES="$REQUIRED_MODULES lg3dproto"
+fi
+
 AM_CONDITIONAL(APPGROUP, [test "x$APPGROUP" = xyes])
 if test "x$APPGROUP" = xyes; then
 	if test "x$XACE" != xyes || test "x$XCSECURITY" != xyes; then
@@ -871,7 +878,7 @@ CORE_INCS='-I$(top_srcdir)/include -I$(top_builddir)/include'
 PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
 PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
-XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS}"
+XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} -DLG3D"
 XSERVER_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} -lm"
 AC_SUBST([SYS_LIBS])
 

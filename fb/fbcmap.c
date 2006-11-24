@@ -39,7 +39,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "resource.h"
 #include "fb.h"
 
-#ifndef XFree86Server
+#if !defined(XFree86Server) && !defined(LG3D)
 ColormapPtr FbInstalledMaps[MAXSCREENS];
 
 int

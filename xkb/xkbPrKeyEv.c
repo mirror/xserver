@@ -39,6 +39,10 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <X11/extensions/XKBsrv.h>
 #include <ctype.h>
 
+#ifdef LG3D
+#include "../Xext/lgeint.h"
+extern Window GetLgPrwFromSprite();
+#endif /* LG3D */
 
 /***====================================================================***/
 
@@ -50,6 +54,35 @@ XkbSrvInfoPtr	xkbi;
 int		key;
 XkbBehavior	behavior;
 unsigned        ndx;
+
+#ifdef LG3D
+    if (lgeDisplayServerIsAlive && 
+	!lgePickerClient->clientGone &&
+	!lgeEventComesFromDS) {
+	Window prw = GetLgPrwFromSprite();
+	if (prw != INVALID) {
+	    xEvent *e = xE;
+	    int i;
+
+	    for (i = 0; i < count; i++, e++) {
+		/*
+		  ErrorF("Send event XS->DS, type = %d xy = %d, %d, state = 0x%x\n", 
+		  e->u.u.type, e->u.keyButtonPointer.rootX, 
+		  e->u.keyButtonPointer.rootY,
+		  e->u.keyButtonPointer.state);
+		  */
+			   
+		/* Note: the root id of raw device events on LG screens is the prw */
+		e->u.keyButtonPointer.root = prw;
+
+		e->u.keyButtonPointer.child = 0;
+
+		WriteEventsToClient(lgePickerClient, 1, xE);
+	    }
+	    return;
+	}
+    }
+#endif /* LG3D */
 
     xkbi= keyc->xkbInfo;
     key= xE->u.u.detail;

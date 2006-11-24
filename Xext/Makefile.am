@@ -149,6 +149,12 @@ if DPMSExtension
 MODULE_SRCS += $(DPMS_SRCS)
 endif
 
+# Project Looking Glass Extension
+LGE_SRCS = lge.c
+if LGE
+BUILTIN_SRCS += $(LGE_SRCS)
+endif
+
 # Now take all of the above, mix well, bake for 10 minutes and get libXext*.la
 
 libXext_la_SOURCES =		$(BUILTIN_SRCS) $(MODULE_SRCS)
@@ -178,5 +184,6 @@ EXTRA_DIST = \
 	$(EXTRA_MULTIBUFFER_SRCS) \
 	$(FONTCACHE_SRCS) \
 	$(BIGFONT_SRCS) \
-	$(DPMS_SRCS)
+	$(DPMS_SRCS) \
+	$(LGE_SRCS) 
 

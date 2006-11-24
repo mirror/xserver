@@ -109,6 +109,7 @@ SOFTWARE.
 #undef DAMAGE
 #undef XFIXES
 #undef XEVIE
+#undef LG3D
 #else
 #ifndef LOADABLEPRINTDDX
 #undef XPRINT
@@ -181,6 +182,9 @@ extern Bool noXCMiscExtension;
 #ifdef XEVIE
 extern Bool noXevieExtension;
 #endif
+#ifdef LG3D
+extern Bool noLgeExtension;
+#endif /* LG3D */
 #ifdef XF86BIGFONT
 extern Bool noXFree86BigfontExtension;
 #endif
@@ -384,6 +388,9 @@ extern void DamageExtensionInit(INITARGS);
 #ifdef COMPOSITE
 extern void CompositeExtensionInit(INITARGS);
 #endif
+#ifdef LG3D
+extern void LgeExtensionInit(INITARGS);
+#endif
 
 /* The following is only a small first step towards run-time
  * configurable extensions.
@@ -493,6 +500,9 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef XV
     { "XVideo", &noXvExtension },
 #endif
+#ifdef LG3D
+    { "LGE", &noLgeExtension },
+#endif /* LG3D */
     { NULL, NULL }
 };
 
@@ -663,6 +673,9 @@ InitExtensions(argc, argv)
 #ifdef DAMAGE
     if (!noDamageExtension) DamageExtensionInit();
 #endif
+#ifdef LG3D
+    if (!noLgeExtension) LgeExtensionInit();
+#endif
 }
 
 void
@@ -732,6 +745,9 @@ static ExtensionModule staticExtensions[] = {
 #endif
 #ifdef XEVIE
     { XevieExtensionInit, "XEVIE", &noXevieExtension, NULL },
+#endif 
+#ifdef LG3D
+    { LgeExtensionInit, "LGE", &noLgeExtension, NULL },
 #endif 
     { NULL, NULL, NULL, NULL, NULL }
 };
