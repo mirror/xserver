@@ -15,4 +15,4 @@ INCLUDES = -I@MESA_SOURCE@/include \
            -I.. \
            -I$(top_srcdir)/hw/xfree86/os-support
 
-nodist_libac_la_SOURCES = ac_context.c ac_import.c
+nodist_libac_la_SOURCES =

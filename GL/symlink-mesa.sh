@@ -238,14 +238,31 @@ symlink_mesa_math() {
     action mathmod.h
 }
 
-symlink_mesa_ac() {
-    src_dir src/mesa/array_cache
-    dst_dir mesa/array_cache
+symlink_mesa_vbo() {
+    src_dir src/mesa/vbo
+    dst_dir mesa/vbo
 
-    action ac_context.c
-    action ac_context.h
-    action ac_import.c
-    action acache.h
+    action vbo.h
+    action vbo_attrib.h
+    action vbo_attrib_tmp.h
+    action vbo_context.c
+    action vbo_context.h
+    action vbo_exec.c
+    action vbo_exec.h
+    action vbo_exec_api.c
+    action vbo_exec_array.c
+    action vbo_exec_draw.c
+    action vbo_exec_eval.c
+    action vbo_rebase.c
+    action vbo_split.c
+    action vbo_split.h
+    action vbo_split_copy.c
+    action vbo_split_inplace.c
+    action vbo_save.c
+    action vbo_save.h
+    action vbo_save_api.c
+    action vbo_save_draw.c
+    action vbo_save_loopback.c
 }
 
 symlink_mesa_swrast() {
@@ -332,18 +349,11 @@ symlink_mesa_tnl() {
     src_dir src/mesa/tnl
     dst_dir mesa/tnl
 
-    action t_array_api.c
-    action t_array_api.h
-    action t_array_import.c
-    action t_array_import.h
     action t_context.c
+    action t_draw.c
     action t_context.h
     action t_pipeline.c
     action t_pipeline.h
-    action t_save_api.c
-    action t_save_api.h
-    action t_save_loopback.c
-    action t_save_playback.c
     action t_vb_arbprogram.c
     action t_vb_arbprogram.h
     action t_vb_arbprogram_sse.c
@@ -367,12 +377,6 @@ symlink_mesa_tnl() {
     action t_vertex_sse.c
     action t_vp_build.c
     action t_vp_build.h
-    action t_vtx_api.c
-    action t_vtx_api.h
-    action t_vtx_eval.c
-    action t_vtx_exec.c
-    action t_vtx_generic.c
-    action t_vtx_x86.c
     action tnl.h
 }
 
@@ -523,7 +527,7 @@ symlink_mesa_x8664() {
 symlink_mesa() {
     symlink_mesa_main
     symlink_mesa_math
-    symlink_mesa_ac
+    symlink_mesa_vbo
     symlink_mesa_swrast
     symlink_mesa_ss
     symlink_mesa_tnl

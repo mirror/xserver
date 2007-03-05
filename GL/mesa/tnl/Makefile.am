@@ -16,13 +16,10 @@ INCLUDES = -I@MESA_SOURCE@/include \
            -I.. \
            -I$(top_srcdir)/hw/xfree86/os-support
 
-nodist_libtnl_la_SOURCES = t_array_api.c \
-                      t_array_import.c \
+nodist_libtnl_la_SOURCES = \
+                      t_draw.c \
                       t_context.c \
                       t_pipeline.c \
-                      t_save_api.c \
-                      t_save_loopback.c \
-                      t_save_playback.c \
                       t_vb_arbprogram.c \
                       t_vb_arbprogram_sse.c \
                       t_vb_arbshader.c \
@@ -39,9 +36,4 @@ nodist_libtnl_la_SOURCES = t_array_api.c \
                       t_vertex.c \
                       t_vertex_generic.c \
                       t_vertex_sse.c \
-                      t_vp_build.c \
-                      t_vtx_api.c \
-                      t_vtx_eval.c \
-                      t_vtx_exec.c \
-                      t_vtx_generic.c \
-                      t_vtx_x86.c
+                      t_vp_build.c
