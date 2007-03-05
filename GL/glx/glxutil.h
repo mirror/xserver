@@ -48,10 +48,6 @@ extern void __glXAssociateContext(__GLXcontext *glxc);
 extern void __glXDeassociateContext(__GLXcontext *glxc);
 
 /* drawable operation */
-extern void __glXGetDrawableSize(__GLdrawablePrivate *glPriv, 
-				 GLint *x, GLint *y, 
-				 GLuint *width, GLuint *height);
-extern GLboolean __glXResizeDrawable(__GLdrawablePrivate *glPriv);
 extern GLboolean __glXResizeDrawableBuffers(__GLXdrawable *glxPriv);
 
 /* drawable management */
