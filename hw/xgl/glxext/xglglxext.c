@@ -4315,9 +4315,28 @@ static struct _glapi_table __glNativeRenderTable = {
     xglNoOpMultiTexCoord4ivARB,
     0, /* glMultiTexCoord4sARB */
     xglNoOpMultiTexCoord4svARB,
+    0, /* glAttachShader */
+    0, /* glCreateProgram */
+    0, /* glCreateShader */
+    0, /* glDeleteProgram */
+    0, /* glDeleteShader */
+    0, /* glDetachShader */
+    0, /* glGetAttachedShaders */
+    0, /* glGetProgramInfoLog */
+    0, /* glGetProgramiv */
+    0, /* glGetShaderInfoLog */
+    0, /* glGetShaderiv */
+    0, /* glIsProgram */
+    0, /* glIsShader */
     0, /* glStencilFuncSeparate */
-    0, /* glStencilOpSeparate */
     0, /* glStencilMaskSeparate */
+    0, /* glStencilOpSeparate */
+    0, /* glUniformMatrix2x3fv */
+    0, /* glUniformMatrix2x4fv */
+    0, /* glUniformMatrix3x2fv */
+    0, /* glUniformMatrix3x4fv */
+    0, /* glUniformMatrix4x2fv */
+    0, /* glUniformMatrix4x3fv */
     0, /* glLoadTransposeMatrixfARB */
     0, /* glLoadTransposeMatrixdARB */
     0, /* glMultTransposeMatrixfARB */
