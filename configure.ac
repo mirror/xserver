@@ -1048,6 +1048,11 @@ xorg_bus_ppcpci=no
 xorg_bus_sparcpci=no
 xorg_bus_sparc=no
 
+AC_PATH_PROG(PERL, perl, no)
+if test "x$PERL" = xno; then
+	AC_MSG_ERROR([Perl is required to build the XFree86/Xorg DDX.])
+fi
+
 if test "x$XORG" = xyes; then
 	XORG_DDXINCS='-I$(top_srcdir)/hw/xfree86 -I$(top_srcdir)/hw/xfree86/include -I$(top_srcdir)/hw/xfree86/common'
 	XORG_OSINCS='-I$(top_srcdir)/hw/xfree86/os-support -I$(top_srcdir)/hw/xfree86/os-support/bus -I$(top_srcdir)/os'
@@ -1205,14 +1210,6 @@ if test "x$XORG" = xyes; then
 	AC_SUBST([XORG_OS])
 	AC_SUBST([XORG_OS_SUBDIR])
 	AC_SUBST([XORG_OS_KBD])
-
-	dnl only used in hw/xfree86/scanpci, TTBOMK
-	AC_PATH_PROG(PERL, perl, no)
-	dnl unlikely as this may be ...
-	if test "x$PERL" = xno; then
-		AC_MSG_ERROR([Perl is required to build the XFree86/Xorg DDX.])
-	fi
-	AC_SUBST(PERL)
 
 	# The Xorg binary needs to export symbols so that they can be used from modules
 	# Some platforms require extra flags to do this.   gcc should set these flags
