@@ -2815,7 +2815,7 @@ int __glXDisp_DeleteTextures(__GLXclientState *cl, GLbyte *pc)
     int error;
     __GLXcontext * const cx = __glXForceCurrent(cl, req->contextTag, &error);
 
-    pc += __GLX_VENDPRIV_HDR_SIZE;
+    pc += __GLX_SINGLE_HDR_SIZE;
     if ( cx != NULL ) {
         const GLsizei n = *(GLsizei  *)(pc +  0);
 
