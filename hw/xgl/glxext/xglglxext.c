@@ -2020,41 +2020,41 @@ xglCallLists (GLsizei	   n,
     {
 	switch (type) {
 	case GL_BYTE:
-	    list = (GLuint) *(((GLbyte *) lists) + n);
+	    list = (GLuint) *(((GLbyte *) lists) + i);
 	    break;
 	case GL_UNSIGNED_BYTE:
-	    list = (GLuint) *(((GLubyte *) lists) + n);
+	    list = (GLuint) *(((GLubyte *) lists) + i);
 	    break;
 	case GL_SHORT:
-	    list = (GLuint) *(((GLshort *) lists) + n);
+	    list = (GLuint) *(((GLshort *) lists) + i);
 	    break;
 	case GL_UNSIGNED_SHORT:
-	    list = (GLuint) *(((GLushort *) lists) + n);
+	    list = (GLuint) *(((GLushort *) lists) + i);
 	    break;
 	case GL_INT:
-	    list = (GLuint) *(((GLint *) lists) + n);
+	    list = (GLuint) *(((GLint *) lists) + i);
 	    break;
 	case GL_UNSIGNED_INT:
-	    list = (GLuint) *(((GLuint *) lists) + n);
+	    list = (GLuint) *(((GLuint *) lists) + i);
 	    break;
 	case GL_FLOAT:
-	    list = (GLuint) *(((GLfloat *) lists) + n);
+	    list = (GLuint) *(((GLfloat *) lists) + i);
 	    break;
 	case GL_2_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 2 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 2 * i;
 	    list = (GLuint) *ubptr * 256 + (GLuint) *(ubptr + 1);
 	} break;
 	case GL_3_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 3 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 3 * i;
 	    list = (GLuint) * ubptr * 65536
 		+ (GLuint) * (ubptr + 1) * 256
 		+ (GLuint) * (ubptr + 2);
 	} break;
 	case GL_4_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 4 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 4 * i;
 	    list = (GLuint) * ubptr * 16777216
 		+ (GLuint) * (ubptr + 1) * 65536
 		+ (GLuint) * (ubptr + 2) * 256
