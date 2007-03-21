@@ -4,7 +4,6 @@ AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @MODULE_DEFINES@ @LOADER_DEFINES@ -DU
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I../X \
-           -I../array_cache \
            -I../glapi \
            -I../main \
            -I../math \

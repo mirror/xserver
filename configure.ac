@@ -1610,7 +1610,6 @@ GL/glx/Makefile
 GL/include/Makefile
 GL/include/GL/Makefile
 GL/mesa/Makefile
-GL/mesa/array_cache/Makefile
 GL/mesa/glapi/Makefile
 GL/mesa/main/Makefile
 GL/mesa/math/Makefile
@@ -1620,6 +1619,7 @@ GL/mesa/shader/slang/Makefile
 GL/mesa/swrast/Makefile
 GL/mesa/swrast_setup/Makefile
 GL/mesa/tnl/Makefile
+GL/mesa/vbo/Makefile
 GL/mesa/X/Makefile
 include/Makefile
 afb/Makefile
