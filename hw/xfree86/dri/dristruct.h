@@ -45,7 +45,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPix) \
     ((DRIPixmapPrivIndex < 0) ? \
      NULL : \
-     ((DRIDrawablePrivPtr)((pPix)->devPrivates[DRIWindowPrivIndex].ptr)))
+     ((DRIDrawablePrivPtr)((pPix)->devPrivates[DRIPixmapPrivIndex].ptr)))
 
 typedef struct _DRIDrawablePrivRec
 {

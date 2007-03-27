@@ -79,6 +79,7 @@ extern Bool noPanoramiXExtension;
 
 static int DRIScreenPrivIndex = -1;
 static int DRIWindowPrivIndex = -1;
+static int DRIPixmapPrivIndex = -1;
 static unsigned long DRIGeneration = 0;
 static unsigned int DRIDrawableValidationStamp = 0;
 
@@ -616,6 +617,12 @@ DRIExtensionInit(void)
      */
     if ((DRIWindowPrivIndex = AllocateWindowPrivateIndex()) < 0)
 	return FALSE;
+    /* Allocate a pixmap private index with a zero sized private area for
+     * each pixmap, then should a pixmap become a DRI pixmap, we'll hang
+     * a DRIPixmapPrivateRec off of this private index.
+     */
+    if ((DRIPixmapPrivIndex = AllocatePixmapPrivateIndex()) < 0)
+	return FALSE;
 
     DRIDrawablePrivResType = CreateNewResourceType(DRIDrawablePrivDelete);
     DRIContextPrivResType = CreateNewResourceType(DRIContextPrivDelete);
@@ -624,6 +631,8 @@ DRIExtensionInit(void)
     {
 	pScreen = screenInfo.screens[i];
 	if (!AllocateWindowPrivate(pScreen, DRIWindowPrivIndex, 0))
+	    return FALSE;
+	if (!AllocatePixmapPrivate(pScreen, DRIPixmapPrivIndex, 0))
 	    return FALSE;
     }
 
@@ -1102,10 +1111,9 @@ DRICreateDrawable(ScreenPtr pScreen, Drawable id,
 {
     DRIScreenPrivPtr	pDRIPriv = DRI_SCREEN_PRIV(pScreen);
     DRIDrawablePrivPtr	pDRIDrawablePriv;
-    WindowPtr		pWin;
 
     if (pDrawable->type == DRAWABLE_WINDOW) {
-	pWin = (WindowPtr)pDrawable;
+	WindowPtr pWin = (WindowPtr)pDrawable;
 	if ((pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_WINDOW(pWin))) {
 	    pDRIDrawablePriv->refCount++;
 
@@ -1154,9 +1162,47 @@ DRICreateDrawable(ScreenPtr pScreen, Drawable id,
 	    *hHWDrawable = pDRIDrawablePriv->hwDrawable;
 	}
     }
-    else { /* pixmap (or for GLX 1.3, a PBuffer) */
-	/* NOT_DONE */
-	return FALSE;
+    else if (pDrawable->type == DRAWABLE_PIXMAP) {
+	PixmapPtr pPixmap = (PixmapPtr)pDrawable;
+	if ((pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPixmap))) {
+	    pDRIDrawablePriv->refCount++;
+
+	    if (!pDRIDrawablePriv->hwDrawable) {
+		drmCreateDrawable(pDRIPriv->drmFD, &pDRIDrawablePriv->hwDrawable);
+	    }
+	}
+	else {
+	    /* allocate a DRI Window Private record */
+	    if (!(pDRIDrawablePriv = xalloc(sizeof(DRIDrawablePrivRec)))) {
+		return FALSE;
+	    }
+
+	    /* Only create a drm_drawable_t once */
+	    if (drmCreateDrawable(pDRIPriv->drmFD,
+				  &pDRIDrawablePriv->hwDrawable)) {
+		xfree(pDRIDrawablePriv);
+		return FALSE;
+	    }
+
+	    /* add it to the list of DRI drawables for this screen */
+	    pDRIDrawablePriv->pScreen = pScreen;
+	    pDRIDrawablePriv->refCount = 1;
+	    pDRIDrawablePriv->drawableIndex = -1;
+	    pDRIDrawablePriv->nrects = 1;
+
+	    /* save private off of preallocated index */
+	    pPixmap->devPrivates[DRIPixmapPrivIndex].ptr =
+						(pointer)pDRIDrawablePriv;
+
+	    /* track this in case this window is destroyed */
+	    AddResource(id, DRIDrawablePrivResType, (pointer)pPixmap);
+	}
+
+	if (pDRIDrawablePriv->hwDrawable)
+	    *hHWDrawable = pDRIDrawablePriv->hwDrawable;
+    }
+    else { /* for GLX 1.3, a PBuffer */
+    	return FALSE;
     }
 
     return TRUE;
@@ -1166,12 +1212,19 @@ Bool
 DRIDestroyDrawable(ScreenPtr pScreen, Drawable id, DrawablePtr pDrawable)
 {
     DRIDrawablePrivPtr	pDRIDrawablePriv;
-    WindowPtr		pWin;
-
 
     if (pDrawable->type == DRAWABLE_WINDOW) {
-	pWin = (WindowPtr)pDrawable;
+	WindowPtr pWin = (WindowPtr)pDrawable;
 	pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_WINDOW(pWin);
+	pDRIDrawablePriv->refCount--;
+	if (pDRIDrawablePriv->refCount <= 0) {
+	    /* This calls back DRIDrawablePrivDelete which frees private area */
+	    FreeResourceByType(id, DRIDrawablePrivResType, FALSE);
+	}
+    }
+    else if (pDrawable->type == DRAWABLE_PIXMAP) { 
+	PixmapPtr pPixmap = (PixmapPtr)pDrawable;
+	pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPixmap);
 	pDRIDrawablePriv->refCount--;
 	if (pDRIDrawablePriv->refCount <= 0) {
 	    /* This calls back DRIDrawablePrivDelete which frees private area */
@@ -1192,10 +1245,9 @@ DRIDrawablePrivDelete(pointer pResource, XID id)
     DrawablePtr		pDrawable = (DrawablePtr)pResource;
     DRIScreenPrivPtr	pDRIPriv = DRI_SCREEN_PRIV(pDrawable->pScreen);
     DRIDrawablePrivPtr	pDRIDrawablePriv;
-    WindowPtr		pWin;
 
     if (pDrawable->type == DRAWABLE_WINDOW) {
-	pWin = (WindowPtr)pDrawable;
+	WindowPtr pWin = (WindowPtr)pDrawable;
 	pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_WINDOW(pWin);
 
 	if (pDRIDrawablePriv->drawableIndex != -1) {
@@ -1220,7 +1272,28 @@ DRIDrawablePrivDelete(pointer pResource, XID id)
 	if (REGION_NUM_RECTS(&pWin->clipList))
 	    DRIDecreaseNumberVisible(pDrawable->pScreen);
     }
-    else { /* pixmap (or for GLX 1.3, a PBuffer) */
+    else if (pDrawable->type == DRAWABLE_PIXMAP) {
+	PixmapPtr pPixmap = (PixmapPtr)pDrawable;
+	pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPixmap);
+
+	if (pDRIDrawablePriv->drawableIndex != -1) {
+	    /* bump stamp to force outstanding 3D requests to resync */
+	    pDRIPriv->pSAREA->drawableTable[pDRIDrawablePriv->drawableIndex].stamp
+		= DRIDrawableValidationStamp++;
+
+	    /* release drawable table entry */
+	    pDRIPriv->DRIDrawables[pDRIDrawablePriv->drawableIndex] = NULL;
+	}
+
+	if (drmDestroyDrawable(pDRIPriv->drmFD,
+			       pDRIDrawablePriv->hwDrawable)) {
+	    return FALSE;
+	}
+
+	xfree(pDRIDrawablePriv);
+	pPixmap->devPrivates[DRIPixmapPrivIndex].ptr = NULL;
+    }
+    else { /* or for GLX 1.3, a PBuffer */
 	/* NOT_DONE */
 	return FALSE;
     }
@@ -1246,7 +1319,6 @@ DRIGetDrawableInfo(ScreenPtr pScreen,
 {
     DRIScreenPrivPtr    pDRIPriv = DRI_SCREEN_PRIV(pScreen);
     DRIDrawablePrivPtr	pDRIDrawablePriv, pOldDrawPriv;
-    WindowPtr		pWin, pOldWin;
     int			i;
 
 #if 0
@@ -1254,7 +1326,8 @@ DRIGetDrawableInfo(ScreenPtr pScreen,
 #endif
 
     if (pDrawable->type == DRAWABLE_WINDOW) {
-	pWin = (WindowPtr)pDrawable;
+        WindowPtr pOldWin;
+	WindowPtr pWin = (WindowPtr)pDrawable;
 	if ((pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_WINDOW(pWin))) {
 
 	    /* Manage drawable table */
@@ -1387,7 +1460,92 @@ DRIGetDrawableInfo(ScreenPtr pScreen,
 	    return FALSE;
 	}
     }
-    else { /* pixmap (or for GLX 1.3, a PBuffer) */
+    else if (pDrawable->type == DRAWABLE_PIXMAP) {
+        PixmapPtr pOldPixmap;
+	PixmapPtr pPixmap = (PixmapPtr)pDrawable;
+	if ((pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPixmap))) {
+
+	    /* Manage drawable table */
+	    if (pDRIDrawablePriv->drawableIndex == -1) { /* load SAREA table */
+
+		/* Search table for empty entry */
+		i = 0;
+		while (i < pDRIPriv->pDriverInfo->maxDrawableTableEntry) {
+		    if (!(pDRIPriv->DRIDrawables[i])) {
+			pDRIPriv->DRIDrawables[i] = pDrawable;
+			pDRIDrawablePriv->drawableIndex = i;
+			pDRIPriv->pSAREA->drawableTable[i].stamp =
+					    DRIDrawableValidationStamp++;
+			break;
+		    }
+		    i++;
+		}
+
+		/* Search table for oldest entry */
+		if (i == pDRIPriv->pDriverInfo->maxDrawableTableEntry) {
+                    unsigned int oldestStamp = ~0;
+                    int oldestIndex = 0;
+		    i = pDRIPriv->pDriverInfo->maxDrawableTableEntry;
+		    while (i--) {
+			if (pDRIPriv->pSAREA->drawableTable[i].stamp <
+								oldestStamp) {
+			    oldestIndex = i;
+			    oldestStamp =
+				pDRIPriv->pSAREA->drawableTable[i].stamp;
+			}
+		    }
+		    pDRIDrawablePriv->drawableIndex = oldestIndex;
+
+		    /* release oldest drawable table entry */
+		    pOldPixmap = (PixmapPtr)pDRIPriv->DRIDrawables[oldestIndex];
+		    pOldDrawPriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pOldPixmap);
+		    pOldDrawPriv->drawableIndex = -1;
+
+		    /* claim drawable table entry */
+		    pDRIPriv->DRIDrawables[oldestIndex] = pDrawable;
+
+		    /* validate SAREA entry */
+		    pDRIPriv->pSAREA->drawableTable[oldestIndex].stamp =
+					DRIDrawableValidationStamp++;
+
+		    /* check for stamp wrap around */
+		    if (oldestStamp > DRIDrawableValidationStamp) {
+
+			/* walk SAREA table and invalidate all drawables */
+			for( i=0;
+                             i < pDRIPriv->pDriverInfo->maxDrawableTableEntry;
+                             i++) {
+				pDRIPriv->pSAREA->drawableTable[i].stamp =
+					DRIDrawableValidationStamp++;
+			}
+		    }
+		}
+	    }
+
+	    *index = pDRIDrawablePriv->drawableIndex;
+	    *stamp = pDRIPriv->pSAREA->drawableTable[*index].stamp;
+	    *X = (int)(pPixmap->drawable.x);
+	    *Y = (int)(pPixmap->drawable.y);
+	    *W = (int)(pPixmap->drawable.width);
+	    *H = (int)(pPixmap->drawable.height);
+	    /* use pixmap clip rect */
+	    pDRIPriv->fullscreen_rect.x1 = *X;
+	    pDRIPriv->fullscreen_rect.y1 = *Y;
+	    pDRIPriv->fullscreen_rect.x2 = *X + *W;
+	    pDRIPriv->fullscreen_rect.y2 = *Y + *H;
+            *numClipRects = 1;
+	    *pClipRects   = &pDRIPriv->fullscreen_rect;
+
+	    /* Use the frontbuffer cliprects for back buffers.  */
+	    *numBackClipRects = 0;
+	    *pBackClipRects = NULL;
+	}
+	else {
+	    /* Not a DRIDrawable */
+	    return FALSE;
+	}
+    }
+    else { /* (or for GLX 1.3, a PBuffer) */
 	/* NOT_DONE */
 	return FALSE;
     }
