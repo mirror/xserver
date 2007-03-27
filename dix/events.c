@@ -133,7 +133,7 @@ of the copyright holder.
 
 #ifdef XKB
 #include <X11/extensions/XKBproto.h>
-#include <X11/extensions/XKBsrv.h>
+#include <xkbsrv.h>
 extern Bool XkbFilterEvents(ClientPtr, int, xEvent *);
 #endif
 
@@ -156,7 +156,7 @@ extern Mask      xevieFilters[128];
 extern int       xevieEventSent;
 extern int       xevieKBEventSent;
 int    xeviegrabState = 0;
-xEvent *xeviexE;
+static xEvent *xeviexE;
 #endif
 
 #include <X11/extensions/XIproto.h>

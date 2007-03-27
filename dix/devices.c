@@ -67,7 +67,7 @@ SOFTWARE.
 #define	XKB_IN_SERVER
 #endif
 #ifdef XKB
-#include <X11/extensions/XKBsrv.h>
+#include <xkbsrv.h>
 #endif
 #include "xace.h"
 
@@ -79,7 +79,8 @@ SOFTWARE.
 #include "exglobals.h"
 #include "exevents.h"
 
-int CoreDevicePrivatesIndex = 0, CoreDevicePrivatesGeneration = -1;
+int CoreDevicePrivatesIndex = 0;
+static int CoreDevicePrivatesGeneration = -1;
 
 DeviceIntPtr
 AddInputDevice(DeviceProc deviceProc, Bool autoStart)
@@ -238,7 +239,7 @@ CoreKeyboardProc(DeviceIntPtr pDev, int what)
         keySyms.mapWidth = 4;
         keySyms.map = (KeySym *)xcalloc(sizeof(KeySym),
                                         (keySyms.maxKeyCode -
-                                         keySyms.minKeyCode) *
+                                         keySyms.minKeyCode + 1) *
                                         keySyms.mapWidth);
         if (!keySyms.map) {
             ErrorF("Couldn't allocate core keymap\n");
@@ -926,16 +927,16 @@ InitPtrFeedbackClassDeviceStruct(DeviceIntPtr dev, PtrCtrlProcPtr controlProc)
 }
 
 
-LedCtrl defaultLedControl = {
+static LedCtrl defaultLedControl = {
 	DEFAULT_LEDS, DEFAULT_LEDS_MASK, 0};
 
-BellCtrl defaultBellControl = {
+static BellCtrl defaultBellControl = {
 	DEFAULT_BELL,
 	DEFAULT_BELL_PITCH,
 	DEFAULT_BELL_DURATION,
 	0};
 
-IntegerCtrl defaultIntegerControl = {
+static IntegerCtrl defaultIntegerControl = {
 	DEFAULT_INT_RESOLUTION,
 	DEFAULT_INT_MIN_VALUE,
 	DEFAULT_INT_MAX_VALUE,

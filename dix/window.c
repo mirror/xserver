@@ -297,10 +297,6 @@ SetWindowToDefaults(WindowPtr pWin)
     pWin->deliverableEvents = 0;
     pWin->dontPropagate = 0;
     pWin->forcedBS = FALSE;
-#ifdef NEED_DBE_BUF_BITS
-    pWin->srcBuffer = DBE_FRONT_BUFFER;
-    pWin->dstBuffer = DBE_FRONT_BUFFER;
-#endif
 #ifdef COMPOSITE
     pWin->redirectDraw = 0;
 #endif
@@ -539,7 +535,7 @@ InitRootWindow(WindowPtr pWin)
  * window from which the region came.
  */
 
-void
+static void
 ClippedRegionFromBox(WindowPtr pWin, RegionPtr Rgn,
                      int x, int y,
                      int w, int h)
@@ -833,6 +829,26 @@ CreateWindow(Window wid, WindowPtr pParent, int x, int y, unsigned w,
 	DeliverEvents(pParent, &event, 1, NullWindow);		
     }
     return pWin;
+}
+
+static void
+DisposeWindowOptional (WindowPtr pWin)
+{
+    if (!pWin->optional)
+	return;
+    /*
+     * everything is peachy.  Delete the optional record
+     * and clean up
+     */
+    if (pWin->optional->cursor)
+    {
+	FreeCursor (pWin->optional->cursor, (Cursor)0);
+	pWin->cursorIsNone = FALSE;
+    }
+    else
+	pWin->cursorIsNone = TRUE;
+    xfree (pWin->optional);
+    pWin->optional = NULL;
 }
 
 static void
@@ -2703,6 +2719,30 @@ RealizeTree(WindowPtr pWin)
     }
 }
 
+static WindowPtr windowDisableMapUnmapEvents;
+
+void
+DisableMapUnmapEvents(WindowPtr pWin)
+{
+    assert (windowDisableMapUnmapEvents == NULL);
+    
+    windowDisableMapUnmapEvents = pWin;
+}
+
+void
+EnableMapUnmapEvents(WindowPtr pWin)
+{
+    assert (windowDisableMapUnmapEvents != NULL);
+
+    windowDisableMapUnmapEvents = NULL;
+}
+
+static Bool
+MapUnmapEventsEnabled(WindowPtr pWin)
+{
+    return pWin != windowDisableMapUnmapEvents;
+}
+
 /*****
  * MapWindow
  *    If some other client has selected SubStructureReDirect on the parent
@@ -3203,21 +3243,6 @@ HandleSaveSet(ClientPtr client)
 
 /**
  *
- *  \param x,y  in root
- *  \param box  "return" value
- */
-Bool
-VisibleBoundingBoxFromPoint(WindowPtr pWin, int x, int y, BoxPtr box)
-{
-    if (!pWin->realized)
-	return (FALSE);
-    if (POINT_IN_REGION(pWin->drawable.pScreen, &pWin->clipList, x, y, box))
-	return(TRUE);
-    return(FALSE);
-}
-
-/**
- *
  * \param x,y  in root
  */
 Bool
@@ -3322,30 +3347,6 @@ SendVisibilityNotify(WindowPtr pWin)
     event.u.visibility.window = pWin->drawable.id;
     event.u.visibility.state = visibility;
     DeliverEvents(pWin, &event, 1, NullWindow);
-}
-
-static WindowPtr windowDisableMapUnmapEvents;
-
-void
-DisableMapUnmapEvents(WindowPtr pWin)
-{
-    assert (windowDisableMapUnmapEvents == NULL);
-    
-    windowDisableMapUnmapEvents = pWin;
-}
-
-void
-EnableMapUnmapEvents(WindowPtr pWin)
-{
-    assert (windowDisableMapUnmapEvents != NULL);
-
-    windowDisableMapUnmapEvents = NULL;
-}
-
-Bool
-MapUnmapEventsEnabled(WindowPtr pWin)
-{
-    return pWin != windowDisableMapUnmapEvents;
 }
 
 #define RANDOM_WIDTH 32
@@ -3698,41 +3699,6 @@ MakeWindowOptional (WindowPtr pWin)
     optional->colormap = parentOptional->colormap;
     pWin->optional = optional;
     return TRUE;
-}
-
-void
-DisposeWindowOptional (WindowPtr pWin)
-{
-    if (!pWin->optional)
-	return;
-    /*
-     * everything is peachy.  Delete the optional record
-     * and clean up
-     */
-    /*
-     * TOG changed this code to:
-     *
-     *	    if (pWin->cursorIsNone == FALSE)
-     *		FreeCursor (pWin->optional->cursor, (Cursor)0);
-     *	    pWin->cursorIsNone = TRUE;
-     *
-     * This is blatently wrong; windows without optionals can have
-     * two different cursor values, either None or sharing their
-     * parents cursor.  This difference is controlled by the
-     * cursorIsNone value; when TRUE, the window has no cursor,
-     * when false, it shares its cursor with its parent; TOG
-     * made it impossible for a window to have a cursor without
-     * an optional record.
-     */
-    if (pWin->optional->cursor)
-    {
-	FreeCursor (pWin->optional->cursor, (Cursor)0);
-	pWin->cursorIsNone = FALSE;
-    }
-    else
-	pWin->cursorIsNone = TRUE;
-    xfree (pWin->optional);
-    pWin->optional = NULL;
 }
 
 #ifndef NOLOGOHACK
