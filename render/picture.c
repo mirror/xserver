@@ -233,14 +233,10 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
     formats[nformats].format = PICT_a1;
     formats[nformats].depth = 1;
     nformats++;
-    formats[nformats].format = PICT_FORMAT(BitsPerPixel(8),
-					   PICT_TYPE_A,
-					   8, 0, 0, 0);
+    formats[nformats].format = PICT_a8;
     formats[nformats].depth = 8;
     nformats++;
-    formats[nformats].format = PICT_FORMAT(BitsPerPixel(4),
-					   PICT_TYPE_A,
-					   4, 0, 0, 0);
+    formats[nformats].format = PICT_a4;
     formats[nformats].depth = 4;
     nformats++;
     formats[nformats].format = PICT_a8r8g8b8;
@@ -664,6 +660,7 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 	    xfree (formats);
 	    return FALSE;
 	}
+	a = r = g = b = 0;
 	if (formats[n].type == PictTypeIndexed)
 	{
             VisualPtr   pVisual = PictureFindVisual (pScreen, formats[n].index.vid);
@@ -671,9 +668,8 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 		type = PICT_TYPE_COLOR;
 	    else
 		type = PICT_TYPE_GRAY;
-	    a = r = g = b = 0;
 	}
-	else
+	else if (formats[n].type == PictTypeDirect)
 	{
 	    if ((formats[n].direct.redMask|
 		 formats[n].direct.blueMask|
@@ -687,6 +683,10 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 	    r = Ones (formats[n].direct.redMask);
 	    g = Ones (formats[n].direct.greenMask);
 	    b = Ones (formats[n].direct.blueMask);
+	}
+	else
+	{
+            type = PICT_FORMAT_TYPE (formats[n].format);
 	}
 	formats[n].format = PICT_FORMAT(0,type,a,r,g,b);
     }
@@ -890,41 +890,72 @@ static unsigned int INTERPOLATE_PIXEL_256(unsigned int x, unsigned int a,
     return x;
 }
 
-static void initGradientColorTable(SourcePictPtr pGradient, int *error)
+CARD32
+PictureGradientColor (PictGradientStopPtr stop1,
+		      PictGradientStopPtr stop2,
+		      CARD32	          x)
+{
+    int	dist, idist;
+
+    dist  = (int) (256 * (x - stop1->x) / (stop2->x - stop1->x));
+    idist = 256 - dist;
+
+    return premultiply (INTERPOLATE_PIXEL_256 (stop1->color, idist,
+					       stop2->color, dist));
+}
+
+static void
+initGradientColorTable(PictGradientPtr gradient,
+		       int	       tableSize,
+		       int	       *error)
 {
     int begin_pos, end_pos;
     xFixed incr, dpos;
     int pos, current_stop;
-    PictGradientStopPtr stops = pGradient->linear.stops;
-    int nstops = pGradient->linear.nstops;
+    PictGradientStopPtr stops = gradient->stops;
+    int nstops = gradient->nstops;
+
+    if (gradient->colorTableSize < tableSize)
+    {
+	CARD32 *newColorTable;
+
+	newColorTable = realloc (gradient->colorTable,
+				 tableSize * sizeof (CARD32));
+	if (!newColorTable)
+	{
+	    *error = BadAlloc;
+	    return;
+	}
+
+	gradient->colorTable = newColorTable;
+	gradient->colorTableSize = tableSize;
+    }
+
+    gradient->stopRange = tableSize;
 
     /* The position where the gradient begins and ends */
-    begin_pos = (stops[0].x * PICT_GRADIENT_STOPTABLE_SIZE) >> 16;
-    end_pos = (stops[nstops - 1].x * PICT_GRADIENT_STOPTABLE_SIZE) >> 16;
+    begin_pos = (stops[0].x * gradient->colorTableSize) >> 16;
+    end_pos = (stops[nstops - 1].x * gradient->colorTableSize) >> 16;
 
     pos = 0; /* The position in the color table. */
 
     /* Up to first point */
     while (pos <= begin_pos) {
-        pGradient->linear.colorTable[pos] = xRenderColorToCard32(stops[0].color);
+	gradient->colorTable[pos] = stops[0].color;
         ++pos;
     }
 
-    incr =  (1<<16)/ PICT_GRADIENT_STOPTABLE_SIZE; /* the double increment. */
+    incr =  (1<<16)/ gradient->colorTableSize; /* the double increment. */
     dpos = incr * pos; /* The position in terms of 0-1. */
 
     current_stop = 0; /* We always interpolate between current and current + 1. */
 
     /* Gradient area */
     while (pos < end_pos) {
-        unsigned int current_color = xRenderColorToCard32(stops[current_stop].color);
-        unsigned int next_color = xRenderColorToCard32(stops[current_stop + 1].color);
-
-        int dist = (int)(256*(dpos - stops[current_stop].x)
-                         / (stops[current_stop+1].x - stops[current_stop].x));
-        int idist = 256 - dist;
-
-        pGradient->linear.colorTable[pos] = premultiply(INTERPOLATE_PIXEL_256(current_color, idist, next_color, dist));
+	gradient->colorTable[pos] =
+	    PictureGradientColor (&stops[current_stop],
+				  &stops[current_stop + 1],
+				  dpos);
 
         ++pos;
         dpos += incr;
@@ -934,58 +965,96 @@ static void initGradientColorTable(SourcePictPtr pGradient, int *error)
     }
 
     /* After last point */
-    while (pos < PICT_GRADIENT_STOPTABLE_SIZE) {
-        pGradient->linear.colorTable[pos] = xRenderColorToCard32(stops[nstops - 1].color);
+    while (pos < gradient->colorTableSize) {
+	gradient->colorTable[pos] = stops[nstops - 1].color;
         ++pos;
     }
 }
 
-static void initGradient(SourcePictPtr pGradient, int stopCount,
-                         xFixed *stopPoints, xRenderColor *stopColors, int *error)
+static void
+SourcePictureInit (PicturePtr	 pPicture,
+		   SourcePictPtr pSourcePict,
+		   int		 type)
+{
+    pPicture->pDrawable = 0;
+    pPicture->pFormat	= 0;
+    pPicture->pNext	= 0;
+    pPicture->format	= PICT_a8r8g8b8;
+
+    SetPictureToDefaults (pPicture);
+
+    pPicture->pSourcePict = pSourcePict;
+
+    pSourcePict->source.type	       = type;
+    pSourcePict->source.class	       = SourcePictClassUnknown;
+    pSourcePict->source.devPrivate.ptr = NULL;
+    pSourcePict->source.Destroy	       = NULL;
+}
+
+static Bool
+GradientPictureInit (PicturePtr	     pPicture,
+		     PictGradientPtr pGradient,
+		     int	     type,
+		     int	     stopCount,
+		     xFixed	     *stopPoints,
+		     xRenderColor    *stopColors,
+		     int	     *error)
 {
     int i;
     xFixed dpos;
 
-    if (stopCount <= 0) {
-        *error = BadValue;
-        return;
+    if (stopCount <= 0)
+    {
+	*error = BadValue;
+	return FALSE;
     }
+
+    SourcePictureInit (pPicture, (SourcePictPtr) pGradient, type);
 
     dpos = -1;
-    for (i = 0; i < stopCount; ++i) {
-        if (stopPoints[i] <= dpos || stopPoints[i] > (1<<16)) {
-            *error = BadValue;
-            return;
-        }
-        dpos = stopPoints[i];
+    for (i = 0; i < stopCount; ++i)
+    {
+	if (stopPoints[i] < dpos || stopPoints[i] > (1 << 16))
+	{
+	    *error = BadValue;
+	    return FALSE;
+	}
+	dpos = stopPoints[i];
     }
 
-    pGradient->linear.stops = xalloc(stopCount*sizeof(PictGradientStop));
-    if (!pGradient->linear.stops) {
-        *error = BadAlloc;
-        return;
+    for (i = 0; i < stopCount; ++i)
+    {
+	pGradient->stops[i].x	  = stopPoints[i];
+	pGradient->stops[i].color = xRenderColorToCard32 (stopColors[i]);
     }
 
-    pGradient->linear.nstops = stopCount;
+    pGradient->class	      = SourcePictClassUnknown;
+    pGradient->stopRange      = 0xffff;
+    pGradient->colorTable     = NULL;
+    pGradient->colorTableSize = 0;
 
-    for (i = 0; i < stopCount; ++i) {
-        pGradient->linear.stops[i].x = stopPoints[i];
-        pGradient->linear.stops[i].color = stopColors[i];
-    }
-    initGradientColorTable(pGradient, error);
+    return TRUE;
 }
 
-static PicturePtr createSourcePicture(void)
+PicturePtr
+CreateDevicePicture (Picture pid,
+		     int     *error)
 {
     PicturePtr pPicture;
-    pPicture = (PicturePtr) xalloc(sizeof(PictureRec));
-    pPicture->pDrawable = 0;
-    pPicture->format = PICT_a8r8g8b8;
-    pPicture->pFormat = 0;
-    pPicture->pNext = 0;
-    pPicture->devPrivates = 0;
 
-    SetPictureToDefaults(pPicture);
+    pPicture = xalloc (sizeof (PictureRec) + sizeof (PictSourceRec));
+    if (!pPicture)
+    {
+	*error = BadAlloc;
+	return 0;
+    }
+
+    SourcePictureInit (pPicture,
+		       (SourcePictPtr) (pPicture + 1),
+		       SourcePictTypeOther);
+
+    pPicture->id = pid;
+
     return pPicture;
 }
 
@@ -993,21 +1062,22 @@ PicturePtr
 CreateSolidPicture (Picture pid, xRenderColor *color, int *error)
 {
     PicturePtr pPicture;
-    pPicture = createSourcePicture();
-    if (!pPicture) {
-        *error = BadAlloc;
-        return 0;
+
+    pPicture = xalloc (sizeof (PictureRec) + sizeof (PictSolidFill));
+    if (!pPicture)
+    {
+	*error = BadAlloc;
+	return 0;
     }
 
+    SourcePictureInit (pPicture,
+		       (SourcePictPtr) (pPicture + 1),
+		       SourcePictTypeSolidFill);
+
     pPicture->id = pid;
-    pPicture->pSourcePict = (SourcePictPtr) xalloc(sizeof(PictSolidFill));
-    if (!pPicture->pSourcePict) {
-        *error = BadAlloc;
-        xfree(pPicture);
-        return 0;
-    }
-    pPicture->pSourcePict->type = SourcePictTypeSolidFill;
-    pPicture->pSourcePict->solidFill.color = xRenderColorToCard32(*color);
+
+    pPicture->pSourcePict->solidFill.color = xRenderColorToCard32 (*color);
+
     return pPicture;
 }
 
@@ -1015,103 +1085,109 @@ PicturePtr
 CreateLinearGradientPicture (Picture pid, xPointFixed *p1, xPointFixed *p2,
                              int nStops, xFixed *stops, xRenderColor *colors, int *error)
 {
-    PicturePtr pPicture;
+    PictLinearGradientPtr pLinear;
+    PicturePtr	          pPicture;
 
-    if (nStops < 2) {
-        *error = BadValue;
-        return 0;
+    if (nStops < 2)
+    {
+	*error = BadValue;
+	return 0;
     }
 
-    pPicture = createSourcePicture();
-    if (!pPicture) {
-        *error = BadAlloc;
-        return 0;
+    pPicture = xalloc (sizeof (PictureRec) +
+		       sizeof (PictLinearGradient) +
+		       sizeof (PictGradientStop) * nStops);
+    if (!pPicture)
+    {
+	*error = BadAlloc;
+	return 0;
     }
-    if (p1->x == p2->x && p1->y == p2->y) {
-        *error = BadValue;
-        return 0;
+
+    pLinear	    = (PictLinearGradientPtr) (pPicture + 1);
+    pLinear->stops  = (PictGradientStopPtr) (pLinear + 1);
+    pLinear->nstops = nStops;
+    pLinear->p1	    = *p1;
+    pLinear->p2	    = *p2;
+
+    if (!GradientPictureInit (pPicture,
+			 (PictGradientPtr) pLinear,
+			 SourcePictTypeLinear,
+			 nStops, stops, colors, error))
+    {
+	xfree (pPicture);
+	return 0;
     }
 
     pPicture->id = pid;
-    pPicture->pSourcePict = (SourcePictPtr) xalloc(sizeof(PictLinearGradient));
-    if (!pPicture->pSourcePict) {
-        *error = BadAlloc;
-        xfree(pPicture);
-        return 0;
-    }
 
-    pPicture->pSourcePict->linear.type = SourcePictTypeLinear;
-    pPicture->pSourcePict->linear.p1 = *p1;
-    pPicture->pSourcePict->linear.p2 = *p2;
-
-    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
-    if (*error) {
-        xfree(pPicture);
-        return 0;
-    }
     return pPicture;
 }
 
 #define FixedToDouble(x) ((x)/65536.)
 
 PicturePtr
-CreateRadialGradientPicture (Picture pid, xPointFixed *inner, xPointFixed *outer,
-                             xFixed innerRadius, xFixed outerRadius,
-                             int nStops, xFixed *stops, xRenderColor *colors, int *error)
+CreateRadialGradientPicture (Picture	  pid,
+			     xPointFixed  *inner,
+			     xPointFixed  *outer,
+			     xFixed	  innerRadius,
+			     xFixed	  outerRadius,
+			     int	  nStops,
+			     xFixed	  *stops,
+			     xRenderColor *colors,
+			     int	  *error)
 {
-    PicturePtr pPicture;
-    PictRadialGradient *radial;
+    PicturePtr		  pPicture;
+    PictRadialGradientPtr pRadial;
+    double		  x;
 
     if (nStops < 2) {
         *error = BadValue;
         return 0;
     }
 
-    pPicture = createSourcePicture();
-    if (!pPicture) {
-        *error = BadAlloc;
-        return 0;
-    }
+    pPicture = xalloc (sizeof (PictureRec) +
+		       sizeof (PictRadialGradient) +
+		       sizeof (PictGradientStop) * nStops);
+    if (!pPicture)
     {
-        double dx = (double)(inner->x - outer->x);
-        double dy = (double)(inner->y - outer->y);
-        if (sqrt(dx*dx + dy*dy) + (double)(innerRadius) > (double)(outerRadius)) {
-            *error = BadValue;
-            return 0;
-        }
+	*error = BadAlloc;
+	return 0;
+    }
+
+    pRadial	    = (PictRadialGradientPtr) (pPicture + 1);
+    pRadial->stops  = (PictGradientStopPtr) (pRadial + 1);
+    pRadial->nstops = nStops;
+
+    pRadial->inner  = *inner;
+    pRadial->outer  = *outer;
+    pRadial->inner_radius = innerRadius;
+    pRadial->outer_radius = outerRadius;
+
+    x = (double) innerRadius / (double) outerRadius;
+    pRadial->dx = (outer->x - inner->x);
+    pRadial->dy = (outer->y - inner->y);
+    pRadial->fx = (inner->x) - x * pRadial->dx;
+    pRadial->fy = (inner->y) - x * pRadial->dy;
+    pRadial->m = 1. / (1 + x);
+    pRadial->b = -x * pRadial->m;
+    pRadial->dx /= 65536.;
+    pRadial->dy /= 65536.;
+    pRadial->fx /= 65536.;
+    pRadial->fy /= 65536.;
+    x = outerRadius / 65536.;
+    pRadial->a = x * x - pRadial->dx * pRadial->dx - pRadial->dy * pRadial->dy;
+    
+    if (!GradientPictureInit (pPicture,
+			 (PictGradientPtr) pRadial,
+			 SourcePictTypeRadial,
+			 nStops, stops, colors, error))
+    {
+	xfree (pPicture);
+	return 0;
     }
 
     pPicture->id = pid;
-    pPicture->pSourcePict = (SourcePictPtr) xalloc(sizeof(PictRadialGradient));
-    if (!pPicture->pSourcePict) {
-        *error = BadAlloc;
-        xfree(pPicture);
-        return 0;
-    }
-    radial = &pPicture->pSourcePict->radial;
 
-    radial->type = SourcePictTypeRadial;
-    {
-        double x = (double)innerRadius / (double)outerRadius;
-        radial->dx = (outer->x - inner->x);
-        radial->dy = (outer->y - inner->y);
-        radial->fx = (inner->x) - x*radial->dx;
-        radial->fy = (inner->y) - x*radial->dy;
-        radial->m = 1./(1+x);
-        radial->b = -x*radial->m;
-        radial->dx /= 65536.;
-        radial->dy /= 65536.;
-        radial->fx /= 65536.;
-        radial->fy /= 65536.;
-        x = outerRadius/65536.;
-        radial->a = x*x - radial->dx*radial->dx - radial->dy*radial->dy;
-    }
-
-    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
-    if (*error) {
-        xfree(pPicture);
-        return 0;
-    }
     return pPicture;
 }
 
@@ -1119,36 +1195,42 @@ PicturePtr
 CreateConicalGradientPicture (Picture pid, xPointFixed *center, xFixed angle,
                               int nStops, xFixed *stops, xRenderColor *colors, int *error)
 {
-    PicturePtr pPicture;
+    PicturePtr		   pPicture;
+    PictConicalGradientPtr pConical;
 
-    if (nStops < 2) {
-        *error = BadValue;
-        return 0;
+    if (nStops < 2)
+    {
+	*error = BadValue;
+	return 0;
     }
 
-    pPicture = createSourcePicture();
-    if (!pPicture) {
-        *error = BadAlloc;
-        return 0;
+    pPicture = xalloc (sizeof (PictureRec) +
+		       sizeof (PictConicalGradient) +
+		       sizeof (PictGradientStop) * nStops);
+    if (!pPicture)
+    {
+	*error = BadAlloc;
+	return 0;
+    }
+
+pConical	     = (PictConicalGradientPtr) (pPicture + 1);
+    pConical->stops  = (PictGradientStopPtr) (pConical + 1);
+    pConical->nstops = nStops;
+
+    pConical->center = *center;
+    pConical->angle  = angle;
+
+    if (!GradientPictureInit (pPicture,
+			 (PictGradientPtr) pConical,
+			 SourcePictTypeConical,
+			 nStops, stops, colors, error))
+    {
+	xfree (pPicture);
+	return 0;
     }
 
     pPicture->id = pid;
-    pPicture->pSourcePict = (SourcePictPtr) xalloc(sizeof(PictConicalGradient));
-    if (!pPicture->pSourcePict) {
-        *error = BadAlloc;
-        xfree(pPicture);
-        return 0;
-    }
 
-    pPicture->pSourcePict->conical.type = SourcePictTypeConical;
-    pPicture->pSourcePict->conical.center = *center;
-    pPicture->pSourcePict->conical.angle = angle;
-
-    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
-    if (*error) {
-        xfree(pPicture);
-        return 0;
-    }
     return pPicture;
 }
 
@@ -1459,25 +1541,20 @@ SetPictureClipRegion (PicturePtr    pPicture,
     return result;
 }
 
-static Bool
-transformIsIdentity(PictTransform *t)
-{
-    return ((t->matrix[0][0] == t->matrix[1][1]) &&
-            (t->matrix[0][0] == t->matrix[2][2]) &&
-            (t->matrix[0][0] != 0) &&
-            (t->matrix[0][1] == 0) &&
-            (t->matrix[0][2] == 0) &&
-            (t->matrix[1][0] == 0) &&
-            (t->matrix[1][2] == 0) &&
-            (t->matrix[2][0] == 0) &&
-            (t->matrix[2][1] == 0));
-}
 
 int
 SetPictureTransform (PicturePtr	    pPicture,
 		     PictTransform  *transform)
 {
-    if (transform && transformIsIdentity (transform))
+    static const PictTransform	identity = { {
+	{ xFixed1, 0x00000, 0x00000 },
+	{ 0x00000, xFixed1, 0x00000 },
+	{ 0x00000, 0x00000, xFixed1 },
+    } };
+    PictureScreenPtr	ps = pPicture->pDrawable ? GetPictureScreen(pPicture->pDrawable->pScreen) : 0;
+    int			result = 0;
+
+    if (transform && memcmp (transform, &identity, sizeof (PictTransform)) == 0)
 	transform = 0;
     
     if (transform)
@@ -1499,17 +1576,10 @@ SetPictureTransform (PicturePtr	    pPicture,
 	}
     }
     pPicture->serialNumber |= GC_CHANGE_SERIAL_BIT;
+    if (ps)
+    result = (*ps->ChangePictureTransform) (pPicture, transform);
 
-    if (pPicture->pDrawable != NULL) {
-	int result;
-	PictureScreenPtr ps = GetPictureScreen(pPicture->pDrawable->pScreen);
-
-	result = (*ps->ChangePictureTransform) (pPicture, transform);
-
-	return result;
-    }
-
-    return Success;
+    return result;
 }
 
 void
@@ -1625,15 +1695,11 @@ FreePicture (pointer	value,
 
     if (--pPicture->refcnt == 0)
     {
-	if (pPicture->transform)
-	    xfree (pPicture->transform);
-        if (!pPicture->pDrawable) {
-            if (pPicture->pSourcePict) {
-                if (pPicture->pSourcePict->type != SourcePictTypeSolidFill)
-                    xfree(pPicture->pSourcePict->linear.stops);
-                xfree(pPicture->pSourcePict);
-            }
-        } else {
+        if (pPicture->transform)
+            xfree (pPicture->transform);
+
+	if (pPicture->pDrawable)
+	{
             ScreenPtr	    pScreen = pPicture->pDrawable->pScreen;
             PictureScreenPtr    ps = GetPictureScreen(pScreen);
 	
@@ -1662,6 +1728,10 @@ FreePicture (pointer	value,
                 (*pScreen->DestroyPixmap) ((PixmapPtr)pPicture->pDrawable);
             }
         }
+
+	if (pPicture->pSourcePict && pPicture->pSourcePict->source.Destroy)
+	    (*pPicture->pSourcePict->source.Destroy) (pPicture);
+
 	xfree (pPicture);
     }
     return Success;

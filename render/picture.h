@@ -63,6 +63,8 @@ typedef struct _Picture		*PicturePtr;
 #define PICT_TYPE_ABGR	3
 #define PICT_TYPE_COLOR	4
 #define PICT_TYPE_GRAY	5
+#define PICT_TYPE_YUY2  6
+#define PICT_TYPE_YV12  7
 
 #define PICT_FORMAT_COLOR(f)	(PICT_FORMAT_TYPE(f) & 2)
 
@@ -119,6 +121,10 @@ typedef enum _PictFormatShort {
    PICT_a1 =		PICT_FORMAT(1,PICT_TYPE_A,1,0,0,0),
 
    PICT_g1 =		PICT_FORMAT(1,PICT_TYPE_GRAY,0,0,0,0),
+
+/* YUV formats */
+   PICT_yuy2 =		PICT_FORMAT(16,PICT_TYPE_YUY2,0,0,0,0),
+   PICT_yv12 =		PICT_FORMAT(12,PICT_TYPE_YV12,0,0,0,0),
 } PictFormatShort;
 
 /*

@@ -390,7 +390,14 @@ ProcRenderQueryPictFormats (ClientPtr client)
 	}
 	ps = GetPictureScreenIfSet(pScreen);
 	if (ps)
-	    nformat += ps->nformats;
+	{
+	    for (d = 0; d < ps->nformats; d++)
+	    {
+		if (ps->formats[d].type == PictTypeIndexed ||
+		    ps->formats[d].type == PictTypeDirect)
+		    nformat++;
+	    }
+	}
     }
     if (pRenderClient->major_version == 0 && pRenderClient->minor_version < 6)
 	numSubpixel = 0;
@@ -427,6 +434,10 @@ ProcRenderQueryPictFormats (ClientPtr client)
 		 nformat < ps->nformats;
 		 nformat++, pFormat++)
 	    {
+		if (pFormat->type != PictTypeIndexed &&
+		    pFormat->type != PictTypeDirect)
+		    continue;
+
 		pictForm->id = pFormat->id;
 		pictForm->type = pFormat->type;
 		pictForm->depth = pFormat->depth;
