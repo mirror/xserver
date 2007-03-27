@@ -646,6 +646,14 @@ else
 	XVMC=no
 fi
 
+PKG_CHECK_MODULES([GLUCOSE], [glitz >= 0.5.4], [GLUCOSE=yes], [GLUCOSE=no])
+AC_SUBST(GLUCOSE_CFLAGS)
+AC_SUBST(GLUCOSE_LIBS)
+AM_CONDITIONAL(GLUCOSE, [test "x$GLUCOSE" = xyes])
+if test "x$GLUCOSE" = xyes; then
+	AC_DEFINE(GLUCOSE, 1, [Build glucose acceleration module])
+fi
+
 AM_CONDITIONAL(XVMC, [test "x$XVMC" = xyes])
 if test "x$XVMC" = xyes; then
 	AC_DEFINE(XvMCExtension, 1, [Build XvMC extension])
@@ -700,10 +708,13 @@ if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
 	test -d GL || mkdir GL
 	case $host_os in
 	  solaris*) 	
-		SYMLINK_MESA="/usr/bin/bash $srcdir/GL/symlink-mesa.sh"	;;
-	  *)	SYMLINK_MESA=$srcdir/GL/symlink-mesa.sh ;;
+		SYMLINK_MESA="/usr/bin/bash $srcdir/GL/symlink-mesa.sh"
+		SYMLINK_GLUCOSE="/usr/bin/bash $srcdir/glucose/symlink-xgl.sh"	;;
+	  *)	SYMLINK_MESA=$srcdir/GL/symlink-mesa.sh
+	  	SYMLINK_GLUCOSE=$srcdir/glucose/symlink-xgl.sh ;;
 	esac
 	$SYMLINK_MESA $MESA_SOURCE GL/
+	$SYMLINK_GLUCOSE $srcdir/hw/xgl glucose/
 	if test $? -ne 0; then
 		AC_MSG_ERROR([Failed to link Mesa source tree.  Please specify a proper path to Mesa sources, or disable GLX.])
 	fi
@@ -2000,6 +2011,7 @@ Xext/Makefile
 Xi/Makefile
 xfixes/Makefile
 exa/Makefile
+glucose/Makefile
 hw/Makefile
 hw/xfree86/Makefile
 hw/xfree86/common/Makefile
