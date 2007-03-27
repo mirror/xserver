@@ -271,18 +271,24 @@ PictureResetFilters (ScreenPtr pScreen)
 int
 SetPictureFilter (PicturePtr pPicture, char *name, int len, xFixed *params, int nparams)
 {
-    ScreenPtr		pScreen;
-    PictureScreenPtr	ps;
     PictFilterPtr	pFilter;
     xFixed		*new_params;
-    int			i, result;
+    int			i, s, result;
 
-    if (!pPicture->pDrawable)
-       return Success;
+    pFilter = PictureFindFilter (screenInfo.screens[0], name, len);
 
-    pScreen = pPicture->pDrawable->pScreen;
-    ps = GetPictureScreen(pScreen);
-    pFilter = PictureFindFilter (pScreen, name, len);
+    if (pPicture->pDrawable == NULL) {
+	/* For source pictures, the picture isn't tied to a screen.  So, ensure
+	 * that all screens can handle a filter we set for the picture.
+	 */
+	for (s = 0; s < screenInfo.numScreens; s++) {
+	    if (PictureFindFilter (screenInfo.screens[s], name, len)->id !=
+		pFilter->id)
+	    {
+		return BadMatch;
+	    }
+	}
+    }
 
     if (!pFilter)
 	return BadName;
@@ -307,8 +313,13 @@ SetPictureFilter (PicturePtr pPicture, char *name, int len, xFixed *params, int 
 	pPicture->filter_params[i] = params[i];
     pPicture->filter = pFilter->id;
 
-    result = (*ps->ChangePictureFilter) (pPicture, pPicture->filter,
-					 params, nparams);
-    return result;
+    if (pPicture->pDrawable) {
+	ScreenPtr pScreen = pPicture->pDrawable->pScreen;
+	PictureScreenPtr ps = GetPictureScreen(pScreen);
+
+	result = (*ps->ChangePictureFilter) (pPicture, pPicture->filter,
+					     params, nparams);
+	return result;
+    }
     return Success;
 }
