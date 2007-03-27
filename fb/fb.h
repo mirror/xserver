@@ -2030,6 +2030,7 @@ fbEvenTile (FbBits	*dst,
 	    int		height,
 
 	    FbBits	*tile,
+	    FbStride    tileStride,
 	    int		tileHeight,
 
 	    int		alu,

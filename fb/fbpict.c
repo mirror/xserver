@@ -882,7 +882,7 @@ fbComposite (CARD8      op,
     int		    n;
     BoxPtr	    pbox;
     CompositeFunc   func = NULL;
-    Bool	    srcRepeat = pSrc->pDrawable && pSrc->repeat;
+    Bool	    srcRepeat = pSrc->pDrawable && pSrc->repeatType == RepeatNormal;
     Bool	    maskRepeat = FALSE;
     Bool	    srcAlphaMap = pSrc->alphaMap != 0;
     Bool	    maskAlphaMap = FALSE;
@@ -908,15 +908,47 @@ fbComposite (CARD8      op,
     {
 	xMask += pMask->pDrawable->x;
 	yMask += pMask->pDrawable->y;
-	maskRepeat = pMask->repeat == RepeatNormal;
+	maskRepeat = pMask->repeatType == RepeatNormal;
 	maskAlphaMap = pMask->alphaMap != 0;
     }
 
-    if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
-        && !pSrc->transform && !(pMask && pMask->transform)
+    /* YUV is only used internally for XVideo */
+    if (pSrc->format == PICT_yv12 || pSrc->format == PICT_yuy2)
+    {
+#ifdef USE_MMX
+	/* non rotating transformation */
+	if (!pSrc->transform ||
+	    (pSrc->transform->matrix[0][1] == 0 &&
+	     pSrc->transform->matrix[1][0] == 0 &&
+	     pSrc->transform->matrix[2][0] == 0 &&
+	     pSrc->transform->matrix[2][1] == 0 &&
+	     pSrc->transform->matrix[2][2] == 1 << 16))
+	{
+	    switch (pDst->format) {
+	    case PICT_a8r8g8b8:
+	    case PICT_x8r8g8b8:
+		if (fbHaveMMX())
+		{
+		    if (pSrc->format == PICT_yv12)
+			func = fbCompositeSrc_yv12x8888mmx;
+		    else
+			func = fbCompositeSrc_yuy2x8888mmx;
+		}
+		break;
+	    }
+	}
+#endif
+    }
+    else if (pSrc->pDrawable && (!pMask || pMask->pDrawable)
+        && !(pMask && pMask->transform)
         && !maskAlphaMap && !srcAlphaMap && !dstAlphaMap
+	&& (!pSrc->repeatType || srcRepeat)
+	&& (!pMask || (!pMask->repeatType || maskRepeat))
         && (pSrc->filter != PictFilterConvolution)
         && (!pMask || pMask->filter != PictFilterConvolution))
+    {
+	if (!pSrc->transform)
+	{
     switch (op) {
     case PictOpSrc:
 #ifdef USE_MMX
@@ -930,8 +962,9 @@ fbComposite (CARD8      op,
     case PictOpOver:
 	if (pMask)
 	{
-	    if (fbCanGetSolid(pSrc) &&
-		!maskRepeat)
+	    if (srcRepeat &&
+	        pSrc->pDrawable->width == 1 &&
+	        pSrc->pDrawable->height == 1)
 	    {
 		srcRepeat = FALSE;
 		if (PICT_FORMAT_COLOR(pSrc->format)) {
@@ -1033,17 +1066,17 @@ fbComposite (CARD8      op,
 			}
 			break;
 		    default:
-			break;
+		        break;
 		    }
 		default:
 		    break;
 		}
 	    }
-	    else if (! srcRepeat) /* has mask and non-repeating source */
+	    else /* has mask and non-repeating source */
 	    {
 		if (pSrc->pDrawable == pMask->pDrawable &&
 		    xSrc == xMask && ySrc == yMask &&
-		    !pMask->componentAlpha && !maskRepeat)
+		    !pMask->componentAlpha)
 		{
 		    /* source == mask: non-premultiplied data */
 		    switch (pSrc->format) {
@@ -1092,7 +1125,7 @@ fbComposite (CARD8      op,
 #endif
 				break;
 			    default:
-				break;
+			        break;
 			    }
 			    break;
 			default:
@@ -1100,14 +1133,16 @@ fbComposite (CARD8      op,
 			}
 			break;
 		    default:
-			break;
+		        break;
 		    }
 		    break;
 		}
 		else
 		{
 		    /* non-repeating source, repeating mask => translucent window */
-		    if (fbCanGetSolid(pMask))
+		    if (maskRepeat &&
+	                pMask->pDrawable->width == 1 &&
+	                pMask->pDrawable->height == 1)
 		    {
 			if (pSrc->format == PICT_x8r8g8b8 &&
 			    pDst->format == PICT_x8r8g8b8 &&
@@ -1124,7 +1159,9 @@ fbComposite (CARD8      op,
 	}
 	else /* no mask */
 	{
-	    if (fbCanGetSolid(pSrc))
+	    if (srcRepeat &&
+	        pSrc->pDrawable->width == 1 &&
+	        pSrc->pDrawable->height == 1)
 	    {
 		/* no mask and repeating source */
 		switch (pSrc->format) {
@@ -1150,14 +1187,14 @@ fbComposite (CARD8      op,
 #endif
 			break;
 		    default:
-			break;
+		    	break;
 		    }
 		    break;
 		default:
 		    break;
 		}
 	    }
-	    else if (! srcRepeat)
+	    else
 	    {
 		switch (pSrc->format) {
 		case PICT_a8r8g8b8:
@@ -1321,6 +1358,57 @@ fbComposite (CARD8      op,
 	    }
 	}
 	break;
+    }
+	}
+	else if (op == PictOpOver && (pSrc->repeatType == RepeatPad ||
+				      pSrc->repeatType == RepeatNone))
+	{
+	    /* non rotating transformation */
+	    if (pSrc->transform->matrix[0][1] == 0 &&
+		pSrc->transform->matrix[1][0] == 0 &&
+		pSrc->transform->matrix[2][0] == 0 &&
+		pSrc->transform->matrix[2][1] == 0 &&
+		pSrc->transform->matrix[2][2] == 1 << 16)
+	    {
+		if (pMask)
+		{
+		    if (maskRepeat &&
+	                pMask->pDrawable->width == 1 &&
+	                pMask->pDrawable->height == 1)
+		    {
+			if (pSrc->format == PICT_x8r8g8b8 &&
+			    pDst->format == PICT_x8r8g8b8 &&
+			    pMask->format == PICT_a8)
+			{
+#ifdef USE_MMX
+			    if (fbHaveMMX())
+				func = fbCompositeSrc_8888x8x8888mmx;
+#endif
+			}
+		    }
+		}
+		else
+		{
+		    switch (pSrc->format) {
+		    case PICT_a8r8g8b8:
+			switch (pDst->format) {
+			case PICT_a8r8g8b8:
+			case PICT_x8r8g8b8:
+#ifdef USE_MMX
+			    if (fbHaveMMX())
+				func = fbCompositeSrc_8888x8888mmx;
+#endif
+			    break;
+	    		default:
+			    break;
+			}
+			break;
+	    	    default:
+			break;
+		    }
+		}
+	    }
+	}
     }
 
     if (!func) {
