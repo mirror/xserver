@@ -26,8 +26,7 @@ libglucose_la_SOURCES = \
 	glucose_context.c \
 	glucose_drawable.c \
 	glucose_format.c \
-	glucose_info.c \
-	glc_priv.h 
+	glucose_info.c
 
 libglucose_la_LIBADD = $(GLUCOSE_LIBS)
 
