@@ -71,8 +71,10 @@ static int __glXDispatch(ClientPtr);
 */
 static void ResetExtension(ExtensionEntry* extEntry)
 {
+#if 0 /* glucose makes this a nuisance */
     __glXFlushContextCache();
     __glXResetScreens();
+#endif
 }
 
 /*
