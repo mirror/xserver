@@ -75,7 +75,7 @@ xglPixmapDamageReport (DamagePtr pDamage,
 }
 
 
-static Bool
+Bool
 xglPixmapCreateDamage (PixmapPtr pPixmap)
 {
     XGL_PIXMAP_PRIV (pPixmap);
@@ -156,7 +156,7 @@ xglSetPixmapVisual (PixmapPtr    pPixmap,
     }
 }
 
-static Bool
+Bool
 xglPixmapSurfaceInit (PixmapPtr	    pPixmap,
 		      unsigned long features,
 		      int	    width,
@@ -298,8 +298,12 @@ xglFiniPixmap (PixmapPtr pPixmap)
     if (pPixmapPriv->drawable)
 	glitz_drawable_destroy (pPixmapPriv->drawable);
 
-    if (pPixmapPriv->surface)
+    if (pPixmapPriv->surface) {
+    	/* leaving because texture destruction can occur and flush primitives */
+        __glXleaveServer();
 	glitz_surface_destroy (pPixmapPriv->surface);
+        __glXenterServer();
+    }
 }
 
 Bool
@@ -564,12 +568,14 @@ xglCreatePixmapSurface (PixmapPtr pPixmap)
 	if (!pPixmapPriv->pVisual || !pPixmapPriv->pVisual->format.surface)
 	    return FALSE;
 
+	__glXleaveServer();
 	pPixmapPriv->surface =
 	    glitz_surface_create (pScreenPriv->drawable,
 				  pPixmapPriv->pVisual->format.surface,
 				  pPixmap->drawable.width,
 				  pPixmap->drawable.height,
 				  0, NULL);
+	__glXenterServer();
 	if (!pPixmapPriv->surface)
 	{
 	    pPixmapPriv->pVisual = NULL;

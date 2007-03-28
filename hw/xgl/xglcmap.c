@@ -28,7 +28,7 @@
 #include "micmap.h"
 #include "fb.h"
 
-static xglPixelFormatRec xglPixelFormats[] = {
+xglPixelFormatRec xglPixelFormats[] = {
     {
 	8, 8,
 	{
@@ -77,10 +77,13 @@ static xglPixelFormatRec xglPixelFormats[] = {
     }
 };
 
-#define NUM_XGL_PIXEL_FORMATS				     \
-    (sizeof (xglPixelFormats) / sizeof (xglPixelFormats[0]))
-
 xglVisualPtr xglVisuals = NULL;
+
+int
+xglNumPixelFormats(void)
+{
+    return (sizeof (xglPixelFormats) / sizeof(xglPixelFormats[0]));
+}
 
 void
 xglSetVisualTypes (int depth,
@@ -92,7 +95,7 @@ xglSetVisualTypes (int depth,
     xglPixelFormatPtr pBestFormat = 0;
     int		      i, rs, gs, bs, diff, bestDiff = 0;
 
-    for (i = 0; i < NUM_XGL_PIXEL_FORMATS; i++)
+    for (i = 0; i < xglNumPixelFormats(); i++)
     {
 	if (xglPixelFormats[i].depth == depth)
 	{
@@ -133,8 +136,6 @@ xglSetVisualTypes (int depth,
     if (pBestFormat)
     {
 	xglVisualPtr new, *prev, v;
-	unsigned int bitsPerRGB;
-	Pixel	     rm, gm, bm;
 
 	new = xalloc (sizeof (xglVisualRec));
 	if (!new)
@@ -147,20 +148,8 @@ xglSetVisualTypes (int depth,
 	new->pPixel	     = pBestFormat;
 	new->vid	     = 0;
 
-	bitsPerRGB = pBestFormat->bitsPerRGB;
-
-	rm = pBestFormat->masks.red_mask;
-	gm = pBestFormat->masks.green_mask;
-	bm = pBestFormat->masks.blue_mask;
-
-	fbSetVisualTypesAndMasks (depth, visuals, bitsPerRGB, rm, gm, bm);
-
 	for (prev = &xglVisuals; (v = *prev); prev = &v->next);
 	*prev = new;
-    }
-    else
-    {
-	fbSetVisualTypesAndMasks (depth, 0, 0, 0, 0, 0);
     }
 }
 

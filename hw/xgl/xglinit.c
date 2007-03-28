@@ -99,10 +99,8 @@ void *symTab[] = {
     SYMFUNC (mieqInit),
     SYMFUNC (mieqProcessInputEvents),
     SYMFUNC (miPointerAbsoluteCursor),
-    SYMFUNC (miRegisterPointerDevice),
     SYMFUNC (miPointerWarpCursor),
     SYMFUNC (miDCInitialize),
-    SYMFUNC (miPointerAbsoluteCursor),
     SYMFUNC (miPointerUpdate),
     SYMFUNC (miRegisterRedirectBorderClipProc)
 };

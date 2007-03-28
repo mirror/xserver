@@ -22,6 +22,11 @@
  *
  * Author: David Reveman <davidr@novell.com>
  */
+#include "glxserver.h"
+#include "glapi.h"
+#include "glthread.h"
+#include "dispatch.h"
+
 
 #include "xgl.h"
 #include "fb.h"
@@ -64,6 +69,7 @@ xglCopy (DrawablePtr pSrc,
 				   dstXoff, dstYoff,
 				   (glitz_box_t *) pBox, nBox);
 
+    __glXleaveServer();
     glitz_copy_area (src,
 		     dst,
 		     srcXoff + dx,
@@ -72,10 +78,11 @@ xglCopy (DrawablePtr pSrc,
 		     pPixmap->drawable.height - dstYoff,
 		     dstXoff,
 		     dstYoff);
+    __glXenterServer();
 
     glitz_surface_set_clip_region (dst, 0, 0, NULL, 0);
 
-    if (glitz_surface_get_status (dst))
+    if (glitz_surface_get_status (dst)) 
 	return FALSE;
 
     return TRUE;

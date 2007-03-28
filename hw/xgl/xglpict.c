@@ -272,7 +272,7 @@ xglUpdatePicture (PicturePtr pPicture)
 
     if (pPixmapPriv->pictureMask & xglPCFillMask)
     {
-	glitz_surface_set_fill (surface, fillMode[pPicture->repeat]);
+	glitz_surface_set_fill (surface, fillMode[pPicture->repeatType]);
     }
 
     if (pPixmapPriv->pictureMask & xglPCFilterMask)
@@ -463,7 +463,7 @@ xglSyncPicture (ScreenPtr  pScreen,
 		break;
 	    }
 
-	    glitz_surface_set_fill (surface, fillMode[pPicture->repeat]);
+	    glitz_surface_set_fill (surface, fillMode[pPicture->repeatType]);
 	    glitz_surface_set_transform (surface, (glitz_transform_t *)
 					 pPicture->transform);
 
@@ -784,4 +784,48 @@ xglPictureClipExtents (PicturePtr pPicture,
     }
 }
 
+void
+xglCreateSolidAlphaPicture (ScreenPtr pScreen)
+{
+    static xRenderColor	solidWhite = { 0xffff, 0xffff, 0xffff, 0xffff };
+    static xRectangle	one = { 0, 0, 1, 1 };
+    PixmapPtr		pPixmap;
+    PictFormatPtr	pFormat;
+    int			error;
+    Pixel		pixel;
+    GCPtr		pGC;
+    XID			tmpval[2];
+
+    XGL_SCREEN_PRIV (pScreen);
+
+    pFormat = PictureMatchFormat (pScreen, 32, PICT_a8r8g8b8);
+    if (!pFormat)
+	return;
+
+    pGC = GetScratchGC (pFormat->depth, pScreen);
+    if (!pGC)
+	return;
+
+    pPixmap = (*pScreen->CreatePixmap) (pScreen, 1, 1, pFormat->depth);
+    if (!pPixmap)
+	return;
+
+    miRenderColorToPixel (pFormat, &solidWhite, &pixel);
+
+    tmpval[0] = GXcopy;
+    tmpval[1] = pixel;
+
+    ChangeGC (pGC, GCFunction | GCForeground, tmpval);
+    ValidateGC (&pPixmap->drawable, pGC);
+    (*pGC->ops->PolyFillRect) (&pPixmap->drawable, pGC, 1, &one);
+    FreeScratchGC (pGC);
+
+    tmpval[0] = xTrue;
+    pScreenPriv->pSolidAlpha = CreatePicture (0, &pPixmap->drawable, pFormat,
+					      CPRepeat, tmpval, 0, &error);
+    (*pScreen->DestroyPixmap) (pPixmap);
+
+    if (pScreenPriv->pSolidAlpha)
+	ValidatePicture (pScreenPriv->pSolidAlpha);
+}
 #endif

@@ -200,6 +200,12 @@ xglXvFreePort (XvPortPtr pPort)
 	pPortPriv->pSrc = (PicturePtr) 0;
     }
 
+    if (pPortPriv->pTmp)
+    {
+	FreePicture ((pointer) pPortPriv->pTmp, 0);
+	pPortPriv->pTmp = (PicturePtr) 0;
+    }
+
     if (pPortPriv->pPixmap)
     {
 	ScreenPtr pScreen;
@@ -239,6 +245,37 @@ xglXvStopVideo (ClientPtr   client,
     return Success;
 }
 
+static PicturePtr
+xglXvCreateDstPict (DrawablePtr pDrawable,
+		    Mask	vmask,
+		    XID		*vlist,
+		    int		*error)
+{
+    ScreenPtr     pScreen = pDrawable->pScreen;
+    PictFormatPtr pFormat = 0;
+    int		  i;
+
+    for (i = 0; i < pScreen->numVisuals; i++)
+    {
+	if (pScreen->visuals[i].nplanes == pDrawable->depth)
+	{
+	    pFormat = PictureMatchVisual (pScreen, pDrawable->depth,
+					  &pScreen->visuals[i]);
+	    break;
+	}
+    }
+
+    if (!pFormat)
+    {
+	*error = BadImplementation;
+	return (PicturePtr) 0;
+    }
+
+    return CreatePicture (0, pDrawable,
+			  pFormat, vmask, vlist, serverClient,
+			  error);
+}
+
 static int
 xglXvPutImage (ClientPtr     client,
 	       DrawablePtr   pDrawable,
@@ -259,8 +296,9 @@ xglXvPutImage (ClientPtr     client,
 	       CARD16	     height)
 {
     ScreenPtr	  pScreen = pDrawable->pScreen;
+    PicturePtr	  pSrc;
     PictTransform transform;
-    int		  depth, bpp;
+    int		  depth, bpp, stride, noVisual = FALSE;
     CARD32	  format;
 
     XGL_SCREEN_PRIV (pScreen);
@@ -268,19 +306,25 @@ xglXvPutImage (ClientPtr     client,
     XGL_DRAWABLE_PIXMAP (pDrawable);
     XGL_PIXMAP_PRIV (pPixmap);
 
+    stride = ((width + 7) & ~7);
+
     switch (pImage->id) {
     case GLITZ_FOURCC_YUY2:
 	bpp = depth = 16;
 	format = PICT_yuy2;
+	noVisual = !pScreenPriv->pXvVisual[XGL_XV_FORMAT_YUY2].format.surface;
+	stride *= 2;
 	break;
     case GLITZ_FOURCC_YV12:
 	depth = bpp = 12;
 	format = PICT_yv12;
+	noVisual = !pScreenPriv->pXvVisual[XGL_XV_FORMAT_YV12].format.surface;
 	break;
     case GLITZ_FOURCC_RGB:
 	depth = 24;
 	bpp = 32;
 	format = PICT_x8r8g8b8;
+	stride *= 4;
 	break;
     default:
 	return BadImplementation;
@@ -299,7 +343,7 @@ xglXvPutImage (ClientPtr     client,
 				    srcWidth, srcHeight,
 				    depth, bpp, -1, (pointer) data);
 
-    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -srcWidth;
+    XGL_GET_PIXMAP_PRIV (pPortPriv->pPixmap)->stride = -stride;
 
     pPortPriv->pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
 
@@ -326,39 +370,86 @@ xglXvPutImage (ClientPtr     client,
 	}
 
 	SetPictureFilter (pPortPriv->pSrc,
-			  FilterBilinear, strlen (FilterBilinear),
+			  pScreenPriv->xvFilter,
+			  strlen (pScreenPriv->xvFilter),
 			  0, 0);
     }
 
+    pSrc = pPortPriv->pSrc;
+
     if (!pPortPriv->pDst || pPortPriv->pDst->pDrawable != pDrawable)
     {
-	PictFormatPtr pFormat = 0;
-	int	      i, error;
-
-	for (i = 0; i < pScreen->numVisuals; i++)
-	{
-	    if (pScreen->visuals[i].nplanes == pDrawable->depth)
-	    {
-		pFormat = PictureMatchVisual (pScreen, pDrawable->depth,
-					      &pScreen->visuals[i]);
-		break;
-	    }
-	}
-
-	if (!pFormat)
-	    return BadImplementation;
+	int error;
 
 	if (pPortPriv->pDst)
 	    FreePicture ((pointer) pPortPriv->pDst, 0);
 
-	pPortPriv->pDst = CreatePicture (0, pDrawable,
-					 pFormat, 0, 0, serverClient,
-					 &error);
+	pPortPriv->pDst = xglXvCreateDstPict (pDrawable, 0, NULL, &error);
 	if (!pPortPriv->pDst)
 	{
 	    xglXvFreePort (pPort);
 	    return error;
 	}
+    }
+
+    if (pPixmap != pScreenPriv->pScreenPixmap && !pPixmapPriv->target)
+	xglEnablePixmapAccel (pPixmap, &pScreenPriv->accel.xv);
+
+    /* software color-space conversion */
+    if (pPixmapPriv->target && (noVisual || pScreenPriv->noYuv))
+    {
+	if (!pPortPriv->pTmp				   ||
+	    srcWidth  != pPortPriv->pTmp->pDrawable->width ||
+	    srcHeight != pPortPriv->pTmp->pDrawable->height)
+	{
+	    static XID value = RepeatPad;
+	    int	       error;
+
+	    if (pPortPriv->pTmp)
+		FreePicture ((pointer) pPortPriv->pTmp, 0);
+
+	    pPixmap = (*pScreen->CreatePixmap) (pScreen,
+						srcWidth, srcHeight,
+						pDrawable->depth);
+	    if (!pPixmap)
+	    {
+		xglXvFreePort (pPort);
+		return BadAlloc;
+	    }
+
+	    pPortPriv->pTmp = xglXvCreateDstPict (&pPixmap->drawable,
+						  CPRepeat, &value,
+						  &error);
+	    if (!pPortPriv->pTmp)
+	    {
+		(*pScreen->DestroyPixmap) (pPixmap);
+		xglXvFreePort (pPort);
+		return error;
+	    }
+
+	    /* no accelerated drawing */
+	    XGL_GET_PIXMAP_PRIV (pPixmap)->target = xglPixmapTargetNo;
+
+	    (*pScreen->DestroyPixmap) (pPixmap);
+
+	    SetPictureFilter (pPortPriv->pTmp,
+			      pScreenPriv->xvFilter,
+			      strlen (pScreenPriv->xvFilter),
+			      0, 0);
+	}
+
+	SetPictureTransform (pSrc, 0);
+
+	CompositePicture (PictOpSrc,
+			  pSrc,
+			  (PicturePtr) 0,
+			  pPortPriv->pTmp,
+			  0, 0,
+			  0, 0,
+			  0, 0,
+			  srcWidth, srcHeight);
+
+	pSrc = pPortPriv->pTmp;
     }
 
     transform.matrix[0][0] = ((srcWidth << 16) + (dstWidth >> 1))
@@ -376,13 +467,10 @@ xglXvPutImage (ClientPtr     client,
     transform.matrix[2][1] = 0;
     transform.matrix[2][2] = 1 << 16;
 
-    SetPictureTransform (pPortPriv->pSrc, &transform);
-
-    if (pPixmap != pScreenPriv->pScreenPixmap && !pPixmapPriv->target)
-	xglEnablePixmapAccel (pPixmap, &pScreenPriv->accel.xv);
+    SetPictureTransform (pSrc, &transform);
 
     CompositePicture (PictOpSrc,
-		      pPortPriv->pSrc,
+		      pSrc,
 		      (PicturePtr) 0,
 		      pPortPriv->pDst,
 		      srcX, srcY,

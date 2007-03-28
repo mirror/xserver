@@ -23,6 +23,10 @@
  * Author: David Reveman <davidr@novell.com>
  */
 
+#include "glxserver.h"
+#include "glapi.h"
+#include "glthread.h"
+#include "dispatch.h"
 #include "xgl.h"
 
 #ifdef RENDER
@@ -175,9 +179,10 @@ xglCompositeGeneral (CARD8	     op,
 
     if (!pGeometry)
     {
-	if (!pSrc->transform && pSrc->filter != PictFilterConvolution)
+	if (pSrc->pDrawable && !pSrc->transform &&
+	    pSrc->filter != PictFilterConvolution)
 	{
-	    if (pSrc->pDrawable && pSrc->repeat == RepeatNormal)
+	    if (pSrc->repeatType == RepeatNormal)
 	    {
 		XGL_PIXMAP_PRIV ((PixmapPtr) pSrc->pDrawable);
 
@@ -261,12 +266,14 @@ xglCompositeGeneral (CARD8	     op,
     else
 	GEOMETRY_DISABLE (dst);
 
+    __glXleaveServer();
     glitz_composite (XGL_OPERATOR (op),
 		     src, mask, dst,
 		     xSrc, ySrc,
 		     xMask, yMask,
 		     xDst + dstXoff, yDst + dstYoff,
 		     width, height);
+    __glXenterServer();
 
     glitz_surface_set_clip_region (dst, 0, 0, NULL, 0);
 

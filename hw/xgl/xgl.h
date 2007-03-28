@@ -102,6 +102,8 @@ typedef struct _xglScreenInfo {
     Bool		  yInverted;
     int			  pboMask;
     Bool		  lines;
+    Bool		  noYuv;
+    char		  *xvFilter;
     xglScreenAccelInfoRec accel;
 } xglScreenInfoRec, *xglScreenInfoPtr;
 
@@ -124,6 +126,7 @@ typedef struct _xglVisual {
 } xglVisualRec, *xglVisualPtr;
 
 extern xglVisualPtr xglVisuals;
+extern xglPixelFormatRec xglPixelFormats[];
 
 #define xglAreaAvailable 0
 #define xglAreaDivided   1
@@ -255,6 +258,8 @@ typedef struct _xglScreen {
     Bool			  yInverted;
     int				  pboMask;
     Bool			  lines;
+    Bool			  noYuv;
+    char			  *xvFilter;
     xglGeometryRec		  scratchGeometry;
     xglScreenAccelInfoRec	  accel;
 
@@ -372,6 +377,7 @@ typedef struct _xglXvPort {
     PixmapPtr  pPixmap;
     PicturePtr pSrc;
     PicturePtr pDst;
+    PicturePtr pTmp;
 } xglXvPortRec, *xglXvPortPtr;
 
 #endif
@@ -503,6 +509,21 @@ xglKbdCtrl (DeviceIntPtr pDevice,
 void
 xglInitInput (int argc, char **argv);
 
+#ifdef XEVDEV
+
+extern Bool useEvdev;
+extern char *kbdEvdevFile;
+extern char *ptrEvdevFile;
+
+void
+xglEvdevReadInput (void);
+
+void
+xglWakeupHandler (pointer blockData,
+		  int	  result,
+		  pointer pReadMask);
+
+#endif
 
 /* xgloutput.c */
 
@@ -544,6 +565,9 @@ xglFindVisualWithId (ScreenPtr pScreen,
 
 void
 xglClearVisualTypes (void);
+
+int
+xglNumPixelFormats (void);
 
 
 /* xglparse.c */
@@ -923,6 +947,14 @@ void
 xglEnablePixmapAccel (PixmapPtr	      pPixmap,
 		      xglAccelInfoPtr pAccel);
 
+Bool
+xglPixmapSurfaceInit (PixmapPtr     pPixmap,
+		      unsigned long features,
+		      int           width,
+		      int           height);
+
+Bool
+xglPixmapCreateDamage (PixmapPtr pPixmap);
 
 /* xglsync.c */
 

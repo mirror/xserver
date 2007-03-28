@@ -85,6 +85,9 @@ static const GCOps xglGCOps = {
     xglImageGlyphBlt,
     xglPolyGlyphBlt,
     xglPushPixels
+#ifdef NEED_LINEHELPER
+    , NULL
+#endif
 };
 
 void

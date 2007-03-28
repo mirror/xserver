@@ -188,12 +188,25 @@ xglUseMsg (void)
     ErrorF ("-yinverted             Y is upside-down\n");
     ErrorF ("-lines                 "
 	    "accelerate lines that are not vertical or horizontal\n");
+    ErrorF ("-noyuv                 "
+	    "turns off hardware color-space conversion of YUV data\n");
+
+#ifdef XV
+    ErrorF ("-xvfilter [nearest|linear] set xvideo filter\n");
+#endif
+
     ErrorF ("-vbo                   "
 	    "use vertex buffer objects for streaming of vertex data\n");
     ErrorF ("-pbomask [1|4|8|16|32] "
 	    "set bpp's to use with pixel buffer objects\n");
     ErrorF ("-accel TYPE[@WIDTH[/MIN]xHEIGHT[/MIN]][:METHOD] "
 	    "offscreen acceleration\n");
+
+#ifdef XEVDEV
+    ErrorF ("-kbd file              evdev file to read keyboard events\n");
+    ErrorF ("-ptr file              evdev file to read pointer events\n");
+#endif
+
 }
 
 int
@@ -225,6 +238,29 @@ xglProcessArgument (int	 argc,
 	xglScreenInfo.lines = TRUE;
 	return 1;
     }
+    else if (!strcmp (argv[i], "-noyuv"))
+    {
+	xglScreenInfo.noYuv = TRUE;
+	return 1;
+    }
+
+#ifdef XV
+    else if (!strcmp (argv[i], "-xvfilter"))
+    {
+	if ((i + 1) < argc)
+	{
+	    if (!strcasecmp (argv[i + 1], "nearest"))
+		xglScreenInfo.xvFilter = FilterNearest;
+	    else if (!strcasecmp (argv[i + 1], "linear"))
+		xglScreenInfo.xvFilter = FilterBilinear;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+#endif
+
     else if (!strcmp (argv[i], "-vbo"))
     {
 	xglScreenInfo.geometryUsage = GEOMETRY_USAGE_STREAM;
@@ -252,6 +288,33 @@ xglProcessArgument (int	 argc,
 
 	return 2;
     }
+
+#ifdef XEVDEV
+    else if (!strcmp (argv[i], "-kbd"))
+    {
+	if ((i + 1) < argc)
+	{
+	    kbdEvdevFile = argv[i + 1];
+	    useEvdev = TRUE;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+    else if (!strcmp (argv[i], "-ptr"))
+    {
+	if ((i + 1) < argc)
+	{
+	    ptrEvdevFile = argv[i + 1];
+	    useEvdev = TRUE;
+	}
+	else
+	    return 1;
+
+	return 2;
+    }
+#endif
 
     return 0;
 }

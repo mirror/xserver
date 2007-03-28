@@ -118,6 +118,7 @@ xglScreenInit (ScreenPtr pScreen)
     xglScreenPtr pScreenPriv;
     xglVisualPtr v;
     int		 i, depth, bpp = 0;
+    int		 dpiX, dpiY;
 
 #ifdef RENDER
     PictureScreenPtr pPictureScreen;
@@ -151,6 +152,37 @@ xglScreenInit (ScreenPtr pScreen)
 	    xglSetVisualTypes (screenInfo.formats[i].depth, 0, 0, 0, 0);
     }
 
+    fbSetVisualTypesAndMasks (depth, (1 << TrueColor),
+			      v->pPixel->bitsPerRGB,
+			      v->pPixel->masks.red_mask,
+			      v->pPixel->masks.green_mask,
+			      v->pPixel->masks.blue_mask);
+
+    for (i = 0; i < screenInfo.numPixmapFormats; i++)
+    {
+	Pixel rm = 0, gm = 0, bm = 0;
+	int   bitsPerRGB = 0;
+
+	if (screenInfo.formats[i].depth == depth)
+	    continue;
+
+	for (v = xglVisuals; v; v = v->next)
+	{
+	    if (v->pPixel->depth == screenInfo.formats[i].depth)
+	    {
+		rm = v->pPixel->masks.red_mask;
+		gm = v->pPixel->masks.green_mask;
+		bm = v->pPixel->masks.blue_mask;
+
+		bitsPerRGB = v->pPixel->bitsPerRGB;
+		break;
+	    }
+	}
+
+	fbSetVisualTypesAndMasks (screenInfo.formats[i].depth,
+				  0, bitsPerRGB, rm, gm, bm);
+    }
+
     pScreenPriv->pVisual = 0;
 
 #ifdef GLXEXT
@@ -172,14 +204,31 @@ xglScreenInit (ScreenPtr pScreen)
     pScreenPriv->yInverted	  = xglScreenInfo.yInverted;
     pScreenPriv->pboMask	  = xglScreenInfo.pboMask;
     pScreenPriv->lines		  = xglScreenInfo.lines;
+    pScreenPriv->noYuv		  = xglScreenInfo.noYuv;
+    pScreenPriv->xvFilter	  = xglScreenInfo.xvFilter;
     pScreenPriv->accel		  = xglScreenInfo.accel;
 
-    if (monitorResolution == 0)
-	monitorResolution = XGL_DEFAULT_DPI;
+    if (monitorResolution)
+    {
+	dpiX = dpiY = monitorResolution;
+    }
+    else
+    {
+	dpiX = xglScreenInfo.widthMm;
+	dpiY = xglScreenInfo.heightMm;
+
+	if (dpiX && dpiY)
+	{
+	    dpiX = (xglScreenInfo.width  * 254 + dpiX * 5) / (dpiX * 10);
+	    dpiY = (xglScreenInfo.height * 254 + dpiY * 5) / (dpiY * 10);
+	}
+	else
+	    dpiX = dpiY = XGL_DEFAULT_DPI;
+    }
 
     if (!fbSetupScreen (pScreen, NULL,
 			xglScreenInfo.width, xglScreenInfo.height,
-			monitorResolution, monitorResolution,
+			dpiX, dpiY,
 			xglScreenInfo.width, bpp))
 	return FALSE;
 
@@ -190,7 +239,7 @@ xglScreenInit (ScreenPtr pScreen)
 
     if (!fbFinishScreenInit (pScreen, NULL,
 			     xglScreenInfo.width, xglScreenInfo.height,
-			     monitorResolution, monitorResolution,
+			     dpiX, dpiY,
 			     xglScreenInfo.width, bpp))
 	return FALSE;
 
@@ -215,6 +264,7 @@ xglScreenInit (ScreenPtr pScreen)
 
     XGL_SCREEN_WRAP (CreateGC, xglCreateGC);
 
+#if 0
     pScreen->ConstrainCursor   = xglConstrainCursor;
     pScreen->CursorLimits      = xglCursorLimits;
     pScreen->DisplayCursor     = xglDisplayCursor;
@@ -222,6 +272,7 @@ xglScreenInit (ScreenPtr pScreen)
     pScreen->UnrealizeCursor   = xglUnrealizeCursor;
     pScreen->RecolorCursor     = xglRecolorCursor;
     pScreen->SetCursorPosition = xglSetCursorPosition;
+#endif
 
     pScreen->ModifyPixmapHeader = xglModifyPixmapHeader;
 

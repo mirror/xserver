@@ -22,6 +22,10 @@
  *
  * Author: David Reveman <davidr@novell.com>
  */
+#include "glxserver.h"
+#include "glapi.h"
+#include "glthread.h"
+#include "dispatch.h"
 
 #include "xgl.h"
 #include "gcstruct.h"
@@ -67,6 +71,7 @@ xglSolid (DrawablePtr	   pDrawable,
     if (!GEOMETRY_ENABLE (pGeometry, surface))
 	return FALSE;
 
+    __glXleaveServer();
     glitz_composite (op,
 		     solid, NULL, surface,
 		     0, 0,
@@ -74,6 +79,7 @@ xglSolid (DrawablePtr	   pDrawable,
 		     x + xOff,
 		     y + yOff,
 		     width, height);
+    __glXenterServer();
 
     glitz_surface_set_clip_region (surface, 0, 0, NULL, 0);
 
