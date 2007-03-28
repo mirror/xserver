@@ -30,6 +30,10 @@ if DBE
 DBE_DIR=dbe
 endif
 
+if GLUCOSE
+GLUCOSE_DIR=glucose
+endif
+
 SUBDIRS = \
 	doc \
 	include \
@@ -56,6 +60,7 @@ SUBDIRS = \
 	$(GLX_DIR) \
 	exa \
 	config \
+	$(GLUCOSE_DIR) \
 	hw
 
 aclocaldir = $(datadir)/aclocal
@@ -92,6 +97,7 @@ DIST_SUBDIRS = \
 	GL \
 	exa \
 	config \
+	glucose \
 	hw
 
 # gross hack
