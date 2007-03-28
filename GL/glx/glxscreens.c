@@ -234,12 +234,15 @@ static Bool PositionWindow(WindowPtr pWin, int x, int y)
     }
 
     /* mark contexts as needing resize */
+    __glXFlushContextCache ();
 
     for (glxc = glxPriv->drawGlxc; glxc; glxc = glxc->nextDrawPriv) {
+	(*glxc->loseCurrent)(glxc);
 	glxc->pendingState |= __GLX_PENDING_RESIZE;
     }
 
     for (glxc = glxPriv->readGlxc; glxc; glxc = glxc->nextReadPriv) {
+	(*glxc->loseCurrent)(glxc);
 	glxc->pendingState |= __GLX_PENDING_RESIZE;
     }
 
