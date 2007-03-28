@@ -27,28 +27,68 @@
  * 
  **************************************************************************/
 
-#ifndef GLUCOSE_H
-#define GLUCOSE_H
+#ifdef HAVE_DIX_CONFIG_H
+#include <dix-config.h>
+#endif
 
-Bool
-glucoseCloseScreen (int	  index,
-		ScreenPtr pScreen);
+#include "xf86str.h"
+#include "xf86.h"
 
-Bool
-glucoseFinishScreenInit (ScreenPtr pScreen);
+#define GLUCOSE_VERSION_MAJOR   1
+#define GLUCOSE_VERSION_MINOR   0
+#define GLUCOSE_VERSION_RELEASE 0
 
-Bool
-glucoseScreenInit (ScreenPtr pScreen);
+static MODULESETUPPROTO(glucoseSetup);
 
-typedef struct {
-    __GLXdrawable *rootDrawable;
-    __GLXcontext *rootContext;
-    CloseScreenProcPtr CloseScreen;
-    __GLXscreen *screen;
-} GlucoseScreenPrivRec, *GlucoseScreenPrivPtr;
+static const OptionInfoRec GlucoseOptions[] = {
+    { -1,			NULL,
+      OPTV_NONE,	{0}, FALSE }
+};
 
-extern int glucoseScreenPrivateIndex;
-#define GlucoseGetScreenPriv(s)	((GlucoseScreenPrivPtr)(s)->devPrivates[glucoseScreenPrivateIndex].ptr)
-#define GlucoseScreenPriv(s)	GlucoseScreenPrivPtr    pGlucoseScr = GlucoseGetScreenPriv(s)
+/*ARGSUSED*/
+static const OptionInfoRec *
+GlucoseAvailableOptions(void *unused)
+{
+    return (GlucoseOptions);
+}
 
-#endif /* GLUCOSE_H */
+static XF86ModuleVersionInfo glucoseVersRec =
+{
+    "glucose",
+    MODULEVENDORSTRING,
+    MODINFOSTRING1,
+    MODINFOSTRING2,
+    XORG_VERSION_CURRENT,
+    GLUCOSE_VERSION_MAJOR, GLUCOSE_VERSION_MINOR, GLUCOSE_VERSION_RELEASE,
+    ABI_CLASS_VIDEODRV,		/* requires the video driver ABI */
+    ABI_VIDEODRV_VERSION,
+    MOD_CLASS_NONE,
+    {0,0,0,0}
+};
+
+XF86ModuleData glucoseModuleData = { &glucoseVersRec, glucoseSetup, NULL };
+
+ModuleInfoRec Glucose = {
+    1,
+    "Glucose",
+    NULL,
+    0,
+    GlucoseAvailableOptions,
+};
+
+/*ARGSUSED*/
+static pointer
+glucoseSetup(pointer Module, pointer Options, int *ErrorMajor, int *ErrorMinor)
+{
+    static Bool Initialised = FALSE;
+
+    if (!Initialised) {
+	Initialised = TRUE;
+#ifndef REMOVE_LOADER_CHECK_MODULE_INFO
+	if (xf86LoaderCheckSymbol("xf86AddModuleInfo"))
+#endif
+	xf86AddModuleInfo(&Glucose, Module);
+    }
+
+    return (pointer)TRUE;
+}

@@ -1,6 +1,4 @@
-module_LTLIBRARIES = libglucose.la
-
-sdk_HEADERS = glucose.h
+noinst_LTLIBRARIES = libglucose.la
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I$(top_srcdir)/GL/mesa/glapi \
@@ -17,8 +15,6 @@ AM_CFLAGS = \
 	$(GLUCOSE_CFLAGS) \
 	@GLX_DEFINES@ \
 	-DXFree86Server
-
-libglucose_la_LDFLAGS = -avoid-version
 
 libglucose_la_SOURCES = \
 	glucose.c \
