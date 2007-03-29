@@ -340,7 +340,7 @@ xglAllocatePrivates (ScreenPtr pScreen)
 }
 
 Bool
-glucoseScreenInit (ScreenPtr pScreen)
+glucoseScreenInit (ScreenPtr pScreen, int flags)
 {
     xglScreenPtr pScreenPriv;
 
@@ -374,6 +374,13 @@ glucoseScreenInit (ScreenPtr pScreen)
     pScreenPriv->noYuv		  = xglScreenInfo.noYuv;
     pScreenPriv->xvFilter	  = xglScreenInfo.xvFilter;
     pScreenPriv->accel		  = xglScreenInfo.accel;
+
+#if 0
+    /* add some flags to change the default xgl methods above */
+    if (flags & GLUCOSE_xxx) {
+
+    }
+#endif
 
 
     pScreen->CreatePixmap  = xglCreatePixmap;

@@ -38,7 +38,7 @@ Bool
 glucoseFinishScreenInit (ScreenPtr pScreen);
 
 Bool
-glucoseScreenInit (ScreenPtr pScreen);
+glucoseScreenInit (ScreenPtr pScreen, int flags);
 
 typedef struct {
     __GLXdrawable *rootDrawable;
