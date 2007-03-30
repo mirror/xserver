@@ -4,6 +4,10 @@ if DRI
 DRI_SUBDIR = dri
 endif
 
+if GLUCOSE
+GLUCOSE_DIR=glucose
+endif
+
 if XF86UTILS
 XF86UTILS_SUBDIR = utils
 endif
@@ -21,7 +25,7 @@ DOC_SUBDIR = doc
 SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support parser rac \
 	  ramdac shadowfb vbe vgahw xaa $(MFB_SUBDIR) $(CFB_SUBDIR) \
 	  loader scanpci dixmods exa modes \
-	  $(DRI_SUBDIR) $(XF86UTILS_SUBDIR) $(DOC_SUBDIR) glucose
+	  $(DRI_SUBDIR) $(XF86UTILS_SUBDIR) $(DOC_SUBDIR) $(GLUCOSE_DIR)
 
 DIST_SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support \
                parser rac ramdac shadowfb vbe vgahw xaa xf1bpp xf4bpp \
