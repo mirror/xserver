@@ -132,21 +132,36 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 
     pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, pPixmap->drawable.id, modes);
 
-    if (!pScreenPriv->rootDrawable)
+    if (!pScreenPriv->rootDrawable) {
+  	xf86DrvMsg(pScreen->myNum, X_WARNING, 
+		  "Glucose - creating root drawable failed\n");
     	return FALSE;
+    }
 
     pScreenPriv->rootContext = pScreenPriv->screen->createContext(pScreenPriv->screen, modes, NULL);
 
-    if (!pScreenPriv->rootContext)
+    if (!pScreenPriv->rootContext) {
+  	xf86DrvMsg(pScreen->myNum, X_WARNING, 
+		  "Glucose - creating root context failed\n");
+	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
+	pScreenPriv->rootDrawable = NULL;
     	return FALSE;
+    }
 
     pScreenPriv->rootContext->drawPriv = 
     	pScreenPriv->rootContext->readPriv = pScreenPriv->rootDrawable;
 
     __glXleaveServer();
     err = pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
-    if (!err)
-	    ErrorF("makecurrent failed, err is %d\n",err);
+    if (!err) {
+  	xf86DrvMsg(pScreen->myNum, X_WARNING, 
+		  "Glucose makeCurrent failed, err is %d\n",err);
+	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
+	pScreenPriv->rootContext = NULL;
+	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
+	pScreenPriv->rootDrawable = NULL;
+	return FALSE;
+    }
 
     format = glucoseInitOutput(pScreenPriv->screen);
 
