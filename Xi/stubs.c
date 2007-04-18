@@ -168,7 +168,7 @@ OpenInputDevice(DeviceIntPtr dev, ClientPtr client, int *status)
  */
 
 int
-SetDeviceMode(register ClientPtr client, DeviceIntPtr dev, int mode)
+SetDeviceMode(ClientPtr client, DeviceIntPtr dev, int mode)
 {
     return BadMatch;
 }
@@ -186,7 +186,7 @@ SetDeviceMode(register ClientPtr client, DeviceIntPtr dev, int mode)
  */
 
 int
-SetDeviceValuators(register ClientPtr client, DeviceIntPtr dev,
+SetDeviceValuators(ClientPtr client, DeviceIntPtr dev,
 		   int *valuators, int first_valuator, int num_valuators)
 {
     return BadMatch;
@@ -201,7 +201,7 @@ SetDeviceValuators(register ClientPtr client, DeviceIntPtr dev,
  */
 
 int
-ChangeDeviceControl(register ClientPtr client, DeviceIntPtr dev,
+ChangeDeviceControl(ClientPtr client, DeviceIntPtr dev,
 		    xDeviceCtl * control)
 {
     switch (control->control) {
@@ -226,7 +226,19 @@ ChangeDeviceControl(register ClientPtr client, DeviceIntPtr dev,
  *
  */
 int
-NewInputDeviceRequest(InputOption *options)
+NewInputDeviceRequest(InputOption *options, DeviceIntPtr *pdev)
 {
     return BadValue;
+}
+
+/****************************************************************************
+ *
+ * Caller: configRemoveDevice (and others)
+ *
+ * Remove the specified device previously added.
+ *
+ */
+void
+DeleteInputDeviceRequest(DeviceIntPtr dev)
+{
 }

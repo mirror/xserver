@@ -82,6 +82,16 @@ static Bool quirk_prefer_large_60 (int scrnIndex, xf86MonPtr DDC)
 	DDC->vendor.prod_id == 1516)
 	return TRUE;
     
+    /* Acer AL1706 */
+    if (memcmp (DDC->vendor.name, "ACR", 4) == 0 &&
+	DDC->vendor.prod_id == 44358)
+	return TRUE;
+
+    /* Samsung SyncMaster 226BW */
+    if (memcmp (DDC->vendor.name, "SAM", 4) == 0 &&
+	DDC->vendor.prod_id == 638)
+	return TRUE;
+    
     return FALSE;
 }
 
@@ -196,6 +206,19 @@ DDCModeFromDetailedTiming(int scrnIndex, struct detailed_timings *timing,
 			  int preferred, ddc_quirk_t quirks)
 {
     DisplayModePtr Mode;
+
+    /*
+     * Refuse to create modes that are insufficiently large.  64 is a random
+     * number, maybe the spec says something about what the minimum is.  In
+     * particular I see this frequently with _old_ EDID, 1.0 or so, so maybe
+     * our parser is just being too aggresive there.
+     */
+    if (timing->h_active < 64 || timing->v_active < 64) {
+	xf86DrvMsg(scrnIndex, X_INFO,
+		   "%s: Ignoring tiny %dx%d mode\n", __func__,
+		   timing->h_active, timing->v_active);
+	return NULL;
+    }
 
     /* We don't do stereo */
     if (timing->stereo) {

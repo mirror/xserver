@@ -14,7 +14,6 @@ AM_CFLAGS = \
 	-I@MESA_SOURCE@/src/mesa/glapi \
 	-I@MESA_SOURCE@/src/mesa/main \
 	-DXFree86Server \
-	-DNO_LIBCWRAPPER \
 	@GLX_DEFINES@
 
 # none yet
@@ -47,12 +46,13 @@ libglx_la_SOURCES = \
         glxdrawable.h \
         glxext.c \
         glxext.h \
-	glxvisuals.c \
+        glxglcore.c \
         glxscreens.c \
         glxscreens.h \
         glxserver.h \
         glxutil.c \
         glxutil.h \
+        glxvisuals.c \
         indirect_dispatch.c \
         indirect_dispatch.h \
         indirect_dispatch_swap.c \
