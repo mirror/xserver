@@ -58,13 +58,14 @@ nodist_libmain_la_SOURCES = accum.c \
                     matrix.c \
                     mipmap.c \
                     mm.c \
-                    occlude.c \
                     pixel.c \
                     points.c \
                     polygon.c \
+ 		    queryobj.c \
                     rastpos.c \
                     rbadaptors.c \
                     renderbuffer.c \
+						  shaders.c \
                     state.c \
                     stencil.c \
                     texcompress.c \

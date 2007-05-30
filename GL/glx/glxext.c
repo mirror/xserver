@@ -241,14 +241,6 @@ static int SwapBarrierGone(int screen, XID drawable)
 static GLboolean errorOccured = GL_FALSE;
 
 /*
-** The GL was will call this routine if an error occurs.
-*/
-void __glXErrorCallBack(__GLinterface *gc, GLenum code)
-{
-    errorOccured = GL_TRUE;
-}
-
-/*
 ** Clear the error flag before calling the GL command.
 */
 void __glXClearErrorOccured(void)

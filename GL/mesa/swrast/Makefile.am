@@ -20,7 +20,6 @@ nodist_libswrast_la_SOURCES = s_aaline.c \
                       s_aatriangle.c \
                       s_accum.c \
                       s_alpha.c \
-                      s_arbshader.c \
                       s_atifragshader.c \
                       s_bitmap.c \
                       s_blend.c \
@@ -32,11 +31,11 @@ nodist_libswrast_la_SOURCES = s_aaline.c \
                       s_drawpix.c \
                       s_feedback.c \
                       s_fog.c \
+		      s_fragprog.c \
                       s_imaging.c \
                       s_lines.c \
                       s_logic.c \
                       s_masking.c \
-                      s_nvfragprog.c \
                       s_points.c \
                       s_readpix.c \
                       s_span.c \
