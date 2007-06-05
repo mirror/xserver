@@ -4597,3 +4597,16 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
 	(void)WriteToClient(pClient, count * sizeof(xEvent), (char *) events);
     }
 }
+
+#define REMWIN
+#ifdef REMWIN
+
+/* Note: I had to extend dix */
+
+WindowPtr 
+dixGetSpriteWindow (void)
+{
+    return sprite.win;
+}
+
+#endif /* REMWIN */
