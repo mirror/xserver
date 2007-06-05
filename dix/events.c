@@ -4524,6 +4524,284 @@ ProcRecolorCursor(ClientPtr client)
     return (Success);
 }
 
+#ifdef DEBUG
+
+/* When this is in the verboseClients array, all clients are verbose */
+#define ALL_VERBOSE -1
+
+int verboseClients[] = {
+   ALL_VERBOSE,
+};
+
+#define NUM_VERBOSE_CLIENTS sizeof(verboseClients)/sizeof(int)
+
+#define EVENT_CLASS_INVALID	 	0
+#define EVENT_CLASS_KEYBUTPTR 		1
+#define EVENT_CLASS_ENTERLEAVE 		2
+#define EVENT_CLASS_FOCUS		3
+
+static void
+printEventType (int type, int *eventClass) 
+{
+    *eventClass = EVENT_CLASS_INVALID;
+
+    switch (type) {
+    case KeyPress:
+	ErrorF("KeyPress");
+	break;
+    case KeyRelease:
+	ErrorF("KeyRelease");
+	break;
+    case ButtonPress:
+	ErrorF("ButtonPress");
+	break;
+    case ButtonRelease:
+	ErrorF("ButtonRelease");
+	break;
+    case MotionNotify:
+	ErrorF("MotionNotify");
+	break;
+    case EnterNotify:
+	ErrorF("EnterNotify");
+	break;
+    case LeaveNotify:
+	ErrorF("LeaveNotify");
+	break;
+    case FocusIn:
+	ErrorF("FocusIn");
+	break;
+    case FocusOut:
+	ErrorF("FocusOut");
+	break;
+    case KeymapNotify:
+	ErrorF("KeymapNotify");
+	break;
+    case Expose:
+	ErrorF("Expose");
+	break;
+    case GraphicsExpose:
+	ErrorF("GraphicsExpose");
+	break;
+    case NoExpose:
+	ErrorF("NoExpose");
+	break;
+    case VisibilityNotify:
+	ErrorF("VisibilityNotify");
+	break;
+    case CreateNotify:
+	ErrorF("CreateNotify");
+	break;
+    case DestroyNotify:
+	ErrorF("DestroyNotify");
+	break;
+    case UnmapNotify:
+	ErrorF("UnmapNotify");
+	break;
+    case MapNotify:
+	ErrorF("MapNotify");
+	break;
+    case MapRequest:
+	ErrorF("MapRequest");
+	break;
+    case ReparentNotify:
+	ErrorF("ReparentNotify");
+	break;
+    case ConfigureNotify:
+	ErrorF("ConfigureNotify");
+	break;
+    case ConfigureRequest:
+	ErrorF("ConfigureRequest");
+	break;
+    case GravityNotify:
+	ErrorF("GravityNotify");
+	break;
+    case ResizeRequest:
+	ErrorF("ResizeRequest");
+	break;
+    case CirculateNotify:
+	ErrorF("CirculateNotify");
+	break;
+    case CirculateRequest:
+	ErrorF("CirculateRequest");
+	break;
+    case PropertyNotify:
+	ErrorF("PropertyNotify");
+	break;
+    case SelectionClear:
+	ErrorF("SelectionClear");
+	break;
+    case SelectionRequest:
+	ErrorF("SelectionRequest");
+	break;
+    case SelectionNotify:
+	ErrorF("SelectionNotify");
+	break;
+    case ColormapNotify:
+	ErrorF("ColormapNotify");
+	break;
+    case ClientMessage:
+	ErrorF("ClientMessage");
+	break;
+    case MappingNotify:
+	ErrorF("MappingNotify");
+	break;
+    default:
+	ErrorF("INVALID EVENT TYPE! ");
+	return;
+    }
+
+    ErrorF(": ");
+
+    switch (type) {
+
+    case KeyPress:
+    case KeyRelease:
+    case ButtonPress:
+    case ButtonRelease:
+    case MotionNotify:
+	*eventClass = EVENT_CLASS_KEYBUTPTR;
+	break;
+
+    case EnterNotify:
+    case LeaveNotify:
+	*eventClass = EVENT_CLASS_ENTERLEAVE;
+	break;
+
+    case FocusIn:
+    case FocusOut:
+	*eventClass = EVENT_CLASS_FOCUS;
+	break;
+
+    /* TODO: no detail printed yet */
+    case KeymapNotify:
+	break;
+    case Expose:
+	break;
+    case GraphicsExpose:
+	break;
+    case NoExpose:
+	break;
+    case VisibilityNotify:
+	break;
+    case CreateNotify:
+	break;
+    case DestroyNotify:
+	break;
+    case UnmapNotify:
+	break;
+    case MapNotify:
+	break;
+    case MapRequest:
+	break;
+    case ReparentNotify:
+	break;
+    case ConfigureNotify:
+	break;
+    case ConfigureRequest:
+	break;
+    case GravityNotify:
+	break;
+    case ResizeRequest:
+	break;
+    case CirculateNotify:
+	break;
+    case CirculateRequest:
+	break;
+    case PropertyNotify:
+	break;
+    case SelectionClear:
+	break;
+    case SelectionRequest:
+	break;
+    case SelectionNotify:
+	break;
+    case ColormapNotify:
+	break;
+    case ClientMessage:
+	break;
+    case MappingNotify:
+	break;
+    }
+
+}
+
+static void 
+printEvent (ClientPtr pClient, xEvent *pEvent) 
+{
+    int clientIsVerbose = FALSE;
+    int eventClass;
+    int type;
+    int i;
+
+    for (i = 0; i < NUM_VERBOSE_CLIENTS; i++) {
+	if (verboseClients[i] == ALL_VERBOSE ||
+	    verboseClients[i] == pClient->index) {
+	    clientIsVerbose = TRUE;
+	    break;
+	}
+    }
+
+    if (!clientIsVerbose) return;
+
+    ErrorF("To %d: ", pClient->index);
+
+    type = pEvent->u.u.type;
+    printEventType(type, &eventClass);
+
+    if (eventClass == EVENT_CLASS_KEYBUTPTR) {
+	ErrorF("detail=%d,", pEvent->u.u.detail);
+    }
+
+    /* We normally don't care about these 
+    ErrorF("detail=%d\n", pEvent->u.u.sequenceNumber);
+    */
+
+    switch (eventClass) {
+
+    case EVENT_CLASS_KEYBUTPTR:
+	ErrorF("time=%d,", (int)pEvent->u.keyButtonPointer.time);
+	ErrorF("root=%d,", (int)pEvent->u.keyButtonPointer.root);
+	ErrorF("event=%d,", (int)pEvent->u.keyButtonPointer.event);
+	ErrorF("child=%d,", (int)pEvent->u.keyButtonPointer.child);
+	ErrorF("rootX=%d,", pEvent->u.keyButtonPointer.rootX);
+	ErrorF("rootY=%d,", pEvent->u.keyButtonPointer.rootY);
+	ErrorF("eventX=%d,", pEvent->u.keyButtonPointer.eventX);
+	ErrorF("eventY=%d,", pEvent->u.keyButtonPointer.eventY);
+	ErrorF("state=0x%x,", pEvent->u.keyButtonPointer.state);
+	ErrorF("sameScreen=%d,", pEvent->u.keyButtonPointer.sameScreen);
+	break;
+
+    case EVENT_CLASS_ENTERLEAVE:
+	ErrorF("time=%d,", (int)pEvent->u.enterLeave.time);
+	ErrorF("root=%d,", (int)pEvent->u.enterLeave.root);
+	ErrorF("event=%d,", (int)pEvent->u.enterLeave.event);
+	ErrorF("child=%d,", (int)pEvent->u.enterLeave.child);
+	ErrorF("rootX=%d,", pEvent->u.enterLeave.rootX);
+	ErrorF("rootY=%d,", pEvent->u.enterLeave.rootY);
+	ErrorF("eventX=%d,", pEvent->u.enterLeave.eventX);
+	ErrorF("eventY=%d,", pEvent->u.enterLeave.eventY);
+	ErrorF("state=0x%x,", pEvent->u.enterLeave.state);
+	ErrorF("mode=0x%x,", pEvent->u.enterLeave.mode);
+	ErrorF("flags=");
+	if ((pEvent->u.enterLeave.flags & ELFlagFocus) != 0) {
+	    ErrorF("Focus ");
+	}
+	if ((pEvent->u.enterLeave.flags & ELFlagSameScreen) != 0) {
+	    ErrorF("SameScreen ");
+	}
+	break;
+
+    case EVENT_CLASS_FOCUS:
+	ErrorF("window=%d,", (int)pEvent->u.focus.window);
+	ErrorF("mode=0x%x,", pEvent->u.focus.mode);
+	break;
+    }
+
+    ErrorF("\n");
+}
+#endif /* DEBUG */
+
+
 _X_EXPORT void
 WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
 {
@@ -4580,6 +4858,11 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
 	eventinfo.count = count;
 	CallCallbacks(&EventCallback, (pointer)&eventinfo);
     }
+
+#ifdef DEBUG
+    printEvent(pClient, &events[0]);
+#endif /* DEBUG */
+
     if(pClient->swapped)
     {
 	for(i = 0; i < count; i++)
