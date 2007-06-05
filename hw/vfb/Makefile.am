@@ -2,7 +2,15 @@ bin_PROGRAMS = Xvfb
 
 SRCS =	InitInput.c \
 	InitOutput.c \
+	rwcommsock.c \
+	rwin.c \
+	rwout.c \
+	takecontrol.c \
 	lk201kbd.h \
+	remwin.h \
+	rle.c \
+	rwcomm.h \
+	rwcommsock.h \
 	$(top_srcdir)/Xext/dpmsstubs.c \
 	$(top_srcdir)/Xi/stubs.c \
 	$(top_srcdir)/mi/miinitext.c \
@@ -22,6 +30,7 @@ AM_CFLAGS = -DHAVE_DIX_CONFIG_H \
             -DNO_HW_ONLY_EXTS \
             -DNO_MODULE_EXTS \
             -DXFree86Server \
+	    -DREMWIN \
             $(XVFBMODULES_CFLAGS)
 
 # Man page
