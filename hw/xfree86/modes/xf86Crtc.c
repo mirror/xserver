@@ -1955,6 +1955,10 @@ xf86DPMSSet(ScrnInfoPtr scrn, int mode, int flags)
 	    xf86OutputPtr output = config->output[i];
 	    if (output->crtc != NULL)
 		(*output->funcs->dpms) (output, mode);
+#ifdef RANDR_12_INTERFACE
+	    if (output->randr_output != NULL)
+		RROutputSetDPMS (output->randr_output, mode);
+#endif
 	}
     }
 
@@ -1969,8 +1973,15 @@ xf86DPMSSet(ScrnInfoPtr scrn, int mode, int flags)
 	    xf86OutputPtr output = config->output[i];
 	    if (output->crtc != NULL)
 		(*output->funcs->dpms) (output, mode);
+#ifdef RANDR_12_INTERFACE
+	    if (output->randr_output != NULL)
+		RROutputSetDPMS (output->randr_output, mode);
+#endif
 	}
     }
+#ifdef RANDR_12_INTERFACE
+    RRTellChanged (scrn->pScreen);
+#endif
 }
 
 /**

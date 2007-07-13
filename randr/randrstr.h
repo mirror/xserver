@@ -139,6 +139,8 @@ struct _rrOutput {
     Bool	    changed;
     RRPropertyPtr   properties;
     Bool	    pendingProperties;
+    CARD16	    dpmsLevel;
+    Bool	    dpmsChanged;
     void	    *devPrivate;
 };
 
@@ -710,8 +712,14 @@ RROutputSetPhysicalSize (RROutputPtr	output,
 			 int		mmWidth,
 			 int		mmHeight);
 
+Bool
+RROutputSetDPMS (RROutputPtr output, CARD16 level);
+
 void
 RRDeliverOutputEvent(ClientPtr client, WindowPtr pWin, RROutputPtr output);
+
+void
+RRDeliverOutputDPMSEvent(ClientPtr client, WindowPtr pWin, RROutputPtr output);
 
 void
 RROutputDestroy (RROutputPtr	output);

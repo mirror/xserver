@@ -331,6 +331,22 @@ RROutputSetPhysicalSize (RROutputPtr	output,
     return TRUE;
 }
 
+Bool
+RROutputSetDPMS(RROutputPtr output, CARD16 level)
+{
+    ScreenPtr	pScreen = output->pScreen;
+
+    if (output->dpmsLevel != level) {
+	output->dpmsChanged = TRUE;
+	if (pScreen) {
+	    rrScrPriv (pScreen);
+	    pScrPriv->changed = TRUE;
+	}
+    }
+    output->dpmsLevel = level;
+
+    return TRUE;
+}
 
 void
 RRDeliverOutputEvent(ClientPtr client, WindowPtr pWin, RROutputPtr output)
@@ -362,6 +378,21 @@ RRDeliverOutputEvent(ClientPtr client, WindowPtr pWin, RROutputPtr output)
     }
     oe.connection = output->connection;
     oe.subpixelOrder = output->subpixelOrder;
+    WriteEventsToClient (client, 1, (xEvent *) &oe);
+}
+
+void
+RRDeliverOutputDPMSEvent(ClientPtr client, WindowPtr pWin, RROutputPtr output)
+{
+    ScreenPtr pScreen = pWin->drawable.pScreen;
+    xRROutputDPMSChangeNotifyEvent oe;
+
+    oe.type = RRNotify + RREventBase;
+    oe.subCode = RRNotify_OutputDPMSChange;
+    oe.sequenceNumber = client->sequence;
+    oe.window = pWin->drawable.id;
+    oe.output = output->id;
+    oe.level = output->dpmsLevel;
     WriteEventsToClient (client, 1, (xEvent *) &oe);
 }
 

@@ -23,7 +23,7 @@
 #include "randrstr.h"
 
 #define SERVER_RANDR_MAJOR	1
-#define SERVER_RANDR_MINOR	2
+#define SERVER_RANDR_MINOR	3
 
 Bool
 RRClientKnowsRates (ClientPtr	pClient)
@@ -85,7 +85,8 @@ ProcRRSelectInput (ClientPtr client)
 
     if (stuff->enable & (RRScreenChangeNotifyMask|
 			 RRCrtcChangeNotifyMask|
-			 RROutputChangeNotifyMask)) 
+			 RROutputChangeNotifyMask|
+			 RROutputDPMSChangeNotifyMask)) 
     {
 	ScreenPtr	pScreen = pWin->drawable.pScreen;
 	rrScrPriv	(pScreen);

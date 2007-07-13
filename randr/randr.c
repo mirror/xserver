@@ -176,6 +176,18 @@ SRROutputPropertyNotifyEvent(xRROutputPropertyNotifyEvent *from,
 }
 
 static void
+SRROutputDPMSChangeNotifyEvent(xRROutputDPMSChangeNotifyEvent *from,
+			       xRROutputDPMSChangeNotifyEvent *to)
+{
+    to->type = from->type;
+    to->subCode = from->subCode;
+    cpswaps(from->sequenceNumber, to->sequenceNumber);
+    cpswapl(from->window, to->window);
+    cpswapl(from->output, to->output);
+    cpswaps(from->level, to->level);
+}
+
+static void
 SRRNotifyEvent (xEvent *from,
 		xEvent *to)
 {
@@ -191,6 +203,10 @@ SRRNotifyEvent (xEvent *from,
     case RRNotify_OutputProperty:
 	SRROutputPropertyNotifyEvent ((xRROutputPropertyNotifyEvent *) from,
 				      (xRROutputPropertyNotifyEvent *) to);
+	break;
+    case RRNotify_OutputDPMSChange:
+	SRROutputDPMSChangeNotifyEvent((xRROutputDPMSChangeNotifyEvent *) from,
+				       (xRROutputDPMSChangeNotifyEvent *) to);
 	break;
     default:
 	break;
@@ -402,6 +418,15 @@ TellChanged (WindowPtr pWin, pointer value)
 		RROutputPtr   output = pScrPriv->outputs[i];
 		if (output->changed)
 		    RRDeliverOutputEvent (client, pWin, output);
+	    }
+	}
+	if (pRREvent->mask & RROutputDPMSChangeNotifyMask)
+	{
+	    for (i = 0; i < pScrPriv->numOutputs; i++)
+	    {
+		RROutputPtr   output = pScrPriv->outputs[i];
+		if (output->dpmsChanged)
+		    RRDeliverOutputDPMSEvent (client, pWin, output);
 	    }
 	}
     }
