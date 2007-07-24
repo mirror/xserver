@@ -6,7 +6,7 @@ AM_CFLAGS =			   \
 libxegl_la_LDFLAGS = -avoid-version
 libxegl_la_SOURCES = xeglmodule.c
 libxegl_la_LIBADD  =			      \
-	$(top_builddir)/hw/xgl/glx/libxegl.la \
+	$(top_builddir)/hw/xgl/egl/libxegl.la \
 	$(XEGLMODULES_LIBS)
 
 moduledir = @xglmoduledir@
