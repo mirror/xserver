@@ -132,7 +132,7 @@ xeglScreenInit (int	  index,
     screenAttribs[1] = xglScreenInfo.width;
     screenAttribs[3] = xglScreenInfo.height;
 
-    format = xglVisuals[0].format;
+    format = xglVisuals[0].format.drawable;
 
     if (!xeglAllocatePrivates (pScreen))
 	return FALSE;
