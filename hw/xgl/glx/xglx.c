@@ -415,6 +415,9 @@ xglxWindowExposures (WindowPtr pWin,
     ScreenPtr pScreen = pWin->drawable.pScreen;
     RegionRec ClipList;
 
+    if (pWin->redirectDraw)
+	return WT_DONTWALKCHILDREN;
+
     if (HasBorder (pWin))
     {
 	REGION_INIT (pScreen, &ClipList, NullBox, 0);
