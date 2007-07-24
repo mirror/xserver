@@ -1127,8 +1127,6 @@ KdReceiveTimeout (KdMouseInfo *mi)
 
 CARD32	KdSpecialKeys = 0;
 
-extern char dispatchException;
-
 /*
  * kdCheckTermination
  *
