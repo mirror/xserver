@@ -196,7 +196,9 @@ xeglInitOutput (ScreenInfo *pScreenInfo,
     glitz_drawable_format_t *format, templ;
     int			    i, maj, min, count;
     unsigned long	    mask;
-    
+
+    xglClearVisualTypes ();
+
     xglSetPixmapFormats (pScreenInfo);
 
     if (!eDisplay)
@@ -209,21 +211,27 @@ xeglInitOutput (ScreenInfo *pScreenInfo,
 	eglGetScreensMESA (eDisplay, &eScreen, 1, &count);
     }
 
-    templ.samples          = 1;
-    templ.doublebuffer     = 1;
-    templ.color.alpha_size = 8;
+    templ.samples      = 1;
+    templ.color.fourcc = GLITZ_FOURCC_RGB;
 
-    mask = GLITZ_FORMAT_SAMPLES_MASK;
+    mask = GLITZ_FORMAT_SAMPLES_MASK | GLITZ_FORMAT_FOURCC_MASK;
 
     format = glitz_egl_find_window_config (eDisplay, eScreen,
-				    mask, &templ, 0);
+					   mask, &templ, 0);
 
     if (!format)
 	FatalError ("no visual format found");
 
-    xglSetVisualTypesAndMasks (pScreenInfo, format, (1 << TrueColor));
+    xglScreenInfo.depth =
+	format->color.red_size   +
+	format->color.green_size +
+	format->color.blue_size;
 
-    xglInitVisuals (pScreenInfo);
+    xglSetVisualTypes (xglScreenInfo.depth,
+		       (1 << TrueColor),
+		       format->color.red_size,
+		       format->color.green_size,
+		       format->color.blue_size);
 
     AddScreen (xeglScreenInit, argc, argv);
 }
