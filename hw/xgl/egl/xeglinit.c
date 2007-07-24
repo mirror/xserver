@@ -25,7 +25,7 @@
 
 #include "xegl.h"
 
-static xglScreenInfoRec xglScreenInfo = {
+xglScreenInfoRec xglScreenInfo = {
     NULL, 0, 0, 0, 0,
     DEFAULT_GEOMETRY_DATA_TYPE,
     DEFAULT_GEOMETRY_USAGE,
