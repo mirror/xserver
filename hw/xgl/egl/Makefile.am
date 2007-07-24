@@ -24,22 +24,22 @@ libxegl_la_SOURCES = \
 	kinput.c     \
 	evdev.c
 
-Xegl_DEPENDENCIES = @XEGL_LIBS@
-Xegl_LDFLAGS	  = -export-dynamic
-Xegl_SOURCES	  =		       \
-	xeglinit.c		       \
-	$(top_srcdir)/mi/miinitext.c   \
-	$(top_srcdir)/Xext/dpmsstubs.c \
-	$(top_srcdir)/Xi/stubs.c       \
-	$(top_srcdir)/fb/fbcmap.c
-Xegl_LDADD =				\
-	libxegl.la			\
-	$(top_builddir)/hw/xgl/libxgl.a \
-	$(XORG_CORE_LIBS)		\
-	$(XEGL_LIBS)			\
-	$(XSERVER_LIBS)			\
-	$(EXTENSION_LIBS)		\
-	$(XEGLMODULES_LIBS)
-Xegl_programs = Xegl
+#Xegl_DEPENDENCIES = @XEGL_LIBS@
+#Xegl_LDFLAGS	  = -export-dynamic
+#Xegl_SOURCES	  =		       \
+#	xeglinit.c		       \
+#	$(top_srcdir)/mi/miinitext.c   \
+#	$(top_srcdir)/Xext/dpmsstubs.c \
+#	$(top_srcdir)/Xi/stubs.c       \
+#	$(top_srcdir)/fb/fbcmap.c
+#Xegl_LDADD =				\
+#	libxegl.la			\
+#	$(top_builddir)/hw/xgl/libxgl.a \
+#	$(XORG_CORE_LIBS)		\
+#	$(XEGL_LIBS)			\
+#	$(XSERVER_LIBS)			\
+#	$(EXTENSION_LIBS)		\
+#	$(XEGLMODULES_LIBS)
+#Xegl_programs = Xegl
 
 bin_PROGRAMS = $(Xegl_programs)
