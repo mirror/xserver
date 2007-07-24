@@ -143,6 +143,11 @@ OsVendorInit (void)
     xeglOsVendorInit ();
 }
 
+void
+ddxInitGlobals (void)
+{
+}
+
 Bool
 DPMSSupported (void)
 {
