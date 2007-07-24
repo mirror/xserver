@@ -39,7 +39,7 @@ Xegl_LDADD =				\
 	$(XEGL_LIBS)			\
 	$(XSERVER_LIBS)			\
 	$(EXTENSION_LIBS)		\
-	$(XGLXMODULES_LIBS)
+	$(XEGLMODULES_LIBS)
 Xegl_programs = Xegl
 
 bin_PROGRAMS = $(Xegl_programs)
