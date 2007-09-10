@@ -489,48 +489,56 @@ static void
 glucoseGenPrograms( GLsizei n, GLuint *ids )
 {
 	CALL_GenProgramsNV( GET_DISPATCH(), (n, ids) );
+	glucoseFailure("GenProgramsNV");
 }
 
 static void
 glucoseDeletePrograms( GLsizei n, const GLuint *ids )
 {
 	CALL_DeleteProgramsNV( GET_DISPATCH(), (n, ids) );
+	glucoseFailure("DeleteProgramsNV");
 }
 
 static void
 glucoseProgramString( GLenum target, GLenum format, GLsizei len, const GLubyte *program )
 {
 	CALL_ProgramStringARB( GET_DISPATCH(), (target, format, len, program) );
+	glucoseFailure("ProgramStringARB");
 }
 
 static void
 glucoseBindProgram( GLenum target, GLuint id )
 {
 	CALL_BindProgramNV( GET_DISPATCH(), (target, id) );
+	glucoseFailure("BindProgramNV");
 }
 
 static void
 glucoseProgramLocalParameter4fv( GLenum target, GLuint id, const GLfloat *params )
 {
 	CALL_ProgramLocalParameter4fvARB( GET_DISPATCH(), (target, id, params) );
+	glucoseFailure("BindProgramNV");
 }
 
 static void
 glucoseGetProgramiv( GLuint program, GLenum pname, GLint *params )
 {
 	CALL_GetProgramiv( GET_DISPATCH(), (program, pname, params) );
+	glucoseFailure("GetProgramiv");
 }
 
 static void
 glucoseGenBuffers( GLsizei n, GLuint *buffers )
 {
 	CALL_GenBuffersARB( GET_DISPATCH(), (n, buffers) );
+	glucoseFailure("GenBuffersARB");
 }
 
 static void
 glucoseDeleteBuffers( GLsizei n, const GLuint *buffers )
 {
 	CALL_DeleteBuffersARB( GET_DISPATCH(), (n, buffers) );
+	glucoseFailure("DeleteBuffersARB");
 }
 
 static void
@@ -544,18 +552,21 @@ static void
 glucoseBufferData( GLenum target, GLsizeiptr size, const GLvoid *data, GLenum usage)
 {
 	CALL_BufferDataARB( GET_DISPATCH(), (target, size, data, usage) );
+	glucoseFailure("BufferDataARB");
 }
 
 static void
 glucoseBufferSubData( GLenum target, GLintptr offset, GLsizeiptr size, const GLvoid *data )
 {
 	CALL_BufferSubDataARB( GET_DISPATCH(), (target, offset, size, data) );
+	glucoseFailure("BufferSubDataARB");
 }
 
 static void
 glucoseGetBufferSubData( GLenum target, GLintptr offset, GLsizeiptr size, GLvoid *data)
 {
 	CALL_GetBufferSubDataARB( GET_DISPATCH(), (target, offset, size, data) );
+	glucoseFailure("GetBufferSubDataARB");
 }
 
 static void
@@ -576,66 +587,77 @@ static void
 glucoseGenFramebuffers(GLsizei n, GLuint *framebuffers)
 {
 	CALL_GenFramebuffersEXT( GET_DISPATCH(), (n, framebuffers) );
+	glucoseFailure("GenFramebuffersEXT");
 }
 
 static void
 glucoseDeleteFramebuffers(GLsizei n, const GLuint *framebuffers)
 {
 	CALL_DeleteFramebuffersEXT( GET_DISPATCH(), (n, framebuffers) );
+	glucoseFailure("DeleteFramebuffersEXT");
 }
 
 static void
 glucoseBindFramebuffer(GLenum target, GLuint framebuffer)
 {
 	CALL_BindFramebufferEXT( GET_DISPATCH(), (target, framebuffer) );
+	glucoseFailure("BindFramebufferEXT");
 }
 
 static void
 glucoseFramebufferRenderbuffer(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
 {
 	CALL_FramebufferRenderbufferEXT( GET_DISPATCH(), (target, attachment, renderbuffertarget, renderbuffer) );
+	glucoseFailure("FramebufferRenderbufferEXT");
 }
 
 static void
 glucoseFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
 {
 	CALL_FramebufferTexture2DEXT( GET_DISPATCH(), (target, attachment, textarget, texture, level) );
+	glucoseFailure("FramebufferTexture2DEXT");
 }
 
 static void
 glucoseCheckFramebufferStatus(GLenum target)
 {
 	CALL_CheckFramebufferStatusEXT( GET_DISPATCH(), (target) );
+	glucoseFailure("CheckFramebufferStatusEXT");
 }
 
 static void
 glucoseGenRenderbuffers(GLsizei n, GLuint *renderbuffers)
 {
 	CALL_GenRenderbuffersEXT( GET_DISPATCH(), (n, renderbuffers) );
+	glucoseFailure("GenRenderbuffersEXT");
 }
 
 static void
 glucoseDeleteRenderbuffers(GLsizei n, const GLuint *renderbuffers)
 {
 	CALL_DeleteRenderbuffersEXT( GET_DISPATCH(), (n, renderbuffers) );
+	glucoseFailure("DeleteRenderbuffersEXT");
 }
 
 static void
 glucoseBindRenderbuffer(GLenum target, GLuint renderbuffer)
 {
 	CALL_BindRenderbufferEXT( GET_DISPATCH(), (target, renderbuffer) );
+	glucoseFailure("BindRenderbufferEXT");
 }
 
 static void
 glucoseRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height)
 {
 	CALL_RenderbufferStorageEXT( GET_DISPATCH(), (target, internalformat, width, height) );
+	glucoseFailure("RenderbufferStorageEXT");
 }
 
 static void
 glucoseGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint *params)
 {
 	CALL_GetRenderbufferParameterivEXT( GET_DISPATCH(), (target, pname, params) );
+	glucoseFailure("GetRenderbufferParameterivEXT");
 }
 
 glitz_gl_proc_address_list_t _glitz_glucose_gl_proc_address = {

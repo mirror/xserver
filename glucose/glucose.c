@@ -154,6 +154,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
     __glXleaveServer();
     err = pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
     if (!err) {
+    	__glXenterServer();
   	xf86DrvMsg(pScreen->myNum, X_WARNING, 
 		  "Glucose makeCurrent failed, err is %d\n",err);
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
@@ -171,6 +172,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
                                                     pPixmap->drawable.height);
 
     if (!drawable) {
+    	__glXenterServer();
         xf86DrvMsg(pScreen->myNum, X_ERROR,
 		  "Glucose could not create glitz drawable, not initializing.\n");
 
@@ -178,7 +180,6 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 	pScreenPriv->rootContext = NULL;
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
 	pScreenPriv->rootDrawable = NULL;
-    	__glXenterServer();
 	return FALSE;
     }
 
@@ -189,7 +190,17 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
     xf86DrvMsg(pScreen->myNum, X_INFO,
 		  "Glucose reports GLitz features as 0x%lx\n",xglScreenPriv->features);
 
-    glucoseFinishScreenInit(pScreen);
+    if (!glucoseFinishScreenInit(pScreen)) {
+    	__glXenterServer();
+        xf86DrvMsg(pScreen->myNum, X_ERROR,
+		  "Glucose could not initialize.\n");
+	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
+	pScreenPriv->rootContext = NULL;
+	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
+	pScreenPriv->rootDrawable = NULL;
+	return FALSE;
+    }
+
     __glXenterServer();
 
     /* now fixup root pixmap */
