@@ -55,9 +55,11 @@
 #define RANDR_10_INTERFACE 1
 #define RANDR_12_INTERFACE 1
 
+#ifndef _XRANDR_H_
 typedef XID	RRMode;
 typedef XID	RROutput;
 typedef XID	RRCrtc;
+#endif
 
 extern int	RREventBase, RRErrorBase;
 
