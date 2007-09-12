@@ -30,6 +30,7 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/internal/glcore.h>
+#include <GL/glxtokens.h>
 
 #include "glxserver.h"
 #include "glxdrawable.h"
@@ -40,6 +41,7 @@
 #include "glapitable.h"
 #include "glxext.h"
 #include "micmap.h"
+#include "compint.h"
 
 #define XGL_MAX_TEXTURE_UNITS      8
 #define XGL_MAX_ATTRIB_STACK_DEPTH 16
@@ -50,56 +52,29 @@
 #define XGL_TEXTURE_RECTANGLE_BIT (1 << 3)
 #define XGL_TEXTURE_CUBE_MAP_BIT  (1 << 4)
 
-typedef Bool	      (*GLXScreenProbeProc)    (int screen);
-typedef __GLinterface *(*GLXCreateContextProc) (__GLimports      *imports,
-						__GLcontextModes *modes,
-						__GLinterface    *shareGC);
-typedef void	      (*GLXCreateBufferProc)   (__GLXdrawablePrivate *glxPriv);
-typedef GLboolean     (*GLXSwapBuffersProc)    (__GLXdrawablePrivate *glxPriv);
-typedef int	      (*GLXBindBuffersProc)    (__GLXdrawablePrivate *glxPriv,
-						int		     buffer);
-typedef int	      (*GLXReleaseBuffersProc) (__GLXdrawablePrivate *glxPriv,
-						int		     buffer);
+extern __GLXprovider *__xglMesaProvider;
 
-typedef struct _xglGLXScreenInfo {
-    GLXScreenProbeProc   screenProbe;
-    GLXCreateContextProc createContext;
-    GLXCreateBufferProc  createBuffer;
-} xglGLXScreenInfoRec, *xglGLXScreenInfoPtr;
-
-extern __GLXscreenInfo *__xglScreenInfoPtr;
-
-static xglGLXScreenInfoRec screenInfoPriv;
-
-//extern __GLXscreenInfo __glDDXScreenInfo;
-
-typedef GLboolean (*GLResizeBuffersProc) (__GLdrawableBuffer   *buffer,
-					  GLint		       x,
-					  GLint		       y,
-					  GLuint	       width,
-					  GLuint	       height,
-					  __GLdrawablePrivate  *glPriv,
-					  GLuint	       bufferMask);
-typedef void	  (*GLFreeBuffersProc)   (__GLdrawablePrivate  *glPriv);
+typedef struct _xglGLScreen {
+    __GLXscreen base;
+    __GLXscreen *mesaScreen;
+    char	*GLXextensions;
+} xglGLScreenRec, *xglGLScreenPtr;
 
 typedef struct _xglGLBuffer {
-    GLXSwapBuffersProc    swapBuffers;
-    GLXBindBuffersProc    bindBuffers;
-    GLXReleaseBuffersProc releaseBuffers;
-    GLResizeBuffersProc   resizeBuffers;
-    GLFreeBuffersProc     freeBuffers;
-    ScreenPtr		  pScreen;
-    DrawablePtr		  pDrawable;
-    xglVisualPtr	  pVisual;
-    glitz_drawable_t	  *drawable;
-    glitz_surface_t	  *backSurface;
-    PixmapPtr		  pPixmap;
-    GCPtr		  pGC;
-    RegionRec		  damage;
-    void	          *private;
-    int			  screenX, screenY;
-    int			  xOff, yOff;
-    int			  yFlip;
+    __GLXdrawable base;
+    __GLXdrawable *mesaDrawable;
+
+    ScreenPtr	     pScreen;
+    DrawablePtr	     pDrawable;
+    xglVisualPtr     pVisual;
+    glitz_drawable_t *drawable;
+    glitz_surface_t  *backSurface;
+    PixmapPtr	     pPixmap;
+    GCPtr	     pGC;
+    RegionRec	     damage;
+    int		     screenX, screenY;
+    int		     xOff, yOff;
+    int		     yFlip;
 } xglGLBufferRec, *xglGLBufferPtr;
 
 typedef int xglGLXVisualConfigRec, *xglGLXVisualConfigPtr;
@@ -124,8 +99,8 @@ typedef struct _xglGLOp {
 	} rect;
 	struct {
 	    GLenum target;
-	    GLuint texture;
-	} bind_texture;
+	    GLuint object;
+	} bind_object;
 	struct {
 	    GLenum  target;
 	    GLenum  pname;
@@ -265,54 +240,89 @@ typedef struct _xglGLAttributes {
 } xglGLAttributesRec, *xglGLAttributesPtr;
 
 typedef struct _xglGLContext {
-    __GLinterface	      iface;
-    __GLinterface	      *mIface;
-    int			      refcnt;
-    struct _xglGLContext      *shared;
-    glitz_context_t	      *context;
-    struct _glapi_table	      glRenderTable;
+    __GLXcontext base;
+    __GLXcontext *mesaContext;
+
+    int			 refcnt;
+    struct _xglGLContext *shared;
+    glitz_context_t	 *context;
+    struct _glapi_table	 glRenderTable;
+
     PFNGLACTIVETEXTUREARBPROC ActiveTextureARB;
-    PFNGLWINDOWPOS3FMESAPROC  WindowPos3fMESA;
-    Bool		      needInit;
-    xglGLBufferPtr	      pDrawBuffer;
-    xglGLBufferPtr	      pReadBuffer;
-    int			      drawXoff, drawYoff;
-    __GLdrawablePrivate	      *readPriv;
-    __GLdrawablePrivate	      *drawPriv;
-    char		      *versionString;
-    GLenum		      errorValue;
-    GLboolean		      doubleBuffer;
-    GLint		      depthBits;
-    GLint		      stencilBits;
-    xglHashTablePtr	      texObjects;
-    xglHashTablePtr	      displayLists;
-    GLuint		      list;
-    GLenum		      listMode;
-    GLuint		      beginCnt;
-    xglDisplayListPtr	      pList;
-    GLuint		      groupList;
-    xglGLAttributesRec	      attrib;
-    xglGLAttributesRec	      attribStack[XGL_MAX_ATTRIB_STACK_DEPTH];
-    int			      nAttribStack;
-    int			      activeTexUnit;
-    GLint		      maxTexUnits;
-    GLint		      maxListNesting;
-    GLint		      maxAttribStackDepth;
+    PFNGLWINDOWPOS3FMESAPROC WindowPos3fMESA;
+    PFNGLISPROGRAMARBPROC IsProgramARB;
+    PFNGLGENPROGRAMSARBPROC GenProgramsARB;
+    PFNGLBINDPROGRAMARBPROC BindProgramARB;
+    PFNGLDELETEPROGRAMSARBPROC DeleteProgramsARB;
+    PFNGLISRENDERBUFFEREXTPROC IsRenderbufferEXT;
+    PFNGLBINDRENDERBUFFEREXTPROC BindRenderbufferEXT;
+    PFNGLDELETERENDERBUFFERSEXTPROC DeleteRenderbuffersEXT;
+    PFNGLGENRENDERBUFFERSEXTPROC GenRenderbuffersEXT;
+    PFNGLISFRAMEBUFFEREXTPROC IsFramebufferEXT;
+    PFNGLBINDFRAMEBUFFEREXTPROC BindFramebufferEXT;
+    PFNGLDELETEFRAMEBUFFERSEXTPROC DeleteFramebuffersEXT;
+    PFNGLGENFRAMEBUFFERSEXTPROC GenFramebuffersEXT;
+    PFNGLFRAMEBUFFERTEXTURE1DEXTPROC FramebufferTexture1DEXT;
+    PFNGLFRAMEBUFFERTEXTURE2DEXTPROC FramebufferTexture2DEXT;
+    PFNGLFRAMEBUFFERTEXTURE3DEXTPROC FramebufferTexture3DEXT;
+    PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC FramebufferRenderbufferEXT;
+    PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC
+    GetFramebufferAttachmentParameterivEXT;
+    PFNGLGENERATEMIPMAPEXTPROC GenerateMipmapEXT;
+
+    Bool		 needInit;
+    xglGLBufferPtr	 pDrawBuffer;
+    xglGLBufferPtr	 pReadBuffer;
+    int			 drawXoff, drawYoff;
+    int			 readXoff, readYoff;
+    char		 *versionString;
+    GLenum		 errorValue;
+    GLboolean		 doubleBuffer;
+    GLint		 depthBits;
+    GLint		 stencilBits;
+    xglHashTablePtr	 texObjects;
+    xglHashTablePtr	 programObjects;
+    xglHashTablePtr	 renderbufferObjects;
+    xglHashTablePtr	 framebufferObjects;
+    GLuint		 framebuffer;
+    xglHashTablePtr	 displayLists;
+    GLuint		 list;
+    GLenum		 listMode;
+    GLuint		 beginCnt;
+    xglDisplayListPtr	 pList;
+    GLuint		 groupList;
+    xglGLAttributesRec	 attrib;
+    xglGLAttributesRec	 attribStack[XGL_MAX_ATTRIB_STACK_DEPTH];
+    int			 nAttribStack;
+    int			 activeTexUnit;
+    GLint		 maxTexUnits;
+    GLint		 maxListNesting;
+    GLint		 maxAttribStackDepth;
 } xglGLContextRec, *xglGLContextPtr;
 
 static xglGLContextPtr cctx = NULL;
 
+static BoxRec _largeBox = { SHRT_MIN, SHRT_MIN, SHRT_MAX, SHRT_MAX };
+
 static void
 xglSetCurrentContext (xglGLContextPtr pContext);
 
-#define XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES(pBox, nBox, pScissorBox)	  \
-    (pBox) = REGION_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	  \
-    (nBox) = REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	  \
-    (pScissorBox)->x1 = cctx->attrib.scissor.x + cctx->pDrawBuffer->xOff; \
-    (pScissorBox)->x2 = (pScissorBox)->x1 + cctx->attrib.scissor.width;	  \
-    (pScissorBox)->y2 = cctx->attrib.scissor.y + cctx->pDrawBuffer->yOff; \
-    (pScissorBox)->y2 = cctx->pDrawBuffer->yFlip - (pScissorBox)->y2;	  \
-    (pScissorBox)->y1 = (pScissorBox)->y2 - cctx->attrib.scissor.height
+#define XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES(pBox, nBox, pScissorBox)	      \
+    if (cctx->framebuffer)						      \
+    {									      \
+	(pBox) = &_largeBox;						      \
+	(nBox) = 1;							      \
+    }									      \
+    else								      \
+    {									      \
+	(pBox) = REGION_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);	      \
+	(nBox) = REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip);   \
+	(pScissorBox)->x1 = cctx->attrib.scissor.x + cctx->pDrawBuffer->xOff; \
+	(pScissorBox)->x2 = (pScissorBox)->x1 + cctx->attrib.scissor.width;   \
+	(pScissorBox)->y2 = cctx->attrib.scissor.y + cctx->pDrawBuffer->yOff; \
+	(pScissorBox)->y2 = cctx->pDrawBuffer->yFlip - (pScissorBox)->y2;     \
+	(pScissorBox)->y1 = (pScissorBox)->y2 - cctx->attrib.scissor.height;  \
+    }
 
 #define XGL_GLX_DRAW_PROLOGUE(pBox, nBox, pScissorBox)		      \
     XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES (pBox, nBox, pScissorBox); \
@@ -336,14 +346,27 @@ xglSetCurrentContext (xglGLContextPtr pContext);
 	    (pBox1)->y2 = (pBox2)->y2;	    \
     }
 
-#define XGL_GLX_SET_SCISSOR_BOX(pBox)		      \
-    glScissor ((pBox)->x1,			      \
-	       cctx->pDrawBuffer->yFlip - (pBox)->y2, \
-	       (pBox)->x2 - (pBox)->x1,		      \
-	       (pBox)->y2 - (pBox)->y1)
+#define XGL_GLX_SET_SCISSOR_BOX(pBox)			  \
+    if (cctx->framebuffer)				  \
+    {							  \
+	if (cctx->attrib.scissorTest)			  \
+	    glScissor (cctx->attrib.scissor.x,		  \
+		       cctx->attrib.scissor.y,		  \
+		       cctx->attrib.scissor.width,	  \
+		       cctx->attrib.scissor.height);	  \
+	else						  \
+	    glScissor (0, 0, SHRT_MAX, SHRT_MAX);	  \
+    }							  \
+    else						  \
+    {							  \
+	glScissor ((pBox)->x1,				  \
+		   cctx->pDrawBuffer->yFlip - (pBox)->y2, \
+		   (pBox)->x2 - (pBox)->x1,		  \
+		   (pBox)->y2 - (pBox)->y1);		  \
+    }
 
 #define XGL_GLX_DRAW_DAMAGE(pBox, pRegion)				 \
-    if (cctx->attrib.drawBuffer != GL_BACK)				 \
+    if (!cctx->framebuffer && cctx->attrib.drawBuffer != GL_BACK)	 \
     {									 \
 	(pRegion)->extents.x1 = (pBox)->x1 - cctx->pDrawBuffer->screenX; \
 	(pRegion)->extents.y1 = (pBox)->y1 - cctx->pDrawBuffer->screenY; \
@@ -356,6 +379,29 @@ xglSetCurrentContext (xglGLContextPtr pContext);
 		      pRegion);						 \
 	xglAddBitDamage (cctx->pDrawBuffer->pDrawable, pRegion);	 \
     }
+
+
+static void
+xglSetDrawOffset (int xOff,
+		  int yOff)
+{
+    /* update viewport and raster position */
+    if (xOff != cctx->drawXoff || yOff != cctx->drawYoff)
+    {
+	glViewport (cctx->attrib.viewport.x + xOff,
+		    cctx->attrib.viewport.y + yOff,
+		    cctx->attrib.viewport.width,
+		    cctx->attrib.viewport.height);
+
+	glBitmap (0, 0, 0, 0,
+		  xOff - cctx->drawXoff,
+		  yOff - cctx->drawYoff,
+		  NULL);
+
+	cctx->drawXoff = xOff;
+	cctx->drawYoff = yOff;
+    }
+}
 
 static void
 xglRecordError (GLenum error)
@@ -495,8 +541,8 @@ xglViewportProc (xglGLOpPtr pOp)
     cctx->attrib.viewport.width  = pOp->u.rect.width;
     cctx->attrib.viewport.height = pOp->u.rect.height;
 
-    glViewport (pOp->u.rect.x + cctx->pDrawBuffer->xOff,
-		pOp->u.rect.y + cctx->pDrawBuffer->yOff,
+    glViewport (pOp->u.rect.x + cctx->drawXoff,
+		pOp->u.rect.y + cctx->drawYoff,
 		pOp->u.rect.width,
 		pOp->u.rect.height);
 }
@@ -551,6 +597,12 @@ xglDrawBufferProc (xglGLOpPtr pOp)
 {
     glitz_drawable_buffer_t buffers[2];
 
+    if (cctx->framebuffer)
+    {
+	glDrawBuffer (pOp->u.enumeration);
+	return;
+    }
+
     switch (pOp->u.enumeration) {
     case GL_FRONT:
 	buffers[0] = GLITZ_DRAWABLE_BUFFER_FRONT_COLOR;
@@ -598,6 +650,12 @@ xglDrawBuffer (GLenum mode)
 static void
 xglReadBufferProc (xglGLOpPtr pOp)
 {
+    if (cctx->framebuffer)
+    {
+	glReadBuffer (pOp->u.enumeration);
+	return;
+    }
+
     switch (pOp->u.enumeration) {
     case GL_FRONT:
 	glitz_context_read_buffer (cctx->context,
@@ -1267,7 +1325,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 {
     xglTexObjPtr *ppTexObj;
 
-    switch (pOp->u.bind_texture.target) {
+    switch (pOp->u.bind_object.target) {
     case GL_TEXTURE_1D:
 	ppTexObj = &cctx->attrib.texUnits[cctx->activeTexUnit].p1D;
 	break;
@@ -1288,15 +1346,15 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	return;
     }
 
-    if (pOp->u.bind_texture.texture)
+    if (pOp->u.bind_object.object)
     {
-	if (!*ppTexObj || pOp->u.bind_texture.texture != (*ppTexObj)->key)
+	if (!*ppTexObj || pOp->u.bind_object.object != (*ppTexObj)->key)
 	{
 	    xglTexObjPtr pTexObj;
 
 	    pTexObj = (xglTexObjPtr)
 		xglHashLookup (cctx->shared->texObjects,
-			       pOp->u.bind_texture.texture);
+			       pOp->u.bind_object.object);
 	    if (!pTexObj)
 	    {
 		pTexObj = xalloc (sizeof (xglTexObjRec));
@@ -1306,7 +1364,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 		    return;
 		}
 
-		pTexObj->key     = pOp->u.bind_texture.texture;
+		pTexObj->key     = pOp->u.bind_object.object;
 		pTexObj->pPixmap = NULL;
 		pTexObj->object  = NULL;
 		pTexObj->refcnt  = 1;
@@ -1314,7 +1372,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 		glGenTextures (1, &pTexObj->name);
 
 		xglHashInsert (cctx->shared->texObjects,
-			       pOp->u.bind_texture.texture,
+			       pOp->u.bind_object.object,
 			       pTexObj);
 	    }
 
@@ -1322,7 +1380,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	    xglUnrefTexObj (*ppTexObj);
 	    *ppTexObj = pTexObj;
 
-	    glBindTexture (pOp->u.bind_texture.target, pTexObj->name);
+	    glBindTexture (pOp->u.bind_object.target, pTexObj->name);
 	}
     }
     else
@@ -1330,7 +1388,7 @@ xglBindTextureProc (xglGLOpPtr pOp)
 	xglUnrefTexObj (*ppTexObj);
 	*ppTexObj = NULL;
 
-	glBindTexture (pOp->u.bind_texture.target, 0);
+	glBindTexture (pOp->u.bind_object.target, 0);
     }
 }
 
@@ -1342,8 +1400,8 @@ xglBindTexture (GLenum target,
 
     gl.glProc = xglBindTextureProc;
 
-    gl.u.bind_texture.target  = target;
-    gl.u.bind_texture.texture = texture;
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = texture;
 
     xglGLOp (&gl);
 }
@@ -1394,7 +1452,7 @@ xglSetupTextures (void)
 	{
 	    if (i != activeTexUnit)
 	    {
-		cctx->ActiveTextureARB (GL_TEXTURE0_ARB + i);
+		(*cctx->ActiveTextureARB) (GL_TEXTURE0_ARB + i);
 		activeTexUnit = i;
 	    }
 	    glitz_context_bind_texture (cctx->context, pTexObj[i]->object);
@@ -1402,7 +1460,7 @@ xglSetupTextures (void)
     }
 
     if (activeTexUnit != cctx->activeTexUnit)
-	cctx->ActiveTextureARB (cctx->activeTexUnit);
+	(*cctx->ActiveTextureARB) (cctx->activeTexUnit);
 }
 
 static GLboolean
@@ -1531,7 +1589,27 @@ xglPrioritizeTextures (GLsizei	      n,
 }
 
 static glitz_texture_filter_t
-xglTextureFilter (GLenum param)
+xglTextureMinFilter (GLenum param)
+{
+    switch (param) {
+    case GL_LINEAR:
+	return GLITZ_TEXTURE_FILTER_LINEAR;
+    case GL_NEAREST_MIPMAP_NEAREST:
+	return GLITZ_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+    case GL_LINEAR_MIPMAP_NEAREST:
+	return GLITZ_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    case GL_NEAREST_MIPMAP_LINEAR:
+	return GLITZ_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+    case GL_LINEAR_MIPMAP_LINEAR:
+	return GLITZ_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+    case GL_NEAREST:
+    default:
+	return GLITZ_TEXTURE_FILTER_NEAREST;
+    }
+}
+
+static glitz_texture_filter_t
+xglTextureMagFilter (GLenum param)
 {
     switch (param) {
     case GL_LINEAR:
@@ -1589,12 +1667,12 @@ xglTexParameterfvProc (xglGLOpPtr pOp)
 	case GL_TEXTURE_MIN_FILTER:
 	    glitz_texture_object_set_filter (pTexObj->object,
 					     GLITZ_TEXTURE_FILTER_TYPE_MIN,
-					     xglTextureFilter (params[0]));
+					     xglTextureMinFilter (params[0]));
 	    break;
 	case GL_TEXTURE_MAG_FILTER:
 	    glitz_texture_object_set_filter (pTexObj->object,
 					     GLITZ_TEXTURE_FILTER_TYPE_MAG,
-					     xglTextureFilter (params[0]));
+					     xglTextureMagFilter (params[0]));
 	    break;
 	case GL_TEXTURE_WRAP_S:
 	    glitz_texture_object_set_wrap (pTexObj->object,
@@ -1849,7 +1927,7 @@ xglDrawList (GLuint list)
 
 	pBox++;
 
-	if (cctx->attrib.scissorTest)
+	if (!cctx->framebuffer && cctx->attrib.scissorTest)
 	    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -1942,41 +2020,41 @@ xglCallLists (GLsizei	   n,
     {
 	switch (type) {
 	case GL_BYTE:
-	    list = (GLuint) *(((GLbyte *) lists) + n);
+	    list = (GLuint) *(((GLbyte *) lists) + i);
 	    break;
 	case GL_UNSIGNED_BYTE:
-	    list = (GLuint) *(((GLubyte *) lists) + n);
+	    list = (GLuint) *(((GLubyte *) lists) + i);
 	    break;
 	case GL_SHORT:
-	    list = (GLuint) *(((GLshort *) lists) + n);
+	    list = (GLuint) *(((GLshort *) lists) + i);
 	    break;
 	case GL_UNSIGNED_SHORT:
-	    list = (GLuint) *(((GLushort *) lists) + n);
+	    list = (GLuint) *(((GLushort *) lists) + i);
 	    break;
 	case GL_INT:
-	    list = (GLuint) *(((GLint *) lists) + n);
+	    list = (GLuint) *(((GLint *) lists) + i);
 	    break;
 	case GL_UNSIGNED_INT:
-	    list = (GLuint) *(((GLuint *) lists) + n);
+	    list = (GLuint) *(((GLuint *) lists) + i);
 	    break;
 	case GL_FLOAT:
-	    list = (GLuint) *(((GLfloat *) lists) + n);
+	    list = (GLuint) *(((GLfloat *) lists) + i);
 	    break;
 	case GL_2_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 2 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 2 * i;
 	    list = (GLuint) *ubptr * 256 + (GLuint) *(ubptr + 1);
 	} break;
 	case GL_3_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 3 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 3 * i;
 	    list = (GLuint) * ubptr * 65536
 		+ (GLuint) * (ubptr + 1) * 256
 		+ (GLuint) * (ubptr + 2);
 	} break;
 	case GL_4_BYTES:
 	{
-	    GLubyte *ubptr = ((GLubyte *) lists) + 4 * n;
+	    GLubyte *ubptr = ((GLubyte *) lists) + 4 * i;
 	    list = (GLuint) * ubptr * 16777216
 		+ (GLuint) * (ubptr + 1) * 65536
 		+ (GLuint) * (ubptr + 2) * 256
@@ -2109,7 +2187,7 @@ xglClear (GLbitfield mask)
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2163,7 +2241,7 @@ xglAccum (GLenum  op,
 
 		pBox++;
 
-		if (cctx->attrib.scissorTest)
+		if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 		if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2218,7 +2296,7 @@ xglDrawArrays (GLenum  mode,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2271,7 +2349,7 @@ xglDrawElements (GLenum	      mode,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2325,7 +2403,7 @@ xglDrawPixels (GLsizei	    width,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2382,7 +2460,7 @@ xglBitmap (GLsizei	 width,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2435,7 +2513,7 @@ xglRectdv (const GLdouble *v1,
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2522,7 +2600,8 @@ xglBegin (GLenum mode)
     }
     else
     {
-	if (REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
+	if (cctx->framebuffer ||
+	    REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
 	{
 	    BoxRec scissor, box;
 	    BoxPtr pBox;
@@ -2532,7 +2611,7 @@ xglBegin (GLenum mode)
 
 	    XGL_GLX_DRAW_BOX (&box, pBox);
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    XGL_GLX_SET_SCISSOR_BOX (&box);
@@ -2578,7 +2657,8 @@ xglEnd (void)
 	}
 	else
 	{
-	    if (REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
+	    if (cctx->framebuffer ||
+		REGION_NUM_RECTS (cctx->pDrawBuffer->pGC->pCompositeClip) == 1)
 	    {
 		XGL_GLX_DRAW_PROLOGUE_WITHOUT_TEXTURES (pBox, nBox, &scissor);
 	    }
@@ -2599,7 +2679,7 @@ xglEnd (void)
 
 	    pBox++;
 
-	    if (cctx->attrib.scissorTest)
+	    if (!cctx->framebuffer && cctx->attrib.scissorTest)
 		XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	    if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2640,7 +2720,7 @@ xglCopyPixelsProc (xglGLOpPtr pOp)
 
 	pBox++;
 
-	if (cctx->attrib.scissorTest)
+	if (!cctx->framebuffer && cctx->attrib.scissorTest)
 	    XGL_GLX_INTERSECT_BOX (&box, &scissor);
 
 	if (box.x1 < box.x2 && box.y1 < box.y2)
@@ -2688,8 +2768,8 @@ xglReadPixels (GLint   x,
 	       GLenum  type,
 	       GLvoid  *pixels)
 {
-    glReadPixels (x + cctx->pReadBuffer->xOff,
-		  y + cctx->pReadBuffer->yOff,
+    glReadPixels (x + cctx->readXoff,
+		  y + cctx->readYoff,
 		  width, height, format, type, pixels);
 }
 
@@ -2699,8 +2779,8 @@ xglCopyTexImage1DProc (xglGLOpPtr pOp)
     glCopyTexImage1D (pOp->u.copy_tex_image_1d.target,
 		      pOp->u.copy_tex_image_1d.level,
 		      pOp->u.copy_tex_image_1d.internalformat,
-		      pOp->u.copy_tex_image_1d.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_tex_image_1d.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_tex_image_1d.x + cctx->readXoff,
+		      pOp->u.copy_tex_image_1d.y + cctx->readYoff,
 		      pOp->u.copy_tex_image_1d.width,
 		      pOp->u.copy_tex_image_1d.border);
 }
@@ -2735,8 +2815,8 @@ xglCopyTexImage2DProc (xglGLOpPtr pOp)
     glCopyTexImage2D (pOp->u.copy_tex_image_2d.target,
 		      pOp->u.copy_tex_image_2d.level,
 		      pOp->u.copy_tex_image_2d.internalformat,
-		      pOp->u.copy_tex_image_2d.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_tex_image_2d.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_tex_image_2d.x + cctx->readXoff,
+		      pOp->u.copy_tex_image_2d.y + cctx->readYoff,
 		      pOp->u.copy_tex_image_2d.width,
 		      pOp->u.copy_tex_image_2d.height,
 		      pOp->u.copy_tex_image_2d.border);
@@ -2774,10 +2854,8 @@ xglCopyTexSubImage1DProc (xglGLOpPtr pOp)
     glCopyTexSubImage1D (pOp->u.copy_tex_sub_image_1d.target,
 			 pOp->u.copy_tex_sub_image_1d.level,
 			 pOp->u.copy_tex_sub_image_1d.xoffset,
-			 pOp->u.copy_tex_sub_image_1d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_1d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_1d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_1d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_1d.width);
 }
 
@@ -2810,10 +2888,8 @@ xglCopyTexSubImage2DProc (xglGLOpPtr pOp)
 			 pOp->u.copy_tex_sub_image_2d.level,
 			 pOp->u.copy_tex_sub_image_2d.xoffset,
 			 pOp->u.copy_tex_sub_image_2d.yoffset,
-			 pOp->u.copy_tex_sub_image_2d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_2d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_2d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_2d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_2d.width,
 			 pOp->u.copy_tex_sub_image_2d.height);
 }
@@ -2849,8 +2925,8 @@ xglCopyColorTableProc (xglGLOpPtr pOp)
 {
     glCopyColorTable (pOp->u.copy_color_table.target,
 		      pOp->u.copy_color_table.internalformat,
-		      pOp->u.copy_color_table.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_color_table.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_color_table.x + cctx->readXoff,
+		      pOp->u.copy_color_table.y + cctx->readYoff,
 		      pOp->u.copy_color_table.width);
 }
 
@@ -2879,8 +2955,8 @@ xglCopyColorSubTableProc (xglGLOpPtr pOp)
 {
     glCopyColorTable (pOp->u.copy_color_sub_table.target,
 		      pOp->u.copy_color_sub_table.start,
-		      pOp->u.copy_color_sub_table.x + cctx->pReadBuffer->xOff,
-		      pOp->u.copy_color_sub_table.y + cctx->pReadBuffer->yOff,
+		      pOp->u.copy_color_sub_table.x + cctx->readXoff,
+		      pOp->u.copy_color_sub_table.y + cctx->readYoff,
 		      pOp->u.copy_color_sub_table.width);
 }
 
@@ -2912,9 +2988,9 @@ xglCopyConvolutionFilter1DProc (xglGLOpPtr pOp)
     glCopyConvolutionFilter1D (pOp->u.copy_convolution_filter_1d.target,
 			       internalformat,
 			       pOp->u.copy_convolution_filter_1d.x +
-			       cctx->pReadBuffer->xOff,
+			       cctx->readXoff,
 			       pOp->u.copy_convolution_filter_1d.y +
-			       cctx->pReadBuffer->yOff,
+			       cctx->readYoff,
 			       pOp->u.copy_convolution_filter_1d.width);
 }
 
@@ -2946,9 +3022,9 @@ xglCopyConvolutionFilter2DProc (xglGLOpPtr pOp)
     glCopyConvolutionFilter2D (pOp->u.copy_convolution_filter_2d.target,
 			       internalformat,
 			       pOp->u.copy_convolution_filter_2d.x +
-			       cctx->pReadBuffer->xOff,
+			       cctx->readXoff,
 			       pOp->u.copy_convolution_filter_2d.y +
-			       cctx->pReadBuffer->yOff,
+			       cctx->readYoff,
 			       pOp->u.copy_convolution_filter_2d.width,
 			       pOp->u.copy_convolution_filter_2d.height);
 }
@@ -2983,10 +3059,8 @@ xglCopyTexSubImage3DProc (xglGLOpPtr pOp)
 			 pOp->u.copy_tex_sub_image_3d.xoffset,
 			 pOp->u.copy_tex_sub_image_3d.yoffset,
 			 pOp->u.copy_tex_sub_image_3d.zoffset,
-			 pOp->u.copy_tex_sub_image_3d.x +
-			 cctx->pReadBuffer->xOff,
-			 pOp->u.copy_tex_sub_image_3d.y +
-			 cctx->pReadBuffer->yOff,
+			 pOp->u.copy_tex_sub_image_3d.x + cctx->readXoff,
+			 pOp->u.copy_tex_sub_image_3d.y + cctx->readYoff,
 			 pOp->u.copy_tex_sub_image_3d.width,
 			 pOp->u.copy_tex_sub_image_3d.height);
 }
@@ -3088,22 +3162,6 @@ xglNoOpMultiTexCoord4svARB (GLenum target, const GLshort *v) {}
 static void
 xglNoOpSampleCoverageARB (GLclampf value, GLboolean invert) {}
 
-/* GL_EXT_texture_object */
-static GLboolean
-xglNoOpAreTexturesResidentEXT (GLsizei n,
-			       const GLuint *textures,
-			       GLboolean *residences)
-{
-    return GL_FALSE;
-}
-static void
-xglNoOpGenTexturesEXT (GLsizei n, GLuint *textures) {}
-static GLboolean
-xglNoOpIsTextureEXT (GLuint texture)
-{
-    return GL_FALSE;
-}
-
 /* GL_SGIS_multisample */
 static void
 xglNoOpSampleMaskSGIS (GLclampf value, GLboolean invert) {}
@@ -3118,7 +3176,7 @@ xglNoOpPointParameterfvEXT (GLenum pname, const GLfloat *params) {}
 
 /* GL_MESA_window_pos */
 static void
-xglNoOpWindowPos3fMESA (GLfloat x, GLfloat y, GLfloat z) {}
+xglNoOpWindowPos3fvMESA (const GLfloat *v) {}
 static void
 xglWindowPos3fMESAProc (xglGLOpPtr pOp)
 {
@@ -3127,15 +3185,15 @@ xglWindowPos3fMESAProc (xglGLOpPtr pOp)
 			      pOp->u.window_pos_3f.z);
 }
 static void
-xglWindowPos3fMESA (GLfloat x, GLfloat y, GLfloat z)
+xglWindowPos3fvMESA (const GLfloat *v)
 {
     xglGLOpRec gl;
 
     gl.glProc = xglWindowPos3fMESAProc;
 
-    gl.u.window_pos_3f.x = x;
-    gl.u.window_pos_3f.y = y;
-    gl.u.window_pos_3f.z = z;
+    gl.u.window_pos_3f.x = v[0];
+    gl.u.window_pos_3f.y = v[1];
+    gl.u.window_pos_3f.z = v[2];
 
     xglGLOp (&gl);
 }
@@ -3185,18 +3243,285 @@ xglNoOpPointParameterivNV (GLenum pname, const GLint *params) {}
 static void
 xglNoOpActiveStencilFaceEXT (GLenum face) {}
 
+/* GL_ARB_vertex_program */
+static void
+xglNoOpVertexAttrib1svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib1fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib1dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib2svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib2fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib2dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib3svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib3fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib3dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib4bvARB (GLuint index, const GLbyte *v) {}
+static void
+xglNoOpVertexAttrib4svARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib4ivARB (GLuint index, const GLint *v) {}
+static void
+xglNoOpVertexAttrib4ubvARB (GLuint index, const GLubyte *v) {}
+static void
+xglNoOpVertexAttrib4usvARB (GLuint index, const GLushort *v) {}
+static void
+xglNoOpVertexAttrib4uivARB (GLuint index, const GLuint *v) {}
+static void
+xglNoOpVertexAttrib4fvARB (GLuint index, const GLfloat *v) {}
+static void
+xglNoOpVertexAttrib4dvARB (GLuint index, const GLdouble *v) {}
+static void
+xglNoOpVertexAttrib4NbvARB (GLuint index, const GLbyte *v) {}
+static void
+xglNoOpVertexAttrib4NsvARB (GLuint index, const GLshort *v) {}
+static void
+xglNoOpVertexAttrib4NivARB (GLuint index, const GLint *v) {}
+static void
+xglNoOpVertexAttrib4NubvARB (GLuint index, const GLubyte *v) {}
+static void
+xglNoOpVertexAttrib4NusvARB (GLuint index, const GLushort *v) {}
+static void
+xglNoOpVertexAttrib4NuivARB (GLuint index, const GLuint *v) {}
+static void
+xglNoOpProgramStringARB (GLenum target, GLenum format, GLsizei len,
+			 const void *string) {}
+static void
+xglNoOpBindProgramARB (GLenum target, GLuint program) {}
+static void
+xglBindProgramARBProc (xglGLOpPtr pOp)
+{
+    if (pOp->u.bind_object.object)
+    {
+	GLuint po;
+
+	po = (GLuint) xglHashLookup (cctx->shared->programObjects,
+				     pOp->u.bind_object.object);
+	if (!po)
+	{
+	    (*cctx->GenProgramsARB) (1, &po);
+
+	    xglHashInsert (cctx->shared->programObjects,
+			   pOp->u.bind_object.object,
+			   (void *) po);
+	}
+
+	(*cctx->BindProgramARB) (pOp->u.bind_object.target, po);
+    }
+    else
+    {
+	(*cctx->BindProgramARB) (pOp->u.bind_object.target, 0);
+    }
+}
+static void
+xglBindProgramARB (GLenum target, GLuint program)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindProgramARBProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = program;
+
+    xglGLOp (&gl);
+}
+static void
+xglNoOpDeleteProgramsARB (GLsizei n, const GLuint *programs) {}
+static void
+xglDeleteProgramsARB (GLsizei n, const GLuint *programs)
+{
+    GLuint po;
+
+    while (n--)
+    {
+	if (!*programs)
+	    continue;
+
+	po = (GLuint) xglHashLookup (cctx->shared->programObjects,
+				      *programs);
+	if (po)
+	{
+	    (*cctx->DeleteProgramsARB) (1, &po);
+	    xglHashRemove (cctx->shared->programObjects, *programs);
+	}
+	programs++;
+    }
+}
+static void
+xglNoOpGenProgramsARB (GLsizei n, GLuint *programs) {}
+static void
+xglGenProgramsARB (GLsizei n, GLuint *programs)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->programObjects, n);
+
+    (cctx->GenProgramsARB) (n, programs);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->programObjects, name,
+		       (void *) *programs);
+
+	*programs++ = name++;
+    }
+}
+static void
+xglNoOpProgramEnvParameter4dvARB (GLenum target, GLuint index,
+				  const GLdouble *params) {}
+static void
+xglNoOpProgramEnvParameter4fvARB (GLenum target, GLuint index,
+				  const GLfloat *params) {}
+static void
+xglNoOpProgramLocalParameter4dvARB (GLenum target, GLuint index,
+				    const GLdouble *params) {}
+static void
+xglNoOpProgramLocalParameter4fvARB (GLenum target, GLuint index,
+				    const GLfloat *params) {}
+static void
+xglNoOpGetProgramEnvParameterdvARB (GLenum target, GLuint index,
+				    GLdouble *params) {}
+static void
+xglNoOpGetProgramEnvParameterfvARB (GLenum target, GLuint index,
+				    GLfloat *params) {}
+static void
+xglNoOpGetProgramLocalParameterdvARB (GLenum target, GLuint index,
+				      GLdouble *params) {}
+static void
+xglNoOpGetProgramLocalParameterfvARB (GLenum target, GLuint index,
+				      GLfloat *params) {}
+static void
+xglNoOpGetProgramivARB (GLenum target, GLenum pname, GLint *params) {}
+static void
+xglNoOpGetProgramStringARB (GLenum target, GLenum pname, void *string) {}
+static void
+xglNoOpGetVertexAttribdvARB (GLuint index, GLenum pname, GLdouble *params) {}
+static void
+xglNoOpGetVertexAttribfvARB (GLuint index,GLenum pname, GLfloat *params) {}
+static void
+xglNoOpGetVertexAttribivARB (GLuint index, GLenum pname, GLint *params) {}
+static GLboolean
+xglNoOpIsProgramARB (GLuint program)
+{
+    return GL_FALSE;
+}
+static GLboolean
+xglIsProgramARB (GLuint program)
+{
+    if (!program)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->programObjects, program))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
+
 /* GL_EXT_framebuffer_object */
 static GLboolean
 xglNoOpIsRenderbufferEXT (GLuint renderbuffer)
 {
     return FALSE;
 }
+static GLboolean
+xglIsRenderbufferEXT (GLuint renderbuffer)
+{
+    if (!renderbuffer)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->renderbufferObjects, renderbuffer))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
 static void
 xglNoOpBindRenderbufferEXT (GLenum target, GLuint renderbuffer) {}
 static void
+xglBindRenderbufferEXTProc (xglGLOpPtr pOp)
+{
+    if (pOp->u.bind_object.object)
+    {
+	GLuint rbo;
+
+	rbo = (GLuint) xglHashLookup (cctx->shared->renderbufferObjects,
+				      pOp->u.bind_object.object);
+	if (!rbo)
+	{
+	    (*cctx->GenRenderbuffersEXT) (1, &rbo);
+
+	    xglHashInsert (cctx->shared->renderbufferObjects,
+			   pOp->u.bind_object.object,
+			   (void *) rbo);
+	}
+
+	(*cctx->BindRenderbufferEXT) (pOp->u.bind_object.target, rbo);
+    }
+    else
+    {
+	(*cctx->BindRenderbufferEXT) (pOp->u.bind_object.target, 0);
+    }
+}
+static void
+xglBindRenderbufferEXT (GLenum target,
+			GLuint renderbuffer)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindRenderbufferEXTProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = renderbuffer;
+
+    xglGLOp (&gl);
+}
+static void
 xglNoOpDeleteRenderbuffersEXT (GLsizei n, const GLuint *renderbuffers) {}
 static void
+xglDeleteRenderbuffersEXT (GLsizei n, const GLuint *renderbuffers)
+{
+    GLuint rbo;
+
+    while (n--)
+    {
+	if (!*renderbuffers)
+	    continue;
+
+	rbo = (GLuint) xglHashLookup (cctx->shared->renderbufferObjects,
+				      *renderbuffers);
+	if (rbo)
+	{
+	    (*cctx->DeleteRenderbuffersEXT) (1, &rbo);
+	    xglHashRemove (cctx->shared->renderbufferObjects, *renderbuffers);
+	}
+	renderbuffers++;
+    }
+}
+static void
 xglNoOpGenRenderbuffersEXT (GLsizei n, GLuint *renderbuffers) {}
+static void
+xglGenRenderbuffersEXT (GLsizei n, GLuint *renderbuffers)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->renderbufferObjects, n);
+
+    (cctx->GenRenderbuffersEXT) (n, renderbuffers);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->renderbufferObjects, name,
+		       (void *) *renderbuffers);
+
+	*renderbuffers++ = name++;
+    }
+}
 static void
 xglNoOpRenderbufferStorageEXT (GLenum target, GLenum internalformat,
 			       GLsizei width, GLsizei height) {}
@@ -3208,40 +3533,378 @@ xglNoOpIsFramebufferEXT (GLuint framebuffer)
 {
     return FALSE;
 }
+static GLboolean
+xglIsFramebufferEXT (GLuint framebuffer)
+{
+    if (!framebuffer)
+	return GL_FALSE;
+
+    if (xglHashLookup (cctx->shared->framebufferObjects, framebuffer))
+	return GL_TRUE;
+
+    return GL_FALSE;
+}
 static void
 xglNoOpBindFramebufferEXT (GLenum target, GLuint framebuffer) {}
 static void
+xglBindFramebufferEXTProc (xglGLOpPtr pOp)
+{
+    GLuint fbo;
+
+    switch (pOp->u.bind_object.target) {
+    case GL_FRAMEBUFFER_EXT:
+	fbo = cctx->framebuffer;
+	break;
+    default:
+	xglRecordError (GL_INVALID_ENUM);
+	return;
+    }
+
+    if (pOp->u.bind_object.object)
+    {
+	if (pOp->u.bind_object.object != fbo)
+	{
+	    fbo = (GLuint)
+		xglHashLookup (cctx->shared->framebufferObjects,
+			       pOp->u.bind_object.object);
+	    if (!fbo)
+	    {
+		(*cctx->GenFramebuffersEXT) (1, &fbo);
+
+		xglHashInsert (cctx->shared->framebufferObjects,
+			       pOp->u.bind_object.object,
+			       (void *) fbo);
+	    }
+
+	    if (!cctx->framebuffer)
+	    {
+		xglSetDrawOffset (0, 0);
+
+		cctx->readXoff = 0;
+		cctx->readYoff = 0;
+	    }
+
+	    (*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, fbo);
+	}
+    }
+    else
+    {
+	(*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, 0);
+
+	/* window-system drawable */
+	glitz_context_make_current (cctx->context, cctx->pDrawBuffer->drawable);
+
+	xglSetDrawOffset (cctx->pDrawBuffer->xOff, cctx->pDrawBuffer->yOff);
+
+	cctx->readXoff = cctx->pReadBuffer->xOff;
+	cctx->readYoff = cctx->pReadBuffer->yOff;
+    }
+
+    cctx->framebuffer = pOp->u.bind_object.object;
+}
+static void
+xglBindFramebufferEXT (GLenum target,
+		       GLuint framebuffer)
+{
+    xglGLOpRec gl;
+
+    gl.glProc = xglBindFramebufferEXTProc;
+
+    gl.u.bind_object.target = target;
+    gl.u.bind_object.object = framebuffer;
+
+    xglGLOp (&gl);
+}
+static void
 xglNoOpDeleteFramebuffersEXT (GLsizei n, const GLuint *framebuffers) {}
 static void
+xglDeleteFramebuffersEXT (GLsizei n, const GLuint *framebuffers)
+{
+    GLuint fbo;
+
+    while (n--)
+    {
+	if (!*framebuffers)
+	    continue;
+
+	fbo = (GLuint) xglHashLookup (cctx->shared->framebufferObjects,
+				      *framebuffers);
+	if (fbo)
+	{
+	    (*cctx->DeleteFramebuffersEXT) (1, &fbo);
+	    xglHashRemove (cctx->shared->framebufferObjects, *framebuffers);
+	}
+	framebuffers++;
+    }
+}
+static void
 xglNoOpGenFramebuffersEXT (GLsizei n, GLuint *framebuffers) {}
+static void
+xglGenFramebuffersEXT (GLsizei n, GLuint *framebuffers)
+{
+    GLuint name;
+
+    name = xglHashFindFreeKeyBlock (cctx->shared->framebufferObjects, n);
+
+    (cctx->GenFramebuffersEXT) (n, framebuffers);
+
+    while (n--)
+    {
+	xglHashInsert (cctx->shared->framebufferObjects, name,
+		       (void *) *framebuffers);
+
+	*framebuffers++ = name++;
+    }
+}
 static GLenum
 xglNoOpCheckFramebufferStatusEXT (GLenum target)
 {
     return GL_FRAMEBUFFER_UNSUPPORTED_EXT;
 }
 static void
-xglNoOpFramebufferTexture1DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level) {}
+xglNoOpFramebufferTexture1DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level) {}
 static void
-xglNoOpFramebufferTexture2DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level) {}
+xglFramebufferTexture1DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
+    }
+
+    (*cctx->FramebufferTexture1DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level);
+}
 static void
-xglNoOpFramebufferTexture3DEXT (GLenum target, GLenum attachment,
-				GLenum textarget, GLuint texture,
-				GLint level, GLint zoffset) {}
+xglNoOpFramebufferTexture2DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level) {}
 static void
-xglNoOpFramebufferRenderbufferEXT (GLenum target, GLenum attachment,
+xglFramebufferTexture2DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
+    }
+
+    (*cctx->FramebufferTexture2DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level);
+}
+static void
+xglNoOpFramebufferTexture3DEXT (GLenum target,
+				GLenum attachment,
+				GLenum textarget,
+				GLuint texture,
+				GLint  level,
+				GLint  zoffset) {}
+static void
+xglFramebufferTexture3DEXT (GLenum target,
+			    GLenum attachment,
+			    GLenum textarget,
+			    GLuint texture,
+			    GLint  level,
+			    GLint  zoffset)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    if (texture)
+    {
+	xglTexObjPtr pTexObj;
+
+	pTexObj = (xglTexObjPtr) xglHashLookup (cctx->shared->texObjects,
+						texture);
+	if (!pTexObj)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+
+	texture = pTexObj->name;
+    }
+
+    (*cctx->FramebufferTexture3DEXT) (target,
+				      attachment,
+				      textarget,
+				      texture,
+				      level,
+				      zoffset);
+}
+static void
+xglNoOpFramebufferRenderbufferEXT (GLenum target,
+				   GLenum attachment,
 				   GLenum renderbuffertarget,
 				   GLuint renderbuffer) {}
+static void
+xglFramebufferRenderbufferEXT (GLenum target,
+			       GLenum attachment,
+			       GLenum renderbuffertarget,
+			       GLuint renderbuffer)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    if (renderbuffer)
+    {
+	renderbuffer = (GLuint)
+	    xglHashLookup (cctx->shared->renderbufferObjects,
+			   renderbuffer);
+	if (!renderbuffer)
+	{
+	    xglRecordError (GL_INVALID_OPERATION);
+	    return;
+	}
+    }
+
+    (*cctx->FramebufferRenderbufferEXT) (target,
+					 attachment,
+					 renderbuffertarget,
+					 renderbuffer);
+}
 static void
 xglNoOpGetFramebufferAttachmentParameterivEXT (GLenum target,
 					       GLenum attachment,
 					       GLenum pname,
 					       GLint *params) {}
 static void
+xglGetFramebufferAttachmentParameterivEXT (GLenum target,
+					   GLenum attachment,
+					   GLenum pname,
+					   GLint *params)
+{
+    if (!cctx->framebuffer)
+    {
+	xglRecordError (GL_INVALID_OPERATION);
+	return;
+    }
+
+    (*cctx->GetFramebufferAttachmentParameterivEXT) (target,
+						     attachment,
+						     pname,
+						     params);
+
+    if (pname == GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT)
+    {
+	GLint type;
+
+	pname = GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT;
+
+	(*cctx->GetFramebufferAttachmentParameterivEXT) (target,
+							 attachment,
+							 pname,
+							 &type);
+
+	switch (type) {
+	case GL_RENDERBUFFER_EXT:
+	    *params = (GLint) xglHashLookup (cctx->shared->renderbufferObjects,
+					     *params);
+	    break;
+	case GL_TEXTURE:
+	    *params = (GLint) xglHashLookup (cctx->shared->texObjects,
+					     *params);
+	    break;
+	}
+    }
+}
+static void
 xglNoOpGenerateMipmapEXT (GLenum target) {}
+
+static void
+xglGenerateMipmapEXT (GLenum target)
+{
+    xglTexObjPtr pTexObj = NULL;
+
+    switch (target) {
+    case GL_TEXTURE_2D:
+	pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
+    default:
+	break;
+    }
+
+    if (pTexObj)
+    {
+	if (pTexObj->pPixmap)
+	{
+	    xglGLContextPtr pContext = cctx;
+
+	    if (xglSyncSurface (&pTexObj->pPixmap->drawable))
+	    {
+		if (pContext != cctx)
+		{
+		    XGL_SCREEN_PRIV (pContext->pDrawBuffer->pGC->pScreen);
+
+		    glitz_drawable_finish (pScreenPriv->drawable);
+
+		    xglSetCurrentContext (pContext);
+		}
+
+		glitz_context_bind_texture (cctx->context, pTexObj->object);
+	    }
+	    else
+		pTexObj = NULL;
+	}
+
+	if (pTexObj)
+	    (*cctx->GenerateMipmapEXT) (target);
+    }
+}
 
 static struct _glapi_table __glNativeRenderTable = {
     xglNewList,
@@ -3652,44 +4315,166 @@ static struct _glapi_table __glNativeRenderTable = {
     xglNoOpMultiTexCoord4ivARB,
     0, /* glMultiTexCoord4sARB */
     xglNoOpMultiTexCoord4svARB,
+    0, /* glAttachShader */
+    0, /* glCreateProgram */
+    0, /* glCreateShader */
+    0, /* glDeleteProgram */
+    0, /* glDeleteShader */
+    0, /* glDetachShader */
+    0, /* glGetAttachedShaders */
+    0, /* glGetProgramInfoLog */
+    0, /* glGetProgramiv */
+    0, /* glGetShaderInfoLog */
+    0, /* glGetShaderiv */
+    0, /* glIsProgram */
+    0, /* glIsShader */
+    0, /* glStencilFuncSeparate */
+    0, /* glStencilMaskSeparate */
+    0, /* glStencilOpSeparate */
+    0, /* glUniformMatrix2x3fv */
+    0, /* glUniformMatrix2x4fv */
+    0, /* glUniformMatrix3x2fv */
+    0, /* glUniformMatrix3x4fv */
+    0, /* glUniformMatrix4x2fv */
+    0, /* glUniformMatrix4x3fv */
     0, /* glLoadTransposeMatrixfARB */
     0, /* glLoadTransposeMatrixdARB */
     0, /* glMultTransposeMatrixfARB */
     0, /* glMultTransposeMatrixdARB */
     xglNoOpSampleCoverageARB,
+    0, /* glCompressedTexImage1DARB */
+    0, /* glCompressedTexImage2DARB */
+    0, /* glCompressedTexImage3DARB */
+    0, /* glCompressedTexSubImage1DARB */
+    0, /* glCompressedTexSubImage2DARB */
+    0, /* glCompressedTexSubImage3DARB */
+    0, /* glGetCompressedTexImageARB */
+    0, /* glDisableVertexAttribArrayARB */
+    0, /* glEnableVertexAttribArrayARB */
+    xglNoOpGetProgramEnvParameterdvARB,
+    xglNoOpGetProgramEnvParameterfvARB,
+    xglNoOpGetProgramLocalParameterdvARB,
+    xglNoOpGetProgramLocalParameterfvARB,
+    xglNoOpGetProgramStringARB,
+    xglNoOpGetProgramivARB,
+    xglNoOpGetVertexAttribdvARB,
+    xglNoOpGetVertexAttribfvARB,
+    xglNoOpGetVertexAttribivARB,
+    0, /* glProgramEnvParameter4dARB */
+    xglNoOpProgramEnvParameter4dvARB,
+    0, /* glProgramEnvParameter4fARB */
+    xglNoOpProgramEnvParameter4fvARB,
+    0, /* glProgramLocalParameter4dARB */
+    xglNoOpProgramLocalParameter4dvARB,
+    0, /* glProgramLocalParameter4fARB */
+    xglNoOpProgramLocalParameter4fvARB,
+    xglNoOpProgramStringARB,
+    0, /* glVertexAttrib1dARB */
+    xglNoOpVertexAttrib1dvARB,
+    0, /* glVertexAttrib1fARB */
+    xglNoOpVertexAttrib1fvARB,
+    0, /* glVertexAttrib1sARB */
+    xglNoOpVertexAttrib1svARB,
+    0, /* glVertexAttrib2dARB */
+    xglNoOpVertexAttrib2dvARB,
+    0, /* glVertexAttrib2fARB */
+    xglNoOpVertexAttrib2fvARB,
+    0, /* glVertexAttrib2sARB */
+    xglNoOpVertexAttrib2svARB,
+    0, /* glVertexAttrib3dARB */
+    xglNoOpVertexAttrib3dvARB,
+    0, /* glVertexAttrib3fARB */
+    xglNoOpVertexAttrib3fvARB,
+    0, /* glVertexAttrib3sARB */
+    xglNoOpVertexAttrib3svARB,
+    xglNoOpVertexAttrib4NbvARB,
+    xglNoOpVertexAttrib4NivARB,
+    xglNoOpVertexAttrib4NsvARB,
+    0, /* glVertexAttrib4NubARB */
+    xglNoOpVertexAttrib4NubvARB,
+    xglNoOpVertexAttrib4NuivARB,
+    xglNoOpVertexAttrib4NusvARB,
+    xglNoOpVertexAttrib4bvARB,
+    0, /* glVertexAttrib4dARB */
+    xglNoOpVertexAttrib4dvARB,
+    0, /* glVertexAttrib4fARB */
+    xglNoOpVertexAttrib4fvARB,
+    xglNoOpVertexAttrib4ivARB,
+    0, /* glVertexAttrib4sARB */
+    xglNoOpVertexAttrib4svARB,
+    xglNoOpVertexAttrib4ubvARB,
+    xglNoOpVertexAttrib4uivARB,
+    xglNoOpVertexAttrib4usvARB,
+    0, /* glVertexAttribPointerARB */
+    0, /* glBindBufferARB */
+    0, /* glBufferDataARB */
+    0, /* glBufferSubDataARB */
+    0, /* glDeleteBuffersARB */
+    0, /* glGenBuffersARB */
+    0, /* glGetBufferParameterivARB */
+    0, /* glGetBufferPointervARB */
+    0, /* glGetBufferSubDataARB */
+    0, /* glIsBufferARB */
+    0, /* glMapBufferARB */
+    0, /* glUnmapBufferARB */
+    0, /* glBeginQueryARB */
+    0, /* glDeleteQueriesARB */
+    0, /* glEndQueryARB */
+    0, /* glGenQueriesARB */
+    0, /* glGetQueryObjectivARB */
+    0, /* glGetQueryObjectuivARB */
+    0, /* glGetQueryivARB */
+    0, /* IsQueryARB */
+    0, /* glAttachObjectARB */
+    0, /* glCompileShaderARB */
+    0, /* CreateProgramObjectARB */
+    0, /* CreateShaderObjectARB */
+    0, /* glDeleteObjectARB */
+    0, /* glDetachObjectARB */
+    0, /* glGetActiveUniformARB */
+    0, /* glGetAttachedObjectsARB */
+    0, /* GetHandleARB */
+    0, /* glGetInfoLogARB */
+    0, /* glGetObjectParameterfvARB */
+    0, /* glGetObjectParameterivARB */
+    0, /* glGetShaderSourceARB */
+    0, /* GetUniformLocationARB */
+    0, /* glGetUniformfvARB */
+    0, /* glGetUniformivARB */
+    0, /* glLinkProgramARB */
+    0, /* glShaderSourceARB */
+    0, /* glUniform1fARB */
+    0, /* glUniform1fvARB */
+    0, /* glUniform1iARB */
+    0, /* glUniform1ivARB */
+    0, /* glUniform2fARB */
+    0, /* glUniform2fvARB */
+    0, /* glUniform2iARB */
+    0, /* glUniform2ivARB */
+    0, /* glUniform3fARB */
+    0, /* glUniform3fvARB */
+    0, /* glUniform3iARB */
+    0, /* glUniform3ivARB */
+    0, /* glUniform4fARB */
+    0, /* glUniform4fvARB */
+    0, /* glUniform4iARB */
+    0, /* glUniform4ivARB */
+    0, /* glUniformMatrix2fvARB */
+    0, /* glUniformMatrix3fvARB */
+    0, /* glUniformMatrix4fvARB */
+    0, /* glUseProgramObjectARB */
+    0, /* glValidateProgramARB */
+    0, /* glBindAttribLocationARB */
+    0, /* glGetActiveAttribARB */
+    0, /* GetAttribLocationARB */
     0, /* glDrawBuffersARB */
     0, /* glPolygonOffsetEXT */
-    0, /* glGetTexFilterFuncSGIS */
-    0, /* glTexFilterFuncSGIS */
-    0, /* glGetHistogramEXT */
-    0, /* glGetHistogramParameterfvEXT */
-    0, /* glGetHistogramParameterivEXT */
-    0, /* glGetMinmaxEXT */
-    0, /* glGetMinmaxParameterfvEXT */
-    0, /* glGetMinmaxParameterivEXT */
-    0, /* glGetConvolutionFilterEXT */
-    0, /* glGetConvolutionParameterfvEXT */
-    0, /* glGetConvolutionParameterivEXT */
-    0, /* glGetSeparableFilterEXT */
-    0, /* glGetColorTableSGI */
-    0, /* glGetColorTableParameterfvSGI */
-    0, /* glGetColorTableParameterivSGI */
-    0, /* glPixelTexGenSGIX */
-    0, /* glPixelTexGenParameteriSGIS */
-    0, /* glPixelTexGenParameterivSGIS */
+    0, /* glGetPixelTexGenParameterfvSGIS */
+    0, /* glGetPixelTexGenParameterivSGIS */
     0, /* glPixelTexGenParameterfSGIS */
     0, /* glPixelTexGenParameterfvSGIS */
-    0, /* glGetPixelTexGenParameterivSGIS */
-    0, /* glGetPixelTexGenParameterfvSGIS */
-    0, /* glTexImage4DSGIS */
-    0, /* glTexSubImage4DSGIS */
-    xglNoOpAreTexturesResidentEXT,
-    xglNoOpGenTexturesEXT,
-    xglNoOpIsTextureEXT,
-    0, /* glDetailTexFuncSGIS */
-    0, /* glGetDetailTexFuncSGIS */
-    0, /* glSharpenTexFuncSGIS */
-    0, /* glGetSharpenTexFuncSGIS */
+    0, /* glPixelTexGenParameteriSGIS */
+    0, /* glPixelTexGenParameterivSGIS */
     xglNoOpSampleMaskSGIS,
     xglNoOpSamplePatternSGIS,
     0, /* glColorPointerEXT */
@@ -3698,57 +4483,46 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glNormalPointerEXT */
     0, /* glTexCoordPointerEXT */
     0, /* glVertexPointerEXT */
-    0, /* glSpriteParameterfSGIX */
-    0, /* glSpriteParameterfvSGIX */
-    0, /* glSpriteParameteriSGIX */
-    0, /* glSpriteParameterivSGIX */
     xglNoOpPointParameterfEXT,
     xglNoOpPointParameterfvEXT,
-    0, /* glGetInstrumentsSGIX */
-    0, /* glInstrumentsBufferSGIX */
-    0, /* glPollInstrumentsSGIX */
-    0, /* glReadInstrumentsSGIX */
-    0, /* glStartInstrumentsSGIX */
-    0, /* glStopInstrumentsSGIX */
-    0, /* glFrameZoomSGIX */
-    0, /* glTagSampleBufferSGIX */
-    0, /* glReferencePlaneSGIX */
-    0, /* glFlushRasterSGIX */
-    0, /* glGetListParameterfvSGIX */
-    0, /* glGetListParameterivSGIX */
-    0, /* glListParameterfSGIX */
-    0, /* glListParameterfvSGIX */
-    0, /* glListParameteriSGIX */
-    0, /* glListParameterivSGIX */
-    0, /* glFragmentColorMaterialSGIX */
-    0, /* glFragmentLightfSGIX */
-    0, /* glFragmentLightfvSGIX */
-    0, /* glFragmentLightiSGIX */
-    0, /* glFragmentLightivSGIX */
-    0, /* glFragmentLightModelfSGIX */
-    0, /* glFragmentLightModelfvSGIX */
-    0, /* glFragmentLightModeliSGIX */
-    0, /* glFragmentLightModelivSGIX */
-    0, /* glFragmentMaterialfSGIX */
-    0, /* glFragmentMaterialfvSGIX */
-    0, /* glFragmentMaterialiSGIX */
-    0, /* glFragmentMaterialivSGIX */
-    0, /* glGetFragmentLightfvSGIX */
-    0, /* glGetFragmentLightivSGIX */
-    0, /* glGetFragmentMaterialfvSGIX */
-    0, /* glGetFragmentMaterialivSGIX */
-    0, /* glLightEnviSGIX */
-    0, /* glVertexWeightfEXT */
-    0, /* glVertexWeightfvEXT */
-    0, /* glVertexWeightPointerEXT */
+    0, /* glLockArraysEXT */
+    0, /* glUnlockArraysEXT */
+    0, /* glCullParameterdvEXT */
+    0, /* glCullParameterfvEXT */
+    0, /* glSecondaryColor3bEXT */
+    xglNoOpSecondaryColor3bvEXT,
+    0, /* glSecondaryColor3dEXT */
+    xglNoOpSecondaryColor3dvEXT,
+    0, /* glSecondaryColor3fEXT */
+    xglNoOpSecondaryColor3fvEXT,
+    0, /* glSecondaryColor3iEXT */
+    xglNoOpSecondaryColor3ivEXT,
+    0, /* glSecondaryColor3sEXT */
+    xglNoOpSecondaryColor3svEXT,
+    0, /* glSecondaryColor3ubEXT */
+    xglNoOpSecondaryColor3ubvEXT,
+    0, /* glSecondaryColor3uiEXT */
+    xglNoOpSecondaryColor3uivEXT,
+    0, /* glSecondaryColor3usEXT */
+    xglNoOpSecondaryColor3usvEXT,
+    xglNoOpSecondaryColorPointerEXT,
+    0, /* glMultiDrawArraysEXT */
+    0, /* glMultiDrawElementsEXT */
+    xglNoOpFogCoordPointerEXT,
+    0, /* glFogCoorddEXT */
+    xglNoOpFogCoorddvEXT,
+    0, /* glFogCoordfEXT */
+    xglNoOpFogCoordfvEXT,
+    0, /* glPixelTexGenSGIX */
+    xglNoOpBlendFuncSeparateEXT,
     0, /* glFlushVertexArrayRangeNV */
     0, /* glVertexArrayRangeNV */
-    0, /* glCombinerParameterfvNV */
-    0, /* glCombinerParameterfNV */
-    0, /* glCombinerParameterivNV */
-    0, /* glCombinerParameteriNV */
     0, /* glCombinerInputNV */
     0, /* glCombinerOutputNV */
+    0, /* glCombinerParameterfNV */
+    0, /* glCombinerParameterfvNV */
+    0, /* glCombinerParameteriNV */
+    0, /* glCombinerParameterivNV */
     0, /* glFinalCombinerInputNV */
     0, /* glGetCombinerInputParameterfvNV */
     0, /* glGetCombinerInputParameterivNV */
@@ -3767,8 +4541,8 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glWindowPos2svMESA */
     0, /* glWindowPos3dMESA */
     0, /* glWindowPos3dvMESA */
-    xglNoOpWindowPos3fMESA,
-    0, /* glWindowPos3fvMESA */
+    0, /* glWindowPos3fMESA */
+    xglNoOpWindowPos3fvMESA,
     0, /* glWindowPos3iMESA */
     0, /* glWindowPos3ivMESA */
     0, /* glWindowPos3sMESA */
@@ -3781,62 +4555,30 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glWindowPos4ivMESA */
     0, /* glWindowPos4sMESA */
     0, /* glWindowPos4svMESA */
-    xglNoOpBlendFuncSeparateEXT,
-    0, /* glIndexMaterialEXT */
-    0, /* glIndexFuncEXT */
-    0, /* glLockArraysEXT */
-    0, /* glUnlockArraysEXT */
-    0, /* glCullParameterdvEXT */
-    0, /* glCullParameterfvEXT */
-    0, /* glHintPGI */
-    0, /* glFogCoordfEXT */
-    xglNoOpFogCoordfvEXT,
-    0, /* glFogCoorddEXT */
-    xglNoOpFogCoorddvEXT,
-    xglNoOpFogCoordPointerEXT,
-    0, /* glGetColorTableEXT */
-    0, /* glGetColorTableParameterivEXT */
-    0, /* glGetColorTableParameterfvEXT */
-    0, /* glTbufferMask3DFX */
-    0, /* glCompressedTexImage3DARB */
-    0, /* glCompressedTexImage2DARB */
-    0, /* glCompressedTexImage1DARB */
-    0, /* glCompressedTexSubImage3DARB */
-    0, /* glCompressedTexSubImage2DARB */
-    0, /* glCompressedTexSubImage1DARB */
-    0, /* glGetCompressedTexImageARB */
-    0, /* glSecondaryColor3bEXT */
-    xglNoOpSecondaryColor3bvEXT,
-    0, /* glSecondaryColor3dEXT */
-    xglNoOpSecondaryColor3dvEXT,
-    0, /* glSecondaryColor3fEXT */
-    xglNoOpSecondaryColor3fvEXT,
-    0, /* glSecondaryColor3iEXT */
-    xglNoOpSecondaryColor3ivEXT,
-    0, /* glSecondaryColor3sEXT */
-    xglNoOpSecondaryColor3svEXT,
-    0, /* glSecondaryColor3ubEXT */
-    xglNoOpSecondaryColor3ubvEXT,
-    0, /* glSecondaryColor3uiEXT */
-    xglNoOpSecondaryColor3uivEXT,
-    0, /* glSecondaryColor3usEXT */
-    xglNoOpSecondaryColor3usvEXT,
-    xglNoOpSecondaryColorPointerEXT,
+    0, /* glMultiModeDrawArraysIBM */
+    0, /* glMultiModeDrawElementsIBM */
+    0, /* glDeleteFencesNV */
+    0, /* glFinishFenceNV */
+    0, /* glGenFencesNV */
+    0, /* glGetFenceivNV */
+    0, /* glIsFenceNV */
+    0, /* glSetFenceNV */
+    0, /* glTestFenceNV */
     0, /* glAreProgramsResidentNV */
-    0, /* glBindProgramNV */
-    0, /* glDeleteProgramsNV */
+    xglNoOpBindProgramARB,
+    xglNoOpDeleteProgramsARB,
     0, /* glExecuteProgramNV */
-    0, /* glGenProgramsNV */
+    xglNoOpGenProgramsARB,
     0, /* glGetProgramParameterdvNV */
     0, /* glGetProgramParameterfvNV */
-    0, /* glGetProgramivNV */
     0, /* glGetProgramStringNV */
+    0, /* glGetProgramivNV */
     0, /* glGetTrackMatrixivNV */
-    0, /* glGetVertexAttribdvARB */
-    0, /* glGetVertexAttribfvARB */
-    0, /* glGetVertexAttribivARB */
     0, /* glGetVertexAttribPointervNV */
-    0, /* glIsProgramNV */
+    0, /* glGetVertexAttribdvNV */
+    0, /* glGetVertexAttribfvNV */
+    0, /* glGetVertexAttribivNV */
+    xglNoOpIsProgramARB,
     0, /* glLoadProgramNV */
     0, /* glProgramParameter4dNV */
     0, /* glProgramParameter4dvNV */
@@ -3846,160 +4588,6 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glProgramParameters4fvNV */
     0, /* glRequestResidentProgramsNV */
     0, /* glTrackMatrixNV */
-    0, /* glVertexAttribPointerNV */
-    0, /* glVertexAttrib1dARB */
-    0, /* glVertexAttrib1dvARB */
-    0, /* glVertexAttrib1fARB */
-    0, /* glVertexAttrib1fvARB */
-    0, /* glVertexAttrib1sARB */
-    0, /* glVertexAttrib1svARB */
-    0, /* glVertexAttrib2dARB */
-    0, /* glVertexAttrib2dvARB */
-    0, /* glVertexAttrib2fARB */
-    0, /* glVertexAttrib2fvARB */
-    0, /* glVertexAttrib2sARB */
-    0, /* glVertexAttrib2svARB */
-    0, /* glVertexAttrib3dARB */
-    0, /* glVertexAttrib3dvARB */
-    0, /* glVertexAttrib3fARB */
-    0, /* glVertexAttrib3fvARB */
-    0, /* glVertexAttrib3sARB */
-    0, /* glVertexAttrib3svARB */
-    0, /* glVertexAttrib4dARB */
-    0, /* glVertexAttrib4dvARB */
-    0, /* glVertexAttrib4fARB */
-    0, /* glVertexAttrib4fvARB */
-    0, /* glVertexAttrib4sARB */
-    0, /* glVertexAttrib4svARB */
-    0, /* glVertexAttrib4NubARB */
-    0, /* glVertexAttrib4NubvARB */
-    0, /* glVertexAttribs1dvNV */
-    0, /* glVertexAttribs1fvNV */
-    0, /* glVertexAttribs1svNV */
-    0, /* glVertexAttribs2dvNV */
-    0, /* glVertexAttribs2fvNV */
-    0, /* glVertexAttribs2svNV */
-    0, /* glVertexAttribs3dvNV */
-    0, /* glVertexAttribs3fvNV */
-    0, /* glVertexAttribs3svNV */
-    0, /* glVertexAttribs4dvNV */
-    0, /* glVertexAttribs4fvNV */
-    0, /* glVertexAttribs4svNV */
-    0, /* glVertexAttribs4ubvNV */
-    xglNoOpPointParameteriNV,
-    xglNoOpPointParameterivNV,
-    0, /* glMultiDrawArraysEXT */
-    0, /* glMultiDrawElementsEXT */
-    xglNoOpActiveStencilFaceEXT,
-    0, /* glDeleteFencesNV */
-    0, /* glGenFencesNV */
-    0, /* glIsFenceNV */
-    0, /* glTestFenceNV */
-    0, /* glGetFenceivNV */
-    0, /* glFinishFenceNV */
-    0, /* glSetFenceNV */
-    0, /* glVertexAttrib4bvARB */
-    0, /* glVertexAttrib4ivARB */
-    0, /* glVertexAttrib4ubvARB */
-    0, /* glVertexAttrib4usvARB */
-    0, /* glVertexAttrib4uivARB */
-    0, /* glVertexAttrib4NbvARB */
-    0, /* glVertexAttrib4NsvARB */
-    0, /* glVertexAttrib4NivARB */
-    0, /* glVertexAttrib4NusvARB */
-    0, /* glVertexAttrib4NuivARB */
-    0, /* glVertexAttribPointerARB */
-    0, /* glEnableVertexAttribArrayARB */
-    0, /* glDisableVertexAttribArrayARB */
-    0, /* glProgramStringARB */
-    0, /* glProgramEnvParameter4dARB */
-    0, /* glProgramEnvParameter4dvARB */
-    0, /* glProgramEnvParameter4fARB */
-    0, /* glProgramEnvParameter4fvARB */
-    0, /* glProgramLocalParameter4dARB */
-    0, /* glProgramLocalParameter4dvARB */
-    0, /* glProgramLocalParameter4fARB */
-    0, /* glProgramLocalParameter4fvARB */
-    0, /* glGetProgramEnvParameterdvARB */
-    0, /* glGetProgramEnvParameterfvARB */
-    0, /* glGetProgramLocalParameterdvARB */
-    0, /* glGetProgramLocalParameterfvARB */
-    0, /* glGetProgramivARB */
-    0, /* glGetProgramStringARB */
-    0, /* glProgramNamedParameter4fNV */
-    0, /* glProgramNamedParameter4dNV */
-    0, /* glProgramNamedParameter4fvNV */
-    0, /* glProgramNamedParameter4dvNV */
-    0, /* glGetProgramNamedParameterfvNV */
-    0, /* glGetProgramNamedParameterdvNV */
-    0, /* glBindBufferARB */
-    0, /* glBufferDataARB */
-    0, /* glBufferSubDataARB */
-    0, /* glDeleteBuffersARB */
-    0, /* glGenBuffersARB */
-    0, /* glGetBufferParameterivARB */
-    0, /* glGetBufferPointervARB */
-    0, /* glGetBufferSubDataARB */
-    0, /* glIsBufferARB */
-    0, /* glMapBufferARB */
-    0, /* glUnmapBufferARB */
-    0, /* glDepthBoundsEXT */
-    0, /* glGenQueriesARB */
-    0, /* glDeleteQueriesARB */
-    0, /* glIsQueryARB */
-    0, /* glBeginQueryARB */
-    0, /* glEndQueryARB */
-    0, /* glGetQueryivARB */
-    0, /* glGetQueryObjectivARB */
-    0, /* glGetQueryObjectuivARB */
-    0, /* glMultiModeDrawArraysIBM */
-    0, /* glMultiModeDrawElementsIBM */
-    0, /* glBlendEquationSeparateEXT */
-    0, /* glDeleteObjectARB */
-    0, /* glGetHandleARB */
-    0, /* glDetachObjectARB */
-    0, /* glCreateShaderObjectARB */
-    0, /* glShaderSourceARB */
-    0, /* glCompileShaderARB */
-    0, /* glCreateProgramObjectARB */
-    0, /* glAttachObjectARB */
-    0, /* glLinkProgramARB */
-    0, /* glUseProgramObjectARB */
-    0, /* glValidateProgramARB */
-    0, /* glUniform1fARB */
-    0, /* glUniform2fARB */
-    0, /* glUniform3fARB */
-    0, /* glUniform4fARB */
-    0, /* glUniform1iARB */
-    0, /* glUniform2iARB */
-    0, /* glUniform3iARB */
-    0, /* glUniform4iARB */
-    0, /* glUniform1fvARB */
-    0, /* glUniform2fvARB */
-    0, /* glUniform3fvARB */
-    0, /* glUniform4fvARB */
-    0, /* glUniform1ivARB */
-    0, /* glUniform2ivARB */
-    0, /* glUniform3ivARB */
-    0, /* glUniform4ivARB */
-    0, /* glUniformMatrix2fvARB */
-    0, /* glUniformMatrix3fvARB */
-    0, /* glUniformMatrix4fvARB */
-    0, /* glGetObjectParameterfvARB */
-    0, /* glGetObjectParameterivARB */
-    0, /* glGetInfoLogARB */
-    0, /* glGetAttachedObjectsARB */
-    0, /* glGetUniformLocationARB */
-    0, /* glGetActiveUniformARB */
-    0, /* glGetUniformfvARB */
-    0, /* glGetUniformivARB */
-    0, /* glGetShaderSourceARB */
-    0, /* glBindAttribLocationARB */
-    0, /* glGetActiveAttribARB */
-    0, /* glGetAttribLocationARB */
-    0, /* glGetVertexAttribdvNV */
-    0, /* glGetVertexAttribfvNV */
-    0, /* glGetVertexAttribivNV */
     0, /* glVertexAttrib1dNV */
     0, /* glVertexAttrib1dvNV */
     0, /* glVertexAttrib1fNV */
@@ -4026,40 +4614,69 @@ static struct _glapi_table __glNativeRenderTable = {
     0, /* glVertexAttrib4svNV */
     0, /* glVertexAttrib4ubNV */
     0, /* glVertexAttrib4ubvNV */
-    0, /* glGenFragmentShadersATI */
-    0, /* glBindFragmentShaderATI */
-    0, /* glDeleteFragmentShaderATI */
-    0, /* glBeginFragmentShaderATI */
-    0, /* glEndFragmentShaderATI */
-    0, /* glPassTexCoordATI */
-    0, /* glSampleMapATI */
-    0, /* glColorFragmentOp1ATI */
-    0, /* glColorFragmentOp2ATI */
-    0, /* glColorFragmentOp3ATI */
+    0, /* glVertexAttribPointerNV */
+    0, /* glVertexAttribs1dvNV */
+    0, /* glVertexAttribs1fvNV */
+    0, /* glVertexAttribs1svNV */
+    0, /* glVertexAttribs2dvNV */
+    0, /* glVertexAttribs2fvNV */
+    0, /* glVertexAttribs2svNV */
+    0, /* glVertexAttribs3dvNV */
+    0, /* glVertexAttribs3fvNV */
+    0, /* glVertexAttribs3svNV */
+    0, /* glVertexAttribs4dvNV */
+    0, /* glVertexAttribs4fvNV */
+    0, /* glVertexAttribs4svNV */
+    0, /* glVertexAttribs4ubvNV */
     0, /* glAlphaFragmentOp1ATI */
     0, /* glAlphaFragmentOp2ATI */
     0, /* glAlphaFragmentOp3ATI */
+    0, /* glBeginFragmentShaderATI */
+    0, /* glBindFragmentShaderATI */
+    0, /* glColorFragmentOp1ATI */
+    0, /* glColorFragmentOp2ATI */
+    0, /* glColorFragmentOp3ATI */
+    0, /* glDeleteFragmentShaderATI */
+    0, /* glEndFragmentShaderATI */
+    0, /* glGenFragmentShadersATI */
+    0, /* glPassTexCoordATI */
+    0, /* glSampleMapATI */
     0, /* glSetFragmentShaderConstantATI */
-    xglNoOpIsRenderbufferEXT,
-    xglNoOpBindRenderbufferEXT,
-    xglNoOpDeleteRenderbuffersEXT,
-    xglNoOpGenRenderbuffersEXT,
-    xglNoOpRenderbufferStorageEXT,
-    xglNoOpGetRenderbufferParameterivEXT,
-    xglNoOpIsFramebufferEXT,
+    xglNoOpPointParameteriNV,
+    xglNoOpPointParameterivNV,
+    xglNoOpActiveStencilFaceEXT,
+    0, /* glBindVertexArrayAPPLE */
+    0, /* glDeleteVertexArraysAPPLE */
+    0, /* glGenVertexArraysAPPLE */
+    0, /* glIsVertexArrayAPPLE */
+    0, /* glGetProgramNamedParameterdvNV */
+    0, /* glGetProgramNamedParameterfvNV */
+    0, /* glProgramNamedParameter4dNV */
+    0, /* glProgramNamedParameter4fNV */
+    0, /* glProgramNamedParameter4dvNV */
+    0, /* glProgramNamedParameter4fvNV */
+    0, /* glDepthBoundsEXT */
+    0, /* glBlendEquationSeparateEXT */
     xglNoOpBindFramebufferEXT,
-    xglNoOpDeleteFramebuffersEXT,
-    xglNoOpGenFramebuffersEXT,
+    xglNoOpBindRenderbufferEXT,
     xglNoOpCheckFramebufferStatusEXT,
+    xglNoOpDeleteFramebuffersEXT,
+    xglNoOpDeleteRenderbuffersEXT,
+    xglNoOpFramebufferRenderbufferEXT,
     xglNoOpFramebufferTexture1DEXT,
     xglNoOpFramebufferTexture2DEXT,
     xglNoOpFramebufferTexture3DEXT,
-    xglNoOpFramebufferRenderbufferEXT,
-    xglNoOpGetFramebufferAttachmentParameterivEXT,
+    xglNoOpGenFramebuffersEXT,
+    xglNoOpGenRenderbuffersEXT,
     xglNoOpGenerateMipmapEXT,
-    0, /* glStencilFuncSeparate */
-    0, /* glStencilOpSeparate */
-    0, /* glStencilMaskSeparate */
+    xglNoOpGetFramebufferAttachmentParameterivEXT,
+    xglNoOpGetRenderbufferParameterivEXT,
+    xglNoOpIsFramebufferEXT,
+    xglNoOpIsRenderbufferEXT,
+    xglNoOpRenderbufferStorageEXT,
+    0, /* glBlitFramebufferEXT */
+    0, /* glProgramEnvParameters4fvEXT */
+    0, /* glProgramLocalParameters4fvEXT */
     0, /* glGetQueryObjecti64vEXT */
     0  /* glGetQueryObjectui64vEXT */
 };
@@ -4163,14 +4780,6 @@ xglInitExtensions (xglGLContextPtr pContext)
 					    "glSampleCoverageARB");
     }
 
-    if (strstr (extensions, "GL_EXT_texture_object"))
-    {
-	pContext->glRenderTable.AreTexturesResidentEXT =
-	    xglAreTexturesResident;
-	pContext->glRenderTable.GenTexturesEXT = xglGenTextures;
-	pContext->glRenderTable.IsTextureEXT = xglIsTexture;
-    }
-
     if (strstr (extensions, "GL_SGIS_multisample"))
     {
 	pContext->glRenderTable.SampleMaskSGIS =
@@ -4195,14 +4804,23 @@ xglInitExtensions (xglGLContextPtr pContext)
 					    "glPointParameterfvEXT");
     }
 
-    if (strstr (extensions, "GL_MESA_window_pos"))
+    if (strstr (extensions, "GL_ARB_window_pos"))
+    {
+	pContext->WindowPos3fMESA =
+	    (PFNGLWINDOWPOS3FMESAPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glWindowPos3fARB");
+
+	pContext->glRenderTable.WindowPos3fvMESA = xglWindowPos3fvMESA;
+    }
+    else if (strstr (extensions, "GL_MESA_window_pos"))
     {
 	pContext->WindowPos3fMESA =
 	    (PFNGLWINDOWPOS3FMESAPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glWindowPos3fMESA");
 
-	pContext->glRenderTable.WindowPos3fMESA = xglWindowPos3fMESA;
+	pContext->glRenderTable.WindowPos3fvMESA = xglWindowPos3fvMESA;
     }
 
     if (strstr (extensions, "GL_EXT_blend_func_separate"))
@@ -4289,21 +4907,194 @@ xglInitExtensions (xglGLContextPtr pContext)
 					    "glActiveStencilFaceEXT");
     }
 
+    if (strstr (extensions, "GL_ARB_vertex_program"))
+    {
+	pContext->BindProgramARB =
+	    (PFNGLBINDPROGRAMARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glBindProgramARB");
+	pContext->DeleteProgramsARB =
+	    (PFNGLDELETEPROGRAMSARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glDeleteProgramsARB");
+	pContext->GenProgramsARB =
+	    (PFNGLGENPROGRAMSARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGenProgramsARB");
+	pContext->glRenderTable.GetProgramivARB =
+	    (PFNGLGETPROGRAMIVPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramivARB");
+	pContext->glRenderTable.GetVertexAttribdvARB =
+	    (PFNGLGETVERTEXATTRIBDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribdvARB");
+	pContext->glRenderTable.GetVertexAttribfvARB =
+	    (PFNGLGETVERTEXATTRIBFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribfvARB");
+	pContext->glRenderTable.GetVertexAttribivARB =
+	    (PFNGLGETVERTEXATTRIBIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetVertexAttribivARB");
+	pContext->IsProgramARB =
+	    (PFNGLISPROGRAMARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glIsProgramARB");
+	pContext->glRenderTable.ProgramEnvParameter4fvARB =
+	    (PFNGLPROGRAMENVPARAMETER4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramEnvParameter4fvARB");
+	pContext->glRenderTable.ProgramEnvParameter4dvARB =
+	    (PFNGLPROGRAMENVPARAMETER4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramEnvParameter4dvARB");
+	pContext->glRenderTable.VertexAttrib1svARB =
+	    (PFNGLVERTEXATTRIB1SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1svARB");
+	pContext->glRenderTable.VertexAttrib2svARB =
+	    (PFNGLVERTEXATTRIB2SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2svARB");
+	pContext->glRenderTable.VertexAttrib3svARB =
+	    (PFNGLVERTEXATTRIB3SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3svARB");
+	pContext->glRenderTable.VertexAttrib4svARB =
+	    (PFNGLVERTEXATTRIB4SVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4svARB");
+	pContext->glRenderTable.VertexAttrib1fvARB =
+	    (PFNGLVERTEXATTRIB1FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1fvARB");
+	pContext->glRenderTable.VertexAttrib2fvARB =
+	    (PFNGLVERTEXATTRIB2FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2fvARB");
+	pContext->glRenderTable.VertexAttrib3fvARB =
+	    (PFNGLVERTEXATTRIB3FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3fvARB");
+	pContext->glRenderTable.VertexAttrib4fvARB =
+	    (PFNGLVERTEXATTRIB4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4fvARB");
+	pContext->glRenderTable.VertexAttrib1dvARB =
+	    (PFNGLVERTEXATTRIB1DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib1dvARB");
+	pContext->glRenderTable.VertexAttrib2dvARB =
+	    (PFNGLVERTEXATTRIB2DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib2dvARB");
+	pContext->glRenderTable.VertexAttrib3dvARB =
+	    (PFNGLVERTEXATTRIB3DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib3dvARB");
+	pContext->glRenderTable.VertexAttrib4dvARB =
+	    (PFNGLVERTEXATTRIB4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4dvARB");
+	pContext->glRenderTable.VertexAttrib4NubvARB =
+	    (PFNGLVERTEXATTRIB4NUBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NubvARB");
+	pContext->glRenderTable.ProgramLocalParameter4fvARB =
+	    (PFNGLPROGRAMLOCALPARAMETER4FVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramLocalParameter4fvARB");
+	pContext->glRenderTable.ProgramLocalParameter4dvARB =
+	    (PFNGLPROGRAMLOCALPARAMETER4DVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramLocalParameter4dvARB");
+	pContext->glRenderTable.GetProgramEnvParameterdvARB =
+	    (PFNGLGETPROGRAMENVPARAMETERDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramEnvParameterdvARB");
+	pContext->glRenderTable.GetProgramEnvParameterfvARB =
+	    (PFNGLGETPROGRAMENVPARAMETERFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramEnvParameterfvARB");
+	pContext->glRenderTable.GetProgramLocalParameterdvARB =
+	    (PFNGLGETPROGRAMLOCALPARAMETERDVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramLocalParameterdvARB");
+	pContext->glRenderTable.GetProgramLocalParameterfvARB =
+	    (PFNGLGETPROGRAMLOCALPARAMETERFVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramLocalParameterfvARB");
+	pContext->glRenderTable.ProgramStringARB =
+	    (PFNGLPROGRAMSTRINGARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glProgramStringARB");
+	pContext->glRenderTable.GetProgramStringARB =
+	    (PFNGLGETPROGRAMSTRINGARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glGetProgramStringARB");
+	pContext->glRenderTable.VertexAttrib4bvARB =
+	    (PFNGLVERTEXATTRIB4BVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4bvARB");
+	pContext->glRenderTable.VertexAttrib4ivARB =
+	    (PFNGLVERTEXATTRIB4IVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4ivARB");
+	pContext->glRenderTable.VertexAttrib4ubvARB =
+	    (PFNGLVERTEXATTRIB4UBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4ubvARB");
+	pContext->glRenderTable.VertexAttrib4usvARB =
+	    (PFNGLVERTEXATTRIB4USVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4usvARB");
+	pContext->glRenderTable.VertexAttrib4uivARB =
+	    (PFNGLVERTEXATTRIB4UIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4uivARB");
+	pContext->glRenderTable.VertexAttrib4NbvARB =
+	    (PFNGLVERTEXATTRIB4NBVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NbvARB");
+	pContext->glRenderTable.VertexAttrib4NsvARB =
+	    (PFNGLVERTEXATTRIB4NSVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NsvARB");
+	pContext->glRenderTable.VertexAttrib4NivARB =
+	    (PFNGLVERTEXATTRIB4NIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NivARB");
+	pContext->glRenderTable.VertexAttrib4NusvARB =
+	    (PFNGLVERTEXATTRIB4NUSVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NusvARB");
+	pContext->glRenderTable.VertexAttrib4NuivARB =
+	    (PFNGLVERTEXATTRIB4NUIVARBPROC)
+	    glitz_context_get_proc_address (pContext->context,
+					    "glVertexAttrib4NuivARB");
+
+	pContext->glRenderTable.IsProgramNV = xglIsProgramARB;
+	pContext->glRenderTable.BindProgramNV = xglBindProgramARB;
+	pContext->glRenderTable.DeleteProgramsNV = xglDeleteProgramsARB;
+	pContext->glRenderTable.GenProgramsNV = xglGenProgramsARB;
+    }
+
     if (strstr (extensions, "GL_EXT_framebuffer_object"))
     {
-	pContext->glRenderTable.IsRenderbufferEXT =
+	pContext->IsRenderbufferEXT =
 	    (PFNGLISRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glIsRenderbufferEXT");
-	pContext->glRenderTable.BindRenderbufferEXT =
+	pContext->BindRenderbufferEXT =
 	    (PFNGLBINDRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glBindRenderbufferEXT");
-	pContext->glRenderTable.DeleteRenderbuffersEXT =
+	pContext->DeleteRenderbuffersEXT =
 	    (PFNGLDELETERENDERBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glDeleteRenderbuffersEXT");
-	pContext->glRenderTable.GenRenderbuffersEXT =
+	pContext->GenRenderbuffersEXT =
 	    (PFNGLGENRENDERBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenRenderbuffersEXT");
@@ -4315,19 +5106,19 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    (PFNGLGETRENDERBUFFERPARAMETERIVEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGetRenderbufferParameterivEXT");
-	pContext->glRenderTable.IsFramebufferEXT =
+	pContext->IsFramebufferEXT =
 	    (PFNGLISFRAMEBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glIsFramebufferEXT");
-	pContext->glRenderTable.BindFramebufferEXT =
+	pContext->BindFramebufferEXT =
 	    (PFNGLBINDFRAMEBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glBindFramebufferEXT");
-	pContext->glRenderTable.DeleteFramebuffersEXT =
+	pContext->DeleteFramebuffersEXT =
 	    (PFNGLDELETEFRAMEBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glDeleteFramebuffersEXT");
-	pContext->glRenderTable.GenFramebuffersEXT =
+	pContext->GenFramebuffersEXT =
 	    (PFNGLGENFRAMEBUFFERSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenFramebuffersEXT");
@@ -4335,292 +5126,59 @@ xglInitExtensions (xglGLContextPtr pContext)
 	    (PFNGLCHECKFRAMEBUFFERSTATUSEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glCheckFramebufferStatusEXT");
-	pContext->glRenderTable.FramebufferTexture1DEXT =
+	pContext->FramebufferTexture1DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE1DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture1DEXT");
-	pContext->glRenderTable.FramebufferTexture2DEXT =
+	pContext->FramebufferTexture2DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE2DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture2DEXT");
-	pContext->glRenderTable.FramebufferTexture3DEXT =
+	pContext->FramebufferTexture3DEXT =
 	    (PFNGLFRAMEBUFFERTEXTURE3DEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferTexture3DEXT");
-	pContext->glRenderTable.FramebufferRenderbufferEXT =
+	pContext->FramebufferRenderbufferEXT =
 	    (PFNGLFRAMEBUFFERRENDERBUFFEREXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glFramebufferRenderbufferEXT");
-	pContext->glRenderTable.GetFramebufferAttachmentParameterivEXT =
+	pContext->GetFramebufferAttachmentParameterivEXT =
 	    (PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGetFramebufferAttachment"
 					    "ParameterivEXT");
-	pContext->glRenderTable.GenerateMipmapEXT =
+	pContext->GenerateMipmapEXT =
 	    (PFNGLGENERATEMIPMAPEXTPROC)
 	    glitz_context_get_proc_address (pContext->context,
 					    "glGenerateMipmapEXT");
+
+	pContext->glRenderTable.IsRenderbufferEXT = xglIsRenderbufferEXT;
+	pContext->glRenderTable.BindRenderbufferEXT = xglBindRenderbufferEXT;
+	pContext->glRenderTable.DeleteRenderbuffersEXT =
+	    xglDeleteRenderbuffersEXT;
+	pContext->glRenderTable.GenRenderbuffersEXT = xglGenRenderbuffersEXT;
+	pContext->glRenderTable.IsFramebufferEXT = xglIsFramebufferEXT;
+	pContext->glRenderTable.BindFramebufferEXT = xglBindFramebufferEXT;
+	pContext->glRenderTable.DeleteFramebuffersEXT = xglDeleteFramebuffersEXT;
+	pContext->glRenderTable.GenFramebuffersEXT = xglGenFramebuffersEXT;
+	pContext->glRenderTable.FramebufferTexture1DEXT =
+	    xglFramebufferTexture1DEXT;
+	pContext->glRenderTable.FramebufferTexture2DEXT =
+	    xglFramebufferTexture2DEXT;
+	pContext->glRenderTable.FramebufferTexture3DEXT =
+	    xglFramebufferTexture3DEXT;
+	pContext->glRenderTable.FramebufferRenderbufferEXT =
+	    xglFramebufferRenderbufferEXT;
+	pContext->glRenderTable.GetFramebufferAttachmentParameterivEXT =
+	    xglGetFramebufferAttachmentParameterivEXT;
+	pContext->glRenderTable.GenerateMipmapEXT = xglGenerateMipmapEXT;
     }
-}
-
-static void
-xglSetCurrentContext (xglGLContextPtr pContext)
-{
-    cctx = pContext;
-
-    glitz_context_make_current (cctx->context, cctx->pDrawBuffer->drawable);
-
-    GlxSetRenderTables (&cctx->glRenderTable);
-}
-
-static void
-xglFreeContext (xglGLContextPtr pContext)
-{
-    int i;
-
-    pContext->refcnt--;
-    if (pContext->shared == pContext)
-	pContext->refcnt--;
-
-    if (pContext->refcnt)
-	return;
-
-    if (pContext->shared != pContext)
-	xglFreeContext (pContext->shared);
-
-    if (pContext->texObjects)
-    {
-	xglTexObjPtr pTexObj;
-	GLuint	     key;
-
-	do {
-	    key = xglHashFirstEntry (pContext->texObjects);
-	    if (key)
-	    {
-		pTexObj = (xglTexObjPtr) xglHashLookup (pContext->texObjects,
-							key);
-		if (pTexObj)
-		    xglUnrefTexObj (pTexObj);
-
-		xglHashRemove (pContext->texObjects, key);
-	    }
-	} while (key);
-
-	xglDeleteHashTable (pContext->texObjects);
-    }
-
-    if (pContext->displayLists)
-    {
-	xglDisplayListPtr pDisplayList;
-	GLuint		  key;
-
-	do {
-	    key = xglHashFirstEntry (pContext->displayLists);
-	    if (key)
-	    {
-		pDisplayList = (xglDisplayListPtr)
-		    xglHashLookup (pContext->displayLists, key);
-		if (pDisplayList)
-		    xglDestroyList (pDisplayList);
-
-		xglHashRemove (pContext->displayLists, key);
-	    }
-	} while (key);
-
-	xglDeleteHashTable (pContext->displayLists);
-    }
-
-    for (i = 0; i < pContext->maxTexUnits; i++)
-    {
-	xglUnrefTexObj (pContext->attrib.texUnits[i].p1D);
-	xglUnrefTexObj (pContext->attrib.texUnits[i].p2D);
-	xglUnrefTexObj (pContext->attrib.texUnits[i].p3D);
-	xglUnrefTexObj (pContext->attrib.texUnits[i].pRect);
-	xglUnrefTexObj (pContext->attrib.texUnits[i].pCubeMap);
-    }
-
-    if (pContext->groupList)
-	glDeleteLists (pContext->groupList, 1);
-
-    if (pContext->context)
-	glitz_context_destroy (pContext->context);
-
-    if (pContext->versionString)
-	xfree (pContext->versionString);
-
-    xfree (pContext);
 }
 
 static GLboolean
-xglDestroyContext (__GLcontext *gc)
+xglResizeBuffer (xglGLBufferPtr pBufferPriv)
 {
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    xglFreeContext (pContext);
-
-    if (!iface)
-	return GL_TRUE;
-
-    return (*iface->exports.destroyContext) ((__GLcontext *) iface);
-}
-
-static GLboolean
-xglLoseCurrent (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    GlxFlushContextCache ();
-    GlxSetRenderTables (0);
-
-    if (!iface)
-	return GL_TRUE;
-
-    return (*iface->exports.loseCurrent) ((__GLcontext *) iface);
-}
-
-static GLboolean
-xglMakeCurrent (__GLcontext *gc)
-{
-    xglGLContextPtr	pContext = (xglGLContextPtr) gc;
-    __GLinterface	*iface = &pContext->iface;
-    __GLinterface	*mIface = pContext->mIface;
-    __GLdrawablePrivate *drawPriv = iface->imports.getDrawablePrivate (gc);
-    __GLdrawablePrivate *readPriv = iface->imports.getReadablePrivate (gc);
-    xglGLBufferPtr	pDrawBufferPriv = drawPriv->private;
-    xglGLBufferPtr	pReadBufferPriv = readPriv->private;
-    GLboolean		status = GL_TRUE;
-
-    if (pReadBufferPriv->pDrawable && pDrawBufferPriv->pDrawable)
-    {
-	XID values[2] = { ClipByChildren, 0 };
-	int status;
-
-#ifdef COMPOSITE
-	/* XXX: temporary hack for root window drawing using
-	   IncludeInferiors */
-	if (pDrawBufferPriv->pDrawable->type == DRAWABLE_WINDOW &&
-	    (!((WindowPtr) (pDrawBufferPriv->pDrawable))->parent))
-	    values[0] = IncludeInferiors;
-#endif
-
-	/* this happens if client previously used this context with a buffer
-	   not supported by the native GL stack */
-	if (!pContext->context)
-	    return GL_FALSE;
-
-	/* XXX: GLX_SGI_make_current_read disabled for now */
-	if (pDrawBufferPriv != pReadBufferPriv)
-	    return GL_FALSE;
-
-	if (!pReadBufferPriv->pGC)
-	    pReadBufferPriv->pGC =
-		CreateGC (pReadBufferPriv->pDrawable,
-			  GCSubwindowMode | GCGraphicsExposures, values,
-			  &status);
-
-	ValidateGC (pReadBufferPriv->pDrawable, pReadBufferPriv->pGC);
-
-	if (!pDrawBufferPriv->pGC)
-	    pDrawBufferPriv->pGC =
-		CreateGC (pDrawBufferPriv->pDrawable,
-			  GCSubwindowMode | GCGraphicsExposures, values,
-			  &status);
-
-	ValidateGC (pDrawBufferPriv->pDrawable, pDrawBufferPriv->pGC);
-
-	pReadBufferPriv->pPixmap = (PixmapPtr) 0;
-	pDrawBufferPriv->pPixmap = (PixmapPtr) 0;
-
-	pContext->pReadBuffer = pReadBufferPriv;
-	pContext->pDrawBuffer = pDrawBufferPriv;
-
-	pContext->readPriv = readPriv;
-	pContext->drawPriv = drawPriv;
-
-	/* from now on this context can only be used with native GL stack */
-	if (mIface)
-	{
-	    (*mIface->exports.destroyContext) ((__GLcontext *) mIface);
-	    pContext->mIface = NULL;
-	}
-    }
-    else
-    {
-	/* this happens if client previously used this context with a buffer
-	   supported by the native GL stack */
-	if (!mIface)
-	    return GL_FALSE;
-
-	drawPriv->private = pDrawBufferPriv->private;
-	readPriv->private = pReadBufferPriv->private;
-
-	status = (*mIface->exports.makeCurrent) ((__GLcontext *) mIface);
-
-	drawPriv->private = pDrawBufferPriv;
-	readPriv->private = pReadBufferPriv;
-
-	/* from now on this context can not be used with native GL stack */
-	if (status == GL_TRUE && pContext->context)
-	{
-	    glitz_context_destroy (pContext->context);
-	    pContext->context = NULL;
-	}
-    }
-
-    return status;
-}
-
-static GLboolean
-xglShareContext (__GLcontext *gc,
-		 __GLcontext *gcShare)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    xglGLContextPtr pContextShare = (xglGLContextPtr) gcShare;
-    __GLinterface   *iface = pContext->mIface;
-    __GLinterface   *ifaceShare = pContextShare->mIface;
-
-    if (!iface || !ifaceShare)
-	return GL_TRUE;
-
-    return (*iface->exports.shareContext) ((__GLcontext *) iface,
-					   (__GLcontext *) ifaceShare);
-}
-
-static GLboolean
-xglCopyContext (__GLcontext	  *dst,
-		const __GLcontext *src,
-		GLuint		  mask)
-{
-    xglGLContextPtr   pDst = (xglGLContextPtr) dst;
-    xglGLContextPtr   pSrc = (xglGLContextPtr) src;
-    const __GLcontext *srcCtx = (const __GLcontext *) pSrc->mIface;
-    __GLinterface     *dstIface = (__GLinterface *) pDst->mIface;
-    GLboolean	      status = GL_TRUE;
-
-    if (pSrc->context && pDst->context)
-	glitz_context_copy (pSrc->context, pDst->context, mask);
-    else
-	status = GL_FALSE;
-
-    if (dstIface && srcCtx)
-	status = (*dstIface->exports.copyContext) ((__GLcontext *) dstIface,
-						   srcCtx,
-						   mask);
-
-    return status;
-}
-
-static Bool
-xglResizeBuffer (__GLdrawablePrivate *glPriv,
-		 int		      x,
-		 int		      y,
-		 unsigned int	      width,
-		 unsigned int	      height)
-{
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
+    DrawablePtr pDrawable = pBufferPriv->pDrawable;
 
     XGL_SCREEN_PRIV (pDrawable->pScreen);
     XGL_DRAWABLE_PIXMAP (pBufferPriv->pDrawable);
@@ -4709,23 +5267,706 @@ xglResizeBuffer (__GLdrawablePrivate *glPriv,
 }
 
 static GLboolean
-xglForceCurrent (__GLcontext *gc)
+xglSwapBuffers (__GLXdrawable *drawable)
 {
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-    GLboolean	    status = GL_TRUE;
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr	   pDrawable = pBufferPriv->pDrawable;
+    GLboolean	   status = GL_TRUE;
+
+    if (pDrawable)
+    {
+	glitz_surface_t *surface;
+	int		xOff, yOff;
+	GCPtr		pGC = pBufferPriv->pGC;
+	BoxPtr		pBox = REGION_RECTS (pGC->pCompositeClip);
+	int		nBox = REGION_NUM_RECTS (pGC->pCompositeClip);
+
+	XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
+
+	glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
+					   xOff, yOff,
+					   (glitz_box_t *) pBox, nBox);
+
+	xglAddBitDamage (pDrawable, pGC->pCompositeClip);
+	DamageDamageRegion (pDrawable, pGC->pCompositeClip);
+	REGION_EMPTY (pGC->pScreen, &pBufferPriv->damage);
+    }
+    else if (mesaDrawable)
+    {
+	status = (*mesaDrawable->swapBuffers) (mesaDrawable);
+    }
+
+    return status;
+}
+
+static void
+xglCopySubBuffer (__GLXdrawable *drawable,
+		  int		x,
+		  int		y,
+		  int		width,
+		  int		height)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr	   pDrawable = pBufferPriv->pDrawable;
+
+    if (pDrawable)
+    {
+	glitz_surface_t *surface;
+	int		xOff, yOff;
+	GCPtr		pGC = pBufferPriv->pGC;
+	RegionRec	region;
+	BoxRec		box;
+
+	XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
+
+	box.x1 = pDrawable->x + x;
+	box.y2 = pDrawable->height - y;
+	box.x2 = box.x1 + width;
+	box.y1 = box.y2 - height;
+
+	REGION_INIT (pGC->pScreen, &region, &box, 1);
+	REGION_INTERSECT (pDrawable->pScreen, &region,
+			  pGC->pCompositeClip, &region);
+
+	glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
+					   xOff, yOff, (glitz_box_t *)
+					   REGION_RECTS (&region),
+					   REGION_NUM_RECTS (&region));
+
+	xglAddBitDamage (pDrawable, &region);
+	DamageDamageRegion (pDrawable, &region);
+	REGION_SUBTRACT (pGC->pScreen, &pBufferPriv->damage,
+			 &pBufferPriv->damage, &region);
+
+	REGION_UNINIT (pGC->pScreen, &region);
+    }
+    else if (mesaDrawable)
+    {
+	(*mesaDrawable->copySubBuffer) (mesaDrawable,
+					x, y, width, height);
+    }
+}
+
+static GLboolean
+xglResizeDrawable (__GLXdrawable *drawable)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable  *mesaDrawable = pBufferPriv->mesaDrawable;
+    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
+    GLboolean	   status = GL_TRUE;
+
+    if (pDrawable)
+    {
+	if (!xglResizeBuffer (pBufferPriv))
+	    return GL_FALSE;
+    }
+    else if (mesaDrawable)
+    {
+	status = (*mesaDrawable->resize) (mesaDrawable);
+    }
+
+    return status;
+}
+
+static int
+xglBindTexImage (__GLXcontext *context,
+		 int	      buffer,
+		 __GLXpixmap  *pixmap)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    if (cctx)
+    {
+	xglTexUnitPtr pTexUnit = &cctx->attrib.texUnits[cctx->activeTexUnit];
+	ScreenPtr     pScreen = pixmap->pDraw->pScreen;
+
+	XGL_SCREEN_PRIV (pScreen);
+	XGL_DRAWABLE_PIXMAP (pixmap->pDraw);
+
+	/* XXX: front left buffer is only supported so far */
+	if (buffer != GLX_FRONT_LEFT_EXT)
+	    return BadMatch;
+
+	if (xglCreatePixmapSurface (pPixmap))
+	{
+	    glitz_texture_object_t *texture;
+
+	    XGL_PIXMAP_PRIV (pPixmap);
+
+	    texture = glitz_texture_object_create (pPixmapPriv->surface);
+	    if (texture)
+	    {
+		xglTexObjPtr pTexObj;
+
+		switch (glitz_texture_object_get_target (texture)) {
+		case GLITZ_TEXTURE_TARGET_2D:
+		    pTexObj = pTexUnit->p2D;
+		    break;
+		case GLITZ_TEXTURE_TARGET_RECT:
+		    pTexObj = pTexUnit->pRect;
+		    break;
+		default:
+		    pTexObj = NULL;
+		    break;
+		}
+
+		if (pTexObj)
+		{
+		    pPixmap->refcnt++;
+
+		    if (pTexObj->pPixmap)
+			(*pScreen->DestroyPixmap) (pTexObj->pPixmap);
+
+		    if (pTexObj->object)
+			glitz_texture_object_destroy (pTexObj->object);
+
+		    pTexObj->pPixmap = pPixmap;
+		    pTexObj->object  = texture;
+		}
+		else
+		    glitz_texture_object_destroy (texture);
+
+		return Success;
+	    }
+	}
+    }
+    else
+    {
+	return (*mesaContext->textureFromPixmap->bindTexImage) (mesaContext,
+								buffer,
+								pixmap);
+    }
+
+    return BadDrawable;
+}
+
+static int
+xglReleaseTexImage (__GLXcontext *context,
+		    int		 buffer,
+		    __GLXpixmap  *pixmap)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    if (cctx)
+    {
+	DrawablePtr  pDrawable = pixmap->pDraw;
+	xglTexObjPtr pTexObj;
+
+	XGL_DRAWABLE_PIXMAP (pDrawable);
+
+	/* XXX: front left buffer is only supported so far */
+	if (buffer != GLX_FRONT_LEFT_EXT)
+	    return BadMatch;
+
+	pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
+	if (pTexObj && pTexObj->pPixmap == pPixmap)
+	{
+	    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
+	    pTexObj->pPixmap = NULL;
+	    glitz_texture_object_destroy (pTexObj->object);
+	    pTexObj->object = NULL;
+
+	    return Success;
+	}
+	else
+	{
+	    pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].pRect;
+	    if (pTexObj && pTexObj->pPixmap == pPixmap)
+	    {
+		(*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
+		pTexObj->pPixmap = NULL;
+		glitz_texture_object_destroy (pTexObj->object);
+		pTexObj->object = NULL;
+
+		return Success;
+	    }
+	}
+    }
+    else
+    {
+	return (*mesaContext->textureFromPixmap->releaseTexImage) (mesaContext,
+								   buffer,
+								   pixmap);
+    }
+
+    return BadDrawable;
+}
+
+static __GLXtextureFromPixmap __xglTextureFromPixmapContext = {
+    xglBindTexImage,
+    xglReleaseTexImage
+};
+
+static void
+xglDestroyDrawable (__GLXdrawable *drawable)
+{
+    xglGLBufferPtr pBufferPriv = (xglGLBufferPtr) drawable;
+    __GLXdrawable *mesaDrawable = pBufferPriv->mesaDrawable;
+
+    if (mesaDrawable)
+    {
+	mesaDrawable->refCount--;
+	if (!mesaDrawable->refCount)
+	    (*mesaDrawable->destroy) (mesaDrawable);
+    }
+
+    if (pBufferPriv->pGC)
+	FreeGC (pBufferPriv->pGC, (GContext) 0);
+
+    if (pBufferPriv->backSurface)
+	glitz_surface_destroy (pBufferPriv->backSurface);
+
+    if (pBufferPriv->drawable)
+	glitz_drawable_destroy (pBufferPriv->drawable);
+
+    xfree (pBufferPriv);
+}
+
+static __GLXdrawable *
+xglCreateDrawable (__GLXscreen *screen,
+		   DrawablePtr pDrawable,
+		   XID drawId,
+		   __GLcontextModes *modes)
+{
+    ScreenPtr	    pScreen = pDrawable->pScreen;
+    xglGLScreenPtr  pGLScreen = (xglGLScreenPtr) screen;
+    __GLXscreen	    *mesaScreen = pGLScreen->mesaScreen;
+    xglGLBufferPtr  pBufferPriv;
+    xglVisualPtr    v;
+    Bool	    useMesa;
+
+    XGL_SCREEN_PRIV (pScreen);
+    XGL_DRAWABLE_PIXMAP (pDrawable);
+
+    pBufferPriv = xalloc (sizeof (xglGLBufferRec));
+    if (!pBufferPriv)
+	return NULL;
+
+    memset (pBufferPriv, 0, sizeof (xglGLBufferRec));
+
+    if (!GlxDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId))
+    {
+	xfree (pBufferPriv);
+	return NULL;
+    }
+
+    pBufferPriv->mesaDrawable = NULL;
+
+    pBufferPriv->pScreen   = pScreen;
+    pBufferPriv->pDrawable = NULL;
+    pBufferPriv->pPixmap   = NULL;
+    pBufferPriv->pGC	   = NULL;
+
+    pBufferPriv->base.destroy       = xglDestroyDrawable;
+    pBufferPriv->base.resize        = xglResizeDrawable;
+    pBufferPriv->base.swapBuffers   = xglSwapBuffers;
+    pBufferPriv->base.copySubBuffer = xglCopySubBuffer;
+
+    pBufferPriv->drawable    = NULL;
+    pBufferPriv->backSurface = NULL;
+
+    REGION_INIT (pScreen, &pBufferPriv->damage, NullBox, 0);
+
+    pBufferPriv->pVisual = 0;
+
+    /* glx acceleration */
+    if (pScreenPriv->accel.glx.enabled &&
+	xglCheckPixmapSize (pPixmap, &pScreenPriv->accel.glx.size))
+    {
+	for (v = pScreenPriv->pGlxVisual; v; v = v->next)
+	{
+	    glitz_drawable_format_t *format;
+
+	    if (pScreenPriv->accel.glx.pbuffer != v->pbuffer)
+		continue;
+
+	    format = v->format.drawable;
+	    if (!format)
+		continue;
+
+	    if (format->color.red_size   != modes->redBits   ||
+		format->color.green_size != modes->greenBits ||
+		format->color.blue_size  != modes->blueBits)
+		continue;
+
+	    if (format->color.alpha_size < modes->alphaBits   ||
+		format->depth_size	 < modes->depthBits   ||
+		format->stencil_size     < modes->stencilBits ||
+		format->doublebuffer     < modes->doubleBufferMode)
+		continue;
+
+	    /* this is good enought for pbuffers */
+	    if (v->pbuffer)
+		break;
+
+	    /* we want an exact match for non-pbuffer formats */
+	    if (format->color.alpha_size == modes->alphaBits   &&
+		format->depth_size	 == modes->depthBits   &&
+		format->stencil_size     == modes->stencilBits &&
+		format->doublebuffer     == modes->doubleBufferMode)
+		break;
+	}
+
+	pBufferPriv->pVisual = v;
+    }
+
+    useMesa = TRUE;
+
+    if (pDrawable->type == DRAWABLE_WINDOW)
+    {
+
+#ifdef COMPOSITE
+	if (pBufferPriv->pVisual)
+	{
+	    useMesa = FALSE;
+	}
+	else
+	{
+	    WindowPtr pWin = (WindowPtr) pDrawable;
+
+	    /* this is a root window, can't be redirected */
+	    if (!pWin->parent)
+	    {
+		useMesa = FALSE;
+	    }
+	    else
+	    {
+		CompScreenPtr cs = GetCompScreen (pScreen);
+
+		/* allow native GL with overlay windows */
+		for (; pWin; pWin = pWin->parent)
+		{
+		    if (pWin == cs->pOverlayWin)
+		    {
+			useMesa = FALSE;
+			break;
+		    }
+		}
+	    }
+	}
+#else
+	    useMesa = FALSE;
+#endif
+
+    }
+
+    if (useMesa)
+    {
+	pBufferPriv->mesaDrawable = (*mesaScreen->createDrawable) (mesaScreen,
+								   pDrawable,
+								   drawId,
+								   modes);
+    }
+    else
+    {
+	pBufferPriv->pDrawable = pDrawable;
+    }
+
+    return &pBufferPriv->base;
+}
+
+static void
+xglSetCurrentContext (xglGLContextPtr pContext)
+{
+    cctx = pContext;
+
+    glitz_context_make_current (cctx->context, cctx->pDrawBuffer->drawable);
+
+    GlxSetRenderTables (&cctx->glRenderTable);
+}
+
+static void
+xglFreeContext (xglGLContextPtr pContext)
+{
+    int i;
+
+    pContext->refcnt--;
+    if (pContext->shared == pContext)
+	pContext->refcnt--;
+
+    if (pContext->refcnt)
+	return;
+
+    if (pContext->shared != pContext)
+	xglFreeContext (pContext->shared);
+
+    if (pContext->context)
+    {
+	XGL_SCREEN_PRIV (pContext->base.pScreen);
+
+	glitz_context_make_current (pContext->context, pScreenPriv->drawable);
+    }
+
+    if (pContext->texObjects)
+    {
+	xglTexObjPtr pTexObj;
+	GLuint	     key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->texObjects);
+	    if (key)
+	    {
+		pTexObj = (xglTexObjPtr) xglHashLookup (pContext->texObjects,
+							key);
+		if (pTexObj)
+		    xglUnrefTexObj (pTexObj);
+
+		xglHashRemove (pContext->texObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->texObjects);
+    }
+
+    if (pContext->programObjects)
+    {
+	GLuint po;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->programObjects);
+	    if (key)
+	    {
+		po = (GLuint) xglHashLookup (pContext->programObjects, key);
+		if (po)
+		    (*pContext->DeleteProgramsARB) (1, &po);
+
+		xglHashRemove (pContext->programObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->programObjects);
+    }
+
+    if (pContext->renderbufferObjects)
+    {
+	GLuint rbo;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->renderbufferObjects);
+	    if (key)
+	    {
+		rbo = (GLuint) xglHashLookup (pContext->renderbufferObjects,
+					      key);
+		if (rbo)
+		    (*pContext->DeleteRenderbuffersEXT) (1, &rbo);
+
+		xglHashRemove (pContext->renderbufferObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->renderbufferObjects);
+    }
+
+    if (pContext->framebufferObjects)
+    {
+	GLuint fbo;
+	GLuint key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->framebufferObjects);
+	    if (key)
+	    {
+		fbo = (GLuint) xglHashLookup (pContext->framebufferObjects,
+					      key);
+		if (fbo)
+		    (*pContext->DeleteFramebuffersEXT) (1, &fbo);
+
+		xglHashRemove (pContext->framebufferObjects, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->framebufferObjects);
+    }
+
+    if (pContext->displayLists)
+    {
+	xglDisplayListPtr pDisplayList;
+	GLuint		  key;
+
+	do {
+	    key = xglHashFirstEntry (pContext->displayLists);
+	    if (key)
+	    {
+		pDisplayList = (xglDisplayListPtr)
+		    xglHashLookup (pContext->displayLists, key);
+		if (pDisplayList)
+		    xglDestroyList (pDisplayList);
+
+		xglHashRemove (pContext->displayLists, key);
+	    }
+	} while (key);
+
+	xglDeleteHashTable (pContext->displayLists);
+    }
+
+    for (i = 0; i < pContext->maxTexUnits; i++)
+    {
+	xglUnrefTexObj (pContext->attrib.texUnits[i].p1D);
+	xglUnrefTexObj (pContext->attrib.texUnits[i].p2D);
+	xglUnrefTexObj (pContext->attrib.texUnits[i].p3D);
+	xglUnrefTexObj (pContext->attrib.texUnits[i].pRect);
+	xglUnrefTexObj (pContext->attrib.texUnits[i].pCubeMap);
+    }
+
+    if (pContext->groupList)
+	glDeleteLists (pContext->groupList, 1);
+
+    if (pContext->context)
+	glitz_context_destroy (pContext->context);
+
+    if (pContext->versionString)
+	xfree (pContext->versionString);
+
+    xfree (pContext);
+}
+
+static void
+xglDestroyContext (__GLXcontext *context)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    xglFreeContext (pContext);
+
+    if (mesaContext)
+	(*mesaContext->destroy) (mesaContext);
+}
+
+static int
+xglLoseCurrent (__GLXcontext *context)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+
+    GlxFlushContextCache ();
+    GlxSetRenderTables (0);
+
+    if (!mesaContext)
+	return TRUE;
+
+    return (*mesaContext->loseCurrent) (mesaContext);
+}
+
+static int
+xglMakeCurrent (__GLXcontext *context)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+    xglGLBufferPtr  pDrawBufferPriv = (xglGLBufferPtr) context->drawPriv;
+    xglGLBufferPtr  pReadBufferPriv = (xglGLBufferPtr) context->readPriv;
+    int		    status = TRUE;
+
+    if (pReadBufferPriv->pDrawable && pDrawBufferPriv->pDrawable)
+    {
+	XID values[2] = { ClipByChildren, 0 };
+	int status;
+
+#ifdef COMPOSITE
+	/* XXX: temporary hack for root window drawing using
+	   IncludeInferiors */
+	if (pDrawBufferPriv->pDrawable->type == DRAWABLE_WINDOW &&
+	    (!((WindowPtr) (pDrawBufferPriv->pDrawable))->parent))
+	    values[0] = IncludeInferiors;
+#endif
+
+	/* this happens if client previously used this context with a buffer
+	   not supported by the native GL stack */
+	if (!pContext->context)
+	    return FALSE;
+
+	/* XXX: GLX_SGI_make_current_read disabled for now */
+	if (pDrawBufferPriv != pReadBufferPriv)
+	    return FALSE;
+
+	if (!pReadBufferPriv->pGC)
+	    pReadBufferPriv->pGC =
+		CreateGC (pReadBufferPriv->pDrawable,
+			  GCSubwindowMode | GCGraphicsExposures, values,
+			  &status);
+
+	ValidateGC (pReadBufferPriv->pDrawable, pReadBufferPriv->pGC);
+
+	if (!pDrawBufferPriv->pGC)
+	    pDrawBufferPriv->pGC =
+		CreateGC (pDrawBufferPriv->pDrawable,
+			  GCSubwindowMode | GCGraphicsExposures, values,
+			  &status);
+
+	ValidateGC (pDrawBufferPriv->pDrawable, pDrawBufferPriv->pGC);
+
+	pReadBufferPriv->pPixmap = (PixmapPtr) 0;
+	pDrawBufferPriv->pPixmap = (PixmapPtr) 0;
+
+	pContext->pReadBuffer = pReadBufferPriv;
+	pContext->pDrawBuffer = pDrawBufferPriv;
+
+	/* from now on this context can only be used with native GL stack */
+	if (mesaContext)
+	{
+	    (*mesaContext->destroy) (mesaContext);
+	    pContext->mesaContext = NULL;
+	}
+    }
+    else
+    {
+	/* this happens if client previously used this context with a buffer
+	   supported by the native GL stack */
+	if (!mesaContext)
+	    return GL_FALSE;
+
+	mesaContext->drawPriv = pDrawBufferPriv->mesaDrawable;
+	mesaContext->readPriv = pDrawBufferPriv->mesaDrawable;
+
+	status = (*mesaContext->makeCurrent) (mesaContext);
+
+	/* from now on this context can not be used with native GL stack */
+	if (status == GL_TRUE && pContext->context)
+	{
+	    glitz_context_destroy (pContext->context);
+	    pContext->context = NULL;
+	}
+    }
+
+    return status;
+}
+
+static int
+xglCopyContext (__GLXcontext  *dst,
+		__GLXcontext  *src,
+		unsigned long mask)
+{
+    xglGLContextPtr pDst = (xglGLContextPtr) dst;
+    xglGLContextPtr pSrc = (xglGLContextPtr) src;
+    __GLXcontext    *mesaDst = pDst->mesaContext;
+    __GLXcontext    *mesaSrc = pSrc->mesaContext;
+    int		    status = TRUE;
+
+    if (pSrc->context && pDst->context)
+	glitz_context_copy (pSrc->context, pDst->context, mask);
+    else
+	status = FALSE;
+
+    if (mesaDst && mesaSrc)
+	status = (*mesaDst->copy) (mesaDst, mesaSrc, mask);
+
+    return status;
+}
+
+static int
+xglForceCurrent (__GLXcontext *context)
+{
+    xglGLContextPtr pContext = (xglGLContextPtr) context;
+    __GLXcontext    *mesaContext = pContext->mesaContext;
+    int		    status = TRUE;
 
     if (pContext && pContext->context)
     {
-	__GLdrawablePrivate *readPriv, *drawPriv;
-
-	readPriv = pContext->readPriv;
-	drawPriv = pContext->drawPriv;
-
-	drawPriv->lockDP (drawPriv, gc);
-	if (readPriv != drawPriv)
-	    readPriv->lockDP (readPriv, gc);
-
 	cctx = pContext;
 
 	if (cctx->pReadBuffer->pDrawable && cctx->pDrawBuffer->pDrawable)
@@ -4780,44 +6021,18 @@ xglForceCurrent (__GLcontext *gc)
 	    if (cctx->pDrawBuffer->pPixmap != pDrawPixmap ||
 		cctx->pReadBuffer->pPixmap != pReadPixmap)
 	    {
-		if (!xglResizeBuffer (drawPriv,
-				      pDrawable->x,
-				      pDrawable->y,
-				      pDrawable->width,
-				      pDrawable->height))
-		{
-		    drawPriv->unlockDP (drawPriv);
-		    if (readPriv != drawPriv)
-			readPriv->unlockDP (readPriv);
-
+		if (!xglResizeBuffer (cctx->pDrawBuffer))
 		    return FALSE;
-		}
 
-		if (!xglResizeBuffer (readPriv,
-				      cctx->pReadBuffer->pDrawable->x,
-				      cctx->pReadBuffer->pDrawable->y,
-				      cctx->pReadBuffer->pDrawable->width,
-				      cctx->pReadBuffer->pDrawable->height))
-		{
-		    drawPriv->unlockDP (drawPriv);
-		    if (readPriv != drawPriv)
-			readPriv->unlockDP (readPriv);
-
+		if (!xglResizeBuffer (cctx->pReadBuffer))
 		    return FALSE;
-		}
 
 		cctx->pReadBuffer->pPixmap = pReadPixmap;
 		cctx->pDrawBuffer->pPixmap = pDrawPixmap;
 	    }
 
 	    if (!xglSyncSurface (pContext->pDrawBuffer->pDrawable))
-	    {
-		drawPriv->unlockDP (drawPriv);
-		if (readPriv != drawPriv)
-		    readPriv->unlockDP (readPriv);
-
 		return FALSE;
-	    }
 
 	    if (pDrawPixmap != pScreenPriv->pScreenPixmap)
 	    {
@@ -4871,110 +6086,40 @@ xglForceCurrent (__GLcontext *gc)
 		cctx->needInit = FALSE;
 	    }
 
-	    /* update viewport and raster position */
-	    if (cctx->pDrawBuffer->xOff != cctx->drawXoff ||
-		cctx->pDrawBuffer->yOff != cctx->drawYoff)
+	    if (cctx->framebuffer)
 	    {
-		glViewport (cctx->attrib.viewport.x + cctx->pDrawBuffer->xOff,
-			    cctx->attrib.viewport.y + cctx->pDrawBuffer->yOff,
-			    cctx->attrib.viewport.width,
-			    cctx->attrib.viewport.height);
+		GLuint fbo;
 
-		glBitmap (0, 0, 0, 0,
-			  cctx->pDrawBuffer->xOff - cctx->drawXoff,
-			  cctx->pDrawBuffer->yOff - cctx->drawYoff,
-			  NULL);
-
-		cctx->drawXoff = cctx->pDrawBuffer->xOff;
-		cctx->drawYoff = cctx->pDrawBuffer->yOff;
+		fbo = (GLuint)
+		    xglHashLookup (cctx->shared->framebufferObjects,
+				   cctx->framebuffer);
+		if (fbo)
+		    (*cctx->BindFramebufferEXT) (GL_FRAMEBUFFER_EXT, fbo);
 	    }
+	    else
+	    {
+		xglSetDrawOffset (cctx->pDrawBuffer->xOff,
+				  cctx->pDrawBuffer->yOff);
 
-	    xglDrawBuffer (cctx->attrib.drawBuffer);
-	    xglReadBuffer (cctx->attrib.readBuffer);
+		cctx->readXoff = cctx->pReadBuffer->xOff;
+		cctx->readYoff = cctx->pReadBuffer->yOff;
+
+		xglDrawBuffer (cctx->attrib.drawBuffer);
+		xglReadBuffer (cctx->attrib.readBuffer);
+	    }
 	}
 	else
 	{
 	    xglSetCurrentContext (pContext);
 	}
-
-	drawPriv->unlockDP (drawPriv);
-	if (readPriv != drawPriv)
-	    readPriv->unlockDP (readPriv);
     }
     else
     {
 	cctx = NULL;
-	status = (*iface->exports.forceCurrent) ((__GLcontext *) iface);
+	status = (*mesaContext->forceCurrent) (mesaContext);
     }
 
     return status;
-}
-
-static GLboolean
-xglNotifyResize (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (!iface)
-	return GL_TRUE;
-
-    return (*iface->exports.notifyResize) ((__GLcontext *) iface);
-}
-
-static void
-xglNotifyDestroy (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    pContext->pReadBuffer->pDrawable = 0;
-    pContext->pDrawBuffer->pDrawable = 0;
-
-    if (iface)
-	(*iface->exports.notifyDestroy) ((__GLcontext *) iface);
-}
-
-static void
-xglNotifySwapBuffers (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.notifySwapBuffers) ((__GLcontext *) iface);
-}
-
-static struct __GLdispatchStateRec *
-xglDispatchExec (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (!iface)
-	return NULL;
-
-    return (*iface->exports.dispatchExec) ((__GLcontext *) iface);
-}
-
-static void
-xglBeginDispatchOverride (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.beginDispatchOverride) ((__GLcontext *) iface);
-}
-
-static void
-xglEndDispatchOverride (__GLcontext *gc)
-{
-    xglGLContextPtr pContext = (xglGLContextPtr) gc;
-    __GLinterface   *iface = pContext->mIface;
-
-    if (iface)
-	(*iface->exports.endDispatchOverride) ((__GLcontext *) iface);
 }
 
 static void
@@ -4984,28 +6129,34 @@ xglLoseCurrentContext (void *closure)
     {
 	cctx = NULL;
 
+	/* make sure that all preceding drawing commands are finished
+	   before switching context */
+	glFinish ();
+
 	GlxFlushContextCache ();
 	GlxSetRenderTables (0);
     }
 }
 
-static __GLinterface *
-xglCreateContext (__GLimports      *imports,
+static __GLXcontext *
+xglCreateContext (__GLXscreen	   *screen,
 		  __GLcontextModes *modes,
-		  __GLinterface    *shareGC)
+		  __GLXcontext	   *shareContext)
 {
     glitz_drawable_format_t *format;
-    xglGLContextPtr	    pShareContext = (xglGLContextPtr) shareGC;
+    xglGLScreenPtr	    pGLScreen = (xglGLScreenPtr) screen;
+    __GLXscreen		    *mesaScreen = pGLScreen->mesaScreen;
+    xglGLContextPtr	    pShareContext = (xglGLContextPtr) shareContext;
     xglGLContextPtr	    pContext;
-    __GLinterface	    *shareIface = NULL;
-    __GLinterface	    *iface;
-    __GLXcontext	    *glxCtx = (__GLXcontext *) imports->other;
+    __GLXcontext	    *shareMesaContext = NULL;
 
-    XGL_SCREEN_PRIV (glxCtx->pScreen);
+    XGL_SCREEN_PRIV (screen->pScreen);
 
     pContext = xalloc (sizeof (xglGLContextRec));
     if (!pContext)
 	return NULL;
+
+    memset (pContext, 0, sizeof (xglGLContextRec));
 
     format = glitz_drawable_get_format (pScreenPriv->drawable);
     pContext->context = glitz_context_create (pScreenPriv->drawable, format);
@@ -5022,12 +6173,15 @@ xglCreateContext (__GLimports      *imports,
     pContext->beginCnt	    = 0;
     pContext->nAttribStack  = 0;
     pContext->refcnt	    = 1;
-    pContext->doubleBuffer  = glxCtx->modes->doubleBufferMode;
-    pContext->depthBits     = glxCtx->modes->depthBits;
-    pContext->stencilBits   = glxCtx->modes->stencilBits;
+    pContext->doubleBuffer  = modes->doubleBufferMode;
+    pContext->depthBits     = modes->depthBits;
+    pContext->stencilBits   = modes->stencilBits;
     pContext->drawXoff	    = 0;
     pContext->drawYoff	    = 0;
+    pContext->readXoff	    = 0;
+    pContext->readYoff	    = 0;
     pContext->maxTexUnits   = 0;
+    pContext->framebuffer   = 0;
 
     if (pContext->doubleBuffer)
     {
@@ -5042,18 +6196,42 @@ xglCreateContext (__GLimports      *imports,
 
     pContext->attrib.scissorTest = GL_FALSE;
 
-    if (shareGC)
+    if (shareContext)
     {
-	pContext->texObjects   = NULL;
-	pContext->displayLists = NULL;
+	pContext->texObjects	      = NULL;
+	pContext->programObjects      = NULL;
+	pContext->renderbufferObjects = NULL;
+	pContext->framebufferObjects  = NULL;
+	pContext->displayLists	      = NULL;
 
 	pContext->shared = pShareContext->shared;
-	shareIface = pShareContext->mIface;
+	shareMesaContext = pShareContext->mesaContext;
     }
     else
     {
 	pContext->texObjects = xglNewHashTable ();
 	if (!pContext->texObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->programObjects = xglNewHashTable ();
+	if (!pContext->programObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->renderbufferObjects = xglNewHashTable ();
+	if (!pContext->renderbufferObjects)
+	{
+	    xglFreeContext (pContext);
+	    return NULL;
+	}
+
+	pContext->framebufferObjects = xglNewHashTable ();
+	if (!pContext->framebufferObjects)
 	{
 	    xglFreeContext (pContext);
 	    return NULL;
@@ -5071,427 +6249,106 @@ xglCreateContext (__GLimports      *imports,
 
     pContext->shared->refcnt++;
 
-    iface = (*screenInfoPriv.createContext) (imports, modes, shareIface);
-    if (!iface)
+    pContext->base.destroy        = xglDestroyContext;
+    pContext->base.makeCurrent    = xglMakeCurrent;
+    pContext->base.loseCurrent    = xglLoseCurrent;
+    pContext->base.copy           = xglCopyContext;
+    pContext->base.forceCurrent   = xglForceCurrent;
+
+    pContext->base.textureFromPixmap = &__xglTextureFromPixmapContext;
+
+    pContext->mesaContext = (*mesaScreen->createContext) (mesaScreen,
+							  modes,
+							  shareMesaContext);
+    if (!pContext->mesaContext)
     {
 	xglFreeContext (pContext);
 	return NULL;
     }
 
-    pContext->mIface = iface;
-    pContext->iface.imports = *imports;
-
-    pContext->iface.exports.destroyContext	  = xglDestroyContext;
-    pContext->iface.exports.loseCurrent		  = xglLoseCurrent;
-    pContext->iface.exports.makeCurrent		  = xglMakeCurrent;
-    pContext->iface.exports.shareContext	  = xglShareContext;
-    pContext->iface.exports.copyContext		  = xglCopyContext;
-    pContext->iface.exports.forceCurrent	  = xglForceCurrent;
-    pContext->iface.exports.notifyResize	  = xglNotifyResize;
-    pContext->iface.exports.notifyDestroy	  = xglNotifyDestroy;
-    pContext->iface.exports.notifySwapBuffers     = xglNotifySwapBuffers;
-    pContext->iface.exports.dispatchExec	  = xglDispatchExec;
-    pContext->iface.exports.beginDispatchOverride = xglBeginDispatchOverride;
-    pContext->iface.exports.endDispatchOverride   = xglEndDispatchOverride;
-
-    return (__GLinterface *) pContext;
-}
-
-static GLboolean
-xglSwapBuffers (__GLXdrawablePrivate *glxPriv)
-{
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
-    DrawablePtr		pDrawable = pBufferPriv->pDrawable;
-    GLboolean		status = GL_TRUE;
-
-    if (pDrawable)
-    {
-	if (glPriv->modes->doubleBufferMode)
-	{
-	    glitz_surface_t *surface;
-	    int		    xOff, yOff;
-	    GCPtr	    pGC = pBufferPriv->pGC;
-	    BoxPtr	    pBox = REGION_RECTS (pGC->pCompositeClip);
-	    int		    nBox = REGION_NUM_RECTS (pGC->pCompositeClip);
-
-	    XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);
-
-	    glitz_drawable_swap_buffer_region (pBufferPriv->drawable,
-					       xOff, yOff,
-					       (glitz_box_t *) pBox, nBox);
-
-	    xglAddBitDamage (pDrawable, pGC->pCompositeClip);
-	    DamageDamageRegion (pDrawable, pGC->pCompositeClip);
-	    REGION_EMPTY (pGC->pScreen, &pBufferPriv->damage);
-	}
-    }
-    else if (pBufferPriv->private)
-    {
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->swapBuffers) (glxPriv);
-	glPriv->private = pBufferPriv;
-    }
-
-    return status;
-}
-
-static GLboolean
-xglResizeBuffers (__GLdrawableBuffer  *buffer,
-		  GLint		      x,
-		  GLint		      y,
-		  GLuint	      width,
-		  GLuint	      height,
-		  __GLdrawablePrivate *glPriv,
-		  GLuint	      bufferMask)
-{
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-    DrawablePtr    pDrawable = pBufferPriv->pDrawable;
-    GLboolean	   status = GL_TRUE;
-
-    if (pDrawable)
-    {
-	if (!xglResizeBuffer (glPriv, x, y, width, height))
-	    return GL_FALSE;
-    }
-    else if (pBufferPriv->private)
-    {
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->resizeBuffers) (buffer,
-						x, y, width, height,
-						glPriv,
-						bufferMask);
-	glPriv->private = pBufferPriv;
-    }
-
-    return status;
-}
-
-static int
-xglBindBuffers (__GLXdrawablePrivate *glxPriv,
-		int		     buffer)
-{
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
-
-    if (cctx)
-    {
-	xglTexUnitPtr pTexUnit = &cctx->attrib.texUnits[cctx->activeTexUnit];
-	xglTexObjPtr  pTexObj = NULL;
-	DrawablePtr   pDrawable;
-
-	/* XXX: front left buffer is only supported so far */
-	if (buffer != GLX_FRONT_LEFT_EXT)
-	    return BadMatch;
-
-	/* Must be a GLXpixmap */
-	if (!glxPriv->pGlxPixmap)
-	    return BadDrawable;
-
-	pDrawable = glxPriv->pGlxPixmap->pDraw;
-
-	switch (glxPriv->texTarget) {
-	case GLX_TEXTURE_RECTANGLE_EXT:
-	    pTexObj = pTexUnit->pRect;
-	    break;
-	case GLX_TEXTURE_2D_EXT:
-	    pTexObj = pTexUnit->p2D;
-	    break;
-	default:
-	    break;
-	}
-
-	if (pTexObj)
-	{
-	    glitz_texture_object_t *object;
-
-	    XGL_SCREEN_PRIV (pDrawable->pScreen);
-	    XGL_DRAWABLE_PIXMAP (pDrawable);
-	    XGL_PIXMAP_PRIV (pPixmap);
-
-	    if (pPixmap == pScreenPriv->pScreenPixmap)
-		return BadDrawable;
-
-	    object = glitz_texture_object_create (pPixmapPriv->surface);
-	    if (object)
-	    {
-		pPixmap->refcnt++;
-
-		if (pTexObj->pPixmap)
-		    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-
-		if (pTexObj->object)
-		    glitz_texture_object_destroy (pTexObj->object);
-
-		pTexObj->pPixmap = pPixmap;
-		pTexObj->object  = object;
-
-		return Success;
-	    }
-	}
-    }
-    else if (pBufferPriv->private)
-    {
-	int status;
-
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->bindBuffers) (glxPriv, buffer);
-	glPriv->private = pBufferPriv;
-
-	return status;
-    }
-
-    return BadDrawable;
-}
-
-static int
-xglReleaseBuffers (__GLXdrawablePrivate *glxPriv,
-		   int		        buffer)
-{
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    xglGLBufferPtr	pBufferPriv = glPriv->private;
-
-    if (cctx)
-    {
-	xglTexObjPtr pTexObj;
-
-	/* XXX: front left buffer is only supported so far */
-	if (buffer != GLX_FRONT_LEFT_EXT)
-	    return BadMatch;
-
-	/* Must be a GLXpixmap */
-	if (glxPriv->pGlxPixmap)
-	{
-	    DrawablePtr pDrawable = glxPriv->pGlxPixmap->pDraw;
-
-	    XGL_DRAWABLE_PIXMAP (pDrawable);
-
-	    pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].p2D;
-	    if (pTexObj && pTexObj->pPixmap == pPixmap)
-	    {
-		(*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-		pTexObj->pPixmap = NULL;
-		glitz_texture_object_destroy (pTexObj->object);
-		pTexObj->object = NULL;
-
-		return Success;
-	    }
-	    else
-	    {
-		pTexObj = cctx->attrib.texUnits[cctx->activeTexUnit].pRect;
-		if (pTexObj && pTexObj->pPixmap == pPixmap)
-		{
-		    (*pDrawable->pScreen->DestroyPixmap) (pTexObj->pPixmap);
-		    pTexObj->pPixmap = NULL;
-		    glitz_texture_object_destroy (pTexObj->object);
-		    pTexObj->object = NULL;
-
-		    return Success;
-		}
-	    }
-	}
-    }
-    else if (pBufferPriv->private)
-    {
-	int status;
-
-	glPriv->private = pBufferPriv->private;
-	status = (*pBufferPriv->releaseBuffers) (glxPriv, buffer);
-	glPriv->private = pBufferPriv;
-
-	return status;
-    }
-
-    return BadDrawable;
-}
-static void
-xglFreeBuffers (__GLdrawablePrivate *glPriv)
-{
-    xglGLBufferPtr pBufferPriv = glPriv->private;
-
-    glPriv->private = pBufferPriv->private;
-
-    if (pBufferPriv->freeBuffers)
-	(*pBufferPriv->freeBuffers) (glPriv);
-
-    if (pBufferPriv->pGC)
-	FreeGC (pBufferPriv->pGC, (GContext) 0);
-
-    if (pBufferPriv->backSurface)
-	glitz_surface_destroy (pBufferPriv->backSurface);
-
-    if (pBufferPriv->drawable)
-	glitz_drawable_destroy (pBufferPriv->drawable);
-
-    xfree (pBufferPriv);
+    return &pContext->base;
 }
 
 static void
-xglCreateBuffer (__GLXdrawablePrivate *glxPriv)
+xglScreenDestroy (__GLXscreen *screen)
 {
-    __GLdrawablePrivate	*glPriv = &glxPriv->glPriv;
-    DrawablePtr	        pDrawable = glxPriv->pDraw;
-    ScreenPtr		pScreen = pDrawable->pScreen;
-    xglGLBufferPtr	pBufferPriv;
-    xglVisualPtr	v;
+    xglGLScreenPtr pScreen = (xglGLScreenPtr) screen;
+    __GLXscreen    *mesaScreen = pScreen->mesaScreen;
 
-    XGL_SCREEN_PRIV (pScreen);
-    XGL_DRAWABLE_PIXMAP (pDrawable);
+    if (mesaScreen)
+	(*mesaScreen->destroy) (mesaScreen);
 
-    pBufferPriv = xalloc (sizeof (xglGLBufferRec));
-    if (!pBufferPriv)
-	FatalError ("xglCreateBuffer: No memory\n");
+    if (pScreen->GLXextensions)
+	xfree (pScreen->GLXextensions);
 
-    pBufferPriv->pScreen   = pScreen;
-    pBufferPriv->pDrawable = NULL;
-    pBufferPriv->pPixmap   = NULL;
-    pBufferPriv->pGC	   = NULL;
-
-    pBufferPriv->swapBuffers = NULL;
-
-    pBufferPriv->bindBuffers    = NULL;
-    pBufferPriv->releaseBuffers = NULL;
-
-    pBufferPriv->resizeBuffers = NULL;
-    pBufferPriv->private       = NULL;
-    pBufferPriv->freeBuffers   = NULL;
-
-    pBufferPriv->drawable    = NULL;
-    pBufferPriv->backSurface = NULL;
-
-    REGION_INIT (pScreen, &pBufferPriv->damage, NullBox, 0);
-
-    pBufferPriv->pVisual = 0;
-
-    /* glx acceleration */
-    if (pScreenPriv->accel.glx.enabled &&
-	xglCheckPixmapSize (pPixmap, &pScreenPriv->accel.glx.size))
-    {
-	for (v = pScreenPriv->pGlxVisual; v; v = v->next)
-	{
-	    glitz_drawable_format_t *format;
-
-	    if (pScreenPriv->accel.glx.pbuffer != v->pbuffer)
-		continue;
-
-	    format = v->format.drawable;
-	    if (!format)
-		continue;
-
-	    if (format->color.red_size   != glxPriv->modes->redBits   ||
-		format->color.green_size != glxPriv->modes->greenBits ||
-		format->color.blue_size  != glxPriv->modes->blueBits)
-		continue;
-
-	    if (format->color.alpha_size < glxPriv->modes->alphaBits   ||
-		format->depth_size	 < glxPriv->modes->depthBits   ||
-		format->stencil_size     < glxPriv->modes->stencilBits ||
-		format->doublebuffer     < glxPriv->modes->doubleBufferMode)
-		continue;
-
-	    /* this is good enought for pbuffers */
-	    if (v->pbuffer)
-		break;
-
-	    /* we want an exact match for non-pbuffer formats */
-	    if (format->color.alpha_size == glxPriv->modes->alphaBits   &&
-		format->depth_size	 == glxPriv->modes->depthBits   &&
-		format->stencil_size     == glxPriv->modes->stencilBits &&
-		format->doublebuffer     == glxPriv->modes->doubleBufferMode)
-		break;
-	}
-
-	pBufferPriv->pVisual = v;
-    }
-
-    if ((pDrawable->type == DRAWABLE_WINDOW)
-
-#ifdef COMPOSITE
-	&& (pBufferPriv->pVisual
-
-	    /* this is a root window, can't be redirected */
-	    || (!((WindowPtr) pDrawable)->parent))
-#endif
-
-	)
-    {
-	pBufferPriv->pDrawable = pDrawable;
-    }
-    else
-    {
-	(*screenInfoPriv.createBuffer) (glxPriv);
-
-	/* Wrap the swap buffers routine */
-	pBufferPriv->swapBuffers = glxPriv->swapBuffers;
-
-	/* Wrap the render texture routines */
-	pBufferPriv->bindBuffers    = glxPriv->bindBuffers;
-	pBufferPriv->releaseBuffers = glxPriv->releaseBuffers;
-
-	/* Wrap the front buffer's resize routine */
-	pBufferPriv->resizeBuffers = glPriv->frontBuffer.resize;
-
-	/* Save Xgl's private buffer structure */
-	pBufferPriv->freeBuffers = glPriv->freePrivate;
-	pBufferPriv->private	 = glPriv->private;
-    }
-
-    glxPriv->texTarget = GLX_NO_TEXTURE_EXT;
-
-    /* We enable render texture for all GLXPixmaps right now. Eventually, this
-       should only be enabled when fbconfig attribute GLX_RENDER_TEXTURE_RGB or
-       GLX_RENDER_TEXTURE_RGBA is set to TRUE. */
-    if (pDrawable->type != DRAWABLE_WINDOW)
-    {
-	XGL_DRAWABLE_PIXMAP (pDrawable);
-
-	if (xglCreatePixmapSurface (pPixmap))
-	{
-	    glitz_texture_object_t *texture;
-
-	    XGL_PIXMAP_PRIV (pPixmap);
-
-	    texture = glitz_texture_object_create (pPixmapPriv->surface);
-	    if (texture)
-	    {
-		switch (glitz_texture_object_get_target (texture)) {
-		case GLITZ_TEXTURE_TARGET_2D:
-		    glxPriv->texTarget = GLX_TEXTURE_2D_EXT;
-		    break;
-		case GLITZ_TEXTURE_TARGET_RECT:
-		    glxPriv->texTarget = GLX_TEXTURE_RECTANGLE_EXT;
-		    break;
-		}
-
-		glitz_texture_object_destroy (texture);
-	    }
-	}
-    }
-
-    glxPriv->swapBuffers = xglSwapBuffers;
-
-    glxPriv->bindBuffers    = xglBindBuffers;
-    glxPriv->releaseBuffers = xglReleaseBuffers;
-    glPriv->frontBuffer.resize = xglResizeBuffers;
-
-    glPriv->private	= (void *) pBufferPriv;
-    glPriv->freePrivate	= xglFreeBuffers;
+    xfree (pScreen);
 }
 
-static Bool
-xglScreenProbe (int screen)
+static __GLXscreen *
+xglScreenProbe (ScreenPtr pScreen)
 {
-    ScreenPtr    pScreen = screenInfo.screens[screen];
-    xglVisualPtr pVisual;
-    Bool         status;
-    int          i;
+    xglGLScreenPtr   screen;
+    __GLcontextModes *modes;
+    xglVisualPtr     pVisual;
+    int		     i;
 
     XGL_SCREEN_PRIV (pScreen);
 
-    status = (*screenInfoPriv.screenProbe) (screen);
+    screen = (xglGLScreenPtr) xalloc (sizeof (xglGLScreenRec));
+    if (!screen)
+	return NULL;
+
+    memset (screen, 0, sizeof (xglGLScreenRec));
+
+    screen->base.destroy        = xglScreenDestroy;
+    screen->base.createContext  = xglCreateContext;
+    screen->base.createDrawable = xglCreateDrawable;
+    screen->base.pScreen        = pScreen;
+
+    screen->mesaScreen = (*__xglMesaProvider->screenProbe) (pScreen);
+
+    screen->base.GLextensions  = screen->mesaScreen->GLextensions;
+    screen->base.GLXvendor     = screen->mesaScreen->GLXvendor;
+    screen->base.GLXversion    = screen->mesaScreen->GLXversion;
+    screen->base.GLXextensions = screen->mesaScreen->GLXextensions;
+
+    /* Remove GLX_MESA_copy_sub_buffer from GLX extension string if
+       glitz can't efficiently support it */
+    if (!(glitz_drawable_get_features (pScreenPriv->drawable) &
+	  GLITZ_FEATURE_COPY_SUB_BUFFER_MASK))
+    {
+	screen->GLXextensions = strdup (screen->mesaScreen->GLXextensions);
+	if (screen->GLXextensions)
+	{
+	    char *s;
+
+	    s = strstr (screen->GLXextensions, "GLX_MESA_copy_sub_buffer ");
+	    if (s)
+	    {
+		int n, n2;
+
+		n  = strlen ("GLX_MESA_copy_sub_buffer ");
+		n2 = strlen (s);
+
+		memmove (s, s + n, n2 - n + 1);
+	    }
+
+	    screen->base.GLXextensions = screen->GLXextensions;
+	}
+    }
+
+    screen->base.WrappedPositionWindow =
+	screen->mesaScreen->WrappedPositionWindow;
+
+    screen->base.modes		  = screen->mesaScreen->modes;
+    screen->base.pVisualPriv	  = screen->mesaScreen->pVisualPriv;
+    screen->base.numVisuals	  = screen->mesaScreen->numVisuals;
+    screen->base.numUsableVisuals = screen->mesaScreen->numUsableVisuals;
+
+    modes = screen->base.modes;
 
     /* Create Xgl GLX visuals */
-    for (i = 0; i < __xglScreenInfoPtr->numVisuals; i++)
+    for (i = 0; i < pScreen->numVisuals; i++)
     {
 	pVisual = xglFindVisualWithId (pScreen, pScreen->visuals[i].vid);
 	if (pVisual)
@@ -5500,9 +6357,9 @@ xglScreenProbe (int screen)
 	    unsigned long	    mask;
 
 	    templ.color        = pVisual->format.surface->color;
-	    templ.depth_size   = __xglScreenInfoPtr->modes[i].depthBits;
-	    templ.stencil_size = __xglScreenInfoPtr->modes[i].stencilBits;
-	    templ.doublebuffer = __xglScreenInfoPtr->modes[i].doubleBufferMode;
+	    templ.depth_size   = modes->depthBits;
+	    templ.stencil_size = modes->stencilBits;
+	    templ.doublebuffer = modes->doubleBufferMode;
 	    templ.samples      = 1;
 
 	    mask =
@@ -5578,24 +6435,18 @@ xglScreenProbe (int screen)
 		}
 	    }
 	}
+
+	modes = modes->next;
     }
 
-    /* Wrap createBuffer */
-    if (__xglScreenInfoPtr->createBuffer != xglCreateBuffer)
-    {
-	screenInfoPriv.createBuffer    = __xglScreenInfoPtr->createBuffer;
-	__xglScreenInfoPtr->createBuffer = xglCreateBuffer;
-    }
-
-    /* Wrap createContext */
-    if (__xglScreenInfoPtr->createContext != xglCreateContext)
-    {
-	screenInfoPriv.createContext    = __xglScreenInfoPtr->createContext;
-	__xglScreenInfoPtr->createContext = xglCreateContext;
-    }
-
-    return status;
+    return &screen->base;
 }
+
+__GLXprovider __glXXGLProvider = {
+    xglScreenProbe,
+    "XGL",
+    NULL
+};
 
 Bool
 xglInitVisualConfigs (ScreenPtr pScreen)
@@ -5716,14 +6567,8 @@ xglInitVisualConfigs (ScreenPtr pScreen)
 	pConfig[i].transparentIndex = 0;
     }
 
+    GlxPushProvider (&__glXXGLProvider);
     GlxSetVisualConfigs (numConfig, pConfig, (void **) ppConfigPriv);
-
-    /* Wrap screenProbe */
-    if (__xglScreenInfoPtr->screenProbe != xglScreenProbe)
-    {
-	screenInfoPriv.screenProbe    = __xglScreenInfoPtr->screenProbe;
-	__xglScreenInfoPtr->screenProbe = xglScreenProbe;
-    }
 
     visuals    = pScreen->visuals;
     nvisuals   = pScreen->numVisuals;

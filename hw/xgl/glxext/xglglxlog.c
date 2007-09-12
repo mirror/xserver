@@ -3225,34 +3225,6 @@ logSampleCoverageARB (GLclampf  value,
 }
 
 
-/* GL_EXT_texture_object */
-
-static GLboolean
-logAreTexturesResidentEXT (GLsizei	n,
-			   const GLuint *textures,
-			   GLboolean	*residences)
-{
-    fprintf (logFp, "glAreTexturesResidentEXT (%d, %p, %p)\n",
-	     n, textures, residences);
-    return (*nativeRenderTable->AreTexturesResidentEXT) (n, textures,
-							 residences);
-}
-static void
-logGenTexturesEXT (GLsizei n,
-		   GLuint  *textures)
-{
-    fprintf (logFp, "glGenTexturesEXT (%d, %p)\n", n, textures);
-    (*nativeRenderTable->GenTexturesEXT) (n, textures);
-}
-
-static GLboolean
-logIsTextureEXT (GLuint texture)
-{
-    fprintf (logFp, "glIsTextureEXT (%d)\n", texture);
-    return (*nativeRenderTable->IsTextureEXT) (texture);
-}
-
-
 /* GL_SGIS_multisample */
 
 static void
@@ -3293,12 +3265,10 @@ logPointParameterfvEXT (GLenum	      pname,
 /* GL_MESA_window_pos */
 
 static void
-logWindowPos3fMESA (GLfloat x,
-		    GLfloat y,
-		    GLfloat z)
+logWindowPos3fvMESA (const GLfloat *v)
 {
-    fprintf (logFp, "glWindowPos3fMESA (%f, %f, %f)\n", x, y, z);
-    (*nativeRenderTable->WindowPos3fMESA) (x, y, z);
+    fprintf (logFp, "glWindowPos3fvMESA (%p)\n", v);
+    (*nativeRenderTable->WindowPos3fvMESA) (v);
 }
 
 
@@ -3465,6 +3435,364 @@ logActiveStencilFaceEXT (GLenum face)
     (*nativeRenderTable->ActiveStencilFaceEXT) (face);
 }
 
+
+/* GL_ARB_vertex_program */
+
+static void
+logVertexAttrib1svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib1svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1svARB) (index, v);
+}
+
+static void
+logVertexAttrib1fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib1fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1fvARB) (index, v);
+}
+
+static void
+logVertexAttrib1dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib1dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib1dvARB) (index, v);
+}
+
+static void
+logVertexAttrib2svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib2svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2svARB) (index, v);
+}
+
+static void
+logVertexAttrib2fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib2fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2fvARB) (index, v);
+}
+
+static void
+logVertexAttrib2dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib2dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib2dvARB) (index, v);
+}
+
+static void
+logVertexAttrib3svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib3svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3svARB) (index, v);
+}
+
+static void
+logVertexAttrib3fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib3fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3fvARB) (index, v);
+}
+
+static void
+logVertexAttrib3dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib3dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib3dvARB) (index, v);
+}
+
+static void
+logVertexAttrib4bvARB (GLuint	    index,
+		       const GLbyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4bvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4bvARB) (index, v);
+}
+
+static void
+logVertexAttrib4svARB (GLuint	     index,
+		       const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib4svARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4svARB) (index, v);
+}
+
+static void
+logVertexAttrib4ivARB (GLuint	   index,
+		       const GLint *v)
+{
+    fprintf (logFp, "glVertexAttrib4ivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4ivARB) (index, v);
+}
+
+static void
+logVertexAttrib4ubvARB (GLuint	      index,
+			const GLubyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4ubvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4ubvARB) (index, v);
+}
+
+static void
+logVertexAttrib4usvARB (GLuint	       index,
+			const GLushort *v)
+{
+    fprintf (logFp, "glVertexAttrib4usvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4usvARB) (index, v);
+}
+
+static void
+logVertexAttrib4uivARB (GLuint	     index,
+			const GLuint *v)
+{
+    fprintf (logFp, "glVertexAttrib4uivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4uivARB) (index, v);
+}
+
+static void
+logVertexAttrib4fvARB (GLuint	     index,
+		       const GLfloat *v)
+{
+    fprintf (logFp, "glVertexAttrib4fvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4fvARB) (index, v);
+}
+
+static void
+logVertexAttrib4dvARB (GLuint	      index,
+		       const GLdouble *v)
+{
+    fprintf (logFp, "glVertexAttrib4dvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4dvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NbvARB (GLuint	     index,
+			const GLbyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4NbvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NbvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NsvARB (GLuint	      index,
+			const GLshort *v)
+{
+    fprintf (logFp, "glVertexAttrib4NsvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NsvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NivARB (GLuint	    index,
+			const GLint *v)
+{
+    fprintf (logFp, "glVertexAttrib4NivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NivARB) (index, v);
+}
+
+static void
+logVertexAttrib4NubvARB (GLuint	       index,
+			 const GLubyte *v)
+{
+    fprintf (logFp, "glVertexAttrib4NubvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NubvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NusvARB (GLuint		index,
+			 const GLushort *v)
+{
+    fprintf (logFp, "glVertexAttrib4NusvARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NusvARB) (index, v);
+}
+
+static void
+logVertexAttrib4NuivARB (GLuint	      index,
+			 const GLuint *v)
+{
+    fprintf (logFp, "glVertexAttrib4NuivARB (%d, %p)\n", index, v);
+    (*nativeRenderTable->VertexAttrib4NuivARB) (index, v);
+}
+
+static void
+logProgramStringARB (GLenum	target,
+		     GLenum	format,
+		     GLsizei	len,
+		     const void *string)
+{
+    fprintf (logFp, "glProgramStringARB (0x%x, 0x%x, %d, %p)\n",
+	     target, format, len, string);
+    (*nativeRenderTable->ProgramStringARB) (target, format, len, string);
+}
+
+static void
+logBindProgramARB (GLenum target,
+		   GLuint program)
+{
+    fprintf (logFp, "glBindProgramARB (0x%x, %d)\n", target, program);
+    (*nativeRenderTable->BindProgramNV) (target, program);
+}
+
+static void
+logDeleteProgramsARB (GLsizei	   n,
+		      const GLuint *programs)
+{
+    fprintf (logFp, "glDeleteProgramsARB (%d, %p)\n", n, programs);
+    (*nativeRenderTable->DeleteProgramsNV) (n, programs);
+}
+
+static void
+logGenProgramsARB (GLsizei n,
+		   GLuint  *programs)
+{
+    fprintf (logFp, "glGenProgramsARB (%d, %p)\n", n, programs);
+    (*nativeRenderTable->GenProgramsNV) (n, programs);
+}
+
+static void
+logProgramEnvParameter4dvARB (GLenum	     target,
+			      GLuint	     index,
+			      const GLdouble *params)
+{
+    fprintf (logFp, "glProgramEnvParameter4dvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramEnvParameter4dvARB) (target, index, params);
+}
+
+static void
+logProgramEnvParameter4fvARB (GLenum	    target,
+			      GLuint	    index,
+			      const GLfloat *params)
+{
+    fprintf (logFp, "glProgramEnvParameter4fvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramEnvParameter4fvARB) (target, index, params);
+}
+
+static void
+logProgramLocalParameter4dvARB (GLenum	       target,
+				GLuint	       index,
+				const GLdouble *params)
+{
+    fprintf (logFp, "glProgramLocalParameter4dvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramLocalParameter4dvARB) (target, index, params);
+}
+
+static void
+logProgramLocalParameter4fvARB (GLenum	      target,
+				GLuint	      index,
+				const GLfloat *params)
+{
+    fprintf (logFp, "glProgramLocalParameter4fvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->ProgramLocalParameter4fvARB) (target, index, params);
+}
+
+static void
+logGetProgramEnvParameterdvARB (GLenum	 target,
+				GLuint	 index,
+				GLdouble *params)
+{
+    fprintf (logFp, "glGetProgramEnvParameterdvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramEnvParameterdvARB) (target, index, params);
+}
+
+static void
+logGetProgramEnvParameterfvARB (GLenum	target,
+				GLuint	index,
+				GLfloat *params)
+{
+    fprintf (logFp, "glGetProgramEnvParameterfvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramEnvParameterfvARB) (target, index, params);
+}
+
+static void
+logGetProgramLocalParameterdvARB (GLenum   target,
+				  GLuint   index,
+				  GLdouble *params)
+{
+    fprintf (logFp, "glGetProgramLocalParameterdvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramLocalParameterdvARB) (target, index, params);
+}
+
+static void
+logGetProgramLocalParameterfvARB (GLenum  target,
+				  GLuint  index,
+				  GLfloat *params)
+{
+    fprintf (logFp, "glGetProgramLocalParameterfvARB (0x%x, %d, %p)\n",
+	     target, index, params);
+    (*nativeRenderTable->GetProgramLocalParameterfvARB) (target, index, params);
+}
+
+static void
+logGetProgramivARB (GLenum target,
+		    GLenum pname,
+		    GLint  *params)
+{
+    fprintf (logFp, "glGetProgramivARB (0x%x, 0x%x, %p)\n",
+	     target, pname, params);
+    (*nativeRenderTable->GetProgramivARB) (target, pname, params);
+}
+
+static void
+logGetProgramStringARB (GLenum target,
+			GLenum pname,
+			void   *string)
+{
+    fprintf (logFp, "glGetProgramStringARB (0x%x, 0x%x, %p)\n",
+	     target, pname, string);
+    (*nativeRenderTable->GetProgramStringARB) (target, pname, string);
+}
+
+static void
+logGetVertexAttribdvARB (GLuint   index,
+			 GLenum   pname,
+			 GLdouble *params)
+{
+    fprintf (logFp, "glGetVertexAttribdvARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribdvARB) (index, pname, params);
+}
+
+static void
+logGetVertexAttribfvARB (GLuint  index,
+			 GLenum  pname,
+			 GLfloat *params)
+{
+    fprintf (logFp, "glGetVertexAttribfvARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribfvARB) (index, pname, params);
+}
+
+static void
+logGetVertexAttribivARB (GLuint index,
+			 GLenum pname,
+			 GLint  *params)
+{
+    fprintf (logFp, "glGetVertexAttribivARB (%d, 0x%x, %p)\n",
+	     index, pname, params);
+    (*nativeRenderTable->GetVertexAttribivARB) (index, pname, params);
+}
+
+static GLboolean
+logIsProgramARB (GLuint program)
+{
+    fprintf (logFp, "glIsProgramARB (%d)\n", program);
+    return (*nativeRenderTable->IsProgramNV) (program);
+}
 
 /* GL_EXT_framebuffer_object */
 
@@ -4051,44 +4379,166 @@ static struct _glapi_table __logRenderTable = {
     logMultiTexCoord4ivARB,
     0, /* glMultiTexCoord4sARB */
     logMultiTexCoord4svARB,
+    0, /* glAttachShader */
+    0, /* glCreateProgram */
+    0, /* glCreateShader */
+    0, /* glDeleteProgram */
+    0, /* glDeleteShader */
+    0, /* glDetachShader */
+    0, /* glGetAttachedShaders */
+    0, /* glGetProgramInfoLog */
+    0, /* glGetProgramiv */
+    0, /* glGetShaderInfoLog */
+    0, /* glGetShaderiv */
+    0, /* glIsProgram */
+    0, /* glIsShader */
+    0, /* glStencilFuncSeparate */
+    0, /* glStencilMaskSeparate */
+    0, /* glStencilOpSeparate */
+    0, /* glUniformMatrix2x3fv */
+    0, /* glUniformMatrix2x4fv */
+    0, /* glUniformMatrix3x2fv */
+    0, /* glUniformMatrix3x4fv */
+    0, /* glUniformMatrix4x2fv */
+    0, /* glUniformMatrix4x3fv */
     0, /* glLoadTransposeMatrixfARB */
     0, /* glLoadTransposeMatrixdARB */
     0, /* glMultTransposeMatrixfARB */
     0, /* glMultTransposeMatrixdARB */
     logSampleCoverageARB,
+    0, /* glCompressedTexImage1DARB */
+    0, /* glCompressedTexImage2DARB */
+    0, /* glCompressedTexImage3DARB */
+    0, /* glCompressedTexSubImage1DARB */
+    0, /* glCompressedTexSubImage2DARB */
+    0, /* glCompressedTexSubImage3DARB */
+    0, /* glGetCompressedTexImageARB */
+    0, /* glDisableVertexAttribArrayARB */
+    0, /* glEnableVertexAttribArrayARB */
+    logGetProgramEnvParameterdvARB,
+    logGetProgramEnvParameterfvARB,
+    logGetProgramLocalParameterdvARB,
+    logGetProgramLocalParameterfvARB,
+    logGetProgramStringARB,
+    logGetProgramivARB,
+    logGetVertexAttribdvARB,
+    logGetVertexAttribfvARB,
+    logGetVertexAttribivARB,
+    0, /* glProgramEnvParameter4dARB */
+    logProgramEnvParameter4dvARB,
+    0, /* glProgramEnvParameter4fARB */
+    logProgramEnvParameter4fvARB,
+    0, /* glProgramLocalParameter4dARB */
+    logProgramLocalParameter4dvARB,
+    0, /* glProgramLocalParameter4fARB */
+    logProgramLocalParameter4fvARB,
+    logProgramStringARB,
+    0, /* glVertexAttrib1dARB */
+    logVertexAttrib1dvARB,
+    0, /* glVertexAttrib1fARB */
+    logVertexAttrib1fvARB,
+    0, /* glVertexAttrib1sARB */
+    logVertexAttrib1svARB,
+    0, /* glVertexAttrib2dARB */
+    logVertexAttrib2dvARB,
+    0, /* glVertexAttrib2fARB */
+    logVertexAttrib2fvARB,
+    0, /* glVertexAttrib2sARB */
+    logVertexAttrib2svARB,
+    0, /* glVertexAttrib3dARB */
+    logVertexAttrib3dvARB,
+    0, /* glVertexAttrib3fARB */
+    logVertexAttrib3fvARB,
+    0, /* glVertexAttrib3sARB */
+    logVertexAttrib3svARB,
+    logVertexAttrib4NbvARB,
+    logVertexAttrib4NivARB,
+    logVertexAttrib4NsvARB,
+    0, /* glVertexAttrib4NubARB */
+    logVertexAttrib4NubvARB,
+    logVertexAttrib4NuivARB,
+    logVertexAttrib4NusvARB,
+    logVertexAttrib4bvARB,
+    0, /* glVertexAttrib4dARB */
+    logVertexAttrib4dvARB,
+    0, /* glVertexAttrib4fARB */
+    logVertexAttrib4fvARB,
+    logVertexAttrib4ivARB,
+    0, /* glVertexAttrib4sARB */
+    logVertexAttrib4svARB,
+    logVertexAttrib4ubvARB,
+    logVertexAttrib4uivARB,
+    logVertexAttrib4usvARB,
+    0, /* glVertexAttribPointerARB */
+    0, /* glBindBufferARB */
+    0, /* glBufferDataARB */
+    0, /* glBufferSubDataARB */
+    0, /* glDeleteBuffersARB */
+    0, /* glGenBuffersARB */
+    0, /* glGetBufferParameterivARB */
+    0, /* glGetBufferPointervARB */
+    0, /* glGetBufferSubDataARB */
+    0, /* glIsBufferARB */
+    0, /* glMapBufferARB */
+    0, /* glUnmapBufferARB */
+    0, /* glBeginQueryARB */
+    0, /* glDeleteQueriesARB */
+    0, /* glEndQueryARB */
+    0, /* glGenQueriesARB */
+    0, /* glGetQueryObjectivARB */
+    0, /* glGetQueryObjectuivARB */
+    0, /* glGetQueryivARB */
+    0, /* IsQueryARB */
+    0, /* glAttachObjectARB */
+    0, /* glCompileShaderARB */
+    0, /* CreateProgramObjectARB */
+    0, /* CreateShaderObjectARB */
+    0, /* glDeleteObjectARB */
+    0, /* glDetachObjectARB */
+    0, /* glGetActiveUniformARB */
+    0, /* glGetAttachedObjectsARB */
+    0, /* GetHandleARB */
+    0, /* glGetInfoLogARB */
+    0, /* glGetObjectParameterfvARB */
+    0, /* glGetObjectParameterivARB */
+    0, /* glGetShaderSourceARB */
+    0, /* GetUniformLocationARB */
+    0, /* glGetUniformfvARB */
+    0, /* glGetUniformivARB */
+    0, /* glLinkProgramARB */
+    0, /* glShaderSourceARB */
+    0, /* glUniform1fARB */
+    0, /* glUniform1fvARB */
+    0, /* glUniform1iARB */
+    0, /* glUniform1ivARB */
+    0, /* glUniform2fARB */
+    0, /* glUniform2fvARB */
+    0, /* glUniform2iARB */
+    0, /* glUniform2ivARB */
+    0, /* glUniform3fARB */
+    0, /* glUniform3fvARB */
+    0, /* glUniform3iARB */
+    0, /* glUniform3ivARB */
+    0, /* glUniform4fARB */
+    0, /* glUniform4fvARB */
+    0, /* glUniform4iARB */
+    0, /* glUniform4ivARB */
+    0, /* glUniformMatrix2fvARB */
+    0, /* glUniformMatrix3fvARB */
+    0, /* glUniformMatrix4fvARB */
+    0, /* glUseProgramObjectARB */
+    0, /* glValidateProgramARB */
+    0, /* glBindAttribLocationARB */
+    0, /* glGetActiveAttribARB */
+    0, /* GetAttribLocationARB */
     0, /* glDrawBuffersARB */
     0, /* glPolygonOffsetEXT */
-    0, /* glGetTexFilterFuncSGIS */
-    0, /* glTexFilterFuncSGIS */
-    0, /* glGetHistogramEXT */
-    0, /* glGetHistogramParameterfvEXT */
-    0, /* glGetHistogramParameterivEXT */
-    0, /* glGetMinmaxEXT */
-    0, /* glGetMinmaxParameterfvEXT */
-    0, /* glGetMinmaxParameterivEXT */
-    0, /* glGetConvolutionFilterEXT */
-    0, /* glGetConvolutionParameterfvEXT */
-    0, /* glGetConvolutionParameterivEXT */
-    0, /* glGetSeparableFilterEXT */
-    0, /* glGetColorTableSGI */
-    0, /* glGetColorTableParameterfvSGI */
-    0, /* glGetColorTableParameterivSGI */
-    0, /* glPixelTexGenSGIX */
-    0, /* glPixelTexGenParameteriSGIS */
-    0, /* glPixelTexGenParameterivSGIS */
+    0, /* glGetPixelTexGenParameterfvSGIS */
+    0, /* glGetPixelTexGenParameterivSGIS */
     0, /* glPixelTexGenParameterfSGIS */
     0, /* glPixelTexGenParameterfvSGIS */
-    0, /* glGetPixelTexGenParameterivSGIS */
-    0, /* glGetPixelTexGenParameterfvSGIS */
-    0, /* glTexImage4DSGIS */
-    0, /* glTexSubImage4DSGIS */
-    logAreTexturesResidentEXT,
-    logGenTexturesEXT,
-    logIsTextureEXT,
-    0, /* glDetailTexFuncSGIS */
-    0, /* glGetDetailTexFuncSGIS */
-    0, /* glSharpenTexFuncSGIS */
-    0, /* glGetSharpenTexFuncSGIS */
+    0, /* glPixelTexGenParameteriSGIS */
+    0, /* glPixelTexGenParameterivSGIS */
     logSampleMaskSGIS,
     logSamplePatternSGIS,
     0, /* glColorPointerEXT */
@@ -4097,57 +4547,46 @@ static struct _glapi_table __logRenderTable = {
     0, /* glNormalPointerEXT */
     0, /* glTexCoordPointerEXT */
     0, /* glVertexPointerEXT */
-    0, /* glSpriteParameterfSGIX */
-    0, /* glSpriteParameterfvSGIX */
-    0, /* glSpriteParameteriSGIX */
-    0, /* glSpriteParameterivSGIX */
     logPointParameterfEXT,
     logPointParameterfvEXT,
-    0, /* glGetInstrumentsSGIX */
-    0, /* glInstrumentsBufferSGIX */
-    0, /* glPollInstrumentsSGIX */
-    0, /* glReadInstrumentsSGIX */
-    0, /* glStartInstrumentsSGIX */
-    0, /* glStopInstrumentsSGIX */
-    0, /* glFrameZoomSGIX */
-    0, /* glTagSampleBufferSGIX */
-    0, /* glReferencePlaneSGIX */
-    0, /* glFlushRasterSGIX */
-    0, /* glGetListParameterfvSGIX */
-    0, /* glGetListParameterivSGIX */
-    0, /* glListParameterfSGIX */
-    0, /* glListParameterfvSGIX */
-    0, /* glListParameteriSGIX */
-    0, /* glListParameterivSGIX */
-    0, /* glFragmentColorMaterialSGIX */
-    0, /* glFragmentLightfSGIX */
-    0, /* glFragmentLightfvSGIX */
-    0, /* glFragmentLightiSGIX */
-    0, /* glFragmentLightivSGIX */
-    0, /* glFragmentLightModelfSGIX */
-    0, /* glFragmentLightModelfvSGIX */
-    0, /* glFragmentLightModeliSGIX */
-    0, /* glFragmentLightModelivSGIX */
-    0, /* glFragmentMaterialfSGIX */
-    0, /* glFragmentMaterialfvSGIX */
-    0, /* glFragmentMaterialiSGIX */
-    0, /* glFragmentMaterialivSGIX */
-    0, /* glGetFragmentLightfvSGIX */
-    0, /* glGetFragmentLightivSGIX */
-    0, /* glGetFragmentMaterialfvSGIX */
-    0, /* glGetFragmentMaterialivSGIX */
-    0, /* glLightEnviSGIX */
-    0, /* glVertexWeightfEXT */
-    0, /* glVertexWeightfvEXT */
-    0, /* glVertexWeightPointerEXT */
+    0, /* glLockArraysEXT */
+    0, /* glUnlockArraysEXT */
+    0, /* glCullParameterdvEXT */
+    0, /* glCullParameterfvEXT */
+    0, /* glSecondaryColor3bEXT */
+    logSecondaryColor3bvEXT,
+    0, /* glSecondaryColor3dEXT */
+    logSecondaryColor3dvEXT,
+    0, /* glSecondaryColor3fEXT */
+    logSecondaryColor3fvEXT,
+    0, /* glSecondaryColor3iEXT */
+    logSecondaryColor3ivEXT,
+    0, /* glSecondaryColor3sEXT */
+    logSecondaryColor3svEXT,
+    0, /* glSecondaryColor3ubEXT */
+    logSecondaryColor3ubvEXT,
+    0, /* glSecondaryColor3uiEXT */
+    logSecondaryColor3uivEXT,
+    0, /* glSecondaryColor3usEXT */
+    logSecondaryColor3usvEXT,
+    logSecondaryColorPointerEXT,
+    0, /* glMultiDrawArraysEXT */
+    0, /* glMultiDrawElementsEXT */
+    logFogCoordPointerEXT,
+    0, /* glFogCoorddEXT */
+    logFogCoorddvEXT,
+    0, /* glFogCoordfEXT */
+    logFogCoordfvEXT,
+    0, /* glPixelTexGenSGIX */
+    logBlendFuncSeparateEXT,
     0, /* glFlushVertexArrayRangeNV */
     0, /* glVertexArrayRangeNV */
-    0, /* glCombinerParameterfvNV */
-    0, /* glCombinerParameterfNV */
-    0, /* glCombinerParameterivNV */
-    0, /* glCombinerParameteriNV */
     0, /* glCombinerInputNV */
     0, /* glCombinerOutputNV */
+    0, /* glCombinerParameterfNV */
+    0, /* glCombinerParameterfvNV */
+    0, /* glCombinerParameteriNV */
+    0, /* glCombinerParameterivNV */
     0, /* glFinalCombinerInputNV */
     0, /* glGetCombinerInputParameterfvNV */
     0, /* glGetCombinerInputParameterivNV */
@@ -4166,8 +4605,8 @@ static struct _glapi_table __logRenderTable = {
     0, /* glWindowPos2svMESA */
     0, /* glWindowPos3dMESA */
     0, /* glWindowPos3dvMESA */
-    logWindowPos3fMESA,
-    0, /* glWindowPos3fvMESA */
+    0, /* glWindowPos3fMESA */
+    logWindowPos3fvMESA,
     0, /* glWindowPos3iMESA */
     0, /* glWindowPos3ivMESA */
     0, /* glWindowPos3sMESA */
@@ -4180,62 +4619,30 @@ static struct _glapi_table __logRenderTable = {
     0, /* glWindowPos4ivMESA */
     0, /* glWindowPos4sMESA */
     0, /* glWindowPos4svMESA */
-    logBlendFuncSeparateEXT,
-    0, /* glIndexMaterialEXT */
-    0, /* glIndexFuncEXT */
-    0, /* glLockArraysEXT */
-    0, /* glUnlockArraysEXT */
-    0, /* glCullParameterdvEXT */
-    0, /* glCullParameterfvEXT */
-    0, /* glHintPGI */
-    0, /* glFogCoordfEXT */
-    logFogCoordfvEXT,
-    0, /* glFogCoorddEXT */
-    logFogCoorddvEXT,
-    logFogCoordPointerEXT,
-    0, /* glGetColorTableEXT */
-    0, /* glGetColorTableParameterivEXT */
-    0, /* glGetColorTableParameterfvEXT */
-    0, /* glTbufferMask3DFX */
-    0, /* glCompressedTexImage3DARB */
-    0, /* glCompressedTexImage2DARB */
-    0, /* glCompressedTexImage1DARB */
-    0, /* glCompressedTexSubImage3DARB */
-    0, /* glCompressedTexSubImage2DARB */
-    0, /* glCompressedTexSubImage1DARB */
-    0, /* glGetCompressedTexImageARB */
-    0, /* glSecondaryColor3bEXT */
-    logSecondaryColor3bvEXT,
-    0, /* glSecondaryColor3dEXT */
-    logSecondaryColor3dvEXT,
-    0, /* glSecondaryColor3fEXT */
-    logSecondaryColor3fvEXT,
-    0, /* glSecondaryColor3iEXT */
-    logSecondaryColor3ivEXT,
-    0, /* glSecondaryColor3sEXT */
-    logSecondaryColor3svEXT,
-    0, /* glSecondaryColor3ubEXT */
-    logSecondaryColor3ubvEXT,
-    0, /* glSecondaryColor3uiEXT */
-    logSecondaryColor3uivEXT,
-    0, /* glSecondaryColor3usEXT */
-    logSecondaryColor3usvEXT,
-    logSecondaryColorPointerEXT,
+    0, /* glMultiModeDrawArraysIBM */
+    0, /* glMultiModeDrawElementsIBM */
+    0, /* glDeleteFencesNV */
+    0, /* glFinishFenceNV */
+    0, /* glGenFencesNV */
+    0, /* glGetFenceivNV */
+    0, /* glIsFenceNV */
+    0, /* glSetFenceNV */
+    0, /* glTestFenceNV */
     0, /* glAreProgramsResidentNV */
-    0, /* glBindProgramNV */
-    0, /* glDeleteProgramsNV */
+    logBindProgramARB,
+    logDeleteProgramsARB,
     0, /* glExecuteProgramNV */
-    0, /* glGenProgramsNV */
+    logGenProgramsARB,
     0, /* glGetProgramParameterdvNV */
     0, /* glGetProgramParameterfvNV */
-    0, /* glGetProgramivNV */
     0, /* glGetProgramStringNV */
+    0, /* glGetProgramivNV */
     0, /* glGetTrackMatrixivNV */
-    0, /* glGetVertexAttribdvARB */
-    0, /* glGetVertexAttribfvARB */
-    0, /* glGetVertexAttribivARB */
     0, /* glGetVertexAttribPointervNV */
-    0, /* glIsProgramNV */
+    0, /* glGetVertexAttribdvNV */
+    0, /* glGetVertexAttribfvNV */
+    0, /* glGetVertexAttribivNV */
+    logIsProgramARB,
     0, /* glLoadProgramNV */
     0, /* glProgramParameter4dNV */
     0, /* glProgramParameter4dvNV */
@@ -4245,160 +4652,6 @@ static struct _glapi_table __logRenderTable = {
     0, /* glProgramParameters4fvNV */
     0, /* glRequestResidentProgramsNV */
     0, /* glTrackMatrixNV */
-    0, /* glVertexAttribPointerNV */
-    0, /* glVertexAttrib1dARB */
-    0, /* glVertexAttrib1dvARB */
-    0, /* glVertexAttrib1fARB */
-    0, /* glVertexAttrib1fvARB */
-    0, /* glVertexAttrib1sARB */
-    0, /* glVertexAttrib1svARB */
-    0, /* glVertexAttrib2dARB */
-    0, /* glVertexAttrib2dvARB */
-    0, /* glVertexAttrib2fARB */
-    0, /* glVertexAttrib2fvARB */
-    0, /* glVertexAttrib2sARB */
-    0, /* glVertexAttrib2svARB */
-    0, /* glVertexAttrib3dARB */
-    0, /* glVertexAttrib3dvARB */
-    0, /* glVertexAttrib3fARB */
-    0, /* glVertexAttrib3fvARB */
-    0, /* glVertexAttrib3sARB */
-    0, /* glVertexAttrib3svARB */
-    0, /* glVertexAttrib4dARB */
-    0, /* glVertexAttrib4dvARB */
-    0, /* glVertexAttrib4fARB */
-    0, /* glVertexAttrib4fvARB */
-    0, /* glVertexAttrib4sARB */
-    0, /* glVertexAttrib4svARB */
-    0, /* glVertexAttrib4NubARB */
-    0, /* glVertexAttrib4NubvARB */
-    0, /* glVertexAttribs1dvNV */
-    0, /* glVertexAttribs1fvNV */
-    0, /* glVertexAttribs1svNV */
-    0, /* glVertexAttribs2dvNV */
-    0, /* glVertexAttribs2fvNV */
-    0, /* glVertexAttribs2svNV */
-    0, /* glVertexAttribs3dvNV */
-    0, /* glVertexAttribs3fvNV */
-    0, /* glVertexAttribs3svNV */
-    0, /* glVertexAttribs4dvNV */
-    0, /* glVertexAttribs4fvNV */
-    0, /* glVertexAttribs4svNV */
-    0, /* glVertexAttribs4ubvNV */
-    logPointParameteriNV,
-    logPointParameterivNV,
-    0, /* glMultiDrawArraysEXT */
-    0, /* glMultiDrawElementsEXT */
-    logActiveStencilFaceEXT,
-    0, /* glDeleteFencesNV */
-    0, /* glGenFencesNV */
-    0, /* glIsFenceNV */
-    0, /* glTestFenceNV */
-    0, /* glGetFenceivNV */
-    0, /* glFinishFenceNV */
-    0, /* glSetFenceNV */
-    0, /* glVertexAttrib4bvARB */
-    0, /* glVertexAttrib4ivARB */
-    0, /* glVertexAttrib4ubvARB */
-    0, /* glVertexAttrib4usvARB */
-    0, /* glVertexAttrib4uivARB */
-    0, /* glVertexAttrib4NbvARB */
-    0, /* glVertexAttrib4NsvARB */
-    0, /* glVertexAttrib4NivARB */
-    0, /* glVertexAttrib4NusvARB */
-    0, /* glVertexAttrib4NuivARB */
-    0, /* glVertexAttribPointerARB */
-    0, /* glEnableVertexAttribArrayARB */
-    0, /* glDisableVertexAttribArrayARB */
-    0, /* glProgramStringARB */
-    0, /* glProgramEnvParameter4dARB */
-    0, /* glProgramEnvParameter4dvARB */
-    0, /* glProgramEnvParameter4fARB */
-    0, /* glProgramEnvParameter4fvARB */
-    0, /* glProgramLocalParameter4dARB */
-    0, /* glProgramLocalParameter4dvARB */
-    0, /* glProgramLocalParameter4fARB */
-    0, /* glProgramLocalParameter4fvARB */
-    0, /* glGetProgramEnvParameterdvARB */
-    0, /* glGetProgramEnvParameterfvARB */
-    0, /* glGetProgramLocalParameterdvARB */
-    0, /* glGetProgramLocalParameterfvARB */
-    0, /* glGetProgramivARB */
-    0, /* glGetProgramStringARB */
-    0, /* glProgramNamedParameter4fNV */
-    0, /* glProgramNamedParameter4dNV */
-    0, /* glProgramNamedParameter4fvNV */
-    0, /* glProgramNamedParameter4dvNV */
-    0, /* glGetProgramNamedParameterfvNV */
-    0, /* glGetProgramNamedParameterdvNV */
-    0, /* glBindBufferARB */
-    0, /* glBufferDataARB */
-    0, /* glBufferSubDataARB */
-    0, /* glDeleteBuffersARB */
-    0, /* glGenBuffersARB */
-    0, /* glGetBufferParameterivARB */
-    0, /* glGetBufferPointervARB */
-    0, /* glGetBufferSubDataARB */
-    0, /* glIsBufferARB */
-    0, /* glMapBufferARB */
-    0, /* glUnmapBufferARB */
-    0, /* glDepthBoundsEXT */
-    0, /* glGenQueriesARB */
-    0, /* glDeleteQueriesARB */
-    0, /* glIsQueryARB */
-    0, /* glBeginQueryARB */
-    0, /* glEndQueryARB */
-    0, /* glGetQueryivARB */
-    0, /* glGetQueryObjectivARB */
-    0, /* glGetQueryObjectuivARB */
-    0, /* glMultiModeDrawArraysIBM */
-    0, /* glMultiModeDrawElementsIBM */
-    0, /* glBlendEquationSeparateEXT */
-    0, /* glDeleteObjectARB */
-    0, /* glGetHandleARB */
-    0, /* glDetachObjectARB */
-    0, /* glCreateShaderObjectARB */
-    0, /* glShaderSourceARB */
-    0, /* glCompileShaderARB */
-    0, /* glCreateProgramObjectARB */
-    0, /* glAttachObjectARB */
-    0, /* glLinkProgramARB */
-    0, /* glUseProgramObjectARB */
-    0, /* glValidateProgramARB */
-    0, /* glUniform1fARB */
-    0, /* glUniform2fARB */
-    0, /* glUniform3fARB */
-    0, /* glUniform4fARB */
-    0, /* glUniform1iARB */
-    0, /* glUniform2iARB */
-    0, /* glUniform3iARB */
-    0, /* glUniform4iARB */
-    0, /* glUniform1fvARB */
-    0, /* glUniform2fvARB */
-    0, /* glUniform3fvARB */
-    0, /* glUniform4fvARB */
-    0, /* glUniform1ivARB */
-    0, /* glUniform2ivARB */
-    0, /* glUniform3ivARB */
-    0, /* glUniform4ivARB */
-    0, /* glUniformMatrix2fvARB */
-    0, /* glUniformMatrix3fvARB */
-    0, /* glUniformMatrix4fvARB */
-    0, /* glGetObjectParameterfvARB */
-    0, /* glGetObjectParameterivARB */
-    0, /* glGetInfoLogARB */
-    0, /* glGetAttachedObjectsARB */
-    0, /* glGetUniformLocationARB */
-    0, /* glGetActiveUniformARB */
-    0, /* glGetUniformfvARB */
-    0, /* glGetUniformivARB */
-    0, /* glGetShaderSourceARB */
-    0, /* glBindAttribLocationARB */
-    0, /* glGetActiveAttribARB */
-    0, /* glGetAttribLocationARB */
-    0, /* glGetVertexAttribdvNV */
-    0, /* glGetVertexAttribfvNV */
-    0, /* glGetVertexAttribivNV */
     0, /* glVertexAttrib1dNV */
     0, /* glVertexAttrib1dvNV */
     0, /* glVertexAttrib1fNV */
@@ -4425,40 +4678,69 @@ static struct _glapi_table __logRenderTable = {
     0, /* glVertexAttrib4svNV */
     0, /* glVertexAttrib4ubNV */
     0, /* glVertexAttrib4ubvNV */
-    0, /* glGenFragmentShadersATI */
-    0, /* glBindFragmentShaderATI */
-    0, /* glDeleteFragmentShaderATI */
-    0, /* glBeginFragmentShaderATI */
-    0, /* glEndFragmentShaderATI */
-    0, /* glPassTexCoordATI */
-    0, /* glSampleMapATI */
-    0, /* glColorFragmentOp1ATI */
-    0, /* glColorFragmentOp2ATI */
-    0, /* glColorFragmentOp3ATI */
+    0, /* glVertexAttribPointerNV */
+    0, /* glVertexAttribs1dvNV */
+    0, /* glVertexAttribs1fvNV */
+    0, /* glVertexAttribs1svNV */
+    0, /* glVertexAttribs2dvNV */
+    0, /* glVertexAttribs2fvNV */
+    0, /* glVertexAttribs2svNV */
+    0, /* glVertexAttribs3dvNV */
+    0, /* glVertexAttribs3fvNV */
+    0, /* glVertexAttribs3svNV */
+    0, /* glVertexAttribs4dvNV */
+    0, /* glVertexAttribs4fvNV */
+    0, /* glVertexAttribs4svNV */
+    0, /* glVertexAttribs4ubvNV */
     0, /* glAlphaFragmentOp1ATI */
     0, /* glAlphaFragmentOp2ATI */
     0, /* glAlphaFragmentOp3ATI */
+    0, /* glBeginFragmentShaderATI */
+    0, /* glBindFragmentShaderATI */
+    0, /* glColorFragmentOp1ATI */
+    0, /* glColorFragmentOp2ATI */
+    0, /* glColorFragmentOp3ATI */
+    0, /* glDeleteFragmentShaderATI */
+    0, /* glEndFragmentShaderATI */
+    0, /* glGenFragmentShadersATI */
+    0, /* glPassTexCoordATI */
+    0, /* glSampleMapATI */
     0, /* glSetFragmentShaderConstantATI */
-    logIsRenderbufferEXT,
-    logBindRenderbufferEXT,
-    logDeleteRenderbuffersEXT,
-    logGenRenderbuffersEXT,
-    logRenderbufferStorageEXT,
-    logGetRenderbufferParameterivEXT,
-    logIsFramebufferEXT,
+    logPointParameteriNV,
+    logPointParameterivNV,
+    logActiveStencilFaceEXT,
+    0, /* glBindVertexArrayAPPLE */
+    0, /* glDeleteVertexArraysAPPLE */
+    0, /* glGenVertexArraysAPPLE */
+    0, /* glIsVertexArrayAPPLE */
+    0, /* glGetProgramNamedParameterdvNV */
+    0, /* glGetProgramNamedParameterfvNV */
+    0, /* glProgramNamedParameter4dNV */
+    0, /* glProgramNamedParameter4fNV */
+    0, /* glProgramNamedParameter4dvNV */
+    0, /* glProgramNamedParameter4fvNV */
+    0, /* glDepthBoundsEXT */
+    0, /* glBlendEquationSeparateEXT */
     logBindFramebufferEXT,
-    logDeleteFramebuffersEXT,
-    logGenFramebuffersEXT,
+    logBindRenderbufferEXT,
     logCheckFramebufferStatusEXT,
+    logDeleteFramebuffersEXT,
+    logDeleteRenderbuffersEXT,
+    logFramebufferRenderbufferEXT,
     logFramebufferTexture1DEXT,
     logFramebufferTexture2DEXT,
     logFramebufferTexture3DEXT,
-    logFramebufferRenderbufferEXT,
-    logGetFramebufferAttachmentParameterivEXT,
+    logGenFramebuffersEXT,
+    logGenRenderbuffersEXT,
     logGenerateMipmapEXT,
-    0, /* glStencilFuncSeparate */
-    0, /* glStencilOpSeparate */
-    0, /* glStencilMaskSeparate */
+    logGetFramebufferAttachmentParameterivEXT,
+    logGetRenderbufferParameterivEXT,
+    logIsFramebufferEXT,
+    logIsRenderbufferEXT,
+    logRenderbufferStorageEXT,
+    0, /* glBlitFramebufferEXT */
+    0, /* glProgramEnvParameters4fvEXT */
+    0, /* glProgramLocalParameters4fvEXT */
     0, /* glGetQueryObjecti64vEXT */
     0  /* glGetQueryObjectui64vEXT */
 };
