@@ -19,7 +19,9 @@ SUBDIRS = 		\
 	$(XEGL_SUBDIRS)
 
 AM_CFLAGS = \
-	 $(DIX_CFLAGS) \
+	@DIX_CFLAGS@ \
+	@LIBDRM_CFLAGS@ \
+	@DRIPROTO_CFLAGS@ \
 	-DHAVE_XGL_CONFIG_H \
 	-DHAVE_DIX_CONFIG_H \
 	-I$(top_srcdir)/GL/glx			\
@@ -55,7 +57,7 @@ libxgl_a_SOURCES =     \
 	xglpict.c      \
 	xglglyph.c     \
 	xgltrap.c      \
-	xglloader.c     \
+	xglloader.c    \
 	xglhash.c      \
 	xglglx.c       \
 	xglxv.c
