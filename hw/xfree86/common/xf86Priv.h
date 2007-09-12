@@ -36,6 +36,8 @@
 #ifndef _XF86PRIV_H
 #define _XF86PRIV_H
 
+#include <pciaccess.h>
+
 #include "xf86Privstr.h"
 #include "propertyst.h"
 
@@ -76,7 +78,7 @@ extern Bool xf86BestRefresh;
 extern Gamma xf86Gamma;
 extern char *xf86ServerName;
 extern Bool xf86ShowUnresolved;
-extern PciBusId xf86IsolateDevice;
+extern struct pci_slot_match xf86IsolateDevice;
 
 /* Other parameters */
 
@@ -101,7 +103,6 @@ extern int xf86NumDrivers;
 extern Bool xf86Resetting;
 extern Bool xf86Initialising;
 extern int xf86NumScreens;
-extern pciVideoPtr *xf86PciVideoInfo;
 extern xf86CurrentAccessRec xf86CurrentAccess;
 extern const char *xf86VisualNames[];
 extern int xf86Verbose;                 /* verbosity level */
@@ -148,9 +149,6 @@ void xf86ClearEntityListForScreen(int scrnIndex);
 void xf86AddDevToEntity(int entityIndex, GDevPtr dev);
 extern void xf86PostPreInit(void);
 extern void xf86PostScreenInit(void);
-extern memType getValidBIOSBase(PCITAG tag, int num);
-extern memType getEmptyPciRange(PCITAG tag, int base_reg);
-extern int pciTestMultiDeviceCard(int bus, int dev, int func, PCITAG** pTag);
 
 /* xf86Config.c */
 
@@ -174,9 +172,6 @@ void xf86PostKbdEvent(unsigned key);
 void xf86PostMseEvent(DeviceIntPtr device, int buttons, int dx, int dy);
 void xf86Wakeup(pointer blockData, int err, pointer pReadmask);
 void xf86SigHandler(int signo);
-#ifdef MEMDEBUG
-void xf86SigMemDebug(int signo);
-#endif
 void xf86HandlePMEvents(int fd, pointer data);
 extern int (*xf86PMGetEventFromOs)(int fd,pmEvent *events,int num);
 extern pmWait (*xf86PMConfirmEventToOs)(int fd,pmEvent event);
@@ -190,6 +185,7 @@ void xf86CloseLog(void);
 Bool xf86LoadModules(char **list, pointer *optlist);
 int xf86SetVerbosity(int verb);
 int xf86SetLogVerbosity(int verb);
+Bool xf86CallDriverProbe( struct _DriverRec * drv, Bool detect_only );
 
 /* xf86Lock.c */
 

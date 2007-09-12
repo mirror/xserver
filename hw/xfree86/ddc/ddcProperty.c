@@ -35,7 +35,6 @@
 
 #define EDID1_ATOM_NAME         "XFree86_DDC_EDID1_RAWDATA"
 #define EDID2_ATOM_NAME         "XFree86_DDC_EDID2_RAWDATA"
-#define VDIF_ATOM_NAME          "XFree86_DDC_VDIF_RAWDATA"
 
 static void
 addRootWindowProperties(ScrnInfoPtr pScrn, xf86MonPtr DDC)
@@ -88,7 +87,7 @@ addRootWindowProperties(ScrnInfoPtr pScrn, xf86MonPtr DDC)
 	if ((EDID1rawdata = xalloc(128*sizeof(CARD8)))==NULL)
 	    return;
 
-	EDID1Atom = MakeAtom(EDID1_ATOM_NAME, sizeof(EDID1_ATOM_NAME), TRUE);
+	EDID1Atom = MakeAtom(EDID1_ATOM_NAME, sizeof(EDID1_ATOM_NAME) - 1, TRUE);
 	memcpy(EDID1rawdata, DDC->rawData, 128);
 	xf86RegisterRootWindowProperty(scrnIndex, EDID1Atom, XA_INTEGER, 8,
 		128, (unsigned char *)EDID1rawdata);
@@ -99,20 +98,10 @@ addRootWindowProperties(ScrnInfoPtr pScrn, xf86MonPtr DDC)
 	    return;
 
 	memcpy(EDID2rawdata, DDC->rawData, 256);
-	EDID2Atom = MakeAtom(EDID2_ATOM_NAME, sizeof(EDID2_ATOM_NAME), TRUE);
+	EDID2Atom = MakeAtom(EDID2_ATOM_NAME, sizeof(EDID2_ATOM_NAME) - 1, TRUE);
 	xf86RegisterRootWindowProperty(scrnIndex, EDID2Atom, XA_INTEGER, 8,
 		256, (unsigned char *)EDID2rawdata);
     }
-
-#if 0
-    if (DDC->vdif) {
-#define VDIF_DUMMY_STRING "setting dummy VDIF property - please insert correct values\n"
-
-	VDIFAtom = MakeAtom(VDIF_ATOM_NAME, sizeof(VDIF_ATOM_NAME), TRUE);
-	xf86RegisterRootWindowProperty(scrnIndex, VDIFAtom, XA_STRING, 8,
-		strlen(VDIF_DUMMY_STRING), VDIF_DUMMY_STRING);
-    }
-#endif
 }
 
 Bool

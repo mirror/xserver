@@ -46,8 +46,6 @@
  * authorization from the copyright holder(s) and author(s).
  */
 
-#define INCLUDE_DEPRECATED 1
-
 #ifdef HAVE_XORG_CONFIG_H
 #include <xorg-config.h>
 #endif
@@ -96,6 +94,11 @@
 #endif
 #include "xf86DDC.h"
 #include "edid.h"
+#include "xf86Cursor.h"
+#include "xf86RamDac.h"
+#include "BT.h"
+#include "IBM.h"
+#include "TI.h"
 
 #ifndef HAS_GLIBC_SIGSETJMP
 #if defined(setjmp) && defined(__GNU_LIBRARY__) && \
@@ -145,9 +148,7 @@ extern void _Qp_uitoq(unsigned int *, unsigned int);
 #endif
 
 #if defined(__GNUC__)
-#ifndef __UNIXOS2__
 extern long __div64(long, long);
-#endif
 extern long __divdf3(long, long);
 extern long __divdi3(long, long);
 extern long __divsf3(long, long);
@@ -155,9 +156,7 @@ extern long __divsi3(long, long);
 extern long __moddi3(long, long);
 extern long __modsi3(long, long);
 
-#ifndef __UNIXOS2__
 extern long __mul64(long, long);
-#endif
 extern long __muldf3(long, long);
 extern long __muldi3(long, long);
 extern long __mulsf3(long, long);
@@ -167,18 +166,14 @@ extern long __udivsi3(long, long);
 extern long __umoddi3(long, long);
 extern long __umodsi3(long, long);
 
-#ifndef __UNIXOS2__
 #pragma weak __div64
-#endif
 #pragma weak __divdf3
 #pragma weak __divdi3
 #pragma weak __divsf3
 #pragma weak __divsi3
 #pragma weak __moddi3
 #pragma weak __modsi3
-#ifndef __UNIXOS2__
 #pragma weak __mul64
-#endif
 #pragma weak __muldf3
 #pragma weak __muldi3
 #pragma weak __mulsf3
@@ -257,13 +252,11 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86MapVidMem)
     SYMFUNC(xf86UnMapVidMem)
     SYMFUNC(xf86MapReadSideEffects)
-    SYMFUNC(xf86GetPciDomain)
     SYMFUNC(xf86MapDomainMemory)
-    SYMFUNC(xf86MapDomainIO)
-    SYMFUNC(xf86ReadDomainMemory)
     SYMFUNC(xf86UDelay)
     SYMFUNC(xf86IODelay)
     SYMFUNC(xf86SlowBcopy)
+    SYMFUNC(xf86SetReallySlowBcopy)
 #ifdef __alpha__
     SYMFUNC(xf86SlowBCopyToBus)
     SYMFUNC(xf86SlowBCopyFromBus)
@@ -308,10 +301,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     /* xf86Bus.c */
     SYMFUNC(xf86CheckPciSlot)
     SYMFUNC(xf86ClaimPciSlot)
-    SYMFUNC(xf86GetPciVideoInfo)
-    SYMFUNC(xf86GetPciEntity)
-    SYMFUNC(xf86GetPciConfigInfo)
-    SYMFUNC(xf86SetPciVideo)
     SYMFUNC(xf86ClaimIsaSlot)
     SYMFUNC(xf86ClaimFbSlot)
     SYMFUNC(xf86ClaimNoSlot)
@@ -342,20 +331,10 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86CheckPciMemBase)
     SYMFUNC(xf86SetAccessFuncs)
     SYMFUNC(xf86IsEntityPrimary)
-    SYMFUNC(xf86FixPciResource)
     SYMFUNC(xf86SetOperatingState)
     SYMFUNC(xf86EnterServerState)
-    SYMFUNC(xf86GetBlock)
-    SYMFUNC(xf86GetSparse)
-    SYMFUNC(xf86ReallocatePciResources)
     SYMFUNC(xf86ChkConflict)
-    SYMFUNC(xf86IsPciDevPresent)
     SYMFUNC(xf86FindScreenForEntity)
-    SYMFUNC(xf86FindPciDeviceVendor)
-    SYMFUNC(xf86FindPciClass)
-#ifdef INCLUDE_DEPRECATED
-    SYMFUNC(xf86EnablePciBusMaster)
-#endif
     SYMFUNC(xf86RegisterStateChangeNotificationCallback)
     SYMFUNC(xf86DeregisterStateChangeNotificationCallback)
     SYMFUNC(xf86NoSharedResources)
@@ -723,21 +702,9 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86STimestamp)
 #endif
 
-    SYMFUNC(pciFindFirst)
-    SYMFUNC(pciFindNext)
-    SYMFUNC(pciWriteByte)
-    SYMFUNC(pciWriteWord)
-    SYMFUNC(pciWriteLong)
-    SYMFUNC(pciReadByte)
-    SYMFUNC(pciReadWord)
-    SYMFUNC(pciReadLong)
-    SYMFUNC(pciSetBitsLong)
     SYMFUNC(pciTag)
     SYMFUNC(pciBusAddrToHostAddr)
-    SYMFUNC(pciHostAddrToBusAddr)
-    SYMFUNC(xf86MapPciMem)
     SYMFUNC(xf86scanpci)
-    SYMFUNC(xf86ReadPciBIOS)
 
     /* Loader functions */
     SYMFUNC(LoadSubModule)
@@ -1061,7 +1028,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
 # endif
 #endif
 #if defined(__GNUC__)
-#if !defined(__UNIXOS2__) && !defined(Lynx)
+#if !defined(Lynx)
     SYMFUNC(__div64)
 #endif
 #if !defined(Lynx)	/* FIXME: test on others than x86 and !3.1.0a/x86 */
@@ -1076,7 +1043,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
 #if !defined(Lynx)
     SYMFUNC(__modsi3)
 #endif
-#if !defined(__UNIXOS2__) && !defined(Lynx)
+#if !defined(Lynx)
     SYMFUNC(__mul64)
 #endif
 #if !defined(Lynx)
@@ -1135,13 +1102,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMVAR(xf86Screens)
     SYMVAR(byte_reversed)
     SYMVAR(xf86inSuspend)
-    /* debugging variables */
-#ifdef BUILDDEBUG
-    SYMVAR(xf86p8bit)
-    SYMVAR(xf86DummyVar1)
-    SYMVAR(xf86DummyVar2)
-    SYMVAR(xf86DummyVar3)
-#endif
 
     /* predefined resource lists from xf86Bus.h */
     SYMVAR(resVgaExclusive)
@@ -1154,7 +1114,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMVAR(resVgaSparseShared)
     SYMVAR(res8514Exclusive)
     SYMVAR(res8514Shared)
-    SYMVAR(PciAvoid)
 
 #if defined(__powerpc__) && (!defined(NO_INLINE) || defined(Lynx))
     SYMVAR(ioBase)
@@ -1176,9 +1135,12 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86CrtcCreate)
     SYMFUNC(xf86CrtcDestroy)
     SYMFUNC(xf86CrtcInUse)
+    SYMFUNC(xf86CrtcSetScreenSubpixelOrder)
+    SYMFUNC(xf86RotateCloseScreen)
     SYMFUNC(xf86CrtcRotate)
     SYMFUNC(xf86CrtcSetMode)
     SYMFUNC(xf86CrtcSetSizeRange)
+    SYMFUNC(xf86CrtcScreenInit)
     SYMFUNC(xf86CVTMode)
     SYMFUNC(xf86DisableUnusedFunctions)
     SYMFUNC(xf86DPMSSet)
@@ -1191,18 +1153,25 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86ModesAdd)
     SYMFUNC(xf86ModesEqual)
     SYMFUNC(xf86ModeVRefresh)
+    SYMFUNC(xf86ModeWidth)
+    SYMFUNC(xf86ModeHeight)
     SYMFUNC(xf86OutputCreate)
     SYMFUNC(xf86OutputDestroy)
     SYMFUNC(xf86OutputGetEDID)
+    SYMFUNC(xf86ConnectorGetName)
     SYMFUNC(xf86OutputGetEDIDModes)
     SYMFUNC(xf86OutputRename)
+    SYMFUNC(xf86OutputUseScreenMonitor)
     SYMFUNC(xf86OutputSetEDID)
+    SYMFUNC(xf86OutputFindClosestMode)
     SYMFUNC(xf86PrintModeline)
     SYMFUNC(xf86ProbeOutputModes)
     SYMFUNC(xf86PruneInvalidModes)
     SYMFUNC(xf86SetModeCrtc)
     SYMFUNC(xf86SetModeDefaultName)
     SYMFUNC(xf86SetScrnInfoModes)
+    SYMFUNC(xf86SetDesiredModes)
+    SYMFUNC(xf86SetSingleMode)
     SYMFUNC(xf86ValidateModesClocks)
     SYMFUNC(xf86ValidateModesFlags)
     SYMFUNC(xf86ValidateModesSize)
@@ -1220,19 +1189,19 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86RandR12PreInit)
     SYMFUNC(xf86RandR12SetConfig)
     SYMFUNC(xf86RandR12SetRotations)
+    SYMFUNC(xf86RandR12TellChanged)
 #endif
     SYMFUNC(xf86_cursors_init)
     SYMFUNC(xf86_reload_cursors)
     SYMFUNC(xf86_show_cursors)
     SYMFUNC(xf86_hide_cursors)
     SYMFUNC(xf86_cursors_fini)
+    SYMFUNC(xf86_crtc_clip_video_helper)
 
     SYMFUNC(xf86DoEDID_DDC1)
     SYMFUNC(xf86DoEDID_DDC2)
     SYMFUNC(xf86InterpretEDID)
     SYMFUNC(xf86PrintEDID)
-    SYMFUNC(xf86InterpretVdif)
-    SYMFUNC(xf86print_vdif)
     SYMFUNC(xf86DDCMonitorSet)
     SYMFUNC(xf86SetDDCproperties)
 
@@ -1255,4 +1224,50 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86I2CWriteRead)
     SYMFUNC(xf86I2CWriteVec)
     SYMFUNC(xf86I2CWriteWord)
+
+    /* ramdac/xf86RamDac.c */
+    SYMFUNC(RamDacCreateInfoRec)
+    SYMFUNC(RamDacHelperCreateInfoRec)
+    SYMFUNC(RamDacDestroyInfoRec)
+    SYMFUNC(RamDacHelperDestroyInfoRec)
+    SYMFUNC(RamDacInit)
+    SYMFUNC(RamDacHandleColormaps)
+    SYMFUNC(RamDacFreeRec)
+    SYMFUNC(RamDacGetHWIndex)
+    SYMVAR(RamDacHWPrivateIndex)
+    SYMVAR(RamDacScreenPrivateIndex)
+
+    /* ramdac/xf86Cursor.c */
+    SYMFUNC(xf86InitCursor)
+    SYMFUNC(xf86CreateCursorInfoRec)
+    SYMFUNC(xf86DestroyCursorInfoRec)
+    SYMFUNC(xf86ForceHWCursor)
+
+    /* ramdac/BT.c */
+    SYMFUNC(BTramdacProbe)
+    SYMFUNC(BTramdacSave)
+    SYMFUNC(BTramdacRestore)
+    SYMFUNC(BTramdacSetBpp)
+
+    /* ramdac/IBM.c */
+    SYMFUNC(IBMramdacProbe)
+    SYMFUNC(IBMramdacSave)
+    SYMFUNC(IBMramdacRestore)
+    SYMFUNC(IBMramdac526SetBpp)
+    SYMFUNC(IBMramdac640SetBpp)
+    SYMFUNC(IBMramdac526CalculateMNPCForClock)
+    SYMFUNC(IBMramdac640CalculateMNPCForClock)
+    SYMFUNC(IBMramdac526HWCursorInit)
+    SYMFUNC(IBMramdac640HWCursorInit)
+    SYMFUNC(IBMramdac526SetBppWeak)
+
+    /* ramdac/TI.c */
+    SYMFUNC(TIramdacCalculateMNPForClock)
+    SYMFUNC(TIramdacProbe)
+    SYMFUNC(TIramdacSave)
+    SYMFUNC(TIramdacRestore)
+    SYMFUNC(TIramdac3026SetBpp)
+    SYMFUNC(TIramdac3030SetBpp)
+    SYMFUNC(TIramdacHWCursorInit)
+    SYMFUNC(TIramdacLoadPalette)
 };

@@ -29,3 +29,11 @@ Xephyr_LDADD = 						\
 	../../../exa/libexa.la				\
 	@KDRIVE_LIBS@					\
         @XEPHYR_LIBS@
+
+Xephyr_DEPENDENCIES =	\
+	libxephyr.a					\
+	libxephyr-hostx.a			        \
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

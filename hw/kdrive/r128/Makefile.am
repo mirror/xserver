@@ -22,5 +22,11 @@ R128_LIBS =					\
 
 Xr128_LDADD = \
 	$(R128_LIBS)				\
-	@KDRIVE_LIBS@                          \
-	@XSERVER_LIBS@					
+	@KDRIVE_LIBS@
+
+Xr128_DEPENDENCIES =	\
+	libr128.a 				\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

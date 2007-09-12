@@ -35,13 +35,14 @@
 #include <fcntl.h>
 #include <X11/X.h>
 #include <X11/Xmd.h>
+#include <pciaccess.h>
+#include "Pci.h"
 #include "os.h"
 #include "loaderProcs.h"
 #include "xf86.h"
 #include "xf86Config.h"
 #include "xf86_OSlib.h"
 #include "xf86Priv.h"
-#include "xf86PciData.h"
 #define IN_XSERVER
 #include "xf86Parser.h"
 #include "xf86tokens.h"
@@ -56,7 +57,7 @@
 
 typedef struct _DevToConfig {
     GDevRec GDev;
-    pciVideoPtr pVideo;
+    struct pci_device * pVideo;
 #if (defined(__sparc__) || defined(__sparc)) && !defined(__OpenBSD__)
     sbusDevicePtr sVideo;
 #endif
@@ -70,10 +71,7 @@ _X_EXPORT xf86MonPtr ConfiguredMonitor;
 Bool xf86DoConfigurePass1 = TRUE;
 static Bool foundMouse = FALSE;
 
-#if defined(__UNIXOS2__)
-#define DFLT_MOUSE_DEV "mouse$"
-#define DFLT_MOUSE_PROTO "OS2Mouse"
-#elif defined(__SCO__)
+#if defined(__SCO__)
 static char *DFLT_MOUSE_PROTO = "OSMouse";
 #elif defined(__UNIXWARE__)
 static char *DFLT_MOUSE_PROTO = "OSMouse";
@@ -104,7 +102,7 @@ GDevPtr
 xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int chipset)
 {
     int i, j;
-    pciVideoPtr pVideo = NULL;
+    struct pci_device * pVideo = NULL;
     Bool isPrimary = FALSE;
 
     if (xf86DoProbe || !xf86DoConfigure || !xf86DoConfigurePass1)
@@ -113,11 +111,12 @@ xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int 
     /* Check for duplicates */
     switch (bus) {
     case BUS_PCI:
-	pVideo = (pciVideoPtr) busData;
+	pVideo = (struct pci_device *) busData;
 	for (i = 0;  i < nDevToConfig;  i++)
 	    if (DevToConfig[i].pVideo &&
+		(DevToConfig[i].pVideo->domain == pVideo->domain) &&
 		(DevToConfig[i].pVideo->bus == pVideo->bus) &&
-		(DevToConfig[i].pVideo->device == pVideo->device) &&
+		(DevToConfig[i].pVideo->dev == pVideo->dev) &&
 		(DevToConfig[i].pVideo->func == pVideo->func))
 		return NULL;
 	isPrimary = xf86IsPrimaryPci(pVideo);
@@ -176,9 +175,9 @@ xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int 
 	char busnum[8];
 
 	NewDevice.pVideo = pVideo;
-	xf86FindPciNamesByDevice(pVideo->vendor, pVideo->chipType,
-				 NOVENDOR, NOSUBSYS,
-				 &VendorName, &CardName, NULL, NULL);
+
+	VendorName = pci_device_get_vendor_name( pVideo );
+	CardName = pci_device_get_device_name( pVideo );
 
 	if (!VendorName) {
 	    VendorName = xnfalloc(15);
@@ -200,13 +199,13 @@ xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int 
 	NewDevice.GDev.busID = xnfalloc(16);
 	xf86FormatPciBusNumber(pVideo->bus, busnum);
 	sprintf(NewDevice.GDev.busID, "PCI:%s:%d:%d",
-	    busnum, pVideo->device, pVideo->func);
+	    busnum, pVideo->dev, pVideo->func);
 
-	NewDevice.GDev.chipID = pVideo->chipType;
-	NewDevice.GDev.chipRev = pVideo->chipRev;
+	NewDevice.GDev.chipID = pVideo->device_id;
+	NewDevice.GDev.chipRev = pVideo->revision;
 
 	if (chipset < 0)
-	    chipset = (pVideo->vendor << 16) | pVideo->chipType;
+	    chipset = (pVideo->vendor_id << 16) | pVideo->device_id;
 	}
 	break;
     case BUS_ISA:
@@ -252,7 +251,8 @@ xf86AddBusDeviceToConfigure(const char *driver, BusType bus, void *busData, int 
  * Backwards compatibility
  */
 _X_EXPORT GDevPtr
-xf86AddDeviceToConfigure(const char *driver, pciVideoPtr pVideo, int chipset)
+xf86AddDeviceToConfigure(const char *driver, struct pci_device * pVideo, 
+			 int chipset)
 {
     return xf86AddBusDeviceToConfigure(driver, pVideo ? BUS_PCI : BUS_ISA,
 				       pVideo, chipset);
@@ -271,17 +271,6 @@ configureInputSection (void)
     /* Crude mechanism to auto-detect mouse (os dependent) */
     { 
 	int fd;
-#if 0 && defined linux
-	/* Our autodetection code can do a better job */
-	int len;
-	char path[32];
-
-	if ((len = readlink(DFLT_MOUSE_DEV, path, sizeof(path) - 1)) > 0) {
-	    path[len] = '\0';
-	    if (strstr(path, "psaux") != NULL)
-		DFLT_MOUSE_PROTO = "PS/2";
-	}
-#endif
 #ifdef WSCONS_SUPPORT
 	fd = open("/dev/wsmouse", 0);
 	if (fd > 0) {
@@ -321,29 +310,6 @@ configureInputSection (void)
 				xstrdup("4 5 6 7"));
     ptr = (XF86ConfInputPtr)xf86addListItem((glp)ptr, (glp)mouse);
     return ptr;
-}
-
-static XF86ConfDRIPtr
-configureDRISection (void)
-{
-#ifdef NOTYET
-    parsePrologue (XF86ConfDRIPtr, XF86ConfDRIRec)
-
-    return ptr;
-#else
-    return NULL;
-#endif
-}
-
-static XF86ConfVendorPtr
-configureVendorSection (void)
-{
-    parsePrologue (XF86ConfVendorPtr, XF86ConfVendorRec)
-
-    return NULL;
-#if 0
-    return ptr;
-#endif
 }
 
 static XF86ConfScreenPtr
@@ -565,29 +531,6 @@ configureLayoutSection (void)
     }
 
     return ptr;
-}
-
-static XF86ConfModesPtr
-configureModesSection (void)
-{
-#ifdef NOTYET
-    parsePrologue (XF86ConfModesPtr, XF86ConfModesRec)
-
-    return ptr;
-#else
-    return NULL;
-#endif
-}
-
-static XF86ConfVideoAdaptorPtr
-configureVideoAdaptorSection (void)
-{
-    parsePrologue (XF86ConfVideoAdaptorPtr, XF86ConfVideoAdaptorRec)
-
-    return NULL;
-#if 0
-    return ptr;
-#endif
 }
 
 static XF86ConfFlagsPtr
@@ -819,22 +762,20 @@ DoConfigure()
     /* Call all of the probe functions, reporting the results. */
     for (CurrentDriver = 0;  CurrentDriver < xf86NumDrivers;  CurrentDriver++) {
 	xorgHWFlags flags;
-	
+	Bool found_screen;
+	DriverRec * const drv = xf86DriverList[CurrentDriver];
+
 	if (!xorgHWAccess) {
-	    if (!xf86DriverList[CurrentDriver]->driverFunc
-		|| !xf86DriverList[CurrentDriver]->driverFunc(NULL,
-						GET_REQUIRED_HW_INTERFACES,
-						&flags)
+	    if (!drv->driverFunc
+		|| !drv->driverFunc( NULL, GET_REQUIRED_HW_INTERFACES, &flags )
 		|| NEED_IO_ENABLED(flags)) 
 		continue;
 	}
 	
-	if (xf86DriverList[CurrentDriver]->Probe == NULL) continue;
-
-	if ((*xf86DriverList[CurrentDriver]->Probe)(
-	    xf86DriverList[CurrentDriver], PROBE_DETECT) &&
-	    xf86DriverList[CurrentDriver]->Identify)
-	    (*xf86DriverList[CurrentDriver]->Identify)(0);
+	found_screen = xf86CallDriverProbe( drv, TRUE );
+	if ( found_screen && drv->Identify ) {
+	    (*drv->Identify)(0);
+	}
     }
 
     if (nDevToConfig <= 0) {
@@ -862,19 +803,16 @@ DoConfigure()
     xf86config->conf_files = configureFilesSection();
     xf86config->conf_modules = configureModuleSection();
     xf86config->conf_flags = configureFlagsSection();
-    xf86config->conf_videoadaptor_lst = configureVideoAdaptorSection();
-    xf86config->conf_modes_lst = configureModesSection();
-    xf86config->conf_vendor_lst = configureVendorSection();
-    xf86config->conf_dri = configureDRISection();
+    xf86config->conf_videoadaptor_lst = NULL;
+    xf86config->conf_modes_lst = NULL;
+    xf86config->conf_vendor_lst = NULL;
+    xf86config->conf_dri = NULL;
     xf86config->conf_input_lst = configureInputSection();
     xf86config->conf_layout_lst = configureLayoutSection();
 
     if (!(home = getenv("HOME")))
     	home = "/";
     {
-#ifdef __UNIXOS2__
-#define PATH_MAX 2048
-#endif
 #if !defined(PATH_MAX)
 #define PATH_MAX 1024
 #endif
@@ -923,7 +861,7 @@ DoConfigure()
 	    
 	    oldNumScreens = xf86NumScreens;
 
-	    (*xf86DriverList[i]->Probe)(xf86DriverList[i], 0);
+	    xf86CallDriverProbe( xf86DriverList[i], FALSE );
 
 	    /* reorder */
 	    k = screennum > 0 ? screennum : 1;
@@ -951,7 +889,6 @@ DoConfigure()
 		    }
 		}
 	    }
-	    xf86SetPciVideo(NULL,NONE);
 	}
 	xfree(driverProbed);
     }
@@ -1010,13 +947,11 @@ DoConfigure()
 	ErrorF("\n"__XSERVERNAME__" is not able to detect your mouse.\n"
 		"Edit the file and correct the Device.\n");
     } else {
-#ifndef __UNIXOS2__  /* OS/2 definitely has a mouse */
 	ErrorF("\n"__XSERVERNAME__" detected your mouse at device %s.\n"
 		"Please check your config if the mouse is still not\n"
 		"operational, as by default "__XSERVERNAME__
 	       " tries to autodetect\n"
 		"the protocol.\n",DFLT_MOUSE_DEV);
-#endif
     }
 #endif /* !__SCO__ */
 

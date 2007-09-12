@@ -35,6 +35,9 @@
 #include <X11/X.h>
 #define NEED_EVENTS
 #include <X11/Xproto.h>
+#ifdef MITSHM
+#include "shmint.h"
+#endif
 #include "scrnintstr.h"
 #include "pixmapstr.h"
 #include "windowstr.h"
@@ -103,16 +106,20 @@ typedef struct {
     DestroyPixmapProcPtr 	 SavedDestroyPixmap;
     PaintWindowBorderProcPtr 	 SavedPaintWindowBorder;
     CopyWindowProcPtr 		 SavedCopyWindow;
+    ChangeWindowAttributesProcPtr SavedChangeWindowAttributes;
+    BitmapToRegionProcPtr        SavedBitmapToRegion;
+    ModifyPixmapHeaderProcPtr    SavedModifyPixmapHeader;
 #ifdef RENDER
     CompositeProcPtr             SavedComposite;
-    RasterizeTrapezoidProcPtr	 SavedRasterizeTrapezoid;
-    AddTrianglesProcPtr		 SavedAddTriangles;
+    TrianglesProcPtr		 SavedTriangles;
     GlyphsProcPtr                SavedGlyphs;
+    TrapezoidsProcPtr            SavedTrapezoids;
 #endif
+  
     Bool			 swappedOut;
     enum ExaMigrationHeuristic	 migration;
-    Bool			 hideOffscreenPixmapData;
     Bool			 checkDirtyCorrectness;
+    unsigned			 disableFbCount;
 } ExaScreenPrivRec, *ExaScreenPrivPtr;
 
 /*
@@ -152,6 +159,7 @@ extern int exaPixmapPrivateIndex;
 typedef struct {
     ExaOffscreenArea *area;
     int		    score;	/**< score for the move-in vs move-out heuristic */
+    Bool	    offscreen;
 
     CARD8	    *sys_ptr;	/**< pointer to pixmap data in system memory */
     int		    sys_pitch;	/**< pitch of pixmap in system memory */
@@ -167,16 +175,17 @@ typedef struct {
      */
     DamagePtr	    pDamage;
     /**
-     * The valid region marks the valid bits of a drawable (at least, as it's
-     * derived from damage, which may be overreported).
+     * The valid regions mark the valid bits (at least, as they're derived from
+     * damage, which may be overreported) of a pixmap's system and FB copies.
      */
-    RegionRec	    validReg;
+    RegionRec	    validSys, validFB;
 } ExaPixmapPrivRec, *ExaPixmapPrivPtr;
  
 typedef struct _ExaMigrationRec {
     Bool as_dst;
     Bool as_src;
     PixmapPtr pPix;
+    RegionPtr pReg;
 } ExaMigrationRec, *ExaMigrationPtr;
 
 /**
@@ -184,6 +193,12 @@ typedef struct _ExaMigrationRec {
  * to set EXA options or hook in screen functions to handle using EXA as the AA.
   */
 void exaDDXDriverInit (ScreenPtr pScreen);
+
+void
+exaPrepareAccessWindow(WindowPtr pWin);
+
+void
+exaFinishAccessWindow(WindowPtr pWin);
 
 /* exa_unaccel.c */
 void
@@ -250,12 +265,6 @@ ExaCheckPushPixels (GCPtr pGC, PixmapPtr pBitmap,
 		   int w, int h, int x, int y);
 
 void
-ExaCheckGetImage (DrawablePtr pDrawable,
-		 int x, int y, int w, int h,
-		 unsigned int format, unsigned long planeMask,
-		 char *d);
-
-void
 ExaCheckGetSpans (DrawablePtr pDrawable,
 		 int wMax,
 		 DDXPointPtr ppt,
@@ -264,41 +273,46 @@ ExaCheckGetSpans (DrawablePtr pDrawable,
 		 char *pdstStart);
 
 void
-ExaCheckSaveAreas (PixmapPtr	pPixmap,
-		  RegionPtr	prgnSave,
-		  int		xorg,
-		  int		yorg,
-		  WindowPtr	pWin);
-
-void
-ExaCheckRestoreAreas (PixmapPtr	pPixmap,
-		     RegionPtr	prgnSave,
-		     int	xorg,
-		     int    	yorg,
-		     WindowPtr	pWin);
-
-void
 ExaCheckPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what);
 
 CARD32
 exaGetPixmapFirstPixel (PixmapPtr pPixmap); 
 
 /* exa_accel.c */
+
+static _X_INLINE Bool
+exaGCReadsDestination(DrawablePtr pDrawable, unsigned long planemask,
+		      unsigned int fillStyle, unsigned char alu)
+{
+    return ((alu != GXcopy && alu != GXclear &&alu != GXset &&
+	     alu != GXcopyInverted) || fillStyle == FillStippled ||
+	    !EXA_PM_IS_SOLID(pDrawable, planemask));
+}
+
 void
 exaCopyWindow(WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc);
+
+Bool
+exaFillRegionTiled (DrawablePtr	pDrawable, RegionPtr pRegion, PixmapPtr pTile,
+		    DDXPointPtr pPatOrg, CARD32 planemask, CARD32 alu);
 
 void
 exaPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what);
 
 void
+exaShmPutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, unsigned int format,
+	       int w, int h, int sx, int sy, int sw, int sh, int dx, int dy,
+	       char *data);
+
+void
 exaGetImage (DrawablePtr pDrawable, int x, int y, int w, int h,
 	     unsigned int format, unsigned long planeMask, char *d);
 
-void
-exaGetSpans (DrawablePtr pDrawable, int wMax, DDXPointPtr ppt, int *pwidth,
-	     int nspans, char *pdstStart);
-
 extern const GCOps exaOps;
+
+#ifdef MITSHM
+extern ShmFuncs exaShmFuncs;
+#endif
 
 #ifdef RENDER
 void
@@ -318,9 +332,6 @@ ExaCheckComposite (CARD8      op,
 
 /* exa_offscreen.c */
 void
-ExaOffscreenMarkUsed (PixmapPtr pPixmap);
-
-void
 ExaOffscreenSwapOut (ScreenPtr pScreen);
 
 void
@@ -334,6 +345,12 @@ ExaOffscreenFini (ScreenPtr pScreen);
 
 /* exa.c */
 void
+ExaDoPrepareAccess(DrawablePtr pDrawable, int index);
+
+void
+exaPrepareAccessReg(DrawablePtr pDrawable, int index, RegionPtr pReg);
+
+void
 exaPrepareAccess(DrawablePtr pDrawable, int index);
 
 void
@@ -343,7 +360,8 @@ void
 exaPixmapDirty(PixmapPtr pPix, int x1, int y1, int x2, int y2);
 
 void
-exaDrawableDirty(DrawablePtr pDrawable, int x1, int y1, int x2, int y2);
+exaGetDrawableDeltas (DrawablePtr pDrawable, PixmapPtr pPixmap,
+		      int *xp, int *yp);
 
 Bool
 exaDrawableIsOffscreen (DrawablePtr pDrawable);
@@ -375,6 +393,9 @@ exaCopyNtoN (DrawablePtr    pSrcDrawable,
 	     void	    *closure);
 
 /* exa_render.c */
+Bool
+exaOpReadsDestination (CARD8 op);
+
 void
 exaComposite(CARD8	op,
 	     PicturePtr pSrc,
@@ -390,12 +411,14 @@ exaComposite(CARD8	op,
 	     CARD16	height);
 
 void
-exaRasterizeTrapezoid (PicturePtr pPicture, xTrapezoid  *trap,
-		       int x_off, int y_off);
+exaTrapezoids (CARD8 op, PicturePtr pSrc, PicturePtr pDst,
+               PictFormatPtr maskFormat, INT16 xSrc, INT16 ySrc,
+               int ntrap, xTrapezoid *traps);
 
 void
-exaAddTriangles (PicturePtr pPicture, INT16 x_off, INT16 y_off, int ntri,
-		 xTriangle *tris);
+exaTriangles (CARD8 op, PicturePtr pSrc, PicturePtr pDst,
+	      PictFormatPtr maskFormat, INT16 xSrc, INT16 ySrc,
+	      int ntri, xTriangle *tris);
 
 void
 exaGlyphs (CARD8	op,

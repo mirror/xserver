@@ -11,7 +11,9 @@ INCLUDES = -I@MESA_SOURCE@/include \
 # -DXFree86Server is required because the X11 driver in Mesa thinks that
 # symbol means "being built in the server"
 AM_CFLAGS = \
-	$(DIX_CFLAGS) \
+	@DIX_CFLAGS@ \
+	@LIBDRM_CFLAGS@ \
+	@DRIPROTO_CFLAGS@ \
 	$(GLUCOSE_CFLAGS) \
 	@GLX_DEFINES@ \
 	-DXFree86Server
@@ -30,7 +32,6 @@ libglucose_la_LIBADD = $(GLUCOSE_LIBS)
 nodist_libglucose_la_SOURCES = \
 xgl.h \
 xglarea.c \
-xglbstore.c \
 xglcmap.c \
 xglcompose.c \
 xglcopy.c \

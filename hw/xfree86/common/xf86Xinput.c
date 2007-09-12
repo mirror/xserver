@@ -45,7 +45,6 @@
  * the sale, use or other dealings in this Software without prior written
  * authorization from the copyright holder(s) and author(s).
  */
-/* $XConsortium: xf86Xinput.c /main/14 1996/10/27 11:05:25 kaleb $ */
 
 #ifdef HAVE_XORG_CONFIG_H
 #include <xorg-config.h>
@@ -84,9 +83,7 @@
 
 #include <stdarg.h>
 
-#include "osdep.h"		/* EnabledDevices */
 #include <X11/Xpoll.h>
-#include "xf86_OSproc.h"	/* sigio stuff */
 
 #include "mi.h"
 
@@ -101,7 +98,7 @@ xf86SendDragEvents(DeviceIntPtr	device)
 {
     LocalDevicePtr local = (LocalDevicePtr) device->public.devicePrivate;
     
-    if (device->button->buttonsDown > 0)
+    if (device->button && device->button->buttonsDown > 0)
         return (local->flags & XI86_SEND_DRAG_EVENTS);
     else
         return (TRUE);
@@ -119,10 +116,12 @@ _X_EXPORT void
 xf86ProcessCommonOptions(LocalDevicePtr local,
                          pointer	list)
 {
-    if (!xf86SetBoolOption(list, "AlwaysCore", 0) ||
-        xf86SetBoolOption(list, "SendCoreEvents", 0) ||
-        xf86SetBoolOption(list, "CorePointer", 0) ||
-        xf86SetBoolOption(list, "CoreKeyboard", 0)) {
+    if (xf86SetBoolOption(list, "AlwaysCore", 0) ||
+        !xf86SetBoolOption(list, "SendCoreEvents", 1) ||
+        !xf86SetBoolOption(list, "CorePointer", 1) ||
+        !xf86SetBoolOption(list, "CoreKeyboard", 1)) {
+        xf86Msg(X_CONFIG, "%s: doesn't report core events\n", local->name);
+    } else {
         local->flags |= XI86_ALWAYS_CORE;
         xf86Msg(X_CONFIG, "%s: always reports core events\n", local->name);
     }
@@ -204,17 +203,6 @@ OpenInputDevice(DeviceIntPtr	dev,
 {
     if (!dev->inited)
         ActivateDevice(dev);
-
-    if (!dev->public.on) {
-        if (EnableDevice(dev)) {
-            dev->startup = FALSE;
-        }
-        else {
-            ErrorF("couldn't enable device %s\n", dev->name);
-            *status = BadDevice;
-            return;
-        }
-    }
 
     *status = Success;
 }
@@ -298,6 +286,7 @@ ChangeDeviceControl (ClientPtr client, DeviceIntPtr dev, xDeviceCtl *control)
       case DEVICE_RESOLUTION:
       case DEVICE_ABS_CALIB:
       case DEVICE_ABS_AREA:
+      case DEVICE_ENABLE:
         return Success;
       default:
         return BadMatch;
@@ -323,13 +312,14 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
     InputOption *option = NULL;
     DeviceIntPtr dev = NULL;
     int rval = Success;
+    int is_auto = 0;
 
     idev = xcalloc(sizeof(*idev), 1);
     if (!idev)
         return BadAlloc;
 
     for (option = options; option; option = option->next) {
-        if (strcmp(option->key, "driver") == 0) {
+        if (strcasecmp(option->key, "driver") == 0) {
             if (idev->driver) {
                 rval = BadRequest;
                 goto unwind;
@@ -338,7 +328,7 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
              * test if the module is already loaded first */
             drv = xf86LookupInputDriver(option->value);
             if (!drv)
-                if(xf86LoadOneModule(option->value, NULL))
+                if (xf86LoadOneModule(option->value, NULL))
                     drv = xf86LookupInputDriver(option->value);
             if (!drv) {
                 xf86Msg(X_ERROR, "No input driver matching `%s'\n",
@@ -352,8 +342,9 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
                 goto unwind;
             }
         }
-        if (strcmp(option->key, "name") == 0 ||
-            strcmp(option->key, "identifier") == 0) {
+
+        if (strcasecmp(option->key, "name") == 0 ||
+            strcasecmp(option->key, "identifier") == 0) {
             if (idev->identifier) {
                 rval = BadRequest;
                 goto unwind;
@@ -364,8 +355,19 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
                 goto unwind;
             }
         }
+
+        /* Right now, the only automatic config we know of is HAL. */
+        if (strcmp(option->key, "_source") == 0 &&
+            strcmp(option->value, "server/hal") == 0) {
+            if (!xf86Info.autoAddDevices) {
+                rval = BadMatch;
+                goto unwind;
+            }
+
+            is_auto = 1;
+        }
     }
-    if(!idev->driver || !idev->identifier) {
+    if (!idev->driver || !idev->identifier) {
         xf86Msg(X_ERROR, "No input driver/identifier specified (ignoring)\n");
         rval = BadRequest;
         goto unwind;
@@ -406,7 +408,10 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
 
     dev = pInfo->dev;
     ActivateDevice(dev);
-    if (dev->inited && dev->startup)
+    /* Enable it if it's properly initialised, we're currently in the VT, and
+     * either it's a manual request, or we're automatically enabling devices. */
+    if (dev->inited && dev->startup && xf86Screens[0]->vtSema &&
+        (!is_auto || xf86Info.autoEnableDevices))
         EnableDevice(dev);
 
     *pdev = dev;
@@ -460,25 +465,46 @@ xf86PostMotionEvent(DeviceIntPtr	device,
                     ...)
 {
     va_list var;
-    int i = 0, nevents = 0;
-    int dx, dy;
-    Bool drag = xf86SendDragEvents(device);
-    int *valuators = NULL;
-    int flags = 0;
-    xEvent *xE = NULL;
-    int index;
+    int i = 0;
+    static int *valuators = NULL;
+    static int n_valuators = 0;
 
-    if (is_absolute)
-        flags = POINTER_ABSOLUTE;
-    else
-        flags = POINTER_RELATIVE | POINTER_ACCELERATE;
-    
-    valuators = xcalloc(sizeof(int), num_valuators);
+    if (num_valuators > n_valuators) {
+	xfree (valuators);
+	valuators = NULL;
+    }
+
+    if (!valuators) {
+	valuators = xcalloc(sizeof(int), num_valuators);
+	n_valuators = num_valuators;
+    }
 
     va_start(var, num_valuators);
     for (i = 0; i < num_valuators; i++)
         valuators[i] = va_arg(var, int);
     va_end(var);
+
+    xf86PostMotionEventP(device, is_absolute, first_valuator, num_valuators, valuators);
+}
+
+_X_EXPORT void
+xf86PostMotionEventP(DeviceIntPtr	device,
+                    int			is_absolute,
+                    int			first_valuator,
+                    int			num_valuators,
+                    int			*valuators)
+{
+    int i = 0, nevents = 0;
+    int dx, dy;
+    Bool drag = xf86SendDragEvents(device);
+    xEvent *xE = NULL;
+    int index;
+    int flags = 0;
+
+    if (is_absolute)
+        flags = POINTER_ABSOLUTE;
+    else
+        flags = POINTER_RELATIVE | POINTER_ACCELERATE;
 
 #if XFreeXDGA
     if (first_valuator == 0 && num_valuators >= 2) {
@@ -493,7 +519,7 @@ xf86PostMotionEvent(DeviceIntPtr	device,
                 dy = valuators[1];
             }
             if (DGAStealMotionEvent(index, dx, dy))
-                goto out;
+                return;
         }
     }
 #endif
@@ -515,9 +541,6 @@ xf86PostMotionEvent(DeviceIntPtr	device,
             mieqEnqueue(device, xf86Events + i);
         }
     }
-
-out:
-    xfree(valuators);
 }
 
 _X_EXPORT void
@@ -762,6 +785,50 @@ xf86InitValuatorDefaults(DeviceIntPtr dev, int axnum)
 	dev->valuator->axisVal[1] = screenInfo.screens[0]->height / 2;
         dev->valuator->lasty = dev->valuator->axisVal[1];
     }
+}
+
+
+/**
+ * Deactivate a device. Call this function from the driver if you receive a
+ * read error or something else that spoils your day.
+ * Device will be moved to the off_devices list, but it will still be there
+ * until you really clean up after it.
+ * Notifies the client about an inactive device.
+ * 
+ * @param panic True if device is unrecoverable and needs to be removed.
+ */
+_X_EXPORT void
+xf86DisableDevice(DeviceIntPtr dev, Bool panic)
+{
+    devicePresenceNotify ev;
+    DeviceIntRec dummyDev;
+
+    if(!panic)
+    {
+        DisableDevice(dev);
+    } else
+    {
+        ev.type = DevicePresenceNotify;
+        ev.time = currentTime.milliseconds;
+        ev.devchange = DeviceUnrecoverable;
+        ev.deviceid = dev->id;
+        dummyDev.id = 0;
+        SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
+                (xEvent *) &ev, 1);
+
+        DeleteInputDeviceRequest(dev);
+    }
+}
+
+/**
+ * Reactivate a device. Call this function from the driver if you just found
+ * out that the read error wasn't quite that bad after all.
+ * Device will be re-activated, and an event sent to the client. 
+ */
+_X_EXPORT void
+xf86EnableDevice(DeviceIntPtr dev)
+{
+    EnableDevice(dev);
 }
 
 /* end of xf86Xinput.c */

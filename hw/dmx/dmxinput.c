@@ -1,4 +1,3 @@
-/* $XFree86$ */
 /*
  * Copyright 2001,2002 Red Hat Inc., Durham, North Carolina.
  *
@@ -105,4 +104,15 @@ void dmxUpdateWindowInfo(DMXUpdateType type, WindowPtr pWindow)
     for (i = 0, dmxInput = &dmxInputs[0]; i < dmxNumInputs; i++, dmxInput++)
         if (!dmxInput->detached && dmxInput->updateWindowInfo)
             dmxInput->updateWindowInfo(dmxInput, type, pWindow);
+}
+
+int
+NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
+{
+    return BadRequest;
+}
+
+void
+DeleteInputDeviceRequest(DeviceIntPtr pDev)
+{
 }

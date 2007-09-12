@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright © 2006 Sun Microsystems
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -145,6 +143,11 @@ typedef struct _CompScreen {
      */
     InstallColormapProcPtr	InstallColormap;
 
+    /*
+     * Fake backing store via automatic redirection
+     */
+    ChangeWindowAttributesProcPtr ChangeWindowAttributes;
+
     ScreenBlockHandlerProcPtr	BlockHandler;
     CloseScreenProcPtr		CloseScreen;
     Bool			damaged;
@@ -233,6 +236,9 @@ compCheckTree (ScreenPtr pScreen);
 #else
 #define compCheckTree(s)
 #endif
+
+PictFormatPtr
+compWindowFormat (WindowPtr pWin);
 
 void
 compSetPixmap (WindowPtr pWin, PixmapPtr pPixmap);

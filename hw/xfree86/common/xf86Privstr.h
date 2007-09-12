@@ -120,6 +120,8 @@ typedef struct {
     MessageType		randRFrom;
     Bool		aiglx;
     MessageType		aiglxFrom;
+    Bool		useDefaultFontPath;
+    MessageType		useDefaultFontPathFrom;
     Bool        ignoreABI;
     struct {
 	Bool		disabled;		/* enable/disable deactivating
@@ -136,6 +138,9 @@ typedef struct {
 
     Bool        allowEmptyInput;  /* Allow the server to start with no input
                                    * devices. */
+    Bool        autoAddDevices; /* Whether to succeed NIDR, or ignore. */
+    Bool        autoEnableDevices; /* Whether to enable, or let the client
+                                    * control. */
 } xf86InfoRec, *xf86InfoPtr;
 
 #ifdef DPMSExtension

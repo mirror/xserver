@@ -24,12 +24,12 @@ DOC_SUBDIR = doc
 
 SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support parser rac \
 	  ramdac shadowfb vbe vgahw xaa $(MFB_SUBDIR) $(CFB_SUBDIR) \
-	  loader scanpci dixmods exa modes \
+	  loader dixmods exa modes \
 	  $(DRI_SUBDIR) $(XF86UTILS_SUBDIR) $(DOC_SUBDIR) $(GLUCOSE_DIR)
 
 DIST_SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support \
                parser rac ramdac shadowfb vbe vgahw xaa xf1bpp xf4bpp \
-               xf8_16bpp xf8_32bpp loader scanpci dixmods dri exa modes \
+               xf8_16bpp xf8_32bpp loader dixmods dri exa modes \
 	       utils doc glucose
 
 bin_PROGRAMS = Xorg
@@ -52,7 +52,7 @@ osandcommon.c xorg.c:
 DISTCLEANFILES = osandcommon.c xorg.c
 
 XORG_LIBS = \
-            @XORG_CORE_LIBS@ \
+            $(XSERVER_LIBS) \
             common/libinit.a \
             loader/libloader.a \
             libosandcommon.la \
@@ -63,29 +63,29 @@ XORG_LIBS = \
 	    ramdac/libramdac.a \
 	    ddc/libddc.a \
 	    i2c/libi2c.a \
-            @XORG_LIBS@
+	    dixmods/libxorgxkb.la \
+	    $(top_builddir)/mi/libmi.la \
+	    $(top_builddir)/os/libos.la \
+	    @XORG_LIBS@ \
+	    dixmods/libxorgxkb.la
 
-Xorg_DEPENDENCIES = \
-	$(XORG_LIBS)
-
-Xorg_LDADD = $(XORG_LIBS) \
-             @XSERVER_LIBS@ \
-	     dixmods/libxorgxkb.la
+Xorg_DEPENDENCIES = $(XORG_LIBS)
+Xorg_LDADD = $(XORG_LIBS) $(XORG_SYS_LIBS) $(XSERVER_SYS_LIBS)
 
 Xorg_LDFLAGS = $(LD_EXPORT_SYMBOLS_FLAG)
 
 BUILT_SOURCES = xorg.conf.example
-CLEAN = xorg.conf.example xorg.conf.example.pre
+DISTCLEANFILES += xorg.conf.example xorg.conf.example.pre
 EXTRA_DIST = xorgconf.cpp
 
 if SOLARIS_ASM_INLINE
 # Needs to be built before any files are compiled when using Sun compilers
 # so in*/out* inline definitions are properly processed.
 
-BUILT_SOURCES += os-support/solaris/solaris-$(SOLARIS_INOUT_ARCH).il
+BUILT_SOURCES += os-support/solaris/solaris-@SOLARIS_INOUT_ARCH@.il
 
-os-support/solaris/solaris-$(SOLARIS_INOUT_ARCH).il:
-	cd os-support/solaris ; make solaris-$(SOLARIS_INOUT_ARCH).il
+os-support/solaris/solaris-@SOLARIS_INOUT_ARCH@.il:
+	cd os-support/solaris ; make solaris-@SOLARIS_INOUT_ARCH@.il
 endif
 
 # do not use $(mkdir_p) if you want automake 1.7 to work

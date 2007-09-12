@@ -88,9 +88,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     int pagesize; 
     memType cs;
     legacyVGARec vga;
-    xf86int10BiosLocation bios;
     Bool videoBiosMapped = FALSE;
-    pciVideoPtr pvp;
     
     if (int10Generation != serverGeneration) {
 	counter = 0;
@@ -152,8 +150,8 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     pInt = (xf86Int10InfoPtr)xnfcalloc(1, sizeof(xf86Int10InfoRec));
     pInt->scrnIndex = screen;
     pInt->entityIndex = entityIndex;
-    pvp = xf86GetPciInfoForEntity(entityIndex);
-    if (pvp) pInt->Tag = pciTag(pvp->bus, pvp->device, pvp->func);
+    pInt->dev = xf86GetPciInfoForEntity(entityIndex);
+
     if (!xf86Int10ExecSetup(pInt))
 	goto error0;
     pInt->mem = &linuxMem;
@@ -260,13 +258,9 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 #endif
     }
 
-    xf86int10ParseBiosLocation(options,&bios);
-
-    if (xf86IsEntityPrimary(entityIndex) 
-	&& !(initPrimary(options))) {
-	if (! xf86int10GetBiosSegment(pInt, &bios, NULL)) {
+    if (xf86IsEntityPrimary(entityIndex) && !(initPrimary(options))) {
+	if (!xf86int10GetBiosSegment(pInt, NULL))
 	    goto error3;
-	}
 
 	set_return_trap(pInt);
 #ifdef _PC	
@@ -276,28 +270,27 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
   	xf86Int10SaveRestoreBIOSVars(pInt, TRUE);
 #endif
     } else {
-	const BusType location_type = xf86int10GetBiosLocationType(pInt,
-								   &bios);
+	const BusType location_type = xf86int10GetBiosLocationType(pInt);
 
 	switch (location_type) {
 	case BUS_PCI: {
-	    const int pci_entity = (bios.bus == BUS_PCI)
-	      ? xf86GetPciEntity(bios.location.pci.bus,
-				 bios.location.pci.dev,
-				 bios.location.pci.func)
-	      : pInt->entityIndex;
-	    
-	    if (!mapPciRom(pci_entity, (unsigned char *)(V_BIOS))) {
-	        xf86DrvMsg(screen, X_ERROR, "Cannot read V_BIOS\n");
+	    int err;
+	    struct pci_device *rom_device =
+		xf86GetPciInfoForEntity(pInt->entityIndex);
+
+	    err = pci_device_read_rom(rom_device, (unsigned char *)(V_BIOS));
+	    if (err) {
+		xf86DrvMsg(screen,X_ERROR,"Cannot read V_BIOS (%s)\n",
+			   strerror(err));
 		goto error3;
 	    }
+
 	    pInt->BIOSseg = V_BIOS >> 4;
 	    break;
 	}
 	case BUS_ISA:
-	    if (! xf86int10GetBiosSegment(pInt, &bios, NULL)) {
+	    if (!xf86int10GetBiosSegment(pInt, NULL))
 		goto error3;
-	    }
 	    break;
 	default:
 	    goto error3;

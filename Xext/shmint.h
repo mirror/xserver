@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright © 2003 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -37,6 +35,9 @@ ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
 
 void
 ShmSetPixmapFormat(ScreenPtr pScreen, int format);
+
+void
+fbShmPutImage(XSHM_PUT_IMAGE_ARGS);
 
 void
 ShmRegisterFbFuncs(ScreenPtr pScreen);

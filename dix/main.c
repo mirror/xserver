@@ -74,8 +74,6 @@ Equipment Corporation.
 
 ******************************************************************/
 
-/* $TOG: main.c /main/86 1998/02/09 14:20:03 kaleb $ */
-
 #define NEED_EVENTS
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
@@ -253,6 +251,7 @@ main(int argc, char *argv[], char *envp[])
     display = "0";
 
     InitGlobals();
+    InitRegions();
 #ifdef XPRINT
     PrinterInitGlobals();
 #endif
@@ -311,7 +310,7 @@ main(int argc, char *argv[], char *envp[])
 	InitBlockAndWakeupHandlers();
 	/* Perform any operating system dependent initializations you'd like */
 	OsInit();
-        configInitialise();
+        config_init();
 	if(serverGeneration == 1)
 	{
 	    CreateWellKnownSockets();
@@ -400,14 +399,10 @@ main(int argc, char *argv[], char *envp[])
 	    FatalError("failed to initialize core devices");
 
 	InitFonts();
-#ifdef BUILTIN_FONTS
-        defaultFontPath = "built-ins";
-#else
 	if (loadableFonts) {
 	    SetFontPath(0, 0, (unsigned char *)defaultFontPath, &error);
-	} else 
-#endif
-        {
+	}
+        else {
 	    if (SetDefaultFontPath(defaultFontPath) != Success)
 		ErrorF("failed to set default font path '%s'",
 			defaultFontPath);
@@ -415,22 +410,12 @@ main(int argc, char *argv[], char *envp[])
 	if (!SetDefaultFont(defaultTextFont)) {
 	    FatalError("could not open default font '%s'", defaultTextFont);
 	}
-#ifdef NULL_ROOT_CURSOR
-        cm.width = 0;
-        cm.height = 0;
-        cm.xhot = 0;
-        cm.yhot = 0;
 
-        if (!(rootCursor = AllocCursor(NULL, NULL, &cm, 0, 0, 0, 0, 0, 0))) {
-            FatalError("could not create empty root cursor");
-	}
-        AddResource(FakeClientID(0), RT_CURSOR, (pointer)rootCursor);
-#else
-	if (!(rootCursor = CreateRootCursor(defaultCursorFont, 0))) {
+	if (!(rootCursor = CreateRootCursor(NULL, 0))) {
 	    FatalError("could not open default cursor font '%s'",
 		       defaultCursorFont);
 	}
-#endif
+
 #ifdef DPMSExtension
  	/* check all screens, looking for DPMS Capabilities */
  	DPMSCapableFlag = DPMSSupported();
@@ -483,7 +468,7 @@ main(int argc, char *argv[], char *envp[])
 	FreeAllResources();
 #endif
 
-        configFini();
+        config_fini();
 	CloseDownDevices();
 	for (i = screenInfo.numScreens - 1; i >= 0; i--)
 	{
@@ -524,7 +509,7 @@ main(int argc, char *argv[], char *envp[])
 }
 
 static int  VendorRelease = VENDOR_RELEASE;
-static char *VendorString = VENDOR_STRING;
+static char *VendorString = VENDOR_NAME;
 
 void
 SetVendorRelease(int release)

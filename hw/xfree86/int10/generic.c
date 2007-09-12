@@ -16,6 +16,7 @@
 #define _INT10_PRIVATE
 #include "xf86int10.h"
 #include "int10Defines.h"
+#include "Pci.h"
 
 #define ALLOC_ENTRIES(x) ((V_RAM / x) - 1)
 
@@ -55,11 +56,65 @@ int10MemRec genericMem = {
 static void MapVRam(xf86Int10InfoPtr pInt);
 static void UnmapVRam(xf86Int10InfoPtr pInt);
 #ifdef _PC
-#define GET_HIGH_BASE(x) (((V_BIOS + size + getpagesize() - 1)/getpagesize()) \
-                             * getpagesize())
+#define GET_HIGH_BASE(x) (((V_BIOS + (x) + getpagesize() - 1)/getpagesize()) \
+                              * getpagesize())
 #endif
 
 static void *sysMem = NULL;
+
+/**
+ * Read legacy VGA video BIOS associated with specified domain.
+ * 
+ * Attempts to read up to 128KiB of legacy VGA video BIOS.
+ * 
+ * \return
+ * The number of bytes read on success or -1 on failure.
+ *
+ * \bug
+ * PCI ROMs can contain multiple BIOS images (e.g., OpenFirmware, x86 VGA,
+ * etc.).  How do we know that \c pci_device_read_rom will return the
+ * legacy VGA BIOS image?
+ */
+static int
+read_legacy_video_BIOS(struct pci_device *dev, unsigned char *Buf)
+{
+    const ADDRESS Base = 0xC0000;
+    const int Len = 0x10000 * 2;
+    const int pagemask = getpagesize() - 1;
+    const ADDRESS offset = Base & ~pagemask;
+    const unsigned long size = ((Base + Len + pagemask) & ~pagemask) - offset;
+    unsigned char *ptr, *src;
+    int len;
+
+
+    /* Try to use the civilized PCI interface first.
+     */
+    if (pci_device_read_rom(dev, Buf) == 0) {
+	return dev->rom_size;
+    }
+
+    ptr = xf86MapDomainMemory(-1, VIDMEM_READONLY, dev, offset, size);
+
+    if (!ptr)
+	return -1;
+
+    /* Using memcpy() here can hang the system */
+    src = ptr + (Base - offset);
+    for (len = 0; len < (Len / 2); len++) {
+	Buf[len] = src[len];
+    }
+
+    if ((Buf[0] == 0x55) && (Buf[1] == 0xAA) && (Buf[2] > 0x80)) {
+	for ( /* empty */ ; len < Len; len++) {
+	    Buf[len] = src[len];
+	}
+    }
+
+    xf86UnMapVidMem(-1, ptr, size);
+
+    return Len;
+}
+
 
 xf86Int10InfoPtr
 xf86ExtendedInitInt10(int entityIndex, int Flags)
@@ -68,11 +123,9 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     void* base = 0;
     void* vbiosMem = 0;
     void* options = NULL;
-    pciVideoPtr pvp;
     int screen;
     legacyVGARec vga;
-    xf86int10BiosLocation bios;
-    
+ 
 #ifdef _PC
     int size;
     CARD32 cs;
@@ -97,8 +150,10 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     pInt->scrnIndex = screen;
     base = INTPriv(pInt)->base = xnfalloc(SYS_BIOS);
 
-    pvp = xf86GetPciInfoForEntity(entityIndex);
-    if (pvp) pInt->Tag = pciTag(pvp->bus, pvp->device, pvp->func);
+    /* FIXME: Shouldn't this be a failure case?  Leaving dev as NULL seems like
+     * FIXME: an error
+     */
+    pInt->dev = xf86GetPciInfoForEntity(entityIndex);
 
     /*
      * we need to map video RAM MMIO as some chipsets map mmio
@@ -131,14 +186,9 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 #endif
     INTPriv(pInt)->highMemory = V_BIOS;
     
-    xf86int10ParseBiosLocation(options,&bios);
-    
-    if (xf86IsEntityPrimary(entityIndex) 
-	&& !(initPrimary(options))) {
-	if (! xf86int10GetBiosSegment(pInt, &bios, 
-				      (unsigned char *)sysMem - V_BIOS)) {
+    if (xf86IsEntityPrimary(entityIndex) && !(initPrimary(options))) {
+	if (!xf86int10GetBiosSegment(pInt, (unsigned char *)sysMem - V_BIOS))
 	    goto error1;
-	}
 
 	set_return_trap(pInt);
 
@@ -148,8 +198,7 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 	xf86Int10SaveRestoreBIOSVars(pInt, TRUE);
 	
     } else {
-	const BusType location_type = xf86int10GetBiosLocationType(pInt,
-								   &bios);
+	const BusType location_type = xf86int10GetBiosLocationType(pInt);
 	int bios_location = V_BIOS;
 
         reset_int_vect(pInt);
@@ -157,24 +206,21 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
 
 	switch (location_type) {
 	case BUS_PCI: {
-	    const int pci_entity = (bios.bus == BUS_PCI)
-	      ? xf86GetPciEntity(bios.location.pci.bus,
-				 bios.location.pci.dev,
-				 bios.location.pci.func)
-	      : pInt->entityIndex;
+	    int err;
+	    struct pci_device *rom_device =
+		xf86GetPciInfoForEntity(pInt->entityIndex);
 
 	    vbiosMem = (unsigned char *)base + bios_location;
-	    if (!(size = mapPciRom(pci_entity,(unsigned char *)(vbiosMem)))) {
-		xf86DrvMsg(screen,X_ERROR,"Cannot read V_BIOS (3)\n");
+	    err = pci_device_read_rom(rom_device, vbiosMem);
+	    if (err) {
+		xf86DrvMsg(screen,X_ERROR,"Cannot read V_BIOS (3) %s\n",
+			   strerror(err));
 		goto error1;
 	    }
-	    INTPriv(pInt)->highMemory = GET_HIGH_BASE(size);
+	    INTPriv(pInt)->highMemory = GET_HIGH_BASE(rom_device->rom_size);
 	    break;
 	}
 	case BUS_ISA:
-	    if (bios.bus == BUS_ISA) {
-		bios_location = bios.location.legacy;
-	    }
 	    vbiosMem = (unsigned char *)sysMem + bios_location;
 #if 0
 	    (void)memset(vbiosMem, 0, V_BIOS_SIZE);
@@ -205,71 +251,44 @@ xf86ExtendedInitInt10(int entityIndex, int Flags)
     setup_int_vect(pInt);
     set_return_trap(pInt);
 
-    /*
-     * Retrieve two segments:  one at V_BIOS, the other 64kB beyond the first.
-     * This'll catch any BIOS that might have been initialised before server
-     * entry.
+    /* Retrieve the entire legacy video BIOS segment.  This can be upto
+     * 128KiB.
      */
     vbiosMem = (char *)base + V_BIOS;
     (void)memset(vbiosMem, 0, 2 * V_BIOS_SIZE);
-    if (xf86ReadDomainMemory(pInt->Tag, V_BIOS, V_BIOS_SIZE, vbiosMem) <
-	V_BIOS_SIZE)
+    if (read_legacy_video_BIOS(pInt->dev, vbiosMem) < V_BIOS_SIZE) {
 	xf86DrvMsg(screen, X_WARNING,
-	    "Unable to retrieve all of segment 0x0C0000.\n");
-    else if ((((unsigned char *)vbiosMem)[0] == 0x55) &&
-	     (((unsigned char *)vbiosMem)[1] == 0xAA) &&
-	     (((unsigned char *)vbiosMem)[2] > 0x80))
-    if (xf86ReadDomainMemory(pInt->Tag, V_BIOS + V_BIOS_SIZE, V_BIOS_SIZE,
-	    (unsigned char *)vbiosMem + V_BIOS_SIZE) < V_BIOS_SIZE)
-	xf86DrvMsg(screen, X_WARNING,
-	    "Unable to retrieve all of segment 0x0D0000.\n");
+		   "Unable to retrieve all of segment 0x0C0000.\n");
+    }
 
     /*
      * If this adapter is the primary, use its post-init BIOS (if we can find
      * it).
      */
-    xf86int10ParseBiosLocation(options,&bios);
-    
     {
 	int bios_location = V_BIOS;
 	Bool done = FALSE;
 	vbiosMem = (unsigned char *)base + bios_location;
 	
-	if ((bios.bus == BUS_ISA)
-	    || (bios.bus != BUS_PCI && xf86IsEntityPrimary(entityIndex))) {
-		if (bios.bus == BUS_ISA && bios.location.legacy) {
-		    xf86DrvMsg(screen, X_CONFIG,"Looking for legacy V_BIOS "
-			       "at 0x%x for %sprimary device\n",
-			       bios.location.legacy,
-			       xf86IsEntityPrimary(entityIndex) ? "" : "non-");
-		    bios_location = bios.location.legacy;
-		    vbiosMem = (unsigned char *)base + bios_location;
-		}
-		if (int10_check_bios(screen, bios_location >> 4, vbiosMem)) 
-		    done = TRUE;
-		else 
-		    xf86DrvMsg(screen,X_INFO,
-			       "No legacy BIOS found -- trying PCI\n");
+	if (xf86IsEntityPrimary(entityIndex)) {
+	    if (int10_check_bios(screen, bios_location >> 4, vbiosMem)) 
+		done = TRUE;
+	    else 
+		xf86DrvMsg(screen,X_INFO,
+			"No legacy BIOS found -- trying PCI\n");
 	} 
 	if (!done) {
-	    int pci_entity;
-	    
-	    if (bios.bus == BUS_PCI) {
-		xf86DrvMsg(screen,X_CONFIG,"Looking for BIOS at PCI:%i%i%i\n",
-			   bios.location.pci.bus,bios.location.pci.dev,
-			   bios.location.pci.func);		
-		pci_entity = xf86GetPciEntity(bios.location.pci.bus,
-					      bios.location.pci.dev,
-					      bios.location.pci.func);
-	    } else 
-		pci_entity = pInt->entityIndex;
+	    int err;
+	    struct pci_device *rom_device =
+		xf86GetPciInfoForEntity(pInt->entityIndex);
 
-	    if (!mapPciRom(pci_entity, vbiosMem)) {
-		    xf86DrvMsg(screen, X_ERROR, "Cannot read V_BIOS (5)\n");
-		    goto error1;
+	    err = pci_device_read_rom(rom_device, vbiosMem);
+	    if (err) {
+		xf86DrvMsg(screen,X_ERROR,"Cannot read V_BIOS (5) %s\n",
+			   strerror(err));
+		goto error1;
 	    }
 	} 
-
     }
 
     pInt->BIOSseg = V_BIOS >> 4;
@@ -300,7 +319,7 @@ MapVRam(xf86Int10InfoPtr pInt)
     int size = ((VRAM_SIZE + pagesize - 1) / pagesize) * pagesize;
 
     INTPriv(pInt)->vRam = xf86MapDomainMemory(pInt->scrnIndex, VIDMEM_MMIO,
-					      pInt->Tag, V_RAM, size);
+					      pInt->dev, V_RAM, size);
 
     pInt->ioBase = xf86Screens[pInt->scrnIndex]->domainIOBase;
 }

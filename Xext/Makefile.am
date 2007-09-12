@@ -34,7 +34,6 @@ MODULE_SRCS =			\
 	xcmisc.c
 
 # Extra configuration files ship with some extensions
-SERVERCONFIGdir = $(libdir)/xserver
 SERVERCONFIG_DATA =
 
 # Optional sources included if extension enabled by configure.ac rules
@@ -88,7 +87,7 @@ endif
 XCALIBRATE_SRCS = xcalibrate.c
 if XCALIBRATE
 BUILTIN_SRCS += $(XCALIBRATE_SRCS)
-# XCalibrare needs tslib
+# XCalibrate needs tslib
 endif
 
 # X EVent Interception Extension: allows accessibility helpers & composite

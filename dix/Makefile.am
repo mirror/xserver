@@ -1,7 +1,7 @@
 noinst_LTLIBRARIES = libdix.la libxpstubs.la
 
 AM_CFLAGS = $(DIX_CFLAGS) \
-	-DVENDOR_STRING=\""@VENDOR_STRING@"\" \
+	-DVENDOR_NAME=\""@VENDOR_NAME@"\" \
 	-DVENDOR_RELEASE="@VENDOR_RELEASE@"
 
 libdix_la_SOURCES = 	\
@@ -57,3 +57,8 @@ noinst_PROGRAMS = dix.O
 dix.O: dtrace-dix.o $(am_libdix_la_OBJECTS)
 	ld -r -o $@ .libs/*.o
 endif
+
+dix.c:
+	touch $@
+
+CLEANFILES = dix.c

@@ -3,10 +3,9 @@ noinst_LTLIBRARIES = libos.la libcwrapper.la
 AM_CFLAGS = $(DIX_CFLAGS)
 
 # FIXME: Add support for these in configure.ac
-K5AUTH_SRCS = k5auth.c
-SECURERPC_SRCS = rpcauth.c
 INTERNALMALLOC_SRCS = xalloc.c
 
+SECURERPC_SRCS = rpcauth.c
 XCSECURITY_SRCS = secauth.c
 XDMCP_SRCS = xdmcp.c
 STRLCAT_SRCS = strlcat.c strlcpy.c
@@ -29,6 +28,10 @@ libos_la_SOURCES = 	\
 	xprintf.c	\
 	$(XORG_SRCS)
 
+if SECURE_RPC
+libos_la_SOURCES += $(SECURERPC_SRCS)
+endif
+
 if XCSECURITY
 libos_la_SOURCES += $(XCSECURITY_SRCS)
 endif
@@ -48,7 +51,7 @@ libcwrapper_la_CFLAGS = \
 	-I$(top_srcdir)/hw/xfree86/os-support \
 	$(AM_CFLAGS)
 
-EXTRA_DIST = $(K5AUTH_SRCS) $(SECURERPC_SRCS) $(INTERNALMALLOC_SRCS) \
+EXTRA_DIST = $(SECURERPC_SRCS) $(INTERNALMALLOC_SRCS) \
      $(XCSECURITY_SRCS) $(XDMCP_SRCS) $(STRLCAT_SRCS)
 
 if XSERVER_DTRACE
@@ -60,5 +63,9 @@ noinst_PROGRAMS = os.O
 
 os.O: dtrace.o $(am_libos_la_OBJECTS)
 	ld -r -o $@ dtrace.o .libs/*.o
-
 endif
+
+os.c:
+	touch $@
+
+CLEANFILES = os.c

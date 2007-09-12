@@ -38,3 +38,10 @@ Xsis_LDADD = \
 	$(SIS_LIBS)				\
 	@KDRIVE_LIBS@                          \
 	$(TSLIB_FLAG)
+
+Xsis_DEPENDENCIES =	\
+	libsis.a 			\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

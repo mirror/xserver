@@ -16,6 +16,12 @@ Xfbdev_SOURCES = \
 
 Xfbdev_LDADD = 						\
 	libfbdev.a					\
-	@KDRIVE_LIBS@					\
-	@XSERVER_LIBS@
+	@KDRIVE_LIBS@
+
+Xfbdev_DEPENDENCIES =	\
+	libfbdev.a					\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)
 endif

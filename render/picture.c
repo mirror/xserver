@@ -16,7 +16,7 @@
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL SuSE
  * BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
- * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
+ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  * Author:  Keith Packard, SuSE, Inc.
@@ -273,7 +273,7 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 		type = PICT_TYPE_ARGB;
 	    }
 	    else if (pVisual->offsetRed == 0 &&
-		     pVisual->offsetGreen == r && 
+		     pVisual->offsetGreen == r &&
 		     pVisual->offsetBlue == r + g)
 	    {
 		type = PICT_TYPE_ABGR;
@@ -323,7 +323,7 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 				      PICT_x1b5g5r5, pDepth->depth);
 	    }
 	    /* depth 16 formats */
-	    if (pDepth->depth >= 16) 
+	    if (pDepth->depth >= 16)
 	    {
 		nformats = addFormat (formats, nformats,
 				      PICT_a1r5g5b5, pDepth->depth);
@@ -359,7 +359,7 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 	    break;
 	}
     }
-    
+
 
     pFormats = (PictFormatPtr) xalloc (nformats * sizeof (PictFormatRec));
     if (!pFormats)
@@ -374,40 +374,40 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 	switch (PICT_FORMAT_TYPE(format)) {
 	case PICT_TYPE_ARGB:
 	    pFormats[f].type = PictTypeDirect;
-	    
+
 	    pFormats[f].direct.alphaMask = Mask(PICT_FORMAT_A(format));
 	    if (pFormats[f].direct.alphaMask)
 		pFormats[f].direct.alpha = (PICT_FORMAT_R(format) +
 					    PICT_FORMAT_G(format) +
 					    PICT_FORMAT_B(format));
-	    
+
 	    pFormats[f].direct.redMask = Mask(PICT_FORMAT_R(format));
-	    pFormats[f].direct.red = (PICT_FORMAT_G(format) + 
+	    pFormats[f].direct.red = (PICT_FORMAT_G(format) +
 				      PICT_FORMAT_B(format));
-	    
+
 	    pFormats[f].direct.greenMask = Mask(PICT_FORMAT_G(format));
 	    pFormats[f].direct.green = PICT_FORMAT_B(format);
-	    
+
 	    pFormats[f].direct.blueMask = Mask(PICT_FORMAT_B(format));
 	    pFormats[f].direct.blue = 0;
 	    break;
 
 	case PICT_TYPE_ABGR:
 	    pFormats[f].type = PictTypeDirect;
-	    
+
 	    pFormats[f].direct.alphaMask = Mask(PICT_FORMAT_A(format));
 	    if (pFormats[f].direct.alphaMask)
 		pFormats[f].direct.alpha = (PICT_FORMAT_B(format) +
 					    PICT_FORMAT_G(format) +
 					    PICT_FORMAT_R(format));
-	    
+
 	    pFormats[f].direct.blueMask = Mask(PICT_FORMAT_B(format));
-	    pFormats[f].direct.blue = (PICT_FORMAT_G(format) + 
+	    pFormats[f].direct.blue = (PICT_FORMAT_G(format) +
 				       PICT_FORMAT_R(format));
-	    
+
 	    pFormats[f].direct.greenMask = Mask(PICT_FORMAT_G(format));
 	    pFormats[f].direct.green = PICT_FORMAT_R(format);
-	    
+
 	    pFormats[f].direct.redMask = Mask(PICT_FORMAT_R(format));
 	    pFormats[f].direct.red = 0;
 	    break;
@@ -420,7 +420,7 @@ PictureCreateDefaultFormats (ScreenPtr pScreen, int *nformatp)
 
 	    /* remaining fields already set to zero */
 	    break;
-	    
+
 	case PICT_TYPE_COLOR:
 	case PICT_TYPE_GRAY:
 	    pFormats[f].type = PictTypeIndexed;
@@ -448,6 +448,28 @@ PictureFindVisual (ScreenPtr pScreen, VisualID visual)
 }
 
 Bool
+PictureInitIndexedFormat(ScreenPtr pScreen, PictFormatPtr format)
+{
+    PictureScreenPtr ps = GetPictureScreenIfSet(pScreen);
+
+    if (format->type != PictTypeIndexed || format->index.pColormap)
+	return TRUE;
+
+    if (format->index.vid == pScreen->rootVisual) {
+	format->index.pColormap =
+	    (ColormapPtr) LookupIDByType(pScreen->defColormap, RT_COLORMAP);
+    } else {
+	VisualPtr pVisual = PictureFindVisual(pScreen, format->index.vid);
+	if (!CreateColormap(FakeClientID (0), pScreen, pVisual,
+		    &format->index.pColormap, AllocNone, 0))
+	    return FALSE;
+    }
+    if (!ps->InitIndexed(pScreen, format))
+	return FALSE;
+    return TRUE;
+}
+
+static Bool
 PictureInitIndexedFormats (ScreenPtr pScreen)
 {
     PictureScreenPtr    ps = GetPictureScreenIfSet(pScreen);
@@ -459,30 +481,8 @@ PictureInitIndexedFormats (ScreenPtr pScreen)
     format = ps->formats;
     nformat = ps->nformats;
     while (nformat--)
-    {
-	if (format->type == PictTypeIndexed && !format->index.pColormap)
-	{
-	    if (format->index.vid == pScreen->rootVisual)
-		format->index.pColormap = (ColormapPtr) LookupIDByType(pScreen->defColormap,
-								       RT_COLORMAP);
-	    else
-	    {
-                VisualPtr   pVisual;
-
-                pVisual = PictureFindVisual (pScreen, format->index.vid);
-		if (CreateColormap (FakeClientID (0), pScreen,
-				    pVisual,
-				    &format->index.pColormap, AllocNone,
-				    0) != Success)
-		{
-		    return FALSE;
-		}
-	    }
-	    if (!(*ps->InitIndexed) (pScreen, format))
-		return FALSE;
-	}
-	format++;
-    }
+	if (!PictureInitIndexedFormat(pScreen, format++))
+	    return FALSE;
     return TRUE;
 }
 
@@ -512,7 +512,7 @@ PictureSetSubpixelOrder (ScreenPtr pScreen, int subpixel)
 	return FALSE;
     ps->subpixel = subpixel;
     return TRUE;
-    
+
 }
 
 _X_EXPORT int
@@ -524,7 +524,7 @@ PictureGetSubpixelOrder (ScreenPtr pScreen)
 	return SubPixelUnknown;
     return ps->subpixel;
 }
-    
+
 PictFormatPtr
 PictureMatchVisual (ScreenPtr pScreen, int depth, VisualPtr pVisual)
 {
@@ -562,11 +562,11 @@ PictureMatchVisual (ScreenPtr pScreen, int depth, VisualPtr pVisual)
 	    }
 	    else
 	    {
-		if (format->direct.redMask << format->direct.red == 
+		if (format->direct.redMask << format->direct.red ==
 		    pVisual->redMask &&
-		    format->direct.greenMask << format->direct.green == 
+		    format->direct.greenMask << format->direct.green ==
 		    pVisual->greenMask &&
-		    format->direct.blueMask << format->direct.blue == 
+		    format->direct.blueMask << format->direct.blue ==
 		    pVisual->blueMask)
 		{
 		    return format;
@@ -621,7 +621,7 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     PictureScreenPtr	ps;
     int			n;
     CARD32		type, a, r, g, b;
-    
+
     if (PictureGeneration != serverGeneration)
     {
 	PictureType = CreateNewResourceType (FreePicture);
@@ -646,7 +646,7 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     }
     if (!AllocateWindowPrivate (pScreen, PictureWindowPrivateIndex, 0))
 	return FALSE;
-    
+
     if (!formats)
     {
 	formats = PictureCreateDefaultFormats (pScreen, &nformats);
@@ -708,11 +708,11 @@ PictureInit (ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     ps->totalPictureSize = sizeof (PictureRec);
     ps->PicturePrivateSizes = 0;
     ps->PicturePrivateLen = 0;
-    
+
     ps->formats = formats;
     ps->fallback = formats;
     ps->nformats = nformats;
-    
+
     ps->filters = 0;
     ps->nfilters = 0;
     ps->filterAliases = 0;
@@ -839,7 +839,7 @@ CreatePicture (Picture		pid,
     }
 
     SetPictureToDefaults (pPicture);
-    
+
     if (vmask)
 	*error = ChangePicture (pPicture, vmask, vlist, 0, client);
     else
@@ -895,166 +895,103 @@ PictureGradientColor (PictGradientStopPtr stop1,
 		      PictGradientStopPtr stop2,
 		      CARD32	          x)
 {
-    int	dist, idist;
+     CARD32 current_color, next_color;
+     int	   dist, idist;
 
-    dist  = (int) (256 * (x - stop1->x) / (stop2->x - stop1->x));
-    idist = 256 - dist;
+     current_color = stop1->color;
+     next_color    = stop2->color;
 
-    return premultiply (INTERPOLATE_PIXEL_256 (stop1->color, idist,
-					       stop2->color, dist));
+     dist  = (int) (256 * (x - stop1->x) / (stop2->x - stop1->x));
+     idist = 256 - dist;
+
+     return premultiply (INTERPOLATE_PIXEL_256 (current_color, idist,
+					       next_color, dist));
 }
 
-static void
-initGradientColorTable(PictGradientPtr gradient,
-		       int	       tableSize,
-		       int	       *error)
+static void initGradient(SourcePictPtr pGradient, int stopCount,
+                         xFixed *stopPoints, xRenderColor *stopColors, int *error)
 {
-    int begin_pos, end_pos;
-    xFixed incr, dpos;
-    int pos, current_stop;
-    PictGradientStopPtr stops = gradient->stops;
-    int nstops = gradient->nstops;
+    int i;
+    xFixed dpos;
 
-    if (gradient->colorTableSize < tableSize)
-    {
-	CARD32 *newColorTable;
-
-	newColorTable = realloc (gradient->colorTable,
-				 tableSize * sizeof (CARD32));
-	if (!newColorTable)
-	{
-	    *error = BadAlloc;
-	    return;
-	}
-
-	gradient->colorTable = newColorTable;
-	gradient->colorTableSize = tableSize;
+    if (stopCount <= 0) {
+        *error = BadValue;
+        return;
     }
 
-    gradient->stopRange = tableSize;
-
-    /* The position where the gradient begins and ends */
-    begin_pos = (stops[0].x * gradient->colorTableSize) >> 16;
-    end_pos = (stops[nstops - 1].x * gradient->colorTableSize) >> 16;
-
-    pos = 0; /* The position in the color table. */
-
-    /* Up to first point */
-    while (pos <= begin_pos) {
-	gradient->colorTable[pos] = stops[0].color;
-        ++pos;
+    dpos = -1;
+    for (i = 0; i < stopCount; ++i) {
+        if (stopPoints[i] < dpos || stopPoints[i] > (1<<16)) {
+            *error = BadValue;
+            return;
+        }
+        dpos = stopPoints[i];
     }
 
-    incr =  (1<<16)/ gradient->colorTableSize; /* the double increment. */
-    dpos = incr * pos; /* The position in terms of 0-1. */
-
-    current_stop = 0; /* We always interpolate between current and current + 1. */
-
-    /* Gradient area */
-    while (pos < end_pos) {
-	gradient->colorTable[pos] =
-	    PictureGradientColor (&stops[current_stop],
-				  &stops[current_stop + 1],
-				  dpos);
-
-        ++pos;
-        dpos += incr;
-
-        if (dpos > stops[current_stop + 1].x)
-            ++current_stop;
+    pGradient->gradient.stops = xalloc(stopCount*sizeof(PictGradientStop));
+    if (!pGradient->gradient.stops) {
+        *error = BadAlloc;
+        return;
     }
 
-    /* After last point */
-    while (pos < gradient->colorTableSize) {
-	gradient->colorTable[pos] = stops[nstops - 1].color;
-        ++pos;
+    pGradient->gradient.nstops = stopCount;
+
+    for (i = 0; i < stopCount; ++i) {
+        pGradient->gradient.stops[i].x = stopPoints[i];
+        pGradient->gradient.stops[i].color = xRenderColorToCard32 (stopColors[i]);
     }
+
+    pGradient->gradient.class	       = SourcePictClassUnknown;
+    pGradient->gradient.stopRange      = 0xffff;
+    pGradient->gradient.colorTable     = NULL;
+    pGradient->gradient.colorTableSize = 0;
 }
 
-static void
-SourcePictureInit (PicturePtr	 pPicture,
-		   SourcePictPtr pSourcePict,
-		   int		 type)
+static PicturePtr createPicture(void)
 {
+    PicturePtr pPicture;
+    pPicture = (PicturePtr) xalloc(sizeof(PictureRec));
     pPicture->pDrawable = 0;
-    pPicture->pFormat	= 0;
-    pPicture->pNext	= 0;
-    pPicture->format	= PICT_a8r8g8b8;
+    pPicture->pFormat = 0;
+    pPicture->pNext = 0;
+    pPicture->format = PICT_a8r8g8b8;
+    pPicture->devPrivates = 0;
 
-    SetPictureToDefaults (pPicture);
+    SetPictureToDefaults(pPicture);
+    return pPicture;
+}
 
-    pPicture->pSourcePict = pSourcePict;
+static SourcePictPtr createSourcePicture(int type)
+{
+    SourcePictPtr pSourcePict;
+    pSourcePict = (SourcePictPtr) xalloc(sizeof(SourcePict));
 
     pSourcePict->source.type	       = type;
     pSourcePict->source.class	       = SourcePictClassUnknown;
     pSourcePict->source.devPrivate.ptr = NULL;
     pSourcePict->source.Destroy	       = NULL;
-}
 
-static Bool
-GradientPictureInit (PicturePtr	     pPicture,
-		     PictGradientPtr pGradient,
-		     int	     type,
-		     int	     stopCount,
-		     xFixed	     *stopPoints,
-		     xRenderColor    *stopColors,
-		     int	     *error)
-{
-    int i;
-    xFixed dpos;
-
-    if (stopCount <= 0)
-    {
-	*error = BadValue;
-	return FALSE;
-    }
-
-    SourcePictureInit (pPicture, (SourcePictPtr) pGradient, type);
-
-    dpos = -1;
-    for (i = 0; i < stopCount; ++i)
-    {
-	if (stopPoints[i] < dpos || stopPoints[i] > (1 << 16))
-	{
-	    *error = BadValue;
-	    return FALSE;
-	}
-	dpos = stopPoints[i];
-    }
-
-    for (i = 0; i < stopCount; ++i)
-    {
-	pGradient->stops[i].x	  = stopPoints[i];
-	pGradient->stops[i].color = xRenderColorToCard32 (stopColors[i]);
-    }
-
-    pGradient->class	      = SourcePictClassUnknown;
-    pGradient->stopRange      = 0xffff;
-    pGradient->colorTable     = NULL;
-    pGradient->colorTableSize = 0;
-
-    return TRUE;
+    return pSourcePict;
 }
 
 PicturePtr
-CreateDevicePicture (Picture pid,
-		     int     *error)
+CreateDevicePicture (Picture pid, int *error)
 {
     PicturePtr pPicture;
 
-    pPicture = xalloc (sizeof (PictureRec) + sizeof (PictSourceRec));
-    if (!pPicture)
-    {
+    pPicture = createPicture();
+    if (!pPicture) {
 	*error = BadAlloc;
 	return 0;
     }
 
-    SourcePictureInit (pPicture,
-		       (SourcePictPtr) (pPicture + 1),
-		       SourcePictTypeOther);
-
     pPicture->id = pid;
-
+    pPicture->pSourcePict = createSourcePicture(SourcePictTypeOther);
+    if (!pPicture->pSourcePict) {
+        *error = BadAlloc;
+        xfree(pPicture);
+        return 0;
+    }
     return pPicture;
 }
 
@@ -1062,22 +999,20 @@ PicturePtr
 CreateSolidPicture (Picture pid, xRenderColor *color, int *error)
 {
     PicturePtr pPicture;
-
-    pPicture = xalloc (sizeof (PictureRec) + sizeof (PictSolidFill));
-    if (!pPicture)
-    {
-	*error = BadAlloc;
-	return 0;
+    pPicture = createPicture();
+    if (!pPicture) {
+        *error = BadAlloc;
+        return 0;
     }
 
-    SourcePictureInit (pPicture,
-		       (SourcePictPtr) (pPicture + 1),
-		       SourcePictTypeSolidFill);
-
     pPicture->id = pid;
-
-    pPicture->pSourcePict->solidFill.color = xRenderColorToCard32 (*color);
-
+    pPicture->pSourcePict = createSourcePicture(SourcePictTypeSolidFill);
+    if (!pPicture->pSourcePict) {
+        *error = BadAlloc;
+        xfree(pPicture);
+        return 0;
+    }
+    pPicture->pSourcePict->solidFill.color = xRenderColorToCard32(*color);
     return pPicture;
 }
 
@@ -1085,109 +1020,86 @@ PicturePtr
 CreateLinearGradientPicture (Picture pid, xPointFixed *p1, xPointFixed *p2,
                              int nStops, xFixed *stops, xRenderColor *colors, int *error)
 {
-    PictLinearGradientPtr pLinear;
-    PicturePtr	          pPicture;
-
-    if (nStops < 2)
-    {
-	*error = BadValue;
-	return 0;
-    }
-
-    pPicture = xalloc (sizeof (PictureRec) +
-		       sizeof (PictLinearGradient) +
-		       sizeof (PictGradientStop) * nStops);
-    if (!pPicture)
-    {
-	*error = BadAlloc;
-	return 0;
-    }
-
-    pLinear	    = (PictLinearGradientPtr) (pPicture + 1);
-    pLinear->stops  = (PictGradientStopPtr) (pLinear + 1);
-    pLinear->nstops = nStops;
-    pLinear->p1	    = *p1;
-    pLinear->p2	    = *p2;
-
-    if (!GradientPictureInit (pPicture,
-			 (PictGradientPtr) pLinear,
-			 SourcePictTypeLinear,
-			 nStops, stops, colors, error))
-    {
-	xfree (pPicture);
-	return 0;
-    }
-
-    pPicture->id = pid;
-
-    return pPicture;
-}
-
-#define FixedToDouble(x) ((x)/65536.)
-
-PicturePtr
-CreateRadialGradientPicture (Picture	  pid,
-			     xPointFixed  *inner,
-			     xPointFixed  *outer,
-			     xFixed	  innerRadius,
-			     xFixed	  outerRadius,
-			     int	  nStops,
-			     xFixed	  *stops,
-			     xRenderColor *colors,
-			     int	  *error)
-{
-    PicturePtr		  pPicture;
-    PictRadialGradientPtr pRadial;
-    double		  x;
+    PicturePtr pPicture;
 
     if (nStops < 2) {
         *error = BadValue;
         return 0;
     }
 
-    pPicture = xalloc (sizeof (PictureRec) +
-		       sizeof (PictRadialGradient) +
-		       sizeof (PictGradientStop) * nStops);
-    if (!pPicture)
-    {
-	*error = BadAlloc;
-	return 0;
-    }
-
-    pRadial	    = (PictRadialGradientPtr) (pPicture + 1);
-    pRadial->stops  = (PictGradientStopPtr) (pRadial + 1);
-    pRadial->nstops = nStops;
-
-    pRadial->inner  = *inner;
-    pRadial->outer  = *outer;
-    pRadial->inner_radius = innerRadius;
-    pRadial->outer_radius = outerRadius;
-
-    x = (double) innerRadius / (double) outerRadius;
-    pRadial->dx = (outer->x - inner->x);
-    pRadial->dy = (outer->y - inner->y);
-    pRadial->fx = (inner->x) - x * pRadial->dx;
-    pRadial->fy = (inner->y) - x * pRadial->dy;
-    pRadial->m = 1. / (1 + x);
-    pRadial->b = -x * pRadial->m;
-    pRadial->dx /= 65536.;
-    pRadial->dy /= 65536.;
-    pRadial->fx /= 65536.;
-    pRadial->fy /= 65536.;
-    x = outerRadius / 65536.;
-    pRadial->a = x * x - pRadial->dx * pRadial->dx - pRadial->dy * pRadial->dy;
-    
-    if (!GradientPictureInit (pPicture,
-			 (PictGradientPtr) pRadial,
-			 SourcePictTypeRadial,
-			 nStops, stops, colors, error))
-    {
-	xfree (pPicture);
-	return 0;
+    pPicture = createPicture();
+    if (!pPicture) {
+        *error = BadAlloc;
+        return 0;
     }
 
     pPicture->id = pid;
+    pPicture->pSourcePict = createSourcePicture(SourcePictTypeLinear);
+    if (!pPicture->pSourcePict) {
+        *error = BadAlloc;
+        xfree(pPicture);
+        return 0;
+    }
 
+    pPicture->pSourcePict->linear.p1 = *p1;
+    pPicture->pSourcePict->linear.p2 = *p2;
+
+    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
+    if (*error) {
+        xfree(pPicture);
+        return 0;
+    }
+    return pPicture;
+}
+
+#define FixedToDouble(x) ((x)/65536.)
+
+PicturePtr
+CreateRadialGradientPicture (Picture pid, xPointFixed *inner, xPointFixed *outer,
+                             xFixed innerRadius, xFixed outerRadius,
+                             int nStops, xFixed *stops, xRenderColor *colors, int *error)
+{
+    PicturePtr pPicture;
+    PictRadialGradient *radial;
+
+    if (nStops < 2) {
+        *error = BadValue;
+        return 0;
+    }
+
+    pPicture = createPicture();
+    if (!pPicture) {
+        *error = BadAlloc;
+        return 0;
+    }
+
+    pPicture->id = pid;
+    pPicture->pSourcePict = createSourcePicture(SourcePictTypeRadial);
+    if (!pPicture->pSourcePict) {
+        *error = BadAlloc;
+        xfree(pPicture);
+        return 0;
+    }
+    radial = &pPicture->pSourcePict->radial;
+
+    radial->c1.x = inner->x;
+    radial->c1.y = inner->y;
+    radial->c1.radius = innerRadius;
+    radial->c2.x = outer->x;
+    radial->c2.y = outer->y;
+    radial->c2.radius = outerRadius;
+    radial->cdx = (radial->c2.x - radial->c1.x) / 65536.;
+    radial->cdy = (radial->c2.y - radial->c1.y) / 65536.;
+    radial->dr = (radial->c2.radius - radial->c1.radius) / 65536.;
+    radial->A = (  radial->cdx * radial->cdx
+		   + radial->cdy * radial->cdy
+		   - radial->dr  * radial->dr);
+
+    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
+    if (*error) {
+        xfree(pPicture);
+        return 0;
+    }
     return pPicture;
 }
 
@@ -1195,42 +1107,35 @@ PicturePtr
 CreateConicalGradientPicture (Picture pid, xPointFixed *center, xFixed angle,
                               int nStops, xFixed *stops, xRenderColor *colors, int *error)
 {
-    PicturePtr		   pPicture;
-    PictConicalGradientPtr pConical;
+    PicturePtr pPicture;
 
-    if (nStops < 2)
-    {
-	*error = BadValue;
-	return 0;
+    if (nStops < 2) {
+        *error = BadValue;
+        return 0;
     }
 
-    pPicture = xalloc (sizeof (PictureRec) +
-		       sizeof (PictConicalGradient) +
-		       sizeof (PictGradientStop) * nStops);
-    if (!pPicture)
-    {
-	*error = BadAlloc;
-	return 0;
-    }
-
-pConical	     = (PictConicalGradientPtr) (pPicture + 1);
-    pConical->stops  = (PictGradientStopPtr) (pConical + 1);
-    pConical->nstops = nStops;
-
-    pConical->center = *center;
-    pConical->angle  = angle;
-
-    if (!GradientPictureInit (pPicture,
-			 (PictGradientPtr) pConical,
-			 SourcePictTypeConical,
-			 nStops, stops, colors, error))
-    {
-	xfree (pPicture);
-	return 0;
+    pPicture = createPicture();
+    if (!pPicture) {
+        *error = BadAlloc;
+        return 0;
     }
 
     pPicture->id = pid;
+    pPicture->pSourcePict = createSourcePicture(SourcePictTypeConical);
+    if (!pPicture->pSourcePict) {
+        *error = BadAlloc;
+        xfree(pPicture);
+        return 0;
+    }
 
+    pPicture->pSourcePict->conical.center = *center;
+    pPicture->pSourcePict->conical.angle = angle;
+
+    initGradient(pPicture->pSourcePict, nStops, stops, colors, error);
+    if (*error) {
+        xfree(pPicture);
+        return 0;
+    }
     return pPicture;
 }
 
@@ -1250,7 +1155,7 @@ ChangePicture (PicturePtr	pPicture,
     BITS32		index2;
     int			error = 0;
     BITS32		maskQ;
-    
+
     pPicture->serialNumber |= GC_CHANGE_SERIAL_BIT;
     maskQ = vmask;
     while (vmask && !error)
@@ -1279,7 +1184,7 @@ ChangePicture (PicturePtr	pPicture,
 	case CPAlphaMap:
 	    {
 		PicturePtr  pAlpha;
-		
+
 		if (vlist)
 		{
 		    Picture	pid = NEXT_VAL(Picture);
@@ -1289,8 +1194,8 @@ ChangePicture (PicturePtr	pPicture,
 		    else
 		    {
 			pAlpha = (PicturePtr) SecurityLookupIDByType(client,
-								     pid, 
-								     PictureType, 
+								     pid,
+								     PictureType,
 								     DixWriteAccess|DixReadAccess);
 			if (!pAlpha)
 			{
@@ -1351,7 +1256,7 @@ ChangePicture (PicturePtr	pPicture,
 		    {
 			clipType = CT_PIXMAP;
 			pPixmap = (PixmapPtr)SecurityLookupIDByType(client,
-								    pid, 
+								    pid,
 								    RT_PIXMAP,
 								    DixReadAccess);
 			if (!pPixmap)
@@ -1485,7 +1390,7 @@ SetPictureClipRects (PicturePtr	pPicture,
 				 nRect, rects, CT_UNSORTED);
     if (!clientClip)
 	return BadAlloc;
-    result =(*ps->ChangePictureClip) (pPicture, CT_REGION, 
+    result =(*ps->ChangePictureClip) (pPicture, CT_REGION,
 				      (pointer) clientClip, 0);
     if (result == Success)
     {
@@ -1556,7 +1461,7 @@ SetPictureTransform (PicturePtr	    pPicture,
 
     if (transform && memcmp (transform, &identity, sizeof (PictTransform)) == 0)
 	transform = 0;
-    
+
     if (transform)
     {
 	if (!pPicture->transform)
@@ -1695,14 +1600,14 @@ FreePicture (pointer	value,
 
     if (--pPicture->refcnt == 0)
     {
-        if (pPicture->transform)
-            xfree (pPicture->transform);
+	if (pPicture->transform)
+	    xfree (pPicture->transform);
 
 	if (pPicture->pDrawable)
 	{
             ScreenPtr	    pScreen = pPicture->pDrawable->pScreen;
             PictureScreenPtr    ps = GetPictureScreen(pScreen);
-	
+
             if (pPicture->alphaMap)
                 FreePicture ((pointer) pPicture->alphaMap, (XID) 0);
             (*ps->DestroyPicture) (pPicture);
@@ -1729,8 +1634,16 @@ FreePicture (pointer	value,
             }
         }
 
-	if (pPicture->pSourcePict && pPicture->pSourcePict->source.Destroy)
-	    (*pPicture->pSourcePict->source.Destroy) (pPicture);
+	if (pPicture->pSourcePict)
+	{
+	    if (pPicture->pSourcePict->type != SourcePictTypeSolidFill)
+		xfree(pPicture->pSourcePict->linear.stops);
+
+	    if (pPicture->pSourcePict->source.Destroy)
+		(*pPicture->pSourcePict->source.Destroy) (pPicture);
+
+	    xfree(pPicture->pSourcePict);
+	}
 
 	xfree (pPicture);
     }
@@ -1750,7 +1663,7 @@ FreePictFormat (pointer	pPictFormat,
  * unnecessary.  It may also avoid destination reads sometimes if apps aren't
  * being careful to avoid these cases.
  */
-static Bool
+static CARD8
 ReduceCompositeOp (CARD8 op, PicturePtr pSrc, PicturePtr pMask, PicturePtr pDst)
 {
     Bool no_src_alpha, no_dst_alpha;
@@ -1764,7 +1677,7 @@ ReduceCompositeOp (CARD8 op, PicturePtr pSrc, PicturePtr pMask, PicturePtr pDst)
                    pDst->alphaMap == NULL;
 
     /* TODO, maybe: Conjoint and Disjoint op reductions? */
- 
+
     /* Deal with simplifications where the source alpha is always 1. */
     if (no_src_alpha)
     {
@@ -1852,7 +1765,7 @@ CompositePicture (CARD8		op,
 		  CARD16	height)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     if (pMask)
 	ValidatePicture (pMask);
@@ -1888,7 +1801,7 @@ CompositeGlyphs (CARD8		op,
 		 GlyphPtr	*glyphs)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     ValidatePicture (pDst);
     (*ps->Glyphs) (op, pSrc, pDst, maskFormat, xSrc, ySrc, nlist, lists, glyphs);
@@ -1902,7 +1815,7 @@ CompositeRects (CARD8		op,
 		xRectangle      *rects)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pDst);
     (*ps->CompositeRects) (op, pDst, color, nRect, rects);
 }
@@ -1918,7 +1831,7 @@ CompositeTrapezoids (CARD8	    op,
 		     xTrapezoid	    *traps)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     ValidatePicture (pDst);
     (*ps->Trapezoids) (op, pSrc, pDst, maskFormat, xSrc, ySrc, ntrap, traps);
@@ -1935,7 +1848,7 @@ CompositeTriangles (CARD8	    op,
 		    xTriangle	    *triangles)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     ValidatePicture (pDst);
     (*ps->Triangles) (op, pSrc, pDst, maskFormat, xSrc, ySrc, ntriangles, triangles);
@@ -1952,7 +1865,7 @@ CompositeTriStrip (CARD8	    op,
 		   xPointFixed	    *points)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     ValidatePicture (pDst);
     (*ps->TriStrip) (op, pSrc, pDst, maskFormat, xSrc, ySrc, npoints, points);
@@ -1969,7 +1882,7 @@ CompositeTriFan (CARD8		op,
 		 xPointFixed	*points)
 {
     PictureScreenPtr	ps = GetPictureScreen(pDst->pDrawable->pScreen);
-    
+
     ValidatePicture (pSrc);
     ValidatePicture (pDst);
     (*ps->TriFan) (op, pSrc, pDst, maskFormat, xSrc, ySrc, npoints, points);
@@ -1983,13 +1896,10 @@ AddTraps (PicturePtr	pPicture,
 	  xTrap		*traps)
 {
     PictureScreenPtr	ps = GetPictureScreen(pPicture->pDrawable->pScreen);
-    
+
     ValidatePicture (pPicture);
     (*ps->AddTraps) (pPicture, xOff, yOff, ntrap, traps);
 }
-
-#define MAX_FIXED_48_16	    ((xFixed_48_16) 0x7fffffff)
-#define MIN_FIXED_48_16	    (-((xFixed_48_16) 1 << 31))
 
 _X_EXPORT Bool
 PictureTransformPoint3d (PictTransformPtr transform,
@@ -2034,7 +1944,7 @@ PictureTransformPoint (PictTransformPtr transform,
 	v = 0;
 	for (i = 0; i < 3; i++)
 	{
-	    partial = ((xFixed_48_16) transform->matrix[j][i] * 
+	    partial = ((xFixed_48_16) transform->matrix[j][i] *
 		       (xFixed_48_16) vector->vector[i]);
 	    v += partial >> 16;
 	}

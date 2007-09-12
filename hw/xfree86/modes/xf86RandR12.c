@@ -1,7 +1,4 @@
-/* $XdotOrg: xc/programs/Xserver/hw/xfree86/common/xf86RandR.c,v 1.3 2004/07/30 21:53:09 eich Exp $ */
 /*
- * $XFree86: xc/programs/Xserver/hw/xfree86/common/xf86RandR.c,v 1.7tsi Exp $
- *
  * Copyright © 2002 Keith Packard, member of The XFree86 Project, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -96,9 +93,12 @@ xf86RandR12GetInfo (ScreenPtr pScreen, Rotation *rotations)
     }
 
     /* Re-probe the outputs for new monitors or modes */
-    xf86ProbeOutputModes (scrp, 0, 0);
-    xf86SetScrnInfoModes (scrp);
-    xf86DiDGAReInit (pScreen);
+    if (scrp->vtSema)
+    {
+	xf86ProbeOutputModes (scrp, 0, 0);
+	xf86SetScrnInfoModes (scrp);
+	xf86DiDGAReInit (pScreen);
+    }
 
     for (mode = scrp->modes; ; mode = mode->next)
     {
@@ -244,7 +244,7 @@ xf86RandR12SetMode (ScreenPtr	    pScreen,
     return ret;
 }
 
-Bool
+_X_EXPORT Bool
 xf86RandR12SetConfig (ScreenPtr		pScreen,
 		    Rotation		rotation,
 		    int			rate,
@@ -337,6 +337,7 @@ xf86RandR12ScreenSetSize (ScreenPtr	pScreen,
     ScrnInfoPtr		pScrn = XF86SCRNINFO(pScreen);
     xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR(pScrn);
     WindowPtr		pRoot = WindowTable[pScreen->myNum];
+    PixmapPtr		pScrnPix = (*pScreen->GetScreenPixmap)(pScreen);
     Bool		ret = FALSE;
 
     if (randrp->virtualX == -1 || randrp->virtualY == -1)
@@ -344,7 +345,7 @@ xf86RandR12ScreenSetSize (ScreenPtr	pScreen,
 	randrp->virtualX = pScrn->virtualX;
 	randrp->virtualY = pScrn->virtualY;
     }
-    if (pRoot)
+    if (pRoot && pScrn->vtSema)
 	(*pScrn->EnableDisableFBAccess) (pScreen->myNum, FALSE);
 
     /* Let the driver update virtualX and virtualY */
@@ -353,8 +354,8 @@ xf86RandR12ScreenSetSize (ScreenPtr	pScreen,
 
     ret = TRUE;
 
-    pScreen->width = width;
-    pScreen->height = height;
+    pScreen->width = pScrnPix->drawable.width = width;
+    pScreen->height = pScrnPix->drawable.height = height;
     pScreen->mmWidth = mmWidth;
     pScreen->mmHeight = mmHeight;
 
@@ -362,7 +363,7 @@ xf86RandR12ScreenSetSize (ScreenPtr	pScreen,
     xf86SetViewport (pScreen, 0, 0);
 
 finish:
-    if (pRoot)
+    if (pRoot && pScrn->vtSema)
 	(*pScrn->EnableDisableFBAccess) (pScreen->myNum, TRUE);
 #if RANDR_12_INTERFACE
     if (WindowTable[pScreen->myNum] && ret)
@@ -371,7 +372,7 @@ finish:
     return ret;
 }
 
-Rotation
+_X_EXPORT Rotation
 xf86RandR12GetRotation(ScreenPtr pScreen)
 {
     XF86RandRInfoPtr	    randrp = XF86RANDRINFO(pScreen);
@@ -379,7 +380,7 @@ xf86RandR12GetRotation(ScreenPtr pScreen)
     return randrp->rotation;
 }
 
-Bool
+_X_EXPORT Bool
 xf86RandR12CreateScreenResources (ScreenPtr pScreen)
 {
     ScrnInfoPtr		pScrn = xf86Screens[pScreen->myNum];
@@ -469,7 +470,7 @@ xf86RandR12CreateScreenResources (ScreenPtr pScreen)
 }
 
 
-Bool
+_X_EXPORT Bool
 xf86RandR12Init (ScreenPtr pScreen)
 {
     rrScrPrivPtr	rp;
@@ -519,7 +520,7 @@ xf86RandR12Init (ScreenPtr pScreen)
     return TRUE;
 }
 
-void
+_X_EXPORT void
 xf86RandR12SetRotations (ScreenPtr pScreen, Rotation rotations)
 {
     XF86RandRInfoPtr	randrp = XF86RANDRINFO(pScreen);
@@ -537,7 +538,7 @@ xf86RandR12SetRotations (ScreenPtr pScreen, Rotation rotations)
     randrp->supported_rotations = rotations;
 }
 
-void
+_X_EXPORT void
 xf86RandR12GetOriginalVirtualSize(ScrnInfoPtr pScrn, int *x, int *y)
 {
     ScreenPtr pScreen = screenInfo.screens[pScrn->scrnIndex];
@@ -715,7 +716,7 @@ xf86RandR12CrtcSet (ScreenPtr	pScreen,
     xf86CrtcPtr		*save_crtcs;
     Bool		save_enabled = crtc->enabled;
 
-    save_crtcs = ALLOCATE_LOCAL(config->num_crtc * sizeof (xf86CrtcPtr));
+    save_crtcs = ALLOCATE_LOCAL(config->num_output * sizeof (xf86CrtcPtr));
     if ((randr_mode != NULL) != crtc->enabled)
 	changed = TRUE;
     else if (randr_mode && !xf86RandRModeMatches (randr_mode, &crtc->mode))
@@ -749,6 +750,10 @@ xf86RandR12CrtcSet (ScreenPtr	pScreen,
 	    output->crtc = new_crtc;
 	}
     }
+    for (ro = 0; ro < num_randr_outputs; ro++) 
+        if (randr_outputs[ro]->pendingProperties)
+	    changed = TRUE;
+
     /* XXX need device-independent mode setting code through an API */
     if (changed)
     {
@@ -793,6 +798,9 @@ xf86RandR12CrtcSetGamma (ScreenPtr    pScreen,
     if (crtc->funcs->gamma_set == NULL)
 	return FALSE;
 
+    if (!crtc->scrn->vtSema)
+	return TRUE;
+
     crtc->funcs->gamma_set(crtc, randr_crtc->gammaRed, randr_crtc->gammaGreen,
 			   randr_crtc->gammaBlue, randr_crtc->gammaSize);
 
@@ -813,6 +821,11 @@ xf86RandR12OutputSetProperty (ScreenPtr pScreen,
     if (output->funcs->set_property == NULL)
 	return TRUE;
 
+    /*
+     * This function gets called even when vtSema is FALSE, as
+     * drivers will need to remember the correct value to apply
+     * when the VT switch occurs
+     */
     return output->funcs->set_property(output, property, value);
 }
 
@@ -826,6 +839,11 @@ xf86RandR12OutputValidateMode (ScreenPtr    pScreen,
     DisplayModeRec  mode;
 
     xf86RandRModeConvert (pScrn, randr_mode, &mode);
+    /*
+     * This function may be called when vtSema is FALSE, so
+     * the underlying function must either avoid touching the hardware
+     * or return FALSE when vtSema is FALSE
+     */
     if (output->funcs->mode_valid (output, &mode) != MODE_OK)
 	return FALSE;
     return TRUE;
@@ -933,7 +951,6 @@ xf86RandR12SetInfo12 (ScreenPtr pScreen)
 	    return FALSE;
 	}
 
-	RROutputSetCrtc (output->randr_output, randr_crtc);
 	RROutputSetPhysicalSize(output->randr_output, 
 				output->mm_width,
 				output->mm_height);
@@ -987,6 +1004,8 @@ xf86RandR12GetInfo12 (ScreenPtr pScreen, Rotation *rotations)
 {
     ScrnInfoPtr		pScrn = xf86Screens[pScreen->myNum];
 
+    if (!pScrn->vtSema)
+	return TRUE;
     xf86ProbeOutputModes (pScrn, 0, 0);
     xf86SetScrnInfoModes (pScrn);
     xf86DiDGAReInit (pScreen);
@@ -1053,7 +1072,7 @@ xf86RandR12CreateScreenResources12 (ScreenPtr pScreen)
  * to DGA, VidMode or hot key. Tell RandR
  */
 
-void
+_X_EXPORT void
 xf86RandR12TellChanged (ScreenPtr pScreen)
 {
     ScrnInfoPtr		pScrn = xf86Screens[pScreen->myNum];
@@ -1103,7 +1122,7 @@ xf86RandR12Init12 (ScreenPtr pScreen)
 
 #endif
 
-Bool
+_X_EXPORT Bool
 xf86RandR12PreInit (ScrnInfoPtr pScrn)
 {
     return TRUE;

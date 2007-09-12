@@ -1,23 +1,25 @@
 /*
  * Copyright © 2006 Nokia Corporation
- * Copyright © 2006 Daniel Stone
+ * Copyright © 2006-2007 Daniel Stone
  *
- * Permission to use, copy, modify, distribute, and sell this software and
- * its documentation for any purpose is hereby granted without fee,
- * provided that the above copyright notice appear in all copies and that
- * both that this copyright notice and this permission notice appear in
- * supporting electronic documentation.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included
- * in all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR AUTHORS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  *
  * Author: Daniel Stone <daniel@fooishbar.org>
  */
@@ -78,6 +80,23 @@ GetMotionHistorySize(void)
     return MOTION_HISTORY_SIZE;
 }
 
+static void
+set_key_down(DeviceIntPtr pDev, int key_code)
+{
+    pDev->key->postdown[key_code >> 3] |= (1 << (key_code & 7));
+}
+
+static void
+set_key_up(DeviceIntPtr pDev, int key_code)
+{
+    pDev->key->postdown[key_code >> 3] &= ~(1 << (key_code & 7));
+}
+
+static Bool
+key_is_down(DeviceIntPtr pDev, int key_code)
+{
+    return pDev->key->postdown[key_code >> 3] >> (key_code & 7);
+}
 
 /**
  * Allocate the motion history buffer.
@@ -248,7 +267,7 @@ acceleratePointer(DeviceIntPtr pDev, int first_valuator, int num_valuators,
             }
         }
         else {
-            mult = pow((float)(dx * dx + dy * dy),
+	    mult = pow((float)dx * (float)dx + (float)dy * (float)dy,
                        ((float)(pDev->ptrfeed->ctrl.num) /
                         (float)(pDev->ptrfeed->ctrl.den) - 1.0) /
                        2.0) / 2.0;
@@ -412,17 +431,15 @@ GetKeyboardValuatorEvents(xEvent *events, DeviceIntPtr pDev, int type,
             case XK_Shift_Lock:
                 if (type == KeyRelease)
                     return 0;
-                else if (type == KeyPress &&
-                         (pDev->key->down[key_code >> 3] & (key_code & 7)) & 1)
-                        type = KeyRelease;
+                else if (type == KeyPress && key_is_down(pDev, key_code))
+                    type = KeyRelease;
         }
     }
 
     /* Handle core repeating, via press/release/press/release.
      * FIXME: In theory, if you're repeating with two keyboards in non-XKB,
      *        you could get unbalanced events here. */
-    if (type == KeyPress &&
-        (((pDev->key->down[key_code >> 3] & (key_code & 7))) & 1)) {
+    if (type == KeyPress && key_is_down(pDev, key_code)) {
         if (!pDev->kbdfeed->ctrl.autoRepeat ||
             pDev->key->modifierMap[key_code] ||
             !(pDev->kbdfeed->ctrl.autoRepeats[key_code >> 3]
@@ -443,13 +460,29 @@ GetKeyboardValuatorEvents(xEvent *events, DeviceIntPtr pDev, int type,
 
     ms = GetTimeInMillis();
 
+    if (pDev->coreEvents) {
+        events->u.keyButtonPointer.time = ms;
+        events->u.u.type = type;
+        events->u.u.detail = key_code;
+        if (type == KeyPress)
+	    set_key_down(inputInfo.keyboard, key_code);
+        else if (type == KeyRelease)
+	    set_key_up(inputInfo.keyboard, key_code);
+        events++;
+    }
+
     kbp = (deviceKeyButtonPointer *) events;
     kbp->time = ms;
     kbp->deviceid = pDev->id;
-    if (type == KeyPress)
+    kbp->detail = key_code;
+    if (type == KeyPress) {
         kbp->type = DeviceKeyPress;
-    else if (type == KeyRelease)
+	set_key_down(pDev, key_code);
+    }
+    else if (type == KeyRelease) {
         kbp->type = DeviceKeyRelease;
+	set_key_up(pDev, key_code);
+    }
 
     events++;
     if (num_valuators) {
@@ -457,12 +490,6 @@ GetKeyboardValuatorEvents(xEvent *events, DeviceIntPtr pDev, int type,
         clipValuators(pDev, first_valuator, num_valuators, valuators);
         events = getValuatorEvents(events, pDev, first_valuator,
                                    num_valuators, valuators);
-    }
-
-    if (pDev->coreEvents) {
-        events->u.keyButtonPointer.time = ms;
-        events->u.u.type = type;
-        events->u.u.detail = key_code;
     }
 
     return numEvents;
@@ -498,14 +525,18 @@ GetPointerEvents(xEvent *events, DeviceIntPtr pDev, int type, int buttons,
     if ((type == ButtonPress || type == ButtonRelease) && !pDev->button)
         return 0;
 
+    /* FIXME: I guess it should, in theory, be possible to post button events
+     *        from devices without valuators. */
+    if (!pDev->valuator)
+        return 0;
+
     if (!coreOnly && pDev->coreEvents)
         num_events = 2;
     else
         num_events = 1;
 
-    if (type == MotionNotify && num_valuators <= 0) {
+    if (type == MotionNotify && num_valuators <= 0)
         return 0;
-    }
 
     /* Do we need to send a DeviceValuator event? */
     if (!coreOnly && sendValuators) {
@@ -599,8 +630,27 @@ GetPointerEvents(xEvent *events, DeviceIntPtr pDev, int type, int buttons,
     pDev->valuator->lastx = x;
     pDev->valuator->lasty = y;
 
-    if (!coreOnly)
-    {
+    /* for some reason inputInfo.pointer does not have coreEvents set */
+    if (coreOnly || pDev->coreEvents) {
+        events->u.u.type = type;
+        events->u.keyButtonPointer.time = ms;
+        events->u.keyButtonPointer.rootX = x;
+        events->u.keyButtonPointer.rootY = y;
+
+        if (type == ButtonPress || type == ButtonRelease) {
+            /* We hijack SetPointerMapping to work on all core-sending
+             * devices, so we use the device-specific map here instead of
+             * the core one. */
+            events->u.u.detail = pDev->button->map[buttons];
+        }
+        else {
+            events->u.u.detail = 0;
+        }
+
+        events++;
+    }
+
+    if (!coreOnly) {
         kbp = (deviceKeyButtonPointer *) events;
         kbp->time = ms;
         kbp->deviceid = pDev->id;
@@ -625,24 +675,6 @@ GetPointerEvents(xEvent *events, DeviceIntPtr pDev, int type, int buttons,
             clipValuators(pDev, first_valuator, num_valuators, valuators);
             events = getValuatorEvents(events, pDev, first_valuator,
                                        num_valuators, valuators);
-        }
-    }
-
-    /* for some reason inputInfo.pointer does not have coreEvents set */
-    if (coreOnly || pDev->coreEvents) {
-        events->u.u.type = type;
-        events->u.keyButtonPointer.time = ms;
-        events->u.keyButtonPointer.rootX = x;
-        events->u.keyButtonPointer.rootY = y;
-
-        if (type == ButtonPress || type == ButtonRelease) {
-            /* We hijack SetPointerMapping to work on all core-sending
-             * devices, so we use the device-specific map here instead of
-             * the core one. */
-            events->u.u.detail = pDev->button->map[buttons];
-        }
-        else {
-            events->u.u.detail = 0;
         }
     }
 

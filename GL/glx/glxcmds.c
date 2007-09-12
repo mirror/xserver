@@ -1019,6 +1019,7 @@ __glXCreateARGBConfig(__GLXscreen *screen)
     VisualPtr visual;
     int i;
 
+    /* search for a 32-bit visual */
     visual = NULL;
     for (i = 0; i < screen->pScreen->numVisuals; i++) 
 	if (screen->pScreen->visuals[i].nplanes == 32) {
@@ -1037,8 +1038,22 @@ __glXCreateARGBConfig(__GLXscreen *screen)
     if (modes == NULL)
 	return;
 
-    modes->next = screen->modes;
-    screen->modes = modes;
+    /* Insert this new mode at the TAIL of the linked list.
+     * Previously, the mode was incorrectly inserted at the head of the
+     * list, causing find_mesa_visual() to be off by one.  This would
+     * GLX clients to blow up if they attempted to use the last mode
+     * in the list!
+     */
+    {
+        __GLcontextModes *prev = NULL, *m;
+        for (m = screen->modes; m; m = m->next)
+            prev = m;
+        if (prev)
+            prev->next = modes;
+        else
+            screen->modes = modes;
+    }
+
     screen->numUsableVisuals++;
     screen->numVisuals++;
 
@@ -1104,6 +1119,9 @@ int DoGetFBConfigs(__GLXclientState *cl, unsigned screen, GLboolean do_swap)
     }
     pGlxScreen = __glXActiveScreens[screen];
 
+    /* Create the "extra" 32bpp ARGB visual, if not already added.
+     * XXX This is questionable place to do so!  Re-examine this someday.
+     */
     __glXCreateARGBConfig(pGlxScreen);
 
     reply.numFBConfigs = pGlxScreen->numUsableVisuals;
@@ -1242,13 +1260,15 @@ static int ValidateCreateDrawable(ClientPtr client,
 ** Create a GLX Pixmap from an X Pixmap.
 */
 int DoCreateGLXPixmap(__GLXclientState *cl, XID fbconfigId,
-		      GLuint screenNum, XID pixmapId, XID glxPixmapId)
+		      GLuint screenNum, XID pixmapId, XID glxPixmapId,
+		      CARD32 *attribs, CARD32 numAttribs)
 {
     ClientPtr client = cl->client;
     DrawablePtr pDraw;
     __GLXpixmap *pGlxPixmap;
     __GLcontextModes *modes;
-    int retval;
+    GLenum target = 0;
+    int retval, i;
 
     retval = ValidateCreateDrawable (client, screenNum, fbconfigId,
 				     pixmapId, glxPixmapId,
@@ -1267,10 +1287,36 @@ int DoCreateGLXPixmap(__GLXclientState *cl, XID fbconfigId,
     pGlxPixmap->pGlxScreen = __glXgetActiveScreen(screenNum);
     pGlxPixmap->pScreen = pDraw->pScreen;
     pGlxPixmap->idExists = True;
+#ifdef XF86DRI
     pGlxPixmap->pDamage = NULL;
+#endif
     pGlxPixmap->refcnt = 0;
 
     pGlxPixmap->modes = modes;
+
+    for (i = 0; i < numAttribs; i++) {
+	if (attribs[2 * i] == GLX_TEXTURE_TARGET_EXT) {
+	    switch (attribs[2 * i + 1]) {
+	    case GLX_TEXTURE_2D_EXT:
+		target = GL_TEXTURE_2D;
+		break;
+	    case GLX_TEXTURE_RECTANGLE_EXT:
+		target = GL_TEXTURE_RECTANGLE_ARB;
+		break;
+	    }
+	}
+    }
+
+    if (!target) {
+	int w = pDraw->width, h = pDraw->height;
+
+	if (h & (h - 1) || w & (w - 1))
+	    target = GL_TEXTURE_RECTANGLE_ARB;
+	else
+	    target = GL_TEXTURE_2D;
+    }
+
+    pGlxPixmap->target = target;
 
     /*
     ** Bump the ref count on the X pixmap so it won't disappear.
@@ -1284,14 +1330,16 @@ int __glXDisp_CreateGLXPixmap(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXCreateGLXPixmapReq *req = (xGLXCreateGLXPixmapReq *) pc;
     return DoCreateGLXPixmap( cl, req->visual, req->screen,
-			      req->pixmap, req->glxpixmap );
+			      req->pixmap, req->glxpixmap, NULL, 0 );
 }
 
 int __glXDisp_CreatePixmap(__GLXclientState *cl, GLbyte *pc)
 {
     xGLXCreatePixmapReq *req = (xGLXCreatePixmapReq *) pc;
     return DoCreateGLXPixmap( cl, req->fbconfig, req->screen,
-			      req->pixmap, req->glxpixmap );
+			      req->pixmap, req->glxpixmap,
+			      (CARD32*)(req + 1),
+			      req->numAttribs );
 }
 
 int __glXDisp_CreateGLXPixmapWithConfigSGIX(__GLXclientState *cl, GLbyte *pc)
@@ -1299,7 +1347,7 @@ int __glXDisp_CreateGLXPixmapWithConfigSGIX(__GLXclientState *cl, GLbyte *pc)
     xGLXCreateGLXPixmapWithConfigSGIXReq *req = 
 	(xGLXCreateGLXPixmapWithConfigSGIXReq *) pc;
     return DoCreateGLXPixmap( cl, req->fbconfig, req->screen,
-			      req->pixmap, req->glxpixmap );
+			      req->pixmap, req->glxpixmap, NULL, 0 );
 }
 
 
@@ -1675,7 +1723,8 @@ DoGetDrawableAttributes(__GLXclientState *cl, XID drawId)
     reply.numAttribs = numAttribs;
 
     attributes[0] = GLX_TEXTURE_TARGET_EXT;
-    attributes[1] = GLX_TEXTURE_RECTANGLE_EXT;
+    attributes[1] = glxPixmap->target == GL_TEXTURE_2D ? GLX_TEXTURE_2D_EXT :
+	GLX_TEXTURE_RECTANGLE_EXT;
     attributes[2] = GLX_Y_INVERTED_EXT;
     attributes[3] = GL_FALSE;
 

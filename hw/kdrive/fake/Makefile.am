@@ -20,3 +20,10 @@ Xfake_LDADD = 						\
 	libfake.a					\
 	@KDRIVE_LIBS@					\
         @XSERVER_LIBS@
+
+Xfake_DEPENDENCIES =	\
+	libfake.a					\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

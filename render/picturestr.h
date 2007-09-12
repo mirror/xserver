@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright © 2000 SuSE, Inc.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -26,8 +24,8 @@
 #ifndef _PICTURESTR_H_
 #define _PICTURESTR_H_
 
-#include "glyphstr.h"
 #include "scrnintstr.h"
+#include "glyphstr.h"
 #include "resource.h"
 
 #define PictTypeOther 0xff
@@ -56,13 +54,8 @@ typedef struct _PictFormat {
     IndexFormatRec  index;
 } PictFormatRec;
 
-typedef struct _PictVector {
-    xFixed	    vector[3];
-} PictVector, *PictVectorPtr;
-
-typedef struct _PictTransform {
-    xFixed	    matrix[3][3];
-} PictTransform, *PictTransformPtr;
+typedef struct pixman_vector PictVector, *PictVectorPtr;
+typedef struct pixman_transform PictTransform, *PictTransformPtr;
 
 typedef void (*DestroySourcePictProcPtr) (PicturePtr pPicture);
 
@@ -104,9 +97,9 @@ typedef struct _PictGradient {
     DestroySourcePictProcPtr Destroy;
     int nstops;
     PictGradientStopPtr stops;
-    int	stopRange;
+    int stopRange;
     CARD32 *colorTable;
-    int	colorTableSize;
+    int colorTableSize;
 } PictGradient, *PictGradientPtr;
 
 typedef struct _PictLinearGradient {
@@ -116,12 +109,18 @@ typedef struct _PictLinearGradient {
     DestroySourcePictProcPtr Destroy;
     int nstops;
     PictGradientStopPtr stops;
-    int	stopRange;
+    int stopRange;
     CARD32 *colorTable;
-    int	colorTableSize;
+    int colorTableSize;
     xPointFixed p1;
     xPointFixed p2;
 } PictLinearGradient, *PictLinearGradientPtr;
+
+typedef struct _PictCircle {
+    xFixed x;
+    xFixed y;
+    xFixed radius;
+} PictCircle, *PictCirclePtr;
 
 typedef struct _PictRadialGradient {
     unsigned int	     type;
@@ -130,20 +129,15 @@ typedef struct _PictRadialGradient {
     DestroySourcePictProcPtr Destroy;
     int nstops;
     PictGradientStopPtr stops;
-    int	stopRange;
+    int stopRange;
     CARD32 *colorTable;
-    int	colorTableSize;
-    xPointFixed inner;
-    xPointFixed outer;
-    xFixed inner_radius;
-    xFixed outer_radius;
-    double fx;
-    double fy;
-    double dx;
-    double dy;
-    double a;
-    double m;
-    double b;
+    int colorTableSize;
+    PictCircle c1;
+    PictCircle c2;
+    double cdx;
+    double cdy;
+    double dr;
+    double A;
 } PictRadialGradient, *PictRadialGradientPtr;
 
 typedef struct _PictConicalGradient {
@@ -153,9 +147,9 @@ typedef struct _PictConicalGradient {
     DestroySourcePictProcPtr Destroy;
     int nstops;
     PictGradientStopPtr stops;
-    int	stopRange;
+    int stopRange;
     CARD32 *colorTable;
-    int	colorTableSize;
+    int colorTableSize;
     xPointFixed center;
     xFixed angle;
 } PictConicalGradient, *PictConicalGradientPtr;
@@ -478,7 +472,7 @@ void
 PictureStoreColors (ColormapPtr pColormap, int ndef, xColorItem *pdef);
 
 Bool
-PictureInitIndexedFormats (ScreenPtr pScreen);
+PictureInitIndexedFormat (ScreenPtr pScreen, PictFormatPtr format);
 
 Bool
 PictureSetSubpixelOrder (ScreenPtr pScreen, int subpixel);
@@ -687,6 +681,10 @@ AddTraps (PicturePtr	pPicture,
 	  INT16		yOff,
 	  int		ntraps,
 	  xTrap		*traps);
+
+pixman_image_t *
+PixmanImageFromPicture (PicturePtr pPict,
+			Bool hasClip);
 
 PicturePtr
 CreateDevicePicture (Picture pid,

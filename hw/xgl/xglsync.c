@@ -154,7 +154,7 @@ xglSyncBits (DrawablePtr pDrawable,
 	glitz_surface_set_clip_region (pPixmapPriv->surface,
 				       0, 0, (glitz_box_t *) pBox, nBox);
 
-	__glXleaveServer();
+	__glXleaveServer(FALSE);
 	glitz_get_pixels (pPixmapPriv->surface,
 			  pExt->x1,
 			  pExt->y1,
@@ -162,7 +162,7 @@ xglSyncBits (DrawablePtr pDrawable,
 			  pExt->y2 - pExt->y1,
 			  &format,
 			  pPixmapPriv->buffer);
-	__glXenterServer();
+	__glXenterServer(FALSE);
 
 	glitz_surface_set_clip_region (pPixmapPriv->surface, 0, 0, NULL, 0);
     }
@@ -277,7 +277,7 @@ xglSyncSurface (DrawablePtr pDrawable)
 	glitz_surface_set_clip_region (pPixmapPriv->surface,
 				       0, 0, (glitz_box_t *) pBox, nBox);
 
-	__glXleaveServer();
+	__glXleaveServer(FALSE);
 	glitz_set_pixels (pPixmapPriv->surface,
 			  pExt->x1,
 			  pExt->y1,
@@ -285,7 +285,7 @@ xglSyncSurface (DrawablePtr pDrawable)
 			  pExt->y2 - pExt->y1,
 			  &format,
 			  pPixmapPriv->buffer);
-	__glXenterServer();
+	__glXenterServer(FALSE);
 
 	glitz_surface_set_clip_region (pPixmapPriv->surface, 0, 0, NULL, 0);
 

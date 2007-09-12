@@ -71,7 +71,7 @@ xglSolid (DrawablePtr	   pDrawable,
     if (!GEOMETRY_ENABLE (pGeometry, surface))
 	return FALSE;
 
-    __glXleaveServer();
+    __glXleaveServer(FALSE);
     glitz_composite (op,
 		     solid, NULL, surface,
 		     0, 0,
@@ -79,7 +79,7 @@ xglSolid (DrawablePtr	   pDrawable,
 		     x + xOff,
 		     y + yOff,
 		     width, height);
-    __glXenterServer();
+    __glXenterServer(FALSE);
 
     glitz_surface_set_clip_region (surface, 0, 0, NULL, 0);
 

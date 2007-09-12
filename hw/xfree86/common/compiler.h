@@ -47,8 +47,6 @@
  * authorization from the copyright holder(s) and author(s).
  */
 
-/* $XConsortium: compiler.h /main/16 1996/10/25 15:38:34 kaleb $ */
-
 #ifndef _COMPILER_H
 
 # define _COMPILER_H
@@ -1365,7 +1363,7 @@ do {									\
 #    define write_mem_barrier()   /* NOP */
 
 #    if !defined(__SUNPRO_C)
-#    if !defined(FAKEIT) && !defined(__mc68000__) && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__)
+#    if !defined(FAKEIT) && !defined(__mc68000__) && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__) && !defined(__s390__)
 #     ifdef GCCUSESGAS
 
 /*

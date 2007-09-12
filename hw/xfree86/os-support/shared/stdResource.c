@@ -31,9 +31,6 @@
 #include <xorg-config.h>
 #endif
 
-#ifdef __UNIXOS2__
-# define I_NEED_OS2_H
-#endif
 #include <X11/X.h>
 #include "xf86.h"
 #include "xf86Priv.h"
@@ -43,74 +40,13 @@
 #include "xf86_OSlib.h"
 #include "xf86Resources.h"
 
-#ifdef __UNIXOS2__
-# undef ADDRESS
-#endif
 /* Avoid Imakefile changes */
 #include "bus/Pci.h"
 
-#ifdef USESTDRES
-#define xf86StdBusAccWindowsFromOS xf86BusAccWindowsFromOS
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+	defined(__DragonFly__)
 #define xf86StdAccResFromOS xf86AccResFromOS
-#define xf86StdPciBusAccWindowsFromOS xf86PciBusAccWindowsFromOS
-#define xf86StdIsaBusAccWindowsFromOS xf86IsaBusAccWindowsFromOS
-
-_X_EXPORT resRange PciAvoid[] = {_PCI_AVOID_PC_STYLE, _END};
 #endif
-
-#ifdef INCLUDE_XF86_NO_DOMAIN
-
-resPtr
-xf86StdBusAccWindowsFromOS(void)
-{
-    /* Fallback is to allow addressing of all memory space */
-    resPtr ret = NULL;
-    resRange range;
-
-    RANGE(range, 0x00000000, 0xffffffff, ResExcMemBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-
-    /* Fallback is to allow addressing of all I/O space */
-    RANGE(range, 0x00000000, 0x0000ffff, ResExcIoBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-    return ret;
-}
-
-resPtr
-xf86StdPciBusAccWindowsFromOS(void)
-{
-    /* Fallback is to allow addressing of all memory space */
-    resPtr ret = NULL;
-    resRange range;
-
-    RANGE(range, 0x00000000, 0xffffffff, ResExcMemBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-
-    /* Fallback is to allow addressing of all I/O space */
-    RANGE(range, 0x00000000, 0x0000ffff, ResExcIoBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-    return ret;
-}
-
-#ifdef INCLUDE_UNUSED
-
-resPtr
-xf86StdIsaBusAccWindowsFromOS(void)
-{
-    /* Fallback is to allow addressing of all memory space */
-    resPtr ret = NULL;
-    resRange range;
-
-    RANGE(range, 0x00000000, 0xffffffff, ResExcMemBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-
-    /* Fallback is to allow addressing of all I/O space */
-    RANGE(range, 0x00000000, 0x0000ffff, ResExcIoBlock);
-    ret = xf86AddResToList(ret, &range, -1);
-    return ret;
-}
-
-#endif /* INCLUDE_UNUSED */
 
 resPtr
 xf86StdAccResFromOS(resPtr ret)
@@ -178,5 +114,3 @@ xf86StdAccResFromOS(resPtr ret)
     /* XXX add others */
     return ret;
 }
-
-#endif /* INCLUDE_XF86_NO_DOMAIN */

@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright © 2003 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -74,7 +72,6 @@ typedef struct _damageScrPriv {
     CompositeProcPtr		Composite;
     GlyphsProcPtr		Glyphs;
 #endif
-    BSFuncRec			BackingStoreFuncs;
 } DamageScrPrivRec, *DamageScrPrivPtr;
 
 typedef struct _damageGCPriv {

@@ -738,6 +738,7 @@ ProcRRSetScreenConfig (ClientPtr client)
     int			    rate;
     Bool		    has_rate;
     RROutputPtr		    output;
+    RRCrtcPtr		    crtc;
     RRModePtr		    mode;
     RR10DataPtr		    pData = NULL;
     RRScreenSizePtr    	    pSize;
@@ -765,7 +766,6 @@ ProcRRSetScreenConfig (ClientPtr client)
     pScrPriv = rrGetScrPriv(pScreen);
     
     time = ClientTimeToServerTime(stuff->timestamp);
-    configTime = ClientTimeToServerTime(stuff->configTimestamp);
     
     if (!pScrPriv)
     {
@@ -783,13 +783,19 @@ ProcRRSetScreenConfig (ClientPtr client)
 	rep.status = RRSetConfigFailed;
 	goto sendReply;
     }
-    
+
+    crtc = output->crtc;
+
     /*
-     * if the client's config timestamp is not the same as the last config
+     * If the client's config timestamp is not the same as the last config
      * timestamp, then the config information isn't up-to-date and
-     * can't even be validated
+     * can't even be validated.
+     *
+     * Note that the client only knows about the milliseconds part of the
+     * timestamp, so using CompareTimeStamps here would cause randr to suddenly
+     * stop working after several hours have passed (freedesktop bug #6502).
      */
-    if (CompareTimeStamps (configTime, pScrPriv->lastConfigTime) != 0)
+    if (stuff->configTimestamp != pScrPriv->lastConfigTime.milliseconds)
     {
 	rep.status = RRSetConfigInvalidConfigTime;
 	goto sendReply;
@@ -831,7 +837,7 @@ ProcRRSetScreenConfig (ClientPtr client)
 	return BadValue;
     }
 
-    if ((~output->crtc->rotations) & rotation)
+    if ((~crtc->rotations) & rotation)
     {
 	/*
 	 * requested rotation or reflection not supported by screen
@@ -914,7 +920,7 @@ ProcRRSetScreenConfig (ClientPtr client)
 	}
     }
 
-    if (!RRCrtcSet (output->crtc, mode, 0, 0, stuff->rotation, 1, &output))
+    if (!RRCrtcSet (crtc, mode, 0, 0, stuff->rotation, 1, &output))
 	rep.status = RRSetConfigFailed;
     else
 	rep.status = RRSetConfigSuccess;

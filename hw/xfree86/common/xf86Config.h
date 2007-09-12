@@ -33,6 +33,8 @@
 #ifndef _xf86_config_h
 #define _xf86_config_h
 
+#include "xf86Optrec.h"
+
 #ifdef HAVE_PARSER_DECLS
 /*
  * global structure that holds the result of parsing the config file
@@ -45,6 +47,12 @@ typedef enum _ConfigStatus {
     CONFIG_PARSE_ERROR,
     CONFIG_NOFILE
 } ConfigStatus;
+
+typedef struct _ModuleDefault {
+    char *name;
+    Bool toLoad;
+    XF86OptionPtr load_opt;
+} ModuleDefault;
 
 /*
  * prototypes

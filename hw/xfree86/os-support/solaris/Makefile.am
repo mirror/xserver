@@ -11,11 +11,11 @@ AGP_SRC = sun_agp.c
 #AGP_SRC = $(srcdir)/../shared/agp_noop.c
 #endif
 
-SOLARIS_INOUT_SRC = solaris-$(SOLARIS_INOUT_ARCH).S
-DISTCLEANFILES = solaris-$(SOLARIS_INOUT_ARCH).il
+SOLARIS_INOUT_SRC = solaris-@SOLARIS_INOUT_ARCH@.S
+DISTCLEANFILES = solaris-@SOLARIS_INOUT_ARCH@.il
 
-solaris-$(SOLARIS_INOUT_ARCH).il: solaris-${SOLARIS_INOUT_ARCH}.S
-	$(CPP) -P -DINLINE_ASM solaris-${SOLARIS_INOUT_ARCH}.S > $@
+solaris-@SOLARIS_INOUT_ARCH@.il: solaris-@SOLARIS_INOUT_ARCH@.S
+	$(CPP) -P -DINLINE_ASM solaris-@SOLARIS_INOUT_ARCH@.S > $@
 
 noinst_LTLIBRARIES = libsolaris.la
 libsolaris_la_SOURCES = sun_bios.c sun_init.c \
@@ -23,12 +23,12 @@ libsolaris_la_SOURCES = sun_bios.c sun_init.c \
 	$(srcdir)/../shared/libc_wrapper.c \
 	$(srcdir)/../shared/kmod_noop.c \
 	$(srcdir)/../shared/posix_tty.c $(srcdir)/../shared/sigiostubs.c \
-	$(srcdir)/../shared/stdPci.c $(srcdir)/../shared/stdResource.c \
+	$(srcdir)/../shared/stdResource.c \
 	$(VTSW_SRC)
 nodist_libsolaris_la_SOURCES = $(SOLARIS_INOUT_SRC)
 
 sdk_HEADERS = agpgart.h
-nodist_sdk_HEADERS = solaris-$(SOLARIS_INOUT_ARCH).il
+nodist_sdk_HEADERS = solaris-@SOLARIS_INOUT_ARCH@.il
 
 AM_CFLAGS = -DUSESTDRES -DHAVE_SYSV_IPC $(XORG_CFLAGS) $(DIX_CFLAGS)
 

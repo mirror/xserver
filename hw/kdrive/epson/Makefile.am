@@ -22,5 +22,11 @@ EPSON_LIBS =					\
 
 Xepson_LDADD = \
 	$(EPSON_LIBS)			       \
-	@KDRIVE_LIBS@                          \
-	@XSERVER_LIBS@				
+	@KDRIVE_LIBS@
+
+Xepson_DEPENDENCIES =	\
+	libepson.a 				\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

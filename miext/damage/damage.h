@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * Copyright © 2003 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -76,6 +74,9 @@ DamageEmpty (DamagePtr pDamage);
 
 RegionPtr
 DamageRegion (DamagePtr		    pDamage);
+
+RegionPtr
+DamagePendingRegion (DamagePtr	    pDamage);
 
 void
 DamageDamageRegion (DrawablePtr	    pDrawable,

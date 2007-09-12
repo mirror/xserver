@@ -298,8 +298,6 @@ typedef struct _xglScreen {
     RealizeGlyphProcPtr		  RealizeGlyph;
     UnrealizeGlyphProcPtr	  UnrealizeGlyph;
 #endif
-
-    BSFuncRec			  BackingStoreFuncs;
 } xglScreenRec, *xglScreenPtr;
 
 extern int xglScreenPrivateIndex;
@@ -1140,23 +1138,6 @@ xglGetWindowPixmap (WindowPtr pWin);
 void
 xglSetWindowPixmap (WindowPtr pWin,
 		    PixmapPtr pPixmap);
-
-
-/* xglbstore.c */
-
-void
-xglSaveAreas (PixmapPtr	pPixmap,
-	      RegionPtr	prgnSave,
-	      int	xorg,
-	      int	yorg,
-	      WindowPtr	pWin);
-
-void
-xglRestoreAreas (PixmapPtr pPixmap,
-		 RegionPtr prgnRestore,
-		 int	   xorg,
-		 int	   yorg,
-		 WindowPtr pWin);
 
 
 /* xglget.c */

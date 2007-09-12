@@ -1,6 +1,4 @@
 /*
- * Id: fbcopy.c,v 1.1 1999/11/02 03:54:45 keithp Exp $
- *
  * Copyright © 1998 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -29,7 +27,6 @@
 #include <stdlib.h>
 
 #include "fb.h"
-#include "fbmmx.h"
 
 void
 fbCopyNtoN (DrawablePtr	pSrcDrawable,
@@ -60,21 +57,17 @@ fbCopyNtoN (DrawablePtr	pSrcDrawable,
 
     while (nbox--)
     {
-#ifdef USE_MMX
+#ifndef FB_ACCESS_WRAPPER /* pixman_blt() doesn't support accessors yet */
 	if (pm == FB_ALLONES && alu == GXcopy && !reverse &&
-	    !upsidedown && fbHaveMMX())
+	    !upsidedown)
 	{
-	    if (!fbCopyAreammx (pSrcDrawable,
-				pDstDrawable,
-				
-				(pbox->x1 + dx),
-				(pbox->y1 + dy),
-				
-				(pbox->x1),
-				(pbox->y1),
-				
-				(pbox->x2 - pbox->x1),
-				(pbox->y2 - pbox->y1)))
+	    if (!pixman_blt ((uint32_t *)src, (uint32_t *)dst, srcStride, dstStride, srcBpp, dstBpp,
+			     (pbox->x1 + dx + srcXoff),
+			     (pbox->y1 + dy + srcYoff),
+			     (pbox->x1 + dstXoff),
+			     (pbox->y1 + dstYoff),
+			     (pbox->x2 - pbox->x1),
+			     (pbox->y2 - pbox->y1)))
 		goto fallback;
 	    else
 		goto next;
@@ -98,7 +91,7 @@ fbCopyNtoN (DrawablePtr	pSrcDrawable,
 	       
 	       reverse,
 	       upsidedown);
-#ifdef USE_MMX
+#ifndef FB_ACCESS_WRAPPER
     next:
 #endif
 	pbox++;

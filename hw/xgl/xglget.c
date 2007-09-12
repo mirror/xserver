@@ -53,10 +53,10 @@ xglGetImage (DrawablePtr   pDrawable,
 	if (!xglSyncSurface (&pScreenPriv->pScreenPixmap->drawable))
 	    FatalError (XGL_SW_FAILURE_STRING);
 
-	__glXleaveServer();
+	__glXleaveServer(FALSE);
 	glitz_surface_flush (pScreenPriv->surface);
 	glitz_drawable_finish (pScreenPriv->drawable);
-	__glXenterServer();
+	__glXenterServer(FALSE);
     }
 
     XGL_GET_DRAWABLE (pDrawable, surface, xOff, yOff);

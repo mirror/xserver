@@ -23,5 +23,11 @@ VIA_LIBS =	\
 
 Xvia_LDADD =						\
 	$(VIA_LIBS)					\
-	@KDRIVE_LIBS@					\
-	@XSERVER_LIBS@
+	@KDRIVE_LIBS@
+
+Xvia_DEPENDENCIES =	\
+	libvia.a	\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

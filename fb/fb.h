@@ -26,6 +26,8 @@
 #define _FB_H_
 
 #include <X11/X.h>
+#include <pixman.h>
+
 #include "scrnintstr.h"
 #include "pixmap.h"
 #include "pixmapstr.h"
@@ -607,16 +609,6 @@ extern int	fbGetWinPrivateIndex(void);
 extern const GCOps	fbGCOps;
 extern const GCFuncs	fbGCFuncs;
 
-#ifdef TEKX11
-#define FB_OLD_GC
-#define FB_OLD_SCREEN
-#endif
-
-#ifdef FB_OLD_SCREEN
-# define FB_OLD_MISCREENINIT	/* miScreenInit requires 14 args, not 13 */
-extern WindowPtr    *WindowTable;
-#endif
-
 #ifdef FB_24_32BIT
 #define FB_SCREEN_PRIVATE
 #endif
@@ -667,15 +659,6 @@ typedef struct {
 
 /* private field of GC */
 typedef struct {
-#ifdef FB_OLD_GC
-    unsigned char       pad1;
-    unsigned char       pad2;
-    unsigned char       pad3;
-    unsigned		fExpose:1;
-    unsigned		freeCompClip:1;
-    PixmapPtr		pRotatedPixmap;
-    RegionPtr		pCompositeClip;
-#endif    
     FbBits		and, xor;	/* reduced rop values */
     FbBits		bgand, bgxor;	/* for stipples */
     FbBits		fg, bg, pm;	/* expanded and filled */
@@ -688,17 +671,10 @@ typedef struct {
 #define fbGetGCPrivate(pGC)	((FbGCPrivPtr)\
 	(pGC)->devPrivates[fbGetGCPrivateIndex()].ptr)
 
-#ifdef FB_OLD_GC
-#define fbGetCompositeClip(pGC) (fbGetGCPrivate(pGC)->pCompositeClip)
-#define fbGetExpose(pGC)	(fbGetGCPrivate(pGC)->fExpose)
-#define fbGetFreeCompClip(pGC)	(fbGetGCPrivate(pGC)->freeCompClip)
-#define fbGetRotatedPixmap(pGC)	(fbGetGCPrivate(pGC)->pRotatedPixmap)
-#else
 #define fbGetCompositeClip(pGC) ((pGC)->pCompositeClip)
 #define fbGetExpose(pGC)	((pGC)->fExpose)
 #define fbGetFreeCompClip(pGC)	((pGC)->freeCompClip)
 #define fbGetRotatedPixmap(pGC)	((pGC)->pRotatedPixmap)
-#endif
 
 #define fbGetScreenPixmap(s)	((PixmapPtr) (s)->devPrivate)
 #ifdef FB_NO_WINDOW_PIXMAPS
@@ -772,12 +748,6 @@ typedef struct {
 #define fbDrawableEnabled(pDrawable) \
     ((pDrawable)->type == DRAWABLE_PIXMAP ? \
      TRUE : fbWindowEnabled((WindowPtr) pDrawable))
-
-#ifdef FB_OLD_SCREEN
-#define BitsPerPixel(d) (\
-    ((1 << PixmapWidthPaddingInfo[d].padBytesLog2) * 8 / \
-    (PixmapWidthPaddingInfo[d].padRoundUp+1)))
-#endif
 
 #define FbPowerOfTwo(w)	    (((w) & ((w) - 1)) == 0)
 /*
@@ -1292,23 +1262,6 @@ fbBltPlane (FbBits	    *src,
 	    Pixel	    planeMask);
 
 /*
- * fbbstore.c
- */
-void
-fbSaveAreas(PixmapPtr	pPixmap,
-	    RegionPtr	prgnSave,
-	    int		xorg,
-	    int		yorg,
-	    WindowPtr	pWin);
-
-void
-fbRestoreAreas(PixmapPtr    pPixmap,
-	       RegionPtr    prgnRestore,
-	       int	    xorg,
-	       int	    yorg,
-	       WindowPtr    pWin);
-
-/*
  * fbcmap.c
  */
 int
@@ -1788,13 +1741,11 @@ fbQueryBestSize (int class,
 		 unsigned short *width, unsigned short *height,
 		 ScreenPtr pScreen);
 
-#ifndef FB_OLD_SCREEN
 PixmapPtr
 _fbGetWindowPixmap (WindowPtr pWindow);
 
 void
 _fbSetWindowPixmap (WindowPtr pWindow, PixmapPtr pPixmap);
-#endif
 
 Bool
 fbSetupScreen(ScreenPtr	pScreen, 
@@ -2030,7 +1981,7 @@ fbEvenTile (FbBits	*dst,
 	    int		height,
 
 	    FbBits	*tile,
-	    FbStride    tileStride,
+	    FbStride	tileStride,
 	    int		tileHeight,
 
 	    int		alu,
@@ -2147,4 +2098,9 @@ void
 fbPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what);
 
 
+pixman_image_t *image_from_pict (PicturePtr pict,
+				 Bool       has_clip);
+void free_pixman_pict (PicturePtr, pixman_image_t *);
+
 #endif /* _FB_H_ */
+

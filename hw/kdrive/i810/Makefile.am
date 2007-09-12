@@ -25,5 +25,11 @@ I810_LIBS =						\
 
 Xi810_LDADD = \
 	$(I810_LIBS)					\
-	@KDRIVE_LIBS@                                  \
-	@XSERVER_LIBS@					
+	@KDRIVE_LIBS@
+
+Xi810_DEPENDENCIES =	\
+	libi810.a 					\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)

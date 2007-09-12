@@ -450,12 +450,12 @@ xglSyncPicture (ScreenPtr  pScreen,
 					  param, nParam + nStop * 3);
 		break;
 	    case SourcePictTypeRadial:
-		param[0] = pPicture->pSourcePict->radial.inner.x;
-		param[1] = pPicture->pSourcePict->radial.inner.y;
-		param[2] = pPicture->pSourcePict->radial.inner_radius;
-		param[3] = pPicture->pSourcePict->radial.outer.x;
-		param[4] = pPicture->pSourcePict->radial.outer.y;
-		param[5] = pPicture->pSourcePict->radial.outer_radius;
+		param[0] = pPicture->pSourcePict->radial.c1.x;
+		param[1] = pPicture->pSourcePict->radial.c1.y;
+		param[2] = pPicture->pSourcePict->radial.c1.radius;
+		param[3] = pPicture->pSourcePict->radial.c2.x;
+		param[4] = pPicture->pSourcePict->radial.c2.y;
+		param[5] = pPicture->pSourcePict->radial.c2.radius;
 
 		glitz_surface_set_filter (surface,
 					  GLITZ_FILTER_RADIAL_GRADIENT,

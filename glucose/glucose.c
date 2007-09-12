@@ -24,7 +24,7 @@
  * Authors: Alan Hourihane <alanh@tungstengraphics.com>
  *
  * Re-written from original code by Zack Rusin
- * 
+ *
  **************************************************************************/
 
 #ifdef HAVE_DIX_CONFIG_H
@@ -88,7 +88,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
   GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
   int err;
 
-  xf86DrvMsg(pScreen->myNum, X_INFO, 
+  xf86DrvMsg(pScreen->myNum, X_INFO,
 		  "Glucose initializing screen %d\n",pScreen->myNum);
 
   if ( pScreen->CreateScreenResources != glucoseCreateScreenResources ) {
@@ -133,7 +133,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
     pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, pPixmap->drawable.id, modes);
 
     if (!pScreenPriv->rootDrawable) {
-  	xf86DrvMsg(pScreen->myNum, X_WARNING, 
+  	xf86DrvMsg(pScreen->myNum, X_WARNING,
 		  "Glucose - creating root drawable failed\n");
     	return FALSE;
     }
@@ -141,20 +141,20 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
     pScreenPriv->rootContext = pScreenPriv->screen->createContext(pScreenPriv->screen, modes, NULL);
 
     if (!pScreenPriv->rootContext) {
-  	xf86DrvMsg(pScreen->myNum, X_WARNING, 
+  	xf86DrvMsg(pScreen->myNum, X_WARNING,
 		  "Glucose - creating root context failed\n");
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
 	pScreenPriv->rootDrawable = NULL;
     	return FALSE;
     }
 
-    pScreenPriv->rootContext->drawPriv = 
+    pScreenPriv->rootContext->drawPriv =
     	pScreenPriv->rootContext->readPriv = pScreenPriv->rootDrawable;
 
-    __glXleaveServer();
+    __glXleaveServer(FALSE);
     err = pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
     if (!err) {
-    	__glXenterServer();
+    	__glXenterServer(FALSE);
   	xf86DrvMsg(pScreen->myNum, X_WARNING, 
 		  "Glucose makeCurrent failed, err is %d\n",err);
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
@@ -172,7 +172,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
                                                     pPixmap->drawable.height);
 
     if (!drawable) {
-    	__glXenterServer();
+    	__glXenterServer(FALSE);
         xf86DrvMsg(pScreen->myNum, X_ERROR,
 		  "Glucose could not create glitz drawable, not initializing.\n");
 
@@ -191,7 +191,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 		  "Glucose reports GLitz features as 0x%lx\n",xglScreenPriv->features);
 
     if (!glucoseFinishScreenInit(pScreen)) {
-    	__glXenterServer();
+    	__glXenterServer(FALSE);
         xf86DrvMsg(pScreen->myNum, X_ERROR,
 		  "Glucose could not initialize.\n");
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
@@ -201,7 +201,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 	return FALSE;
     }
 
-    __glXenterServer();
+    __glXenterServer(FALSE);
 
     /* now fixup root pixmap */
     pPixmap = pScreen->GetScreenPixmap(pScreen);
@@ -480,9 +480,6 @@ glucoseScreenInit (ScreenPtr pScreen, int flags)
     }
 #endif
 
-    XGL_SCREEN_WRAP (BackingStoreFuncs.SaveAreas, xglSaveAreas);
-    XGL_SCREEN_WRAP (BackingStoreFuncs.RestoreAreas, xglRestoreAreas);
-
 #if 0
 #ifdef COMPOSITE
 #warning "composite building"
@@ -708,7 +705,7 @@ glucoseCloseScreen (int	  index,
 
     {
     	GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
-    
+
     	pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
     }
 

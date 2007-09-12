@@ -27,5 +27,11 @@ SMI_LIBS =					\
 
 Xsmi_LDADD = \
 	$(SMI_LIBS)				\
-	@KDRIVE_LIBS@                          \
-	@XSERVER_LIBS@					
+	@KDRIVE_LIBS@
+
+Xsmi_DEPENDENCIES =	\
+	libsmi.a 				\
+	@KDRIVE_LOCAL_LIBS@
+
+relink:
+	rm -f $(bin_PROGRAMS) && make $(bin_PROGRAMS)
