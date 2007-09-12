@@ -50,7 +50,7 @@
 
 #ifdef XKB
 #include <X11/extensions/XKB.h>
-#include <xkbsrv.h>
+#include <X11/extensions/XKBsrv.h>
 #include <X11/extensions/XKBconfig.h>
 
 extern Bool
@@ -975,6 +975,8 @@ xglxBlockHandler (pointer   blockData,
     XFlush (xdisplay);
 }
 
+static DeviceIntPtr pKeyboard, pPointer;
+
 static void
 xglxWakeupHandler (pointer blockData,
 		   int     result,
@@ -991,25 +993,25 @@ xglxWakeupHandler (pointer blockData,
 	    x.u.u.type = KeyPress;
 	    x.u.u.detail = X.xkey.keycode;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
+	    mieqEnqueue (pKeyboard, &x);
 	    break;
 	case KeyRelease:
 	    x.u.u.type = KeyRelease;
 	    x.u.u.detail = X.xkey.keycode;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
+	    mieqEnqueue (pKeyboard, &x);
 	    break;
 	case ButtonPress:
 	    x.u.u.type = ButtonPress;
 	    x.u.u.detail = X.xbutton.button;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
+	    mieqEnqueue (pPointer, &x);
 	    break;
 	case ButtonRelease:
 	    x.u.u.type = ButtonRelease;
 	    x.u.u.detail = X.xbutton.button;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (&x);
+	    mieqEnqueue (pPointer, &x);
 	    break;
 	case MotionNotify:
 	    x.u.u.type = MotionNotify;
@@ -1018,7 +1020,7 @@ xglxWakeupHandler (pointer blockData,
 	    x.u.keyButtonPointer.rootY = X.xmotion.y;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
 	    miPointerAbsoluteCursor (X.xmotion.x, X.xmotion.y, lastEventTime);
-	    mieqEnqueue (&x);
+	    mieqEnqueue (pPointer, &x);
 	    break;
 	case EnterNotify:
 	    if (X.xcrossing.detail != NotifyInferior) {
@@ -1030,7 +1032,7 @@ xglxWakeupHandler (pointer blockData,
 		    x.u.keyButtonPointer.rootY = X.xcrossing.y;
 		    x.u.keyButtonPointer.time = lastEventTime =
 			GetTimeInMillis ();
-		    mieqEnqueue (&x);
+		    mieqEnqueue (pPointer, &x);
 		}
 	    }
 	    break;
@@ -1046,7 +1048,7 @@ xglxBell (int	       volume,
 	  pointer      ctrl,
 	  int	       cls)
 {
-  XBell (xdisplay, volume);
+    XBell (xdisplay, volume);
 }
 
 static void
@@ -1259,16 +1261,13 @@ void
 xglxInitInput (int  argc,
 	       char **argv)
 {
-    DeviceIntPtr pKeyboard, pPointer;
-
     pPointer  = AddInputDevice (xglMouseProc, TRUE);
     pKeyboard = AddInputDevice (xglxKeybdProc, TRUE);
 
     RegisterPointerDevice (pPointer);
     RegisterKeyboardDevice (pKeyboard);
 
-    miRegisterPointerDevice (screenInfo.screens[0], pPointer);
-    mieqInit (&pKeyboard->public, &pPointer->public);
+    mieqInit ();
 
     AddEnabledDevice (XConnectionNumber (xdisplay));
 

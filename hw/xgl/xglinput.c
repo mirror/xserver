@@ -51,9 +51,9 @@ xglMouseProc (DeviceIntPtr pDevice,
 	InitPointerDeviceStruct (pDev,
 				 map,
 				 NUM_BUTTONS,
-				 miPointerGetMotionEvents,
+				 GetMotionHistory,
 				 (PtrCtrlProcPtr) NoopDDA,
-				 miPointerGetMotionBufferSize ());
+				 GetMotionHistorySize (), 2);
 	break;
     case DEVICE_ON:
 	pDev->on = TRUE;
@@ -258,6 +258,5 @@ xglInitInput (int argc, char **argv)
     RegisterPointerDevice (pPointer);
     RegisterKeyboardDevice (pKeyboard);
 
-    miRegisterPointerDevice (screenInfo.screens[0], pPointer);
-    mieqInit (&pKeyboard->public, &pPointer->public);
+    mieqInit ();
 }
