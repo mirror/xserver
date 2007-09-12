@@ -76,6 +76,11 @@ xglBell (int	      volume,
 }
 
 void
+DDXRingBell(int volume, int pitch, int duration)
+{
+}
+
+void
 xglKbdCtrl (DeviceIntPtr pDevice,
 	    KeybdCtrl	 *ctrl)
 {
