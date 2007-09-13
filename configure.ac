@@ -1261,7 +1261,7 @@ if test "x$XGL" = xyes; then
 	AC_SUBST([XGL_LIBS])
 	AC_SUBST([XGL_SYS_LIBS])
 	AC_DEFINE(XGL_MODULAR, 1, [Use loadable XGL modules])
-	SERVER_DEFINES="$SERVER_DEFINES -DXGLServer"
+	AC_DEFINE(XGLServer, 1, [Building XGL server])
 
 	xglmoduledir="$moduledir/xgl"
 	AC_SUBST([xglmoduledir])
