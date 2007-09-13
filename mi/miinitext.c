@@ -27,13 +27,13 @@ Copyright 1987 by Digital Equipment Corporation, Maynard, Massachusetts.
 
                         All Rights Reserved
 
-Permission to use, copy, modify, and distribute this software and its 
-documentation for any purpose and without fee is hereby granted, 
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose and without fee is hereby granted,
 provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in 
+both that copyright notice and this permission notice appear in
 supporting documentation, and that the name of Digital not be
 used in advertising or publicity pertaining to distribution of the
-software without specific, written prior permission.  
+software without specific, written prior permission.
 
 DIGITAL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING
 ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL
@@ -588,7 +588,7 @@ InitExtensions(argc, argv)
     if (!noXCMiscExtension) XCMiscExtensionInit();
 #endif
 #ifdef XRECORD
-    if (!noTestExtensions) RecordExtensionInit(); 
+    if (!noTestExtensions) RecordExtensionInit();
 #endif
 #ifdef DBE
     if (!noDbeExtension) DbeExtensionInit();
@@ -637,7 +637,9 @@ InitExtensions(argc, argv)
     DarwinGlxPushProvider(__DarwinglXMesaProvider);
     if (!noGlxExtension) DarwinGlxExtensionInit();
 #else
+#ifndef XGL_MODULAR
     GlxPushProvider(&__glXMesaProvider);
+#endif
     if (!noGlxExtension) GlxExtensionInit();
 #endif // INXDARWINAPP
 #endif // GLXEXT
@@ -735,10 +737,10 @@ static ExtensionModule staticExtensions[] = {
 #endif
 #ifdef XEVIE
     { XevieExtensionInit, "XEVIE", &noXevieExtension, NULL },
-#endif 
+#endif
     { NULL, NULL, NULL, NULL, NULL }
 };
-    
+
 /*ARGSUSED*/
 void
 InitExtensions(argc, argv)
@@ -771,8 +773,8 @@ InitExtensions(argc, argv)
 
     for (i = 0; ExtensionModuleList[i].name != NULL; i++) {
 	ext = &ExtensionModuleList[i];
-	if (ext->initFunc != NULL && 
-	    (ext->disablePtr == NULL || 
+	if (ext->initFunc != NULL &&
+	    (ext->disablePtr == NULL ||
 	     (ext->disablePtr != NULL && !*ext->disablePtr))) {
 	    (ext->initFunc)();
 	}
