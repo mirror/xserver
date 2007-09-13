@@ -7,6 +7,9 @@
 
 #include <dix-config.h>
 
+/* Building XGL server */
+#undef XGLServer
+
 /* Use loadable XGL modules. */
 #undef XGL_MODULAR
 
