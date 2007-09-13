@@ -101,10 +101,15 @@ GlxSetRenderTables (struct _glapi_table *table)
 	(*__xglGLXFunc.setRenderTables) (table);
 }
 
+/*
+** Stub to satisfy miinitext.c references.
+*/
+__GLXprovider __glXMesaProvider;
+
 void
 GlxPushProvider (__GLXprovider *provider)
 {
-    if (glXHandle)
+    if (glXHandle && provider != &__glXMesaProvider)
 	(*__xglGLXFunc.pushProvider) (provider);
 }
 
@@ -199,6 +204,16 @@ xglUnloadGLXModules (void)
     }
 #endif
 
+}
+
+void
+__glXenterServer(GLboolean rendering)
+{
+}
+
+void
+__glXleaveServer(GLboolean rendering)
+{
 }
 
 #endif
