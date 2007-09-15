@@ -70,7 +70,7 @@ typedef struct _xglDDXFunc {
     void (*initInput)	       (int	     argc,
 				char	     **argv);
     Bool (*legalModifier)      (unsigned int key,
-				DevicePtr    pDev);
+	    			DeviceIntPtr    pDev);
     void (*processInputEvents) (void);
     void (*useMsg)	       (void);
     int  (*processArgument)    (int	     argc,

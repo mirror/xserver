@@ -975,7 +975,21 @@ xglxBlockHandler (pointer   blockData,
     XFlush (xdisplay);
 }
 
-static DeviceIntPtr pKeyboard, pPointer;
+static DeviceIntPtr xglxKeyboardDevice = NULL;
+static DeviceIntPtr xglxPointerDevice = NULL;
+
+static xEvent *xglxEvents = NULL;
+
+static void
+xglxQueueKeyEvent(int type, unsigned int keycode)
+{
+  int i, n;
+
+  lastEventTime = GetTimeInMillis();
+  n = GetKeyboardEvents(xglxEvents, xglxKeyboardDevice, type, keycode);
+  for (i = 0; i < n; i++)
+    mieqEnqueue(xglxKeyboardDevice, xglxEvents + i);
+}
 
 static void
 xglxWakeupHandler (pointer blockData,
@@ -990,28 +1004,22 @@ xglxWakeupHandler (pointer blockData,
     {
 	switch (X.type) {
 	case KeyPress:
-	    x.u.u.type = KeyPress;
-	    x.u.u.detail = X.xkey.keycode;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (pKeyboard, &x);
+	    xglxQueueKeyEvent(KeyPress, X.xkey.keycode);
 	    break;
 	case KeyRelease:
-	    x.u.u.type = KeyRelease;
-	    x.u.u.detail = X.xkey.keycode;
-	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (pKeyboard, &x);
+	    xglxQueueKeyEvent(KeyRelease, X.xkey.keycode);
 	    break;
 	case ButtonPress:
 	    x.u.u.type = ButtonPress;
 	    x.u.u.detail = X.xbutton.button;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (pPointer, &x);
+	    mieqEnqueue (xglxPointerDevice, &x);
 	    break;
 	case ButtonRelease:
 	    x.u.u.type = ButtonRelease;
 	    x.u.u.detail = X.xbutton.button;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
-	    mieqEnqueue (pPointer, &x);
+	    mieqEnqueue (xglxPointerDevice, &x);
 	    break;
 	case MotionNotify:
 	    x.u.u.type = MotionNotify;
@@ -1020,7 +1028,7 @@ xglxWakeupHandler (pointer blockData,
 	    x.u.keyButtonPointer.rootY = X.xmotion.y;
 	    x.u.keyButtonPointer.time = lastEventTime = GetTimeInMillis ();
 	    miPointerAbsoluteCursor (X.xmotion.x, X.xmotion.y, lastEventTime);
-	    mieqEnqueue (pPointer, &x);
+	    mieqEnqueue (xglxPointerDevice, &x);
 	    break;
 	case EnterNotify:
 	    if (X.xcrossing.detail != NotifyInferior) {
@@ -1032,7 +1040,7 @@ xglxWakeupHandler (pointer blockData,
 		    x.u.keyButtonPointer.rootY = X.xcrossing.y;
 		    x.u.keyButtonPointer.time = lastEventTime =
 			GetTimeInMillis ();
-		    mieqEnqueue (pPointer, &x);
+		    mieqEnqueue (xglxPointerDevice, &x);
 		}
 	    }
 	    break;
@@ -1084,11 +1092,10 @@ xglxKbdCtrl (DeviceIntPtr pDev,
 }
 
 static int
-xglxKeybdProc (DeviceIntPtr pDevice,
+xglxKeybdProc (DeviceIntPtr pDev,
 	       int	    onoff)
 {
     Bool      ret = FALSE;
-    DevicePtr pDev = (DevicePtr) pDevice;
 
     if (!pDev)
 	return BadImplementation;
@@ -1099,7 +1106,7 @@ xglxKeybdProc (DeviceIntPtr pDevice,
       KeySym	      *xkeyMap;
       int	      minKeyCode, maxKeyCode, mapWidth, i, j;
       KeySymsRec      xglxKeySyms;
-      CARD8	      xglxModMap[256];
+      CARD8	      xglxModMap[MAP_LENGTH];
       XKeyboardState  values;
 
 #ifdef _XSERVER64
@@ -1111,9 +1118,6 @@ xglxKeybdProc (DeviceIntPtr pDevice,
       Bool	      xkbExtension = FALSE;
       int	      xkbOp, xkbEvent, xkbError, xkbMajor, xkbMinor;
 #endif
-
-      if (pDev != LookupKeyboardDevice ())
-	  return !Success;
 
       xmodMap = XGetModifierMapping (xdisplay);
 
@@ -1138,8 +1142,8 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 				     &mapWidth);
 #endif
 
-      memset (xglxModMap, 0, 256);
-
+      for (i = 0; i < MAP_LENGTH; i++)
+	  xglxModMap[i] = 0;
       for (j = 0; j < 8; j++)
       {
 	  for (i = 0; i < xmodMap->max_keypermod; i++)
@@ -1177,8 +1181,6 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 	  if (desc && desc->geom)
 	  {
 	      XkbComponentNamesRec names;
-	      FILE		   *file;
-
 	      rules    = XKB_DFLT_RULES_FILE;
 	      model    = XKB_DFLT_KB_MODEL;
 	      layout   = XKB_DFLT_KB_LAYOUT;
@@ -1214,7 +1216,7 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 	  memmove (defaultKeyboardControl.autoRepeats,
 		   values.auto_repeats, sizeof (values.auto_repeats));
 
-	  ret = InitKeyboardDeviceStruct (pDev,
+	  ret = InitKeyboardDeviceStruct (&pDev->public,
 					  &xglxKeySyms,
 					  xglxModMap,
 					  xglxBell,
@@ -1232,11 +1234,9 @@ xglxKeybdProc (DeviceIntPtr pDevice,
 
     } break;
     case DEVICE_ON:
-	pDev->on = TRUE;
 	break;
     case DEVICE_OFF:
     case DEVICE_CLOSE:
-	pDev->on = FALSE;
 	break;
     }
 
@@ -1261,11 +1261,16 @@ void
 xglxInitInput (int  argc,
 	       char **argv)
 {
-    pPointer  = AddInputDevice (xglMouseProc, TRUE);
-    pKeyboard = AddInputDevice (xglxKeybdProc, TRUE);
+    xglxPointerDevice  = AddInputDevice (xglMouseProc, TRUE);
+    xglxKeyboardDevice = AddInputDevice (xglxKeybdProc, TRUE);
 
-    RegisterPointerDevice (pPointer);
-    RegisterKeyboardDevice (pKeyboard);
+    RegisterPointerDevice (xglxPointerDevice);
+    RegisterKeyboardDevice (xglxKeyboardDevice);
+
+    if (!xglxEvents)
+	xglxEvents = (xEvent *) xcalloc(sizeof(xEvent), GetMaximumEventsNum());
+    if (!xglxEvents)
+        FatalError("couldn't allocate room for events\n");
 
     mieqInit ();
 
