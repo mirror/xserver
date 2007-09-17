@@ -600,7 +600,7 @@ xglAllocatePixmapBits (PixmapPtr pPixmap, int hint)
     height = pPixmap->drawable.height;
     bpp    = pPixmap->drawable.bitsPerPixel;
 
-    stride = ((width * bpp + FB_MASK) >> FB_SHIFT) * sizeof (FbBits);
+    stride = ((width * bpp + FB_MASK) >> FB_SHIFT) * (int) sizeof (FbBits);
 
     if (stride)
     {

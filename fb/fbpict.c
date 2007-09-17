@@ -297,7 +297,7 @@ create_bits_picture (PicturePtr pict,
     image = pixman_image_create_bits (
 	pict->format,
 	pict->pDrawable->width, pict->pDrawable->height,
-	(uint32_t *)bits, stride * sizeof (FbStride));
+	(uint32_t *)bits, stride * (int) sizeof (FbStride));
     
     
 #ifdef FB_ACCESS_WRAPPER

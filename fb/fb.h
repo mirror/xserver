@@ -715,7 +715,7 @@ typedef struct {
     } \
     fbPrepareAccess(pDrawable); \
     (pointer) = (FbBits *) _pPix->devPrivate.ptr; \
-    (stride) = ((int) _pPix->devKind) / sizeof (FbBits); (void)(stride); \
+    (stride) = _pPix->devKind / (int) sizeof (FbBits); (void)(stride); \
     (bpp) = _pPix->drawable.bitsPerPixel;  (void)(bpp); \
 }
 
@@ -732,7 +732,7 @@ typedef struct {
     } \
     fbPrepareAccess(pDrawable); \
     (pointer) = (FbStip *) _pPix->devPrivate.ptr; \
-    (stride) = ((int) _pPix->devKind) / sizeof (FbStip); (void)(stride); \
+    (stride) = _pPix->devKind / (int) sizeof (FbStip); (void)(stride); \
     (bpp) = _pPix->drawable.bitsPerPixel; (void)(bpp); \
 }
 
