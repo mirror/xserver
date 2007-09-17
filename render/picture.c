@@ -1636,7 +1636,9 @@ FreePicture (pointer	value,
 
 	if (pPicture->pSourcePict)
 	{
-	    if (pPicture->pSourcePict->type != SourcePictTypeSolidFill)
+	    if (pPicture->pSourcePict->type != SourcePictTypeSolidFill &&
+		pPicture->pSourcePict->type != SourcePictTypeOther
+	    )
 		xfree(pPicture->pSourcePict->linear.stops);
 
 	    if (pPicture->pSourcePict->source.Destroy)
