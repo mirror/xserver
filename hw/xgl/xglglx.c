@@ -157,7 +157,7 @@ xglLoadGLXModules (void)
 	    SYM (__GlxGetMesaProvider, "GlxGetMesaProvider")
 	};
 
-	glXHandle = xglLoadModule ("glxext", RTLD_NOW | RTLD_LOCAL);
+	glXHandle = xglLoadModule ("glxext", RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
 	if (!glXHandle)
 	    return FALSE;
 
