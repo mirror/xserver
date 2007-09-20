@@ -5548,7 +5548,7 @@ xglCreateDrawable (__GLXscreen *screen,
 
     memset (pBufferPriv, 0, sizeof (xglGLBufferRec));
 
-    if (!GlxDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId))
+    if (!GlxDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId, modes))
     {
 	xfree (pBufferPriv);
 	return NULL;
