@@ -307,8 +307,7 @@ miHandleExposures(pSrcDrawable, pDstDrawable,
 	    /* PaintWindowBackground doesn't clip, so we have to */
 	    REGION_INTERSECT(pscr, &rgnExposed, &rgnExposed, &pWin->clipList);
 	}
-	(*pWin->drawable.pScreen->PaintWindowBackground)(
-			(WindowPtr)pDstDrawable, &rgnExposed, PW_BACKGROUND);
+	miPaintWindow((WindowPtr)pDstDrawable, &rgnExposed, PW_BACKGROUND);
 
 	if (extents)
 	{
@@ -517,7 +516,7 @@ miWindowExposures(pWin, prgn, other_exposed)
 	    REGION_INTERSECT( pWin->drawable.pScreen, prgn, prgn, &pWin->clipList);
 	}
 	if (prgn && !REGION_NIL(prgn))
-	    (*pWin->drawable.pScreen->PaintWindowBackground)(pWin, prgn, PW_BACKGROUND);
+	    miPaintWindow(pWin, prgn, PW_BACKGROUND);
 	if (clientInterested && exposures && !REGION_NIL(exposures))
 	    miSendExposures(pWin, exposures,
 			    pWin->drawable.x, pWin->drawable.y);
@@ -534,115 +533,91 @@ miWindowExposures(pWin, prgn, other_exposed)
 	REGION_DESTROY( pWin->drawable.pScreen, exposures);
 }
 
-
-/*
-    this code is highly unlikely.  it is not haile selassie.
-
-    there is some hair here.  we can't just use the window's
-clip region as it is, because if we are painting the border,
-the border is not in the client area and so we will be excluded
-when we validate the GC, and if we are painting a parent-relative
-background, the area we want to paint is in some other window.
-since we trust the code calling us to tell us to paint only areas
-that are really ours, we will temporarily give the window a
-clipList the size of the whole screen and an origin at (0,0).
-this more or less assumes that ddX code will do translation
-based on the window's absolute position, and that ValidateGC will
-look at clipList, and that no other fields from the
-window will be used.  it's not possible to just draw
-in the root because it may be a different depth.
-
-to get the tile to align correctly we set the GC's tile origin to
-be the (x,y) of the window's upper left corner, after which we
-get the right bits when drawing into the root.
-
-because the clip_mask is being set to None, we may call DoChangeGC with
-fPointer set true, thus we no longer need to install the background or
-border tile in the resource table.
-*/
-
-static RESTYPE ResType = 0;
-static int numGCs = 0;
-static GCPtr	screenContext[MAXSCREENS];
-
-/*ARGSUSED*/
-static int
-tossGC (
-    pointer value,
-    XID id)
-{
-    GCPtr pGC = (GCPtr)value;
-    screenContext[pGC->pScreen->myNum] = (GCPtr)NULL;
-    FreeGC (pGC, id);
-    numGCs--;
-    if (!numGCs)
-	ResType = 0;
-
-    return 0;
-}
-
 _X_EXPORT void
 miPaintWindow(WindowPtr pWin, RegionPtr prgn, int what)
 {
     ScreenPtr	pScreen = pWin->drawable.pScreen;
     ChangeGCVal gcval[5];
     BITS32	gcmask;
-    PixmapPtr	pPixmap = (*pScreen->GetWindowPixmap) (pWin);
     GCPtr	pGC;
     int		i;
     BoxPtr	pbox;
     xRectangle	*prect;
     int		numRects;
-    int		xoff, yoff;
-
-    while (pWin->backgroundState == ParentRelative)
-        pWin = pWin->parent;
-
-#ifdef COMPOSITE
-    xoff = -pPixmap->screen_x;
-    yoff = -pPixmap->screen_y;
-#else
-    xoff = 0;
-    yoff = 0;
-#endif
-    gcval[0].val = GXcopy;
-    gcmask = GCFunction;
+    /*
+     * Distance from screen to destination drawable, use this
+     * to adjust rendering coordinates which come in in screen space
+     */
+    int		draw_x_off, draw_y_off;
+    /*
+     * Tile offset for drawing; these need to align the tile
+     * to the appropriate window origin
+     */
+    int		tile_x_off, tile_y_off;
+    PixUnion	fill;
+    Bool	solid = TRUE;
+    DrawablePtr	drawable = &pWin->drawable;
 
     if (what == PW_BACKGROUND)
     {
+	while (pWin->backgroundState == ParentRelative)
+	    pWin = pWin->parent;
+
+	draw_x_off = drawable->x;
+	draw_y_off = drawable->y;
+
+	tile_x_off = 0;
+	tile_y_off = 0;
+	fill = pWin->background;
 	switch (pWin->backgroundState) {
 	case None:
 	    return;
-	case BackgroundPixel:
-	    gcval[1].val = pWin->background.pixel;
-	    gcval[2].val  = FillSolid;
-	    gcmask |= GCForeground | GCFillStyle;
-	    break;
 	case BackgroundPixmap:
-	    gcval[1].val = FillTiled;
-	    gcval[2].ptr = (pointer)pWin->background.pixmap;
-	    gcval[3].val = pWin->drawable.x + xoff;
-	    gcval[4].val = pWin->drawable.y + yoff;
-	    gcmask |= GCFillStyle | GCTile | GCTileStipXOrigin | GCTileStipYOrigin;
+	    solid = FALSE;
 	    break;
 	}
     }
     else
     {
-	if (pWin->borderIsPixel)
-	{
-	    gcval[1].val = pWin->border.pixel;
-	    gcval[2].val  = FillSolid;
-	    gcmask |= GCForeground | GCFillStyle;
-	}
-	else
-	{
-	    gcval[1].val = FillTiled;
-	    gcval[2].ptr = (pointer)pWin->border.pixmap;
-	    gcval[3].val = pWin->drawable.x + xoff;
-	    gcval[4].val = pWin->drawable.y + yoff;
-	    gcmask |= GCFillStyle | GCTile | GCTileStipXOrigin | GCTileStipYOrigin;
-	}
+	PixmapPtr   pixmap;
+
+	tile_x_off = drawable->x;
+	tile_y_off = drawable->y;
+	
+	/* servers without pixmaps draw their own borders */
+	if (!pScreen->GetWindowPixmap)
+	    return;
+	pixmap = (*pScreen->GetWindowPixmap) ((WindowPtr) drawable);
+	drawable = &pixmap->drawable;
+#ifdef COMPOSITE
+	draw_x_off = pixmap->screen_x;
+	draw_y_off = pixmap->screen_y;
+	tile_x_off -= draw_x_off;
+	tile_y_off -= draw_y_off;
+#else
+	draw_x_off = 0;
+	draw_y_off = 0;
+#endif
+	fill = pWin->border;
+	solid = pWin->borderIsPixel;
+    }
+    
+    gcval[0].val = GXcopy;
+    gcmask = GCFunction;
+
+    if (solid)
+    {
+	gcval[1].val = fill.pixel;
+	gcval[2].val  = FillSolid;
+	gcmask |= GCForeground | GCFillStyle;
+    }
+    else
+    {
+	gcval[1].val = FillTiled;
+	gcval[2].ptr = (pointer)fill.pixmap;
+	gcval[3].val = tile_x_off;
+	gcval[4].val = tile_y_off;
+	gcmask |= GCFillStyle | GCTile | GCTileStipXOrigin | GCTileStipYOrigin;
     }
 
     prect = (xRectangle *)ALLOCATE_LOCAL(REGION_NUM_RECTS(prgn) *
@@ -650,27 +625,27 @@ miPaintWindow(WindowPtr pWin, RegionPtr prgn, int what)
     if (!prect)
 	return;
 
-    pGC = GetScratchGC(pPixmap->drawable.depth, pPixmap->drawable.pScreen);
+    pGC = GetScratchGC(drawable->depth, drawable->pScreen);
     if (!pGC)
     {
 	DEALLOCATE_LOCAL(prect);
 	return;
     }
     
-    dixChangeGC(NullClient, pGC, gcmask, NULL, gcval);
-    ValidateGC(&pPixmap->drawable, pGC);
+    dixChangeGC (NullClient, pGC, gcmask, NULL, gcval);
+    ValidateGC (drawable, pGC);
 
     numRects = REGION_NUM_RECTS(prgn);
     pbox = REGION_RECTS(prgn);
     for (i= numRects; --i >= 0; pbox++, prect++)
     {
-	prect->x = pbox->x1 + xoff;
-	prect->y = pbox->y1 + yoff;
+	prect->x = pbox->x1 - draw_x_off;
+	prect->y = pbox->y1 - draw_y_off;
 	prect->width = pbox->x2 - pbox->x1;
 	prect->height = pbox->y2 - pbox->y1;
     }
     prect -= numRects;
-    (*pGC->ops->PolyFillRect)(&pPixmap->drawable, pGC, numRects, prect);
+    (*pGC->ops->PolyFillRect)(drawable, pGC, numRects, prect);
     DEALLOCATE_LOCAL(prect);
 
     FreeScratchGC(pGC);

@@ -196,6 +196,12 @@ ExaCheckPolyArc (DrawablePtr pDrawable, GCPtr pGC,
 		int narcs, xArc *pArcs)
 {
     EXA_FALLBACK(("to %p (%c)\n", pDrawable, exaDrawableLocation(pDrawable)));
+
+    /* Disable this as fbPolyArc can call miZeroPolyArc which in turn
+     * can call accelerated functions, that as yet, haven't been notified
+     * with exaFinishAccess().
+     */
+#if 0
     if (pGC->lineWidth == 0)
     {
 	exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
@@ -205,6 +211,7 @@ ExaCheckPolyArc (DrawablePtr pDrawable, GCPtr pGC,
 	exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 	return;
     }
+#endif
     miPolyArc (pDrawable, pGC, narcs, pArcs);
 }
 
@@ -258,9 +265,11 @@ ExaCheckPushPixels (GCPtr pGC, PixmapPtr pBitmap,
 		  exaDrawableLocation(&pBitmap->drawable),
 		  exaDrawableLocation(pDrawable)));
     exaPrepareAccess (pDrawable, EXA_PREPARE_DEST);
+    exaPrepareAccess (&pBitmap->drawable, EXA_PREPARE_SRC);
     exaPrepareAccessGC (pGC);
     fbPushPixels (pGC, pBitmap, pDrawable, w, h, x, y);
     exaFinishAccessGC (pGC);
+    exaFinishAccess (&pBitmap->drawable, EXA_PREPARE_SRC);
     exaFinishAccess (pDrawable, EXA_PREPARE_DEST);
 }
 
@@ -276,23 +285,6 @@ ExaCheckGetSpans (DrawablePtr pDrawable,
     exaPrepareAccess (pDrawable, EXA_PREPARE_SRC);
     fbGetSpans (pDrawable, wMax, ppt, pwidth, nspans, pdstStart);
     exaFinishAccess (pDrawable, EXA_PREPARE_SRC);
-}
-
-/* XXX: Note the lack of a prepare on the tile, if the window has a tiled
- * background.  This function happens to only be called if pExaScr->swappedOut,
- * so we actually end up not having to do it since the tile won't be in fb.
- * That doesn't make this not dirty, though.
- */
-void
-ExaCheckPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what)
-{
-    EXA_FALLBACK(("from %p (%c)\n", pWin,
-		  exaDrawableLocation(&pWin->drawable)));
-    exaPrepareAccess (&pWin->drawable, EXA_PREPARE_DEST);
-    exaPrepareAccessWindow(pWin);
-    fbPaintWindow (pWin, pRegion, what);
-    exaFinishAccessWindow(pWin);
-    exaFinishAccess (&pWin->drawable, EXA_PREPARE_DEST);
 }
 
 void

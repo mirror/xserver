@@ -27,9 +27,9 @@
  * holders shall not be used in advertising or otherwise to promote the sale,
  * use or other dealings in this Software without prior written authorization.
  */
-#ifdef HAVE_XORG_CONFIG_H
-#include <xorg-config.h>
-#endif
+
+#include <dix-config.h>
+
 #include "quartz/quartzCommon.h"
 #include "quartz/quartz.h"
 #include "xpr.h"
@@ -306,9 +306,6 @@ static Bool
 xprSetupScreen(int index, ScreenPtr pScreen)
 {
     // Add alpha protecting replacements for fb screen functions
-    pScreen->PaintWindowBackground = SafeAlphaPaintWindow;
-    pScreen->PaintWindowBorder = SafeAlphaPaintWindow;
-
 #ifdef RENDER
     {
         PictureScreenPtr ps = GetPictureScreen(pScreen);
