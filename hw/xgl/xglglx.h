@@ -29,6 +29,7 @@
 
 #include "glxserver.h"
 #include "glxscreens.h"
+#include "glxutil.h"
 #include "glxext.h"
 #include "glapitable.h"
 
@@ -53,7 +54,7 @@ typedef struct _xglGLXFunc {
     void (*screenInit) (__GLXscreen *screen, ScreenPtr pScreen);
     void (*screenDestroy) (__GLXscreen *screen);
     GLboolean (*drawableInit) (__GLXdrawable *drawable,
-			       __GLXcontext  *ctx,
+	    		       __GLXscreen *screen,
 			       DrawablePtr   pDrawable,
 			       XID	     drawId,
 			       __GLcontextModes *modes);

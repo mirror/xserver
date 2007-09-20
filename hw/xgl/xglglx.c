@@ -88,7 +88,7 @@ GlxInitVisuals (VisualPtr     *visualp,
 }
 
 void
-GlxFlushContextCache (void)
+__glXFlushContextCache (void)
 {
     if (glXHandle)
 	(*__xglGLXFunc.flushContextCache) ();
@@ -109,7 +109,7 @@ GlxPushProvider (__GLXprovider *provider)
 }
 
 void
-GlxScreenInit (__GLXscreen *screen,
+__glXScreenInit (__GLXscreen *screen,
 	       ScreenPtr   pScreen)
 {
     if (glXHandle)
@@ -117,21 +117,21 @@ GlxScreenInit (__GLXscreen *screen,
 }
 
 void
-GlxScreenDestroy (__GLXscreen *screen)
+__glXScreenDestroy (__GLXscreen *screen)
 {
     if (glXHandle)
 	(*__xglGLXFunc.screenDestroy) (screen);
 }
 
 GLboolean
-GlxDrawableInit (__GLXdrawable *drawable,
-		 __GLXcontext  *ctx,
-		 DrawablePtr   pDrawable,
-		 XID	       drawId,
-		 __GLcontextModes *modes)
+__glXDrawableInit (__GLXdrawable *drawable,
+                   __GLXscreen *screen,
+		   DrawablePtr pDrawable, 
+		   XID drawId,
+		   __GLcontextModes *modes)
 {
     if (glXHandle)
-	return (*__xglGLXFunc.drawableInit) (drawable, ctx, pDrawable, drawId, modes);
+	return (*__xglGLXFunc.drawableInit) (drawable, screen, pDrawable, drawId, modes);
 
     return GL_FALSE;
 }

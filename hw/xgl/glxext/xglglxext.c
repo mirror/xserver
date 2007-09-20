@@ -52,6 +52,8 @@
 #define XGL_TEXTURE_RECTANGLE_BIT (1 << 3)
 #define XGL_TEXTURE_CUBE_MAP_BIT  (1 << 4)
 
+extern void GlxWrapInitVisuals(miInitVisualsProcPtr *);
+
 extern __GLXprovider *__xglMesaProvider;
 
 typedef struct _xglGLScreen {
@@ -5548,7 +5550,7 @@ xglCreateDrawable (__GLXscreen *screen,
 
     memset (pBufferPriv, 0, sizeof (xglGLBufferRec));
 
-    if (!GlxDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId, modes))
+    if (!__glXDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId, modes))
     {
 	xfree (pBufferPriv);
 	return NULL;
@@ -5844,7 +5846,7 @@ xglLoseCurrent (__GLXcontext *context)
     xglGLContextPtr pContext = (xglGLContextPtr) context;
     __GLXcontext    *mesaContext = pContext->mesaContext;
 
-    GlxFlushContextCache ();
+    __glXFlushContextCache ();
     GlxSetRenderTables (0);
 
     if (!mesaContext)
@@ -6133,7 +6135,7 @@ xglLoseCurrentContext (void *closure)
 	   before switching context */
 	glFinish ();
 
-	GlxFlushContextCache ();
+	__glXFlushContextCache ();
 	GlxSetRenderTables (0);
     }
 }
