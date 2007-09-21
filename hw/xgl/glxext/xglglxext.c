@@ -41,7 +41,9 @@
 #include "glapitable.h"
 #include "glxext.h"
 #include "micmap.h"
+#ifdef COMPOSITE
 #include "compint.h"
+#endif
 
 #define XGL_MAX_TEXTURE_UNITS      8
 #define XGL_MAX_ATTRIB_STACK_DEPTH 16
