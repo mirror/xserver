@@ -9,6 +9,7 @@ AM_CFLAGS =		 \
 	$(XGLMODULES_CFLAGS) \
 	-I$(top_srcdir)/GL/glx \
 	-I$(top_srcdir)/GL/include \
+	-I$(top_srcdir)/xgl \
 	-I$(top_srcdir)/hw/xgl \
 	-I@MESA_SOURCE@/include \
 	-I@MESA_SOURCE@/src/mesa/glapi

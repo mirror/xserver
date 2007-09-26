@@ -30,7 +30,12 @@ if DBE
 DBE_DIR=dbe
 endif
 
+if XGL
+XGL_DIR=xgl
+endif
+
 if GLUCOSE
+XGL_DIR=xgl
 GLUCOSE_DIR=glucose
 endif
 
@@ -60,6 +65,7 @@ SUBDIRS = \
 	$(GLX_DIR) \
 	exa \
 	config \
+	$(XGL_DIR) \
 	$(GLUCOSE_DIR) \
 	hw
 
@@ -107,6 +113,7 @@ DIST_SUBDIRS = \
 	GL \
 	exa \
 	config \
+	xgl \
 	glucose \
 	hw
 

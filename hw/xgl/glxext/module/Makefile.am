@@ -3,6 +3,7 @@ AM_CFLAGS = \
 	-DHAVE_XGL_CONFIG_H \
 	-DHAVE_DIX_CONFIG_H \
 	$(XGLMODULES_CFLAGS) \
+	-I$(top_srcdir)/xgl \
 	-I$(top_srcdir)/hw/xgl 
 
 libglxext_la_LDFLAGS = -avoid-version

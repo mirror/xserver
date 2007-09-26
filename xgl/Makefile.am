@@ -1,10 +1,9 @@
-noinst_LTLIBRARIES = libglucose.la
+noinst_LTLIBRARIES = libxgl.la
 
 INCLUDES = -I@MESA_SOURCE@/include \
            -I$(top_srcdir)/GL/mesa/glapi \
            -I$(top_srcdir)/GL/glx \
            -I$(top_srcdir)/GL/include \
-           -I$(top_srcdir)/xgl \
            -I$(top_srcdir)/hw/xfree86/os-support \
            -I$(top_srcdir)/hw/xfree86/os-support/bus \
            -I$(top_srcdir)/hw/xfree86/common
@@ -15,16 +14,29 @@ AM_CFLAGS = \
 	@DIX_CFLAGS@ \
 	@LIBDRM_CFLAGS@ \
 	@DRIPROTO_CFLAGS@ \
-	$(GLUCOSE_CFLAGS) \
+	$(XGL_CFLAGS) \
 	@GLX_DEFINES@ \
 	-DXFree86Server
 
-libglucose_la_SOURCES = \
-	glucose.c \
-	glucose.h \
-	glucose_context.c \
-	glucose_drawable.c \
-	glucose_format.c \
-	glucose_info.c
+libxgl_la_SOURCES = \
+	xgl.h \
+	xglarea.c \
+	xglcmap.c \
+	xglcompose.c \
+	xglcopy.c \
+	xglfill.c \
+	xglgc.c \
+	xglgeometry.c \
+	xglget.c \
+	xglglyph.c \
+	xglpict.c \
+	xglpixmap.c \
+	xglshm.c \
+	xglsolid.c \
+	xglsync.c \
+	xgltile.c \
+	xgltrap.c \
+	xglwindow.c \
+	xglxv.c
 
-libglucose_la_LIBADD = $(GLUCOSE_LIBS)
+libxgl_la_LIBADD = $(XGL_LIBS)

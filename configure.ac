@@ -789,13 +789,10 @@ if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
 	test -d GL || mkdir GL
 	case $host_os in
 	  solaris*) 	
-		SYMLINK_MESA="/usr/bin/bash $srcdir/GL/symlink-mesa.sh"
-		SYMLINK_GLUCOSE="/usr/bin/bash $srcdir/glucose/symlink-xgl.sh"	;;
-	  *)	SYMLINK_MESA=$srcdir/GL/symlink-mesa.sh
-	  	SYMLINK_GLUCOSE=$srcdir/glucose/symlink-xgl.sh ;;
+		SYMLINK_MESA="/usr/bin/bash $srcdir/GL/symlink-mesa.sh"	;;
+	  *)	SYMLINK_MESA=$srcdir/GL/symlink-mesa.sh ;;
 	esac
 	$SYMLINK_MESA $MESA_SOURCE GL/
-	$SYMLINK_GLUCOSE $srcdir/hw/xgl glucose/
 	if test $? -ne 0; then
 		AC_MSG_ERROR([Failed to link Mesa source tree.  Please specify a proper path to Mesa sources, or disable GLX.])
 	fi
@@ -1263,10 +1260,13 @@ fi
 AC_MSG_RESULT([$XGL])
 AM_CONDITIONAL(XGL, [test "x$XGL" = xyes])
 
-if test "x$XGL" = xyes; then
+if test "x$XGL" = xyes -o "x$GLUCOSE" = xyes; then
 	XGL_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB $CWRAP_LIB"
-	XGL_SYS_LIBS="$XGLMODULES_LIBS $GLX_SYS_LIBS $DLOPEN_LIBS"
 	AC_SUBST([XGL_LIBS])
+fi
+
+if test "x$XGL" = xyes; then
+	XGL_SYS_LIBS="$XGLMODULES_LIBS $GLX_SYS_LIBS $DLOPEN_LIBS"
 	AC_SUBST([XGL_SYS_LIBS])
 	AC_DEFINE(XGL_MODULAR, 1, [Use loadable XGL modules])
 	AC_DEFINE(XGLServer, 1, [Building XGL server])
@@ -2063,6 +2063,7 @@ Xext/Makefile
 Xi/Makefile
 xfixes/Makefile
 exa/Makefile
+xgl/Makefile
 glucose/Makefile
 hw/Makefile
 hw/xfree86/Makefile

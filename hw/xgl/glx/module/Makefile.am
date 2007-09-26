@@ -6,6 +6,7 @@ AM_CFLAGS = \
 	@DIX_CFLAGS@ \
 	@LIBDRM_CFLAGS@ \
 	@DRIPROTO_CFLAGS@ \
+	-I$(top_srcdir)/xgl \
 	-I$(srcdir)/.. \
 	-I$(srcdir)/../.. \
 	$(XGLXMODULES_CFLAGS)

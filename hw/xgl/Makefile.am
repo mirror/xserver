@@ -28,39 +28,8 @@ AM_CFLAGS = \
 	-I$(top_srcdir)/GL/include		\
 	-I@MESA_SOURCE@/include \
 	-I@MESA_SOURCE@/src/mesa/glapi \
+	-I$(top_srcdir)/xgl \
 	$(XGLMODULES_CFLAGS)
-
-noinst_LIBRARIES = libxgl.a
-
-libxgl_a_SOURCES =     \
-	xgl.h	       \
-	xglmodule.h    \
-	xglglx.h       \
-	xglinput.c     \
-	xgloutput.c    \
-	xglcmap.c      \
-	xglparse.c     \
-	xglscreen.c    \
-	xglarea.c      \
-	xglgeometry.c  \
-	xglpixmap.c    \
-	xglsync.c      \
-	xglsolid.c     \
-	xgltile.c      \
-	xglcopy.c      \
-	xglfill.c      \
-	xglwindow.c    \
-	xglget.c       \
-	xglgc.c	       \
-	xglshm.c       \
-	xglcompose.c   \
-	xglpict.c      \
-	xglglyph.c     \
-	xgltrap.c      \
-	xglloader.c    \
-	xglhash.c      \
-	xglglx.c       \
-	xglxv.c
 
 EXTRA_DIST = \
 	xglmodule.h
@@ -68,13 +37,22 @@ EXTRA_DIST = \
 Xgl_LDFLAGS = -export-dynamic
 Xgl_SOURCES = \
 	xglinit.c \
+	xglmodule.h \
+	xglglx.h \
+	xglinput.c \
+	xgloutput.c \
+	xglparse.c \
+	xglscreen.c \
+	xglloader.c \
+	xglhash.c \
+	xglglx.c \
 	$(top_srcdir)/mi/miinitext.c \
 	$(top_srcdir)/Xext/dpmsstubs.c \
 	$(top_srcdir)/Xi/stubs.c \
 	$(top_srcdir)/fb/fbcmap.c
 
 XGL_LIBS = \
-	libxgl.a \
+	$(top_srcdir)/xgl/libxgl.la \
 	@XGL_LIBS@ \
 	$(XSERVER_LIBS)
 
