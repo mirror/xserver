@@ -33,6 +33,7 @@
 #endif
 
 #include "glxserver.h"
+#include "glxutil.h"
 #include "glitz_glucose.h"
 
 extern __GLXcontext *__glXLastContext;

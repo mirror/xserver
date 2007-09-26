@@ -33,6 +33,7 @@
 #endif
 
 #include "glxserver.h"
+#include "glxutil.h"
 #include "glcontextmodes.h"
 #include "glitz.h"
 #include "glitz_glucose.h"
