@@ -122,6 +122,8 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
     PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
     xglScreenPtr xglScreenPriv = XGL_GET_SCREEN_PRIV (pScreen);
 
+    __pGlxClient = serverClient;
+    
     /* track root pixmap */
     if (pPixmap)
     {
@@ -749,6 +751,8 @@ glucoseCloseScreen (int	  index,
     /* tear down glucose now */
     {
     	GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
+
+        __pGlxClient = serverClient;        
 
     	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
     	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
