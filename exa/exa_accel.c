@@ -1287,7 +1287,8 @@ exaFillRegionTiled (DrawablePtr	pDrawable,
     }
 
 fallback:
-    if (alu != GXcopy || !EXA_PM_IS_SOLID(pDrawable, planemask)) {
+    if (alu != GXcopy || pPatOrg->x != 0 || pPatOrg->y != 0 ||
+	!EXA_PM_IS_SOLID(pDrawable, planemask)) {
 	REGION_TRANSLATE(pScreen, pRegion, -xoff, -yoff);
 	return FALSE;
     }
