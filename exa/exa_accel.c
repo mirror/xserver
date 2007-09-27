@@ -1185,7 +1185,7 @@ exaFillRegionTiled (DrawablePtr	pDrawable,
 {
     ExaScreenPriv(pDrawable->pScreen);
     PixmapPtr pPixmap;
-    int xoff, yoff, tileXoff, tileYoff;
+    int xoff, yoff;
     int tileWidth, tileHeight;
     ExaMigrationRec pixmaps[2];
     int nbox = REGION_NUM_RECTS (pRegion);
@@ -1227,15 +1227,10 @@ exaFillRegionTiled (DrawablePtr	pDrawable,
 
     pPixmap = exaGetOffscreenPixmap (pDrawable, &xoff, &yoff);
 
-    if (!pPixmap)
+    if (!pPixmap || !exaPixmapIsOffscreen(pTile))
 	goto fallback;
 
-    if (!exaPixmapIsOffscreen(pTile))
-	goto fallback;
-
-    if ((*pExaScr->info->PrepareCopy) (exaGetOffscreenPixmap((DrawablePtr)pTile,
-							     &tileXoff, &tileYoff),
-				       pPixmap, 0, 0, alu, planemask))
+    if ((*pExaScr->info->PrepareCopy) (pTile, pPixmap, 1, 1, alu, planemask))
     {
 	while (nbox--)
 	{
@@ -1261,9 +1256,8 @@ exaFillRegionTiled (DrawablePtr	pDrawable,
 			w = width;
 		    width -= w;
 
-		    (*pExaScr->info->Copy) (pPixmap,
-					    tileX + tileXoff, tileY + tileYoff,
-					    dstX, dstY, w, h);
+		    (*pExaScr->info->Copy) (pPixmap, tileX, tileY, dstX, dstY,
+					    w, h);
 		    dstX += w;
 		    tileX = 0;
 		}
