@@ -124,14 +124,6 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 
     __pGlxClient = serverClient;
     
-    /* track root pixmap */
-    if (pPixmap)
-    {
-	pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
-	pPixmap->drawable.id = FakeClientID(0);
-	AddResource(pPixmap->drawable.id, RT_PIXMAP, (pointer)pPixmap);
-    }
-
     pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, pPixmap->drawable.id, modes);
 
     if (!pScreenPriv->rootDrawable) {
@@ -725,19 +717,6 @@ glucoseCloseScreen (int	  index,
     xglFiniPixmap (pScreenPriv->pScreenPixmap);
     if (pPixmapPriv->pDamage)
 	DamageDestroy (pPixmapPriv->pDamage);
-
-    if (pScreenPriv->surface)
-	glitz_surface_destroy (pScreenPriv->surface);
-    pPixmapPriv->surface = NULL;
-    pScreenPriv->surface = NULL;
-
-    GEOMETRY_UNINIT (&pScreenPriv->scratchGeometry);
-
-    if (pScreenPriv->drawable)
-	glitz_drawable_destroy(pScreenPriv->drawable);
-    pPixmapPriv->drawable = NULL;
-    pScreenPriv->drawable = NULL;
-    xglScreenInfo.drawable = NULL;
 
     while (pScreenPriv->pVisual)
     {
