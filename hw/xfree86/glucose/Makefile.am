@@ -13,6 +13,8 @@ libglucose_la_SOURCES = \
 	glucosemodule.c
 
 libglucose_la_LIBADD = \
-	../../../glucose/libglucose.la
+	../../../glucose/libglucose.la \
+	../../../xgl/libxgl.la
+
 
 include $(top_srcdir)/cpprules.in

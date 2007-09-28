@@ -38,5 +38,3 @@ libxgl_la_SOURCES = \
 	xgltrap.c \
 	xglwindow.c \
 	xglxv.c
-
-libxgl_la_LIBADD = $(XGL_LIBS)
