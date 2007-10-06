@@ -1367,7 +1367,7 @@ DRICreateDrawable(ScreenPtr pScreen, ClientPtr client, DrawablePtr pDrawable,
 
 	/* track this in case the client dies */
 	AddResource(FakeClientID(client->index), DRIDrawablePrivResType,
-		    (pointer)pPixmap);
+		    (pointer)pDrawable->id);
 
 	if (pDRIDrawablePriv->hwDrawable)
 	    *hHWDrawable = pDRIDrawablePriv->hwDrawable;
@@ -1434,10 +1434,9 @@ DRIDestroyDrawable(ScreenPtr pScreen, ClientPtr client, DrawablePtr pDrawable)
 				    (pointer)pDrawable->id);
     }
     else if (pDrawable->type == DRAWABLE_PIXMAP) {
-	PixmapPtr pPixmap = (PixmapPtr)pDrawable;
 	LookupClientResourceComplex(client, DRIDrawablePrivResType,
 				    DRIDestroyDrawableCB,
-				    (pointer)pPixmap);
+				    (pointer)pDrawable->id);
     }
     else { /* for GLX 1.3, a PBuffer */
 	/* NOT_DONE */
@@ -1471,9 +1470,17 @@ DRIDrawablePrivDelete(pointer pResource, XID id)
     pPixmap = LookupIDByType(id, RT_PIXMAP);
 
     if (pPixmap) {
-	DRIScreenPrivPtr pDRIPriv = DRI_SCREEN_PRIV(pPixmap->drawable.pScreen);
 	DRIDrawablePrivPtr pDRIDrawablePriv = DRI_DRAWABLE_PRIV_FROM_PIXMAP(pPixmap);
+	ScreenPtr pScreen;
+	DRIScreenPrivPtr pDRIPriv;
 
+	if (!pDRIDrawablePriv)
+	    return FALSE;
+
+	pScreen = pPixmap->drawable.pScreen;
+	pDRIPriv = DRI_SCREEN_PRIV(pScreen);
+
+	if (--pDRIDrawablePriv->refCount == 0) {
 	if (pDRIDrawablePriv->drawableIndex != -1) {
 	    /* bump stamp to force outstanding 3D requests to resync */
 	    pDRIPriv->pSAREA->drawableTable[pDRIDrawablePriv->drawableIndex].stamp
@@ -1483,16 +1490,15 @@ DRIDrawablePrivDelete(pointer pResource, XID id)
 	    pDRIPriv->DRIDrawables[pDRIDrawablePriv->drawableIndex] = NULL;
 	}
 
-	if (drmDestroyDrawable(pDRIPriv->drmFD,
-			       pDRIDrawablePriv->hwDrawable)) {
-	    return FALSE;
-	}
+	    drmDestroyDrawable(pDRIPriv->drmFD, pDRIDrawablePriv->hwDrawable);
 
 	xfree(pDRIDrawablePriv);
 	pPixmap->devPrivates[DRIPixmapPrivIndex].ptr = NULL;
     }
 
-    { /* or for GLX 1.3, a PBuffer */
+	return TRUE;
+    }
+    else { /* or for GLX 1.3, a PBuffer */
 	/* NOT_DONE */
 	return FALSE;
     }
