@@ -154,6 +154,10 @@ extern int exaPixmapPrivateIndex;
 #define ExaSetPixmapPriv(p,a)	((p)->devPrivates[exaPixmapPrivateIndex].ptr = (pointer) (a))
 #define ExaPixmapPriv(p)	ExaPixmapPrivPtr pExaPixmap = ExaGetPixmapPriv(p)
 
+#define EXA_RANGE_PITCH (1 << 0)
+#define EXA_RANGE_WIDTH (1 << 1)
+#define EXA_RANGE_HEIGHT (1 << 2)
+
 typedef struct {
     ExaOffscreenArea *area;
     int		    score;	/**< score for the move-in vs move-out heuristic */
@@ -167,6 +171,17 @@ typedef struct {
     unsigned int    fb_size;	/**< size of pixmap in framebuffer memory */
 
     /**
+     * Holds information about whether this pixmap can be used for
+     * acceleration (== 0) or not (> 0).
+     *
+     * Contains a OR'ed combination of the following values:
+     * EXA_RANGE_PITCH - set if the pixmap's pitch is out of range
+     * EXA_RANGE_WIDTH - set if the pixmap's width is out of range
+     * EXA_RANGE_HEIGHT - set if the pixmap's height is out of range
+     */
+    unsigned int    accel_blocked;
+
+    /**
      * The damage record contains the areas of the pixmap's current location
      * (framebuffer or system) that have been damaged compared to the other
      * location.
@@ -177,6 +192,10 @@ typedef struct {
      * damage, which may be overreported) of a pixmap's system and FB copies.
      */
     RegionRec	    validSys, validFB;
+    /**
+     * Driver private storage per EXA pixmap
+     */
+    void *driverPriv;
 } ExaPixmapPrivRec, *ExaPixmapPrivPtr;
  
 typedef struct _ExaMigrationRec {

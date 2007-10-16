@@ -2134,8 +2134,12 @@ _X_EXPORT xf86MonPtr
 xf86OutputGetEDID (xf86OutputPtr output, I2CBusPtr pDDCBus)
 {
     ScrnInfoPtr	scrn = output->scrn;
+    xf86MonPtr mon;
 
-    return xf86DoEDID_DDC2 (scrn->scrnIndex, pDDCBus);
+    mon = xf86DoEDID_DDC2 (scrn->scrnIndex, pDDCBus);
+    xf86DDCApplyQuirks (scrn->scrnIndex, pDDCBus);
+
+    return mon;
 }
 
 static char *_xf86ConnectorNames[] = { "None", "VGA", "DVI-I", "DVI-D",
@@ -2220,7 +2224,10 @@ xf86_covering_crtc(ScrnInfoPtr pScrn,
 
 /*
  * For overlay video, compute the relevant CRTC and
- * clip video to that
+ * clip video to that.
+ *
+ * returning FALSE means there was a memory failure of some kind,
+ * not that the video shouldn't be displayed
  */
 
 _X_EXPORT Bool
