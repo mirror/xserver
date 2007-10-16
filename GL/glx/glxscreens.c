@@ -354,11 +354,12 @@ void __glXInitScreens(void)
 
 void __glXResetScreens(void)
 {
-  int i;
+    int i;
 
-  for (i = 0; i < screenInfo.numScreens; i++)
-      if (__glXActiveScreens[i])
-	  __glXActiveScreens[i]->destroy(__glXActiveScreens[i]);
+    for (i = 0; i < screenInfo.numScreens; i++) {
+	if (__glXActiveScreens[i])
+	    __glXActiveScreens[i]->destroy(__glXActiveScreens[i]);
+    }
 
     xfree(__glXActiveScreens);
     xfree(__glXHyperpipeFuncs);
