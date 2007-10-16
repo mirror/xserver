@@ -730,8 +730,10 @@ glucoseCloseScreen (int	  index,
     __pGlxClient = serverClient;        
 
     xglFiniPixmap (pScreenPriv->pScreenPixmap);
+#if 0
     if (pPixmapPriv->pDamage)
 	DamageDestroy (pPixmapPriv->pDamage);
+#endif
 
 #ifdef RENDER
     int i;
