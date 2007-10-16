@@ -56,6 +56,7 @@ typedef struct _xglGLXFunc {
     GLboolean (*drawableInit) (__GLXdrawable *drawable,
 	    		       __GLXscreen *screen,
 			       DrawablePtr   pDrawable,
+			       int           type,
 			       XID	     drawId,
 			       __GLcontextModes *modes);
 } xglGLXFuncRec, *xglGLXFuncPtr;

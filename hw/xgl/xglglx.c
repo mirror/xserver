@@ -127,11 +127,12 @@ GLboolean
 __glXDrawableInit (__GLXdrawable *drawable,
                    __GLXscreen *screen,
 		   DrawablePtr pDrawable, 
+		   int type,
 		   XID drawId,
 		   __GLcontextModes *modes)
 {
     if (glXHandle)
-	return (*__xglGLXFunc.drawableInit) (drawable, screen, pDrawable, drawId, modes);
+	return (*__xglGLXFunc.drawableInit) (drawable, screen, pDrawable, type, drawId, modes);
 
     return GL_FALSE;
 }

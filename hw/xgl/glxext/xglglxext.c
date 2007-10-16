@@ -5375,9 +5375,9 @@ xglResizeDrawable (__GLXdrawable *drawable)
 }
 
 static int
-xglBindTexImage (__GLXcontext *context,
-		 int	      buffer,
-		 __GLXpixmap  *pixmap)
+xglBindTexImage (__GLXcontext   *context,
+		 int	        buffer,
+		 __GLXdrawable  *pixmap)
 {
     xglGLContextPtr pContext = (xglGLContextPtr) context;
     __GLXcontext    *mesaContext = pContext->mesaContext;
@@ -5448,9 +5448,9 @@ xglBindTexImage (__GLXcontext *context,
 }
 
 static int
-xglReleaseTexImage (__GLXcontext *context,
-		    int		 buffer,
-		    __GLXpixmap  *pixmap)
+xglReleaseTexImage (__GLXcontext   *context,
+		    int		   buffer,
+		    __GLXdrawable  *pixmap)
 {
     xglGLContextPtr pContext = (xglGLContextPtr) context;
     __GLXcontext    *mesaContext = pContext->mesaContext;
@@ -5533,6 +5533,7 @@ xglDestroyDrawable (__GLXdrawable *drawable)
 static __GLXdrawable *
 xglCreateDrawable (__GLXscreen *screen,
 		   DrawablePtr pDrawable,
+		   int type,
 		   XID drawId,
 		   __GLcontextModes *modes)
 {
@@ -5552,7 +5553,7 @@ xglCreateDrawable (__GLXscreen *screen,
 
     memset (pBufferPriv, 0, sizeof (xglGLBufferRec));
 
-    if (!__glXDrawableInit (&pBufferPriv->base, screen, pDrawable, drawId, modes))
+    if (!__glXDrawableInit (&pBufferPriv->base, screen, pDrawable, type, drawId, modes))
     {
 	xfree (pBufferPriv);
 	return NULL;
@@ -5662,6 +5663,7 @@ xglCreateDrawable (__GLXscreen *screen,
     {
 	pBufferPriv->mesaDrawable = (*mesaScreen->createDrawable) (mesaScreen,
 								   pDrawable,
+								   type,
 								   drawId,
 								   modes);
     }
@@ -6340,9 +6342,6 @@ xglScreenProbe (ScreenPtr pScreen)
 	    screen->base.GLXextensions = screen->GLXextensions;
 	}
     }
-
-    screen->base.WrappedPositionWindow =
-	screen->mesaScreen->WrappedPositionWindow;
 
     screen->base.modes		  = screen->mesaScreen->modes;
     screen->base.pVisualPriv	  = screen->mesaScreen->pVisualPriv;

@@ -45,7 +45,6 @@
 static ShmFuncs shmFuncs = { NULL, xglShmPutImage };
 #endif
 
-extern __GLXscreen **__glXActiveScreens;
 int xglScreenGeneration;
 int xglScreenPrivateIndex;
 int xglGCPrivateIndex;
@@ -120,8 +119,11 @@ glucoseCreateWindow(WindowPtr pWin)
   xglScreenInfo.widthMm  = pScreen->mmWidth;
   xglScreenInfo.heightMm = pScreen->mmHeight;
 
-  pScreenPriv->screen = __glXActiveScreens[pScreen->myNum];
+  pScreenPriv->screen = glxGetScreen(pScreen);
 
+  /* This stops the driver being unload and prevents a crash.
+   * But should be solved properly.
+   */
   pScreenPriv->destroyGLXscreen = pScreenPriv->screen->destroy;
   pScreenPriv->screen->destroy = glucoseDestroyGLXscreen;
 
@@ -142,7 +144,7 @@ glucoseCreateWindow(WindowPtr pWin)
 	AddResource(pPixmap->drawable.id, RT_PIXMAP, (pointer)pPixmap);
     }
 
-    pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, pPixmap->drawable.id, modes);
+    pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, GLX_DRAWABLE_PIXMAP, pPixmap->drawable.id, modes);
 
     if (!pScreenPriv->rootDrawable) {
   	xf86DrvMsg(pScreen->myNum, X_WARNING,
