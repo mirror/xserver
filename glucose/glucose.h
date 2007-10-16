@@ -40,11 +40,15 @@ glucoseFinishScreenInit (ScreenPtr pScreen);
 Bool
 glucoseScreenInit (ScreenPtr pScreen, int flags);
 
+typedef void (*destroyGLXscreenProcPtr)(__GLXscreen *screen);
+
 typedef struct {
     __GLXdrawable *rootDrawable;
     __GLXcontext *rootContext;
     CloseScreenProcPtr CloseScreen;
+    DestroyPixmapProcPtr *DestroyPixmap;
     __GLXscreen *screen;
+    destroyGLXscreenProcPtr destroyGLXscreen;
 } GlucoseScreenPrivRec, *GlucoseScreenPrivPtr;
 
 extern int glucoseScreenPrivateIndex;

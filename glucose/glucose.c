@@ -57,7 +57,7 @@ int xglGlyphPrivateIndex;
 
 static int glucoseGeneration = -1;
 int glucoseScreenPrivateIndex;
-int glucoseCreateScreenResourcesIndex;
+int glucoseCreateWindowIndex;
 
 xglScreenInfoRec xglScreenInfo = {
     NULL, 0, 0, 0, 0, 0,
@@ -79,33 +79,40 @@ xglScreenInfoRec xglScreenInfo = {
 static glitz_drawable_format_t *
 glucoseInitOutput(__GLXscreen *screen);
 
+/* Wrapped for glxext close down */
+static void glucoseDestroyGLXscreen(__GLXscreen *screen)
+{
+	ErrorF("SHUTDOWN EXTENSION\n");
+}
+
 static Bool
-glucoseCreateScreenResources(ScreenPtr pScreen)
+glucoseCreateWindow(WindowPtr pWin)
 {
   int ret = TRUE;
-  CreateScreenResourcesProcPtr CreateScreenResources =
-    (CreateScreenResourcesProcPtr)(pScreen->devPrivates[glucoseCreateScreenResourcesIndex].ptr);
+  ScreenPtr pScreen = pWin->drawable.pScreen;
+  CreateWindowProcPtr CreateWindow =
+    (CreateWindowProcPtr)(pScreen->devPrivates[glucoseCreateWindowIndex].ptr);
   GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
   int err;
 
   xf86DrvMsg(pScreen->myNum, X_INFO,
 		  "Glucose initializing screen %d\n",pScreen->myNum);
 
-  if ( pScreen->CreateScreenResources != glucoseCreateScreenResources ) {
+  if ( pScreen->CreateWindow != glucoseCreateWindow ) {
     /* Can't find hook we are hung on */
 	xf86DrvMsg(pScreen->myNum, X_WARNING /* X_ERROR */,
-		  "glucoseCreateScreenResources %p called when not in pScreen->CreateScreenResources %p n",
-		   (void *)glucoseCreateScreenResources,
-		   (void *)pScreen->CreateScreenResources );
+		  "glucoseCreateWindow %p called when not in pScreen->CreateWindow %p n",
+		   (void *)glucoseCreateWindow,
+		   (void *)pScreen->CreateWindow );
   }
 
   /* Unhook this function ... */
-  pScreen->CreateScreenResources = CreateScreenResources;
-  pScreen->devPrivates[glucoseCreateScreenResourcesIndex].ptr = NULL;
+  pScreen->CreateWindow = CreateWindow;
+  pScreen->devPrivates[glucoseCreateWindowIndex].ptr = NULL;
 
-  /* ... and call the previous CreateScreenResources fuction, if any */
-  if (NULL!=pScreen->CreateScreenResources) {
-    ret = (*pScreen->CreateScreenResources)(pScreen);
+  /* ... and call the previous CreateWindow fuction, if any */
+  if (NULL!=pScreen->CreateWindow) {
+    ret = (*pScreen->CreateWindow)(pWin);
   }
 
   xglScreenInfo.width  = pScreen->width;
@@ -114,6 +121,9 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
   xglScreenInfo.heightMm = pScreen->mmHeight;
 
   pScreenPriv->screen = __glXActiveScreens[pScreen->myNum];
+
+  pScreenPriv->destroyGLXscreen = pScreenPriv->screen->destroy;
+  pScreenPriv->screen->destroy = glucoseDestroyGLXscreen;
 
   {
     glitz_drawable_t	    *drawable;
@@ -124,6 +134,14 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 
     __pGlxClient = serverClient;
     
+    /* track root pixmap */
+    if (pPixmap)
+    {
+	pPixmap->drawable.serialNumber = NEXT_SERIAL_NUMBER;
+	pPixmap->drawable.id = FakeClientID(0);
+	AddResource(pPixmap->drawable.id, RT_PIXMAP, (pointer)pPixmap);
+    }
+
     pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, pPixmap->drawable.id, modes);
 
     if (!pScreenPriv->rootDrawable) {
@@ -162,8 +180,8 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 
     drawable = glitz_glucose_create_drawable_for_window(pScreenPriv->screen,
                                                     format, pScreenPriv->rootDrawable,
-                                                    pPixmap->drawable.width,
-                                                    pPixmap->drawable.height);
+                                                    pScreen->width,
+                                                    pScreen->height);
 
     if (!drawable) {
     	__glXenterServer(FALSE);
@@ -205,7 +223,7 @@ glucoseCreateScreenResources(ScreenPtr pScreen)
 
     REGION_UNINIT (pPixmap->drawable.pScreen, &pPixmapPriv->bitRegion);
 
-    xglPixmapSurfaceInit(pPixmap, xglScreenPriv->features, pPixmap->drawable.width, pPixmap->drawable.height);
+    xglPixmapSurfaceInit(pPixmap, xglScreenPriv->features, pScreen->width, pScreen->height);
 
     if (pScreen->devPrivate && pPixmapPriv->pDamage) {
 	RegionPtr pRegion = DamageRegion (pPixmapPriv->pDamage);
@@ -242,8 +260,8 @@ glucoseAllocatePrivates(ScreenPtr pScreen)
 	glucoseScreenPrivateIndex = AllocateScreenPrivateIndex();
 	if (glucoseScreenPrivateIndex < 0)
 	    return FALSE;
-	glucoseCreateScreenResourcesIndex = AllocateScreenPrivateIndex();
-	if (glucoseCreateScreenResourcesIndex < 0)
+	glucoseCreateWindowIndex = AllocateScreenPrivateIndex();
+	if (glucoseCreateWindowIndex < 0)
 	    return FALSE;
 
 	glucoseGeneration = serverGeneration;
@@ -258,9 +276,9 @@ glucoseAllocatePrivates(ScreenPtr pScreen)
 
     pScreen->devPrivates[glucoseScreenPrivateIndex].ptr = (pointer) pScreenPriv;
 
-    pScreen->devPrivates[glucoseCreateScreenResourcesIndex].ptr
-	= (void*)(pScreen->CreateScreenResources);
-    pScreen->CreateScreenResources = glucoseCreateScreenResources;
+    pScreen->devPrivates[glucoseCreateWindowIndex].ptr
+	= (void*)(pScreen->CreateWindow);
+    pScreen->CreateWindow = glucoseCreateWindow;
 
     return TRUE;
 }
@@ -359,6 +377,21 @@ xglAllocatePrivates (ScreenPtr pScreen)
     return TRUE;
 }
 
+static Bool
+glucoseDestroyPixmap (PixmapPtr pPixmap)
+{
+    ScreenPtr pScreen = pPixmap->drawable.pScreen;
+    PixmapPtr pScreenPixmap = pScreen->GetScreenPixmap(pScreen);
+    
+    if (pPixmap == pScreenPixmap) {
+    	ErrorF("SHUTTING DOWN\n");
+    	/* we're shutting down, we'll clean this up later */
+        return TRUE;
+    }
+
+    return xglDestroyPixmap(pPixmap);
+}
+
 Bool
 glucoseScreenInit (ScreenPtr pScreen, int flags)
 {
@@ -404,7 +437,7 @@ glucoseScreenInit (ScreenPtr pScreen, int flags)
 
 
     pScreen->CreatePixmap  = xglCreatePixmap;
-    pScreen->DestroyPixmap = xglDestroyPixmap;
+    pScreen->DestroyPixmap = glucoseDestroyPixmap;
 
 #ifdef MITSHM
     ShmRegisterFuncs (pScreen, &shmFuncs);
@@ -676,10 +709,8 @@ glucoseFinishScreenInit (ScreenPtr pScreen)
 #endif
 
 #if 0 /* Let the driver do this ! */
-#ifdef XV
     if (!xglXvScreenInit (pScreen))
        return FALSE;
-#endif
 #endif
 
     return TRUE;
@@ -694,12 +725,13 @@ glucoseCloseScreen (int	  index,
     XGL_SCREEN_PRIV (pScreen);
     XGL_PIXMAP_PRIV (pScreenPriv->pScreenPixmap);
     XGL_SCREEN_UNWRAP (CloseScreen);
+    GlucoseScreenPrivPtr pPriv = GlucoseGetScreenPriv(pScreen);
 
-    {
-    	GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
+    __pGlxClient = serverClient;        
 
-    	pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
-    }
+    xglFiniPixmap (pScreenPriv->pScreenPixmap);
+    if (pPixmapPriv->pDamage)
+	DamageDestroy (pPixmapPriv->pDamage);
 
 #ifdef RENDER
     int i;
@@ -714,9 +746,29 @@ glucoseCloseScreen (int	  index,
 	FreePicture ((pointer) pScreenPriv->trapInfo.pMask, 0);
 #endif
 
-    xglFiniPixmap (pScreenPriv->pScreenPixmap);
-    if (pPixmapPriv->pDamage)
-	DamageDestroy (pPixmapPriv->pDamage);
+    if (pScreenPriv->surface)
+	glitz_surface_destroy (pScreenPriv->surface);
+    pPixmapPriv->surface = NULL;
+    pScreenPriv->surface = NULL;
+
+    GEOMETRY_UNINIT (&pScreenPriv->scratchGeometry);
+
+    if (pScreenPriv->drawable)
+	glitz_drawable_destroy(pScreenPriv->drawable);
+    pPixmapPriv->drawable = NULL;
+    pScreenPriv->drawable = NULL;
+    xglScreenInfo.drawable = NULL;
+
+    /* tear down glucose now */
+#if 0
+    /* Unfortunately, this causes some problems in hardware drivers */
+    /* Debug, them and re-enable this */
+    pPriv->rootContext->destroy(pPriv->rootContext);
+#endif
+    pPriv->rootDrawable->destroy(pPriv->rootDrawable);
+
+    xfree(pPriv);
+    pPriv = NULL;
 
     while (pScreenPriv->pVisual)
     {
@@ -726,19 +778,6 @@ glucoseCloseScreen (int	  index,
     }
     xfree(pScreenPriv);
     pScreenPriv = NULL;
-
-    /* tear down glucose now */
-    {
-    	GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
-
-        __pGlxClient = serverClient;        
-
-    	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
-    	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
-
-    	xfree(pScreenPriv);
-	pScreenPriv = NULL;
-    }
 
     return (*pScreen->CloseScreen) (index, pScreen);
 }
