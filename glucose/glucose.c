@@ -91,11 +91,11 @@ glucoseCreateWindow(WindowPtr pWin)
   ScreenPtr pScreen = pWin->drawable.pScreen;
   CreateWindowProcPtr CreateWindow =
     (CreateWindowProcPtr)(pScreen->devPrivates[glucoseCreateWindowIndex].ptr);
-  GlucoseScreenPrivPtr pScreenPriv = GlucoseGetScreenPriv(pScreen);
+  GLucoseScreenPrivPtr pScreenPriv = GLucoseGetScreenPriv(pScreen);
   int err;
 
   xf86DrvMsg(pScreen->myNum, X_INFO,
-		  "Glucose initializing screen %d\n",pScreen->myNum);
+		  "GLucose initializing screen %d\n",pScreen->myNum);
 
   if ( pScreen->CreateWindow != glucoseCreateWindow ) {
     /* Can't find hook we are hung on */
@@ -148,7 +148,7 @@ glucoseCreateWindow(WindowPtr pWin)
 
     if (!pScreenPriv->rootDrawable) {
   	xf86DrvMsg(pScreen->myNum, X_WARNING,
-		  "Glucose - creating root drawable failed\n");
+		  "GLucose - creating root drawable failed\n");
     	return FALSE;
     }
 
@@ -156,7 +156,7 @@ glucoseCreateWindow(WindowPtr pWin)
 
     if (!pScreenPriv->rootContext) {
   	xf86DrvMsg(pScreen->myNum, X_WARNING,
-		  "Glucose - creating root context failed\n");
+		  "GLucose - creating root context failed\n");
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
 	pScreenPriv->rootDrawable = NULL;
     	return FALSE;
@@ -170,7 +170,7 @@ glucoseCreateWindow(WindowPtr pWin)
     if (!err) {
     	__glXenterServer(FALSE);
   	xf86DrvMsg(pScreen->myNum, X_WARNING, 
-		  "Glucose makeCurrent failed, err is %d\n",err);
+		  "GLucose makeCurrent failed, err is %d\n",err);
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
 	pScreenPriv->rootContext = NULL;
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
@@ -188,7 +188,7 @@ glucoseCreateWindow(WindowPtr pWin)
     if (!drawable) {
     	__glXenterServer(FALSE);
         xf86DrvMsg(pScreen->myNum, X_ERROR,
-		  "Glucose could not create glitz drawable, not initializing.\n");
+		  "GLucose could not create glitz drawable, not initializing.\n");
 
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
 	pScreenPriv->rootContext = NULL;
@@ -202,12 +202,12 @@ glucoseCreateWindow(WindowPtr pWin)
 	glitz_drawable_get_features (xglScreenInfo.drawable);
 
     xf86DrvMsg(pScreen->myNum, X_INFO,
-		  "Glucose reports GLitz features as 0x%lx\n",xglScreenPriv->features);
+		  "GLucose reports GLitz features as 0x%lx\n",xglScreenPriv->features);
 
     if (!glucoseFinishScreenInit(pScreen)) {
     	__glXenterServer(FALSE);
         xf86DrvMsg(pScreen->myNum, X_ERROR,
-		  "Glucose could not initialize.\n");
+		  "GLucose could not initialize.\n");
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
 	pScreenPriv->rootContext = NULL;
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
@@ -256,7 +256,7 @@ glucoseCreateWindow(WindowPtr pWin)
 static Bool
 glucoseAllocatePrivates(ScreenPtr pScreen)
 {
-    GlucoseScreenPrivPtr pScreenPriv;
+    GLucoseScreenPrivPtr pScreenPriv;
 
     if (glucoseGeneration != serverGeneration) {
 	glucoseScreenPrivateIndex = AllocateScreenPrivateIndex();
@@ -269,9 +269,9 @@ glucoseAllocatePrivates(ScreenPtr pScreen)
 	glucoseGeneration = serverGeneration;
     }
 
-    pScreenPriv = xalloc(sizeof(GlucoseScreenPrivRec));
+    pScreenPriv = xalloc(sizeof(GLucoseScreenPrivRec));
     if (!pScreenPriv) {
-        LogMessage(X_WARNING, "Glucose(%d): Failed to allocate screen private\n",
+        LogMessage(X_WARNING, "GLucose(%d): Failed to allocate screen private\n",
 		   pScreen->myNum);
 	return FALSE;
     }
@@ -727,15 +727,11 @@ glucoseCloseScreen (int	  index,
     XGL_SCREEN_PRIV (pScreen);
     XGL_PIXMAP_PRIV (pScreenPriv->pScreenPixmap);
     XGL_SCREEN_UNWRAP (CloseScreen);
-    GlucoseScreenPrivPtr pPriv = GlucoseGetScreenPriv(pScreen);
+    GLucoseScreenPrivPtr pPriv = GLucoseGetScreenPriv(pScreen);
 
     __pGlxClient = serverClient;        
 
     xglFiniPixmap (pScreenPriv->pScreenPixmap);
-#if 0
-    if (pPixmapPriv->pDamage)
-	DamageDestroy (pPixmapPriv->pDamage);
-#endif
 
 #ifdef RENDER
     int i;
