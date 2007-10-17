@@ -28,6 +28,11 @@
 
 #include <xgl-config.h>
 
+#include "glxserver.h"
+#include "glapi.h"
+#include "glthread.h"
+#include "dispatch.h"
+
 #include <X11/X.h>
 #define NEED_EVENTS
 #include <X11/Xproto.h>

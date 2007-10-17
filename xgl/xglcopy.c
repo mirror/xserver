@@ -22,11 +22,6 @@
  *
  * Author: David Reveman <davidr@novell.com>
  */
-#include "glxserver.h"
-#include "glapi.h"
-#include "glthread.h"
-#include "dispatch.h"
-
 
 #include "xgl.h"
 #include "fb.h"
