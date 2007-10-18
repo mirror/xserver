@@ -52,7 +52,7 @@ Xgl_SOURCES = \
 	$(top_srcdir)/fb/fbcmap.c
 
 XGL_LIBS = \
-	$(top_srcdir)/xgl/libxgl.la \
+	$(top_builddir)/xgl/libxgl.la \
 	@XGL_LIBS@ \
 	$(XSERVER_LIBS)
 

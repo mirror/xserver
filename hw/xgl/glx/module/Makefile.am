@@ -6,6 +6,10 @@ AM_CFLAGS = \
 	@DIX_CFLAGS@ \
 	@LIBDRM_CFLAGS@ \
 	@DRIPROTO_CFLAGS@ \
+	-I$(top_srcdir)/GL/glx \
+	-I$(top_srcdir)/GL/include \
+	-I@MESA_SOURCE@/include \
+	-I@MESA_SOURCE@/src/mesa/glapi \
 	-I$(top_srcdir)/xgl \
 	-I$(srcdir)/.. \
 	-I$(srcdir)/../.. \
