@@ -262,14 +262,14 @@ xglCompositeGeneral (CARD8	     op,
     else
 	GEOMETRY_DISABLE (dst);
 
-    __glXleaveServer(FALSE);
+    xglLeaveServer();
     glitz_composite (XGL_OPERATOR (op),
 		     src, mask, dst,
 		     xSrc, ySrc,
 		     xMask, yMask,
 		     xDst + dstXoff, yDst + dstYoff,
 		     width, height);
-    __glXenterServer(FALSE);
+    xglEnterServer();
 
     glitz_surface_set_clip_region (dst, 0, 0, NULL, 0);
 

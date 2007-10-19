@@ -130,12 +130,10 @@ glucoseCreateWindow(WindowPtr pWin)
   {
     glitz_drawable_t	    *drawable;
     glitz_drawable_format_t *format;
-    __GLcontextModes *modes = pScreenPriv->screen->modes;
+    __GLcontextModes *fbconfigs = pScreenPriv->screen->fbconfigs;
     PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
     xglScreenPtr xglScreenPriv = XGL_GET_SCREEN_PRIV (pScreen);
 
-    __pGlxClient = serverClient;
-    
     /* track root pixmap */
     if (pPixmap)
     {
@@ -144,17 +142,21 @@ glucoseCreateWindow(WindowPtr pWin)
 	AddResource(pPixmap->drawable.id, RT_PIXMAP, (pointer)pPixmap);
     }
 
-    pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, GLX_DRAWABLE_PIXMAP, pPixmap->drawable.id, modes);
+    xglLeaveServer();
+    
+    pScreenPriv->rootDrawable = pScreenPriv->screen->createDrawable(pScreenPriv->screen, (DrawablePtr)pPixmap, GLX_DRAWABLE_PIXMAP, pPixmap->drawable.id, fbconfigs);
 
     if (!pScreenPriv->rootDrawable) {
+    	xglEnterServer();
   	xf86DrvMsg(pScreen->myNum, X_WARNING,
 		  "GLucose - creating root drawable failed\n");
     	return FALSE;
     }
 
-    pScreenPriv->rootContext = pScreenPriv->screen->createContext(pScreenPriv->screen, modes, NULL);
+    pScreenPriv->rootContext = pScreenPriv->screen->createContext(pScreenPriv->screen, fbconfigs, NULL);
 
     if (!pScreenPriv->rootContext) {
+    	xglEnterServer();
   	xf86DrvMsg(pScreen->myNum, X_WARNING,
 		  "GLucose - creating root context failed\n");
 	pScreenPriv->rootDrawable->destroy(pScreenPriv->rootDrawable);
@@ -165,10 +167,9 @@ glucoseCreateWindow(WindowPtr pWin)
     pScreenPriv->rootContext->drawPriv =
     	pScreenPriv->rootContext->readPriv = pScreenPriv->rootDrawable;
 
-    __glXleaveServer(FALSE);
     err = pScreenPriv->rootContext->makeCurrent(pScreenPriv->rootContext);
     if (!err) {
-    	__glXenterServer(FALSE);
+    	xglEnterServer();
   	xf86DrvMsg(pScreen->myNum, X_WARNING, 
 		  "GLucose makeCurrent failed, err is %d\n",err);
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
@@ -186,7 +187,7 @@ glucoseCreateWindow(WindowPtr pWin)
                                                     pScreen->height);
 
     if (!drawable) {
-    	__glXenterServer(FALSE);
+    	xglEnterServer();
         xf86DrvMsg(pScreen->myNum, X_ERROR,
 		  "GLucose could not create glitz drawable, not initializing.\n");
 
@@ -205,7 +206,7 @@ glucoseCreateWindow(WindowPtr pWin)
 		  "GLucose reports GLitz features as 0x%lx\n",xglScreenPriv->features);
 
     if (!glucoseFinishScreenInit(pScreen)) {
-    	__glXenterServer(FALSE);
+    	xglEnterServer();
         xf86DrvMsg(pScreen->myNum, X_ERROR,
 		  "GLucose could not initialize.\n");
 	pScreenPriv->rootContext->destroy(pScreenPriv->rootContext);
@@ -215,7 +216,7 @@ glucoseCreateWindow(WindowPtr pWin)
 	return FALSE;
     }
 
-    __glXenterServer(FALSE);
+    xglEnterServer();
 
     /* now fixup root pixmap */
     pPixmap = pScreen->GetScreenPixmap(pScreen);
@@ -733,6 +734,8 @@ glucoseCloseScreen (int	  index,
 
     xglFiniPixmap (pScreenPriv->pScreenPixmap);
 
+    xglLeaveServer();
+    
 #ifdef RENDER
     int i;
 
@@ -780,4 +783,20 @@ glucoseCloseScreen (int	  index,
     pScreenPriv = NULL;
 
     return (*pScreen->CloseScreen) (index, pScreen);
+}
+ 
+static ClientPtr pOldGlxClient = NULL;
+
+void xglLeaveServer(void) {
+    assert(pOldGlxClient == NULL);
+    __glXleaveServer(TRUE);
+    pOldGlxClient = __pGlxClient;
+    __pGlxClient = serverClient;
+}
+
+void xglEnterServer(void) {
+    assert(__pGlxClient == serverClient);
+    __pGlxClient = pOldGlxClient;
+    pOldGlxClient = NULL;
+    __glXenterServer(TRUE);
 }

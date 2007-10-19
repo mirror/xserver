@@ -300,9 +300,9 @@ xglFiniPixmap (PixmapPtr pPixmap)
 
     if (pPixmapPriv->surface) {
     	/* leaving because texture destruction can occur and flush primitives */
-        __glXleaveServer(FALSE);
+        xglLeaveServer();
 	glitz_surface_destroy (pPixmapPriv->surface);
-        __glXenterServer(FALSE);
+        xglEnterServer();
     }
 }
 
@@ -568,14 +568,14 @@ xglCreatePixmapSurface (PixmapPtr pPixmap)
 	if (!pPixmapPriv->pVisual || !pPixmapPriv->pVisual->format.surface)
 	    return FALSE;
 
-	__glXleaveServer(FALSE);
+	xglLeaveServer();
 	pPixmapPriv->surface =
 	    glitz_surface_create (pScreenPriv->drawable,
 				  pPixmapPriv->pVisual->format.surface,
 				  pPixmap->drawable.width,
 				  pPixmap->drawable.height,
 				  0, NULL);
-	__glXenterServer(FALSE);
+	xglEnterServer();
 	if (!pPixmapPriv->surface)
 	{
 	    pPixmapPriv->pVisual = NULL;

@@ -64,7 +64,7 @@ xglCopy (DrawablePtr pSrc,
 				   dstXoff, dstYoff,
 				   (glitz_box_t *) pBox, nBox);
 
-    __glXleaveServer(FALSE);
+    xglLeaveServer();
     glitz_copy_area (src,
 		     dst,
 		     srcXoff + dx,
@@ -73,7 +73,7 @@ xglCopy (DrawablePtr pSrc,
 		     pPixmap->drawable.height - dstYoff,
 		     dstXoff,
 		     dstYoff);
-    __glXenterServer(FALSE);
+    xglEnterServer();
 
     glitz_surface_set_clip_region (dst, 0, 0, NULL, 0);
 

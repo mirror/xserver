@@ -222,7 +222,7 @@ xglTile (DrawablePtr	  pDrawable,
 	pTilePriv->pictureMask |= xglPCFillMask;
 	glitz_surface_set_fill (pTilePriv->surface, GLITZ_FILL_REPEAT);
 
-	__glXleaveServer(FALSE);
+	xglLeaveServer();
 	glitz_composite (op,
 			 pTilePriv->surface, NULL, surface,
 			 x + tileX,
@@ -231,7 +231,7 @@ xglTile (DrawablePtr	  pDrawable,
 			 x + xOff,
 			 y + yOff,
 			 width, height);
-	__glXenterServer(FALSE);
+	xglEnterServer();
 
 	glitz_surface_set_clip_region (surface, 0, 0, NULL, 0);
 
@@ -256,7 +256,7 @@ xglTile (DrawablePtr	  pDrawable,
     if (!GEOMETRY_ENABLE (pGeometry, surface))
 	return FALSE;
 
-    __glXleaveServer(FALSE);
+    xglLeaveServer();
     glitz_composite (op,
 		     pTilePriv->surface, NULL, surface,
 		     0, 0,
@@ -264,7 +264,7 @@ xglTile (DrawablePtr	  pDrawable,
 		     x + xOff,
 		     y + yOff,
 		     width, height);
-    __glXenterServer(FALSE);
+    xglEnterServer();
 
     if (glitz_surface_get_status (surface))
 	return FALSE;

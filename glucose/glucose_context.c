@@ -54,7 +54,7 @@ _glitz_glucose_context_create (glitz_glucose_screen_info_t *screen_info,
     __GLXscreen *screen = screen_info->display_info->display;
     __GLcontextModes *mode;
 
-    mode = _gl_context_modes_find_visual(screen->modes, visualid);
+    mode = _gl_context_modes_find_visual(screen->fbconfigs, visualid);
 
     context->context = screen->createContext (screen, mode, share_list);
     context->id = visualid;

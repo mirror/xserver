@@ -140,7 +140,7 @@ _glitz_glucose_query_formats (glitz_glucose_screen_info_t *screen_info)
     format.d.id           = 0;
     format.d.color.fourcc = GLITZ_FOURCC_RGB;
 
-    mode = screen->modes;
+    mode = screen->fbconfigs;
 
     for (i = 0; i < screen->numVisuals; i++)
     {

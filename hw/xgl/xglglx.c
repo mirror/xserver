@@ -204,12 +204,12 @@ xglUnloadGLXModules (void)
 }
 
 void
-__glXenterServer(GLboolean rendering)
+xglEnterServer(void)
 {
 }
 
 void
-__glXleaveServer(GLboolean rendering)
+xglLeaveServer(void)
 {
 }
 

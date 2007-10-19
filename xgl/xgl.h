@@ -1506,4 +1506,9 @@ unsigned int
 xglHashFindFreeKeyBlock (xglHashTablePtr pTable,
 			 unsigned int	 numKeys);
 
+
+void xglLeaveServer(void);
+
+void xglEnterServer(void);
+
 #endif /* _XGL_H_ */
