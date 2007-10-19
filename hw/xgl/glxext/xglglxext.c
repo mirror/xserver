@@ -6343,12 +6343,12 @@ xglScreenProbe (ScreenPtr pScreen)
 	}
     }
 
-    screen->base.modes		  = screen->mesaScreen->modes;
-    screen->base.pVisualPriv	  = screen->mesaScreen->pVisualPriv;
+    screen->base.fbconfigs	  = screen->mesaScreen->fbconfigs;
+    screen->base.numFBConfigs	  = screen->mesaScreen->numFBConfigs;
     screen->base.numVisuals	  = screen->mesaScreen->numVisuals;
-    screen->base.numUsableVisuals = screen->mesaScreen->numUsableVisuals;
+    screen->base.visuals          = screen->mesaScreen->visuals;
 
-    modes = screen->base.modes;
+    modes = screen->base.fbconfigs;
 
     /* Create Xgl GLX visuals */
     for (i = 0; i < pScreen->numVisuals; i++)
