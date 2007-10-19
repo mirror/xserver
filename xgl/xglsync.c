@@ -478,10 +478,10 @@ xglAddCurrentBitDamage (DrawablePtr pDrawable)
     {
     	/* This is a little severe as it also impacts xgl - tune me */
     	XGL_SCREEN_PRIV (pDrawable->pScreen);
-	__glXleaveServer(FALSE);
+	xglLeaveServer();
 	glitz_surface_flush (pScreenPriv->surface);
 	glitz_drawable_finish (pScreenPriv->drawable);
-	__glXenterServer(FALSE);
+	xglEnterServer();
     }
 
     if (REGION_NOTEMPTY (pDrawable->pScreen, &pPixmapPriv->bitRegion))
