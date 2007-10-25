@@ -121,7 +121,7 @@ typedef enum _PictFormatShort {
 
 /* YUV formats */
     PICT_yuy2 =		PIXMAN_yuy2,
-    PICT_yv12 =		PIXMAN_yv12,
+    PICT_yv12 =		PIXMAN_yv12
 } PictFormatShort;
 
 /*

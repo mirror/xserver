@@ -368,7 +368,7 @@ typedef struct _PictureScreen {
     ValidatePictureProcPtr	ValidatePicture;
 
     CompositeProcPtr		Composite;
-    GlyphsProcPtr		Glyphs;
+    GlyphsProcPtr		Glyphs; /* unused */
     CompositeRectsProcPtr	CompositeRects;
 
     DestroyWindowProcPtr	DestroyWindow;
