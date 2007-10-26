@@ -503,7 +503,14 @@ XEXT_LIB='$(top_builddir)/Xext/libXext.la'
 XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
-REQUIRED_MODULES="randrproto renderproto [fixesproto >= 4.0] damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
+# Require updated renderproto for ABI sanity if we're 64-bit.
+if test "$ac_cv_sizeof_unsigned_long" = 8; then
+	RENDERPROTO="[renderproto >= 0.9.3]"
+else
+	RENDERPROTO="renderproto"
+fi
+
+REQUIRED_MODULES="randrproto $RENDERPROTO [fixesproto >= 4.0] damageproto xcmiscproto xextproto xproto xtrans xf86miscproto xf86vidmodeproto xf86bigfontproto [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto inputproto xf86dgaproto"
 REQUIRED_LIBS="xfont xau fontenc"
 
 AM_CONDITIONAL(XV, [test "x$XV" = xyes])
