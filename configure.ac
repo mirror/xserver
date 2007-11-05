@@ -454,9 +454,6 @@ AC_ARG_WITH(xkb-path,         AS_HELP_STRING([--with-xkb-path=PATH], [Path to XK
 AC_ARG_WITH(xkb-output,       AS_HELP_STRING([--with-xkb-output=PATH], [Path to XKB output dir (default: ${datadir}/X11/xkb/compiled)]),
 				[ XKBOUTPUT="$withval" ],
 				[ XKBOUTPUT="compiled" ])
-AC_ARG_WITH(rgb-path,         AS_HELP_STRING([--with-rgb-path=PATH], [Path to RGB database (default: ${datadir}/X11/rgb)]),
-				[ RGBPATH="$withval" ],
-				[ RGBPATH="${datadir}/X11/rgb" ])
 AC_ARG_WITH(serverconfig-path, AS_HELP_STRING([--with-serverconfig-path=PATH], [Path to server config (default: ${libdir}/xserver)]),
 				[ SERVERCONFIG="$withval" ],
 				[ SERVERCONFIG="${libdir}/xserver" ])
@@ -1008,13 +1005,7 @@ if test "x$XDMAUTH" = xyes; then
 	fi
 fi
 
-AM_CONDITIONAL(USE_RGB_BUILTIN, [test "x$USE_RGB_BUILTIN" = xyes])
-if test "x$USE_RGB_BUILTIN" = xyes; then
-	AC_DEFINE(USE_RGB_BUILTIN, 1, [Use built-in RGB color database])
-fi
-
 AC_DEFINE_DIR(COMPILEDDEFAULTFONTPATH, FONTPATH, [Default font path])
-AC_DEFINE_DIR(RGB_DB, RGBPATH, [Default RGB path])
 AC_DEFINE_DIR(PCI_TXT_IDS_PATH, PCI_TXT_IDS_DIR, [Default PCI text file ID path])
 AC_DEFINE_DIR(SERVERCONFIGdir, SERVERCONFIG, [Server config path])
 AC_DEFINE_DIR(BASE_FONT_PATH, FONTDIR, [Default base font path])
@@ -1050,7 +1041,6 @@ else
 fi
 AM_CONDITIONAL(DEBUG, [test "x$DEBUGGING" = xyes])
 
-AC_DEFINE(USE_RGB_TXT, 1, [Use rgb.txt directly])
 AC_DEFINE(MITMISC, 1, [Support MIT Misc extension])
 AC_DEFINE(XTEST, 1, [Support XTest extension])
 AC_DEFINE(XSYNC, 1, [Support XSync extension])
@@ -1575,7 +1565,9 @@ AM_CONDITIONAL([LINUX_ALPHA], [test "x$linux_alpha" = xyes])
 AM_CONDITIONAL([LNXACPI], [test "x$linux_acpi" = xyes])
 AM_CONDITIONAL([SOLARIS_USL_CONSOLE], [test "x$solaris_usl_console" = xyes])
 AM_CONDITIONAL([SOLARIS_ASM_INLINE], [test "x$solaris_asm_inline" = xyes])
-AM_CONDITIONAL(DGA, [test "x$DGA" = xyes])
+AM_CONDITIONAL([DGA], [test "x$DGA" = xyes])
+AM_CONDITIONAL([XF86MISC], [test "x$XF86MISC" = xyes])
+AM_CONDITIONAL([XF86VIDMODE], [test "x$XF86VIDMODE" = xyes])
 
 dnl legacy fb support
 test "x$MFB" = xauto && MFB="$XORG"

@@ -1213,7 +1213,8 @@ ProcRenderAddGlyphs (ClientPtr client)
 		}
 
 		pDstPix = (pScreen->CreatePixmap) (pScreen,
-						   width, height, depth);
+						   width, height, depth,
+						   CREATE_PIMXAP_USAGE_GLYPH_PICTURE);
 
 		GlyphPicture (glyph)[screen] = pDst =
 			CreatePicture (0, &pDstPix->drawable,
@@ -1419,7 +1420,7 @@ ProcRenderCompositeGlyphs (ClientPtr client)
 	glyphsBase = glyphsLocal;
     else
     {
-	glyphsBase = (GlyphPtr *) ALLOCATE_LOCAL (nglyph * sizeof (GlyphPtr));
+	glyphsBase = (GlyphPtr *) xalloc (nglyph * sizeof (GlyphPtr));
 	if (!glyphsBase)
 	    return BadAlloc;
     }
@@ -1427,7 +1428,7 @@ ProcRenderCompositeGlyphs (ClientPtr client)
 	listsBase = listsLocal;
     else
     {
-	listsBase = (GlyphListPtr) ALLOCATE_LOCAL (nlist * sizeof (GlyphListRec));
+	listsBase = (GlyphListPtr) xalloc (nlist * sizeof (GlyphListRec));
 	if (!listsBase)
 	    return BadAlloc;
     }
@@ -1452,9 +1453,9 @@ ProcRenderCompositeGlyphs (ClientPtr client)
 		{
 		    client->errorValue = gs;
 		    if (glyphsBase != glyphsLocal)
-			DEALLOCATE_LOCAL (glyphsBase);
+			xfree (glyphsBase);
 		    if (listsBase != listsLocal)
-			DEALLOCATE_LOCAL (listsBase);
+			xfree (listsBase);
 		    return RenderErrBase + BadGlyphSet;
 		}
 	    }
@@ -1508,9 +1509,9 @@ ProcRenderCompositeGlyphs (ClientPtr client)
 		     glyphsBase);
 
     if (glyphsBase != glyphsLocal)
-	DEALLOCATE_LOCAL (glyphsBase);
+	xfree (glyphsBase);
     if (listsBase != listsLocal)
-	DEALLOCATE_LOCAL (listsBase);
+	xfree (listsBase);
     
     return client->noClientException;
 }
@@ -1647,7 +1648,8 @@ ProcRenderCreateCursor (ClientPtr client)
 	    xfree (mskbits);
 	    return (BadImplementation);
 	}
-	pPixmap = (*pScreen->CreatePixmap) (pScreen, width, height, 32);
+	pPixmap = (*pScreen->CreatePixmap) (pScreen, width, height, 32,
+					    CREATE_PIXMAP_USAGE_SCRATCH);
 	if (!pPixmap)
 	{
 	    xfree (argbbits);
@@ -2974,7 +2976,7 @@ PanoramiXRenderFillRectangles (ClientPtr client)
 			RenderErrBase + BadPicture);
     extra_len = (client->req_len << 2) - sizeof (xRenderFillRectanglesReq);
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len)))
+	(extra = (char *) xalloc (extra_len)))
     {
 	memcpy (extra, stuff + 1, extra_len);
 	FOR_NSCREENS_FORWARD(j) {
@@ -3000,7 +3002,7 @@ PanoramiXRenderFillRectangles (ClientPtr client)
 	    result = (*PanoramiXSaveRenderVector[X_RenderFillRectangles]) (client);
 	    if(result != Success) break;
 	}
-	DEALLOCATE_LOCAL(extra);
+	xfree(extra);
     }
 
     return result;
@@ -3025,7 +3027,7 @@ PanoramiXRenderTrapezoids(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderTrapezoidsReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3062,7 +3064,7 @@ PanoramiXRenderTrapezoids(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3087,7 +3089,7 @@ PanoramiXRenderTriangles(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderTrianglesReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3120,7 +3122,7 @@ PanoramiXRenderTriangles(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3145,7 +3147,7 @@ PanoramiXRenderTriStrip(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderTriStripReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3174,7 +3176,7 @@ PanoramiXRenderTriStrip(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3199,7 +3201,7 @@ PanoramiXRenderTriFan(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderTriFanReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3228,7 +3230,7 @@ PanoramiXRenderTriFan(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3253,7 +3255,7 @@ PanoramiXRenderColorTrapezoids(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderColorTrapezoidsReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3274,7 +3276,7 @@ PanoramiXRenderColorTrapezoids(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3297,7 +3299,7 @@ PanoramiXRenderColorTriangles(ClientPtr client)
     extra_len = (client->req_len << 2) - sizeof (xRenderColorTrianglesReq);
 
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len))) {
+	(extra = (char *) xalloc (extra_len))) {
 	memcpy (extra, stuff + 1, extra_len);
 
 	FOR_NSCREENS_FORWARD(j) {
@@ -3318,7 +3320,7 @@ PanoramiXRenderColorTriangles(ClientPtr client)
 	    if(result != Success) break;
 	}
 	
-        DEALLOCATE_LOCAL(extra);
+        xfree(extra);
     }
 
     return result;
@@ -3341,7 +3343,7 @@ PanoramiXRenderAddTraps (ClientPtr client)
 			RenderErrBase + BadPicture);
     extra_len = (client->req_len << 2) - sizeof (xRenderAddTrapsReq);
     if (extra_len &&
-	(extra = (char *) ALLOCATE_LOCAL (extra_len)))
+	(extra = (char *) xalloc (extra_len)))
     {
 	memcpy (extra, stuff + 1, extra_len);
 	x_off = stuff->xOff;
@@ -3358,7 +3360,7 @@ PanoramiXRenderAddTraps (ClientPtr client)
 	    result = (*PanoramiXSaveRenderVector[X_RenderAddTraps]) (client);
 	    if(result != Success) break;
 	}
-	DEALLOCATE_LOCAL(extra);
+	xfree(extra);
     }
 
     return result;
