@@ -410,7 +410,7 @@ xglXvPutImage (ClientPtr     client,
 
 	    pPixmap = (*pScreen->CreatePixmap) (pScreen,
 						srcWidth, srcHeight,
-						pDrawable->depth);
+						pDrawable->depth, 0);
 	    if (!pPixmap)
 	    {
 		xglXvFreePort (pPort);

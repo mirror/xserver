@@ -234,8 +234,11 @@ xglChangePictureFilter (PicturePtr pPicture,
 static void
 xglDestroyDevicePicture (PicturePtr pPicture)
 {
-    if (pPicture->pSourcePict->source.devPrivate.ptr)
+    if (pPicture->pSourcePict->source.devPrivate.ptr) {
+	xglLeaveServer(pPicture->pDrawable->pScreen);
 	glitz_surface_destroy (pPicture->pSourcePict->source.devPrivate.ptr);
+	xglEnterServer(pPicture->pDrawable->pScreen);
+    }
 }
 
 PicturePtr
@@ -269,6 +272,8 @@ xglUpdatePicture (PicturePtr pPicture)
     XGL_DRAWABLE_PIXMAP_PRIV (pPicture->pDrawable);
 
     surface = pPixmapPriv->surface;
+
+    xglLeaveServer(pPicture->pDrawable->pScreen);
 
     if (pPixmapPriv->pictureMask & xglPCFillMask)
     {
@@ -311,6 +316,8 @@ xglUpdatePicture (PicturePtr pPicture)
     {
 	glitz_surface_set_dither (surface, pPicture->dither);
     }
+
+    xglEnterServer(pPicture->pDrawable->pScreen);
 
     pPixmapPriv->pictureMask &= ~XGL_PICTURE_CHANGES (~0);
 }
@@ -405,6 +412,8 @@ xglSyncPicture (ScreenPtr  pScreen,
 
 	    pixel = (CARD32 *) (param + nParam + nStop * 3);
 
+	    xglLeaveServer(pScreen);
+
 	    buffer = glitz_buffer_create_for_data (pixel);
 	    if (!buffer)
 	    {
@@ -466,6 +475,8 @@ xglSyncPicture (ScreenPtr  pScreen,
 	    glitz_surface_set_fill (surface, fillMode[pPicture->repeatType]);
 	    glitz_surface_set_transform (surface, (glitz_transform_t *)
 					 pPicture->transform);
+
+	    xglEnterServer(pScreen);
 
 	    pPicture->pSourcePict->gradient.devPrivate.ptr = surface;
 	    pPicture->pSourcePict->gradient.Destroy = xglDestroyDevicePicture;
@@ -806,7 +817,7 @@ xglCreateSolidAlphaPicture (ScreenPtr pScreen)
     if (!pGC)
 	return;
 
-    pPixmap = (*pScreen->CreatePixmap) (pScreen, 1, 1, pFormat->depth);
+    pPixmap = (*pScreen->CreatePixmap) (pScreen, 1, 1, pFormat->depth, 0);
     if (!pPixmap)
 	return;
 
