@@ -933,6 +933,10 @@ ProcessCommandLine(int argc, char *argv[])
 	    else
 		UseMsg();
 	}
+	else if (strcmp(argv[i], "-pogo") == 0)
+	{
+	    dispatchException = DE_TERMINATE;
+	}
 	else if ( strcmp( argv[i], "-pn") == 0)
 	    PartialNetwork = TRUE;
 	else if ( strcmp( argv[i], "-nopn") == 0)
@@ -1520,6 +1524,8 @@ SmartScheduleStopTimer (void)
 #ifdef SMART_SCHEDULE_POSSIBLE
     struct itimerval	timer;
     
+    if (SmartScheduleDisable)
+	return;
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
     timer.it_value.tv_sec = 0;
@@ -1534,6 +1540,8 @@ SmartScheduleStartTimer (void)
 #ifdef SMART_SCHEDULE_POSSIBLE
     struct itimerval	timer;
     
+    if (SmartScheduleDisable)
+	return;
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = SmartScheduleInterval * 1000;
     timer.it_value.tv_sec = 0;

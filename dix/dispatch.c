@@ -249,7 +249,7 @@ UpdateCurrentTimeIf(void)
 	currentTime = systime;
 }
 
-void
+static void
 InitSelections(void)
 {
     if (CurrentSelections)
@@ -498,9 +498,9 @@ Dispatch(void)
 		if (result > (maxBigRequestSize << 2))
 		    result = BadLength;
 		else {
-		    XaceHook(XACE_AUDIT_BEGIN, client);
+		    XaceHookAuditBegin(client);
 		    result = (* client->requestVector[MAJOROP])(client);
-		    XaceHook(XACE_AUDIT_END, client, result);
+		    XaceHookAuditEnd(client, result);
 		}
 #ifdef XSERVER_DTRACE
 		XSERVER_REQUEST_DONE(GetRequestName(MAJOROP), MAJOROP,
@@ -3836,7 +3836,7 @@ ProcInitialConnection(ClientPtr client)
     return (client->noClientException);
 }
 
-int
+static int
 SendConnSetup(ClientPtr client, char *reason)
 {
     xWindowRoot *root;

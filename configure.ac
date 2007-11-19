@@ -26,7 +26,7 @@ dnl
 dnl Process this file with autoconf to create configure.
 
 AC_PREREQ(2.57)
-AC_INIT([xorg-server], 1.4.0.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
+AC_INIT([xorg-server], 1.4.99.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([dist-bzip2 foreign])
 AM_MAINTAINER_MODE
@@ -174,6 +174,12 @@ fi
 
 AC_CHECK_FUNC([dlopen], [],
 	AC_CHECK_LIB([dl], [dlopen], DLOPEN_LIBS="-ldl"))
+
+case $host_os in
+    linux*)
+	AC_DEFINE(HAVE_URANDOM, 1, [Has /dev/urandom]) ;;
+    *) ;;
+esac
 
 dnl Checks for library functions.
 AC_FUNC_VPRINTF
@@ -1227,7 +1233,7 @@ AC_MSG_RESULT([$XNEST])
 AM_CONDITIONAL(XNEST, [test "x$XNEST" = xyes])
 
 if test "x$XNEST" = xyes; then
-	XNEST_LIBS="$CONFIG_LIB $FB_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $CWRAP_LIB"
+	XNEST_LIBS="$FB_LIB $FIXES_LIB $MI_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $CWRAP_LIB $DIX_LIB $OS_LIB $CONFIG_LIB"
 	XNEST_SYS_LIBS="$XNESTMODULES_LIBS"
 	AC_SUBST([XNEST_LIBS])
 	AC_SUBST([XNEST_SYS_LIBS])
@@ -1533,8 +1539,6 @@ dnl has it in libc), or if libdl is needed to get it.
 	AC_DEFINE(NEED_XF86_PROTOTYPES, 1, [Need XFree86 helper functions])
 	AC_DEFINE(__XSERVERNAME__, "Xorg", [Name of X server])
 	AC_DEFINE(WITH_VGAHW, 1, [Building vgahw module])
-	AC_DEFINE(DRIVERS, {}, [Built-in output drivers (none)])
-	AC_DEFINE(IDRIVERS, {}, [Built-in input drivers (none)])
 	AC_DEFINE_DIR(__XCONFIGFILE__, XF86CONFIGFILE, [Name of configuration file])
 	AC_DEFINE_DIR(XF86CONFIGFILE, XF86CONFIGFILE, [Name of configuration file])
 	AC_DEFINE_DIR(DEFAULT_MODULE_PATH, moduledir, [Default module search path])
@@ -1551,6 +1555,17 @@ dnl has it in libc), or if libdl is needed to get it.
 	AC_SUBST([sdkdir])
 	AC_SUBST([extdir])
 	AC_SUBST([logdir])
+
+	# stuff the ABI versions into the pc file too
+	extract_abi() {
+	    grep ^.define.*${1}_VERSION ${srcdir}/hw/xfree86/common/xf86Module.h | tr '(),' '  .' | awk '{ print $4$5 }'
+	}
+	abi_ansic=`extract_abi ANSIC`
+	abi_videodrv=`extract_abi VIDEODRV`
+	abi_xinput=`extract_abi XINPUT`
+	abi_extension=`extract_abi EXTENSION`
+	abi_font=`extract_abi FONT`
+	AC_SUBST([abi_ansic abi_videodrv abi_xinput abi_extension abi_font])
 fi
 AM_CONDITIONAL([XORG], [test "x$XORG" = xyes])
 AM_CONDITIONAL([XORG_BUS_LINUXPCI], [test "x$xorg_bus_linuxpci" = xyes])
@@ -1750,7 +1765,8 @@ return 0;}
 #               LDFLAGS=$save_LDFLAGS
 #               ])
                xorg_cv_AGL_framework=no
-	       DARWIN_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB"
+               DARWIN_GLX_LIBS='$(top_builddir)/GL/apple/indirect.o $(top_builddir)/GL/glx/libglx.la'
+	       DARWIN_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $DARWIN_GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB"
 	       AC_SUBST([DARWIN_LIBS])
                AC_CHECK_LIB([Xplugin],[xp_init],[:])
                AC_SUBST([APPLE_APPLICATIONS_DIR])
@@ -1859,6 +1875,8 @@ if test "$KDRIVE" = yes; then
     XEPHYR_DRI=no
     if test x$XEPHYR = xyes -a x$DRI = xyes; then
         XEPHYR_DRI=yes
+        XEPHYR_DRI_LIBS=-lGL
+        AC_SUBST(XEPHYR_DRI_LIBS)
     fi
     if test x$XEPHYR_DRI = xyes ; then
         AC_DEFINE(XEPHYR_DRI,1,[enable DRI extension in xephyr])
@@ -1920,6 +1938,7 @@ AM_CONDITIONAL(KDRIVEFBDEV, [test "x$XFBDEV" = xyes])
 AM_CONDITIONAL(XSDLSERVER, [test x"$XSDL" = xyes])
 AM_CONDITIONAL(XEPHYR, [test "x$KDRIVE" = xyes && test "x$XEPHYR" = xyes])
 AM_CONDITIONAL(BUILD_KDRIVEFBDEVLIB, [test "x$KDRIVE" = xyes && test "x$KDRIVEFBDEVLIB" = xyes])
+AM_CONDITIONAL(XEPHYR_HAS_DRI, [test x$XEPHYR_DRI = xyes])
 AM_CONDITIONAL(XFAKESERVER, [test "x$KDRIVE" = xyes && test "x$XFAKE" = xyes])
 
 dnl these only go in xkb-config.h (which is shared by the Xorg and Xnest servers)
