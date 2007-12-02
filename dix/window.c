@@ -127,6 +127,7 @@ Equipment Corporation.
 #include "appgroup.h"
 #endif
 #include "xace.h"
+#include "mi.h"
 
 /******
  * Window stuff for server 
