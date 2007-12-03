@@ -35,7 +35,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #define NEED_REPLIES
 #define NEED_EVENTS
@@ -174,7 +176,7 @@ ProcAppleDRIAuthConnection(
     rep.authenticated = 1;
 
     if (!DRIAuthConnection( screenInfo.screens[stuff->screen], stuff->magic)) {
-        ErrorF("Failed to authenticate %u\n", stuff->magic);
+        ErrorF("Failed to authenticate %u\n", (unsigned int)stuff->magic);
         rep.authenticated = 0;
     }
     WriteToClient(client, sizeof(xAppleDRIAuthConnectionReply), (char *)&rep);

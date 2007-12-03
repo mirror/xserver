@@ -27,7 +27,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartz/quartzCommon.h"
 #include "quartz/quartz.h"
@@ -40,6 +42,9 @@
 #include "globals.h"
 #include "Xplugin.h"
 #include "quartz/applewmExt.h"
+
+// From xprFrame.c
+WindowPtr xprGetXWindow(xp_window_id wid);
 
 #ifdef DAMAGE
 # include "damage.h"
@@ -60,60 +65,54 @@ static void
 eventHandler(unsigned int type, const void *arg,
              unsigned int arg_size, void *data)
 {
-    switch (type)
-    {
+    switch (type) {
     case XP_EVENT_DISPLAY_CHANGED:
-      //      ErrorF("XP_EVENT_DISPLAY_MOVED\n");
-        QuartzMessageServerThread(kXDarwinDisplayChanged, 0);
-        break;
+      DEBUG_LOG("XP_EVENT_DISPLAY_CHANGED\n");
+      QuartzMessageServerThread(kXDarwinDisplayChanged, 0);
+      break;
 
     case XP_EVENT_WINDOW_STATE_CHANGED:
-      //      ErrorF("XP_EVENT_WINDOW_STATE_CHANGED\n");
-        if (arg_size >= sizeof(xp_window_state_event))
-        {
-            const xp_window_state_event *ws_arg = arg;
-
-            QuartzMessageServerThread(kXDarwinWindowState, 2,
-                                      ws_arg->id, ws_arg->state);
-        }
-        break;
+      DEBUG_LOG("XP_EVENT_WINDOW_STATE_CHANGED\n");
+      if (arg_size >= sizeof(xp_window_state_event)) {
+	const xp_window_state_event *ws_arg = arg;
+	
+	QuartzMessageServerThread(kXDarwinWindowState, 2,
+				  ws_arg->id, ws_arg->state);
+      }
+      break;
 
     case XP_EVENT_WINDOW_MOVED:
-      //      ErrorF("XP_EVENT_WINDOW_MOVED\n");
-        if (arg_size == sizeof(xp_window_id))
-        {
-            xp_window_id id = * (xp_window_id *) arg;
-	    WindowPtr pWin = xprGetXWindow(id);
-	    BoxRec box;
-	    xp_error retval  = xp_get_window_bounds(id, &box);
-	    if (retval != Success) {
-	      ErrorF("Unable to find new bounds for window\n");
-	      break;
-	    }
-            QuartzMessageServerThread(kXDarwinWindowMoved, 3, pWin, box.x1, box.y1);
-        }
-        break;
-
+      DEBUG_LOG("XP_EVENT_WINDOW_MOVED\n");
+      if (arg_size == sizeof(xp_window_id))  {
+	xp_window_id id = * (xp_window_id *) arg;
+	WindowPtr pWin = xprGetXWindow(id);
+	QuartzMessageServerThread(kXDarwinWindowMoved, 1, pWin);
+      }
+      break;
+      
     case XP_EVENT_SURFACE_DESTROYED:
+      DEBUG_LOG("XP_EVENT_SURFACE_DESTROYED\n");
     case XP_EVENT_SURFACE_CHANGED:
-      //      ErrorF("XP_EVENT_SURFACE_MOVED\n");
-        if (arg_size == sizeof(xp_surface_id))
-        {
-            int kind;
-
-            if (type == XP_EVENT_SURFACE_DESTROYED)
-                kind = AppleDRISurfaceNotifyDestroyed;
-            else
-                kind = AppleDRISurfaceNotifyChanged;
-
-            DRISurfaceNotify(*(xp_surface_id *) arg, kind);
+      DEBUG_LOG("XP_EVENT_SURFACE_CHANGED\n");
+        if (arg_size == sizeof(xp_surface_id)) {
+	  int kind;
+	  
+	  if (type == XP_EVENT_SURFACE_DESTROYED)
+	    kind = AppleDRISurfaceNotifyDestroyed;
+	  else
+	    kind = AppleDRISurfaceNotifyChanged;
+	  
+	  DRISurfaceNotify(*(xp_surface_id *) arg, kind);
         }
         break;
+    default:
+      ErrorF("Unknown XP_EVENT type (%d) in xprScreen:eventHandler\n",
+	     type);
     }
 }
 
 /*
- * displayScreenBounds
+ * displayAtIndex
  *  Return the display ID for a particular display index.
  */
 static CGDirectDisplayID
@@ -228,7 +227,7 @@ xprDisplayInit(void)
     else
         darwinScreensFound =  1;
 
-    if (xp_init(XP_IN_BACKGROUND | XP_NO_DEFERRED_UPDATES) != Success)
+    if (xp_init(XP_BACKGROUND_EVENTS | XP_NO_DEFERRED_UPDATES) != Success)
         FatalError("Could not initialize the Xplugin library.");
 
     xp_select_events(XP_EVENT_DISPLAY_CHANGED
@@ -319,6 +318,7 @@ static Bool
 xprSetupScreen(int index, ScreenPtr pScreen)
 {
     // Add alpha protecting replacements for fb screen functions
+
 #ifdef RENDER
     {
         PictureScreenPtr ps = GetPictureScreen(pScreen);

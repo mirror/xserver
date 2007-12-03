@@ -29,7 +29,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartz/quartzCommon.h"
 #include "xpr.h"
@@ -380,7 +382,8 @@ QuartzInitCursor(ScreenPtr pScreen)
     if (ScreenPriv == NULL)
         return FALSE;
 
-    CURSOR_PRIV(pScreen) = ScreenPriv;
+    /* CURSOR_PRIV(pScreen) = ScreenPriv; */
+    pScreen->devPrivates[darwinCursorScreenIndex].ptr = ScreenPriv;
 
     /* override some screen procedures */
     ScreenPriv->QueryBestSize = pScreen->QueryBestSize;

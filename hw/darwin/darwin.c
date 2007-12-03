@@ -29,7 +29,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include <X11/X.h>
 #include <X11/Xproto.h>
@@ -67,8 +69,17 @@
 #include <IOKit/hidsystem/IOHIDLib.h>
 #include <IOKit/hidsystem/ev_keymap.h>
 
+#ifdef MITSHM
+#define _XSHM_SERVER_
+#include <X11/extensions/XShm.h>
+#endif
+
 #include "darwin.h"
 #include "darwinClut8.h"
+
+#ifdef ENABLE_DEBUG_LOG
+FILE *debug_log_fp = NULL;
+#endif
 
 /*
  * X server shared global variables
@@ -91,11 +102,10 @@ int                     darwinDesiredDepth = -1;
 int                     darwinDesiredRefresh = -1;
 char                    *darwinKeymapFile = "USA.keymapping";
 int                     darwinSyncKeymap = FALSE;
-int                     darwinSwapAltMeta = FALSE;
 
 // modifier masks for faking mouse buttons
-int                     darwinFakeMouse2Mask = NX_COMMANDMASK;
-int                     darwinFakeMouse3Mask = NX_ALTERNATEMASK;
+int                     darwinFakeMouse2Mask = NX_ALTERNATEMASK;
+int                     darwinFakeMouse3Mask = NX_COMMANDMASK;
 
 // devices
 DeviceIntPtr            darwinPointer = NULL;
@@ -180,7 +190,9 @@ static Bool DarwinAddScreen(
 
     // allocate space for private per screen storage
     dfb = xalloc(sizeof(DarwinFramebufferRec));
-    SCREEN_PRIV(pScreen) = dfb;
+
+    // SCREEN_PRIV(pScreen) = dfb;
+    pScreen->devPrivates[darwinScreenIndex].ptr = dfb;
 
     // setup hardware/mode specific details
     ret = DarwinModeAddScreen(foundIndex, pScreen);
@@ -336,7 +348,7 @@ static int DarwinMouseProc(
     DeviceIntPtr    pPointer,
     int             what )
 {
-    char map[6];
+    CARD8 map[6];
 
     switch (what) {
 
@@ -645,7 +657,22 @@ void OsVendorInit(void)
 {
     if (serverGeneration == 1) {
         DarwinPrintBanner();
+#ifdef ENABLE_DEBUG_LOG
+	{
+	  char *home_dir=NULL, *log_file_path=NULL;
+	  home_dir = getenv("HOME");
+	  if (home_dir) asprintf(&log_file_path, "%s/%s", home_dir, DEBUG_LOG_NAME);
+	  if (log_file_path) {
+	    if (!access(log_file_path, F_OK)) {
+	      debug_log_fp = fopen(log_file_path, "a");
+	      if (debug_log_fp) ErrorF("Debug logging enabled to %s\n", log_file_path);
+	    }
+	    free(log_file_path);
+	  }
+	}
+#endif
     }
+    //    DEBUG_LOG("Xquartz started at %s\n", ctime(time(NULL)));
 
     // Find the full path to the keymapping file.
     if ( darwinKeymapFile ) {
@@ -677,10 +704,30 @@ void ddxInitGlobals(void)
  */
 int ddxProcessArgument( int argc, char *argv[], int i )
 {
-    int numDone;
+    if ( !strcmp( argv[i], "-fullscreen" ) ) {
+        ErrorF( "Running full screen in parallel with Mac OS X Quartz window server.\n" );
+        return 1;
+    }
 
-    if ((numDone = DarwinModeProcessArgument( argc, argv, i )))
-        return numDone;
+    if ( !strcmp( argv[i], "-rootless" ) ) {
+        ErrorF( "Running rootless inside Mac OS X window server.\n" );
+        return 1;
+    }
+
+    if ( !strcmp( argv[i], "-quartz" ) ) {
+        ErrorF( "Running in parallel with Mac OS X Quartz window server.\n" );
+        return 1;
+    }
+
+    // The Mac OS X front end uses this argument, which we just ignore here.
+    if ( !strcmp( argv[i], "-nostartx" ) ) {
+        return 1;
+    }
+
+    // This command line arg is passed when launched from the Aqua GUI.
+    if ( !strncmp( argv[i], "-psn_", 5 ) ) {
+        return 1;
+    }
 
     if ( !strcmp( argv[i], "-fakebuttons" ) ) {
         darwinFakeButtons = TRUE;
@@ -718,11 +765,6 @@ int ddxProcessArgument( int argc, char *argv[], int i )
         ErrorF("Modifier mask to fake mouse button 3 = 0x%x\n",
                darwinFakeMouse3Mask);
         return 2;
-    }
-
-    if ( !strcmp( argv[i], "-swapAltMeta" ) ) {
-        darwinSwapAltMeta = 1;
-        return 1;
     }
 
     if ( !strcmp( argv[i], "-keymap" ) ) {
@@ -833,14 +875,11 @@ void ddxUseMsg( void )
     ErrorF("-keymap <file> : read the keymapping from a file instead of the kernel.\n");
     ErrorF("-version : show the server version.\n");
     ErrorF("\n");
-#ifdef DARWIN_WITH_QUARTZ
-    ErrorF("Quartz modes:\n");
+    ErrorF("Quartz modes (Experimental / In Development):\n");
     ErrorF("-fullscreen : run full screen in parallel with Mac OS X window server.\n");
     ErrorF("-rootless : run rootless inside Mac OS X window server.\n");
-    ErrorF("-quartz : use default Mac OS X window server mode\n");
     ErrorF("\n");
     ErrorF("Options ignored in rootless mode:\n");
-#endif
     ErrorF("-size <height> <width> : use a screen resolution of <height> x <width>.\n");
     ErrorF("-depth <8,15,24> : use this bit depth.\n");
     ErrorF("-refresh <rate> : use a monitor refresh rate of <rate> Hz.\n");
@@ -917,7 +956,7 @@ xf86SetRootClip (ScreenPtr pScreen, BOOL enable)
     WindowPtr	pChild;
     Bool	WasViewable = (Bool)(pWin->viewable);
     Bool	anyMarked = TRUE;
-    RegionPtr	pOldClip = NULL;
+    RegionPtr	pOldClip = NULL, bsExposed;
 #ifdef DO_SAVE_UNDERS
     Bool	dosave = FALSE;
 #endif
@@ -973,6 +1012,12 @@ xf86SetRootClip (ScreenPtr pScreen, BOOL enable)
 
     if (WasViewable)
     {
+	if (pWin->backStorage)
+	{
+	    pOldClip = REGION_CREATE(pScreen, NullBox, 1);
+	    REGION_COPY(pScreen, pOldClip, &pWin->clipList);
+	}
+
 	if (pWin->firstChild)
 	{
 	    anyMarked |= (*pScreen->MarkOverlappedWindows)(pWin->firstChild,
@@ -996,6 +1041,28 @@ xf86SetRootClip (ScreenPtr pScreen, BOOL enable)
 	    (*pScreen->ValidateTree)(pWin, NullWindow, VTOther);
     }
 
+    if (pWin->backStorage &&
+	((pWin->backingStore == Always) || WasViewable))
+    {
+	if (!WasViewable)
+	    pOldClip = &pWin->clipList; /* a convenient empty region */
+	bsExposed = (*pScreen->TranslateBackingStore)
+			     (pWin, 0, 0, pOldClip,
+			      pWin->drawable.x, pWin->drawable.y);
+	if (WasViewable)
+	    REGION_DESTROY(pScreen, pOldClip);
+	if (bsExposed)
+	{
+	    RegionPtr	valExposed = NullRegion;
+
+	    if (pWin->valdata)
+		valExposed = &pWin->valdata->after.exposed;
+	    (*pScreen->WindowExposures) (pWin, valExposed, bsExposed);
+	    if (valExposed)
+		REGION_EMPTY(pScreen, valExposed);
+	    REGION_DESTROY(pScreen, bsExposed);
+	}
+    }
     if (WasViewable)
     {
 	if (anyMarked)

@@ -1,7 +1,6 @@
 /*
  * Xplugin rootless implementation functions for AppleWM extension
- */
-/*
+ *
  * Copyright (c) 2002 Apple Computer, Inc. All rights reserved.
  * Copyright (c) 2003 Torrey T. Lyons. All Rights Reserved.
  *
@@ -28,7 +27,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "xpr.h"
 #include "quartz/applewmExt.h"

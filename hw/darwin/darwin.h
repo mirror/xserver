@@ -76,7 +76,6 @@ Bool DarwinModeAddScreen(int index, ScreenPtr pScreen);
 Bool DarwinModeSetupScreen(int index, ScreenPtr pScreen);
 void DarwinModeInitOutput(int argc,char **argv);
 void DarwinModeInitInput(int argc, char **argv);
-int DarwinModeProcessArgument(int argc, char *argv[], int i);
 void DarwinModeProcessEvent(xEvent *xe);
 void DarwinModeGiveUp(void);
 void DarwinModeBell(int volume, DeviceIntPtr pDevice, pointer ctrl, int class);
@@ -111,7 +110,6 @@ extern int              darwinMouseAccelChange;
 extern int              darwinFakeButtons;
 extern int              darwinFakeMouse2Mask;
 extern int              darwinFakeMouse3Mask;
-extern int              darwinSwapAltMeta;
 extern char            *darwinKeymapFile;
 extern int              darwinSyncKeymap;
 extern unsigned int     darwinDesiredWidth, darwinDesiredHeight;
@@ -155,5 +153,15 @@ enum {
     kXDarwinWindowState,      // window visibility state has changed
     kXDarwinWindowMoved       // window has moved on screen
 };
+
+#define ENABLE_DEBUG_LOG 1
+
+#ifdef ENABLE_DEBUG_LOG
+extern FILE *debug_log_fp;
+#define DEBUG_LOG_NAME "x11-debug.txt"
+#define DEBUG_LOG(msg, args...) if (debug_log_fp) fprintf(debug_log_fp, "%s:%d: " msg, __FUNCTION__, __LINE__, ##args )
+#else
+#define DEBUG_LOG(msg, args...) 
+#endif
 
 #endif  /* _DARWIN_H */

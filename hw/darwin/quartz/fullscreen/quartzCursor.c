@@ -2,8 +2,6 @@
  *
  * Support for using the Quartz Window Manager cursor
  *
- **************************************************************/
-/*
  * Copyright (c) 2001-2003 Torrey T. Lyons and Greg Parker.
  *                 All Rights Reserved.
  *
@@ -30,7 +28,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartz/quartzCommon.h"
 #include "quartz/quartzCursor.h"

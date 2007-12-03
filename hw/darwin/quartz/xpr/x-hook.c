@@ -27,7 +27,9 @@
    promote the sale, use or other dealings in this Software without
    prior written authorization. */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "x-hook.h"
 #include <stdlib.h>
@@ -65,6 +67,7 @@ X_PFX (hook_remove) (x_list *lst, x_hook_function *fun, void *data)
     }
 
     X_PFX (list_free) (to_delete);
+    return lst;
 }
 
 X_EXTERN void

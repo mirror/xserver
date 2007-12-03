@@ -147,6 +147,15 @@ static void DarwinUpdateModifiers(
     }
 }
 
+/*
+ * DarwinReleaseModifiers
+ * This hacky function releases all modifier keys.  It should be called when X11.app
+ * is deactivated (kXDarwinDeactivate) to prevent modifiers from getting stuck if they
+ * are held down during a "context" switch -- otherwise, we would miss the KeyUp.
+ */
+static void DarwinReleaseModifiers(void) {
+	DarwinUpdateModifiers(KeyRelease, COMMAND_MASK(-1) | CONTROL_MASK(-1) | ALTERNATE_MASK(-1) | SHIFT_MASK(-1));
+}
 
 /*
  * DarwinSimulateMouseClick
@@ -166,6 +175,9 @@ static void DarwinSimulateMouseClick(
     int modifierMask)   // modifiers used for the fake click
 {
     // first fool X into forgetting about the keys
+	// for some reason, it's not enough to tell X we released the Command key -- 
+	// it has to be the *left* Command key.
+	if (modifierMask & NX_COMMANDMASK) modifierMask |=NX_DEVICELCMDKEYMASK ;
     DarwinUpdateModifiers(KeyRelease, modifierMask);
 
     // push the mouse button
@@ -344,6 +356,9 @@ void ProcessInputEvents(void) {
 	      ErrorF("Unexpected XDarwinScrollWheel event in DarwinProcessInputEvents\n");
 	      break;
 
+			case kXDarwinDeactivate:
+				DarwinReleaseModifiers();
+				// fall through
             default:
                 // Check for mode specific event
                 DarwinModeProcessEvent(&xe);

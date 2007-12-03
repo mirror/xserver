@@ -30,9 +30,12 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartzPasteboard.h"
+
 #include <X11/Xatom.h>
 #include "windowstr.h"
 #include "propertyst.h"

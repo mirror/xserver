@@ -25,7 +25,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **************************************************************************/
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartzCommon.h"
 
@@ -47,6 +49,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define _APPLEWM_SERVER_
 #include "X11/extensions/applewmstr.h"
 #include "applewmExt.h"
+#include "X11Application.h"
 
 #define DEFINE_ATOM_HELPER(func,atom_name)                      \
 static Atom func (void) {                                       \
@@ -445,13 +448,7 @@ ProcAppleWMSetWindowMenu(
                 break;
         }
     }
-
-#ifdef INXQUARTZ
     X11ApplicationSetWindowMenu (nitems, items, shortcuts);
-#else
-    QuartzSetWindowMenu (nitems, items, shortcuts);
-#endif
-
     free(items);
     free(shortcuts);
 
@@ -466,12 +463,7 @@ ProcAppleWMSetWindowMenuCheck(
     REQUEST(xAppleWMSetWindowMenuCheckReq);
 
     REQUEST_SIZE_MATCH(xAppleWMSetWindowMenuCheckReq);
-#ifdef INXQUARTZ
     X11ApplicationSetWindowMenuCheck(stuff->index);
-#else
-    QuartzMessageMainThread(kQuartzSetWindowMenuCheck, &stuff->index,
-                            sizeof(stuff->index));
-#endif
     return (client->noClientException);
 }
 
@@ -481,11 +473,8 @@ ProcAppleWMSetFrontProcess(
 )
 {
     REQUEST_SIZE_MATCH(xAppleWMSetFrontProcessReq);
-#ifdef INXQUARTZ
+
     X11ApplicationSetFrontProcess();
-#else
-    QuartzMessageMainThread(kQuartzSetFrontProcess, NULL, 0);
-#endif
     return (client->noClientException);
 }
 
@@ -524,13 +513,8 @@ ProcAppleWMSetCanQuit(
     REQUEST(xAppleWMSetCanQuitReq);
 
     REQUEST_SIZE_MATCH(xAppleWMSetCanQuitReq);
-#ifdef INXQUARTZ
-    X11ApplicationSetCanQuit(stuff->state);
-#else
-    QuartzMessageMainThread(kQuartzSetCanQuit, &stuff->state,
-                            sizeof(stuff->state));
-#endif
 
+    X11ApplicationSetCanQuit(stuff->state);
     return (client->noClientException);
 }
 

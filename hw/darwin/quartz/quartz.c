@@ -28,7 +28,9 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
+#endif
 
 #include "quartzCommon.h"
 #include "quartz.h"
@@ -39,17 +41,22 @@
 #include "X11/extensions/applewm.h"
 #include "applewmExt.h"
 
+#include "X11Application.h"
+
 // X headers
 #include "scrnintstr.h"
 #include "windowstr.h"
 #include "colormapst.h"
 #include "globals.h"
+#include "rootlessWindow.h"
 
 // System headers
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <IOKit/pwr_mgt/IOPMLib.h>
+
+#define FAKE_RANDR 1
 
 // Shared global variables for Quartz modes
 int                     quartzEventWriteFD = -1;
@@ -65,6 +72,30 @@ int                     aquaMenuBarHeight = 0;
 int                     noPseudoramiXExtension = FALSE;
 QuartzModeProcsPtr      quartzProcs = NULL;
 const char             *quartzOpenGLBundle = NULL;
+
+#if defined(RANDR) && !defined(FAKE_RANDR)
+Bool DarwinModeRandRGetInfo (ScreenPtr pScreen, Rotation *rotations) {
+  return FALSE;
+}
+
+Bool DarwinModeRandRSetConfig (ScreenPtr           pScreen,
+			       Rotation            randr,
+			       int                 rate,
+			       RRScreenSizePtr     pSize) {
+  return FALSE;
+}
+
+Bool DarwinModeRandRInit (ScreenPtr pScreen) {
+  rrScrPrivPtr    pScrPriv;
+    
+  if (!RRScreenInit (pScreen)) return FALSE;
+
+  pScrPriv = rrGetScrPriv(pScreen);
+  pScrPriv->rrGetInfo = DarwinModeRandRGetInfo;
+  pScrPriv->rrSetConfig = DarwinModeRandRSetConfig;
+  return TRUE;
+}
+#endif
 
 /*
 ===========================================================================
@@ -84,7 +115,9 @@ Bool DarwinModeAddScreen(
 {
     // allocate space for private per screen Quartz specific storage
     QuartzScreenPtr displayInfo = xcalloc(sizeof(QuartzScreenRec), 1);
-    QUARTZ_PRIV(pScreen) = displayInfo;
+
+    // QUARTZ_PRIV(pScreen) = displayInfo;
+    pScreen->devPrivates[quartzScreenIndex].ptr = displayInfo;
 
     // do Quartz mode specific initialization
     return quartzProcs->AddScreen(index, pScreen);
@@ -158,17 +191,58 @@ void DarwinModeInitInput(
     int argc,
     char **argv )
 {
-#ifdef INXQUARTZ
-  X11ApplicationServerReady();
-#else
-    QuartzMessageMainThread(kQuartzServerStarted, NULL, 0);
-#endif
-
+    X11ApplicationSetCanQuit(1);
+    X11ApplicationServerReady();
     // Do final display mode specific initialization before handling events
     if (quartzProcs->InitInput)
         quartzProcs->InitInput(argc, argv);
 }
 
+
+#ifdef FAKE_RANDR
+extern char	*ConnectionInfo;
+
+static int padlength[4] = {0, 3, 2, 1};
+
+static void
+RREditConnectionInfo (ScreenPtr pScreen)
+{
+    xConnSetup	    *connSetup;
+    char	    *vendor;
+    xPixmapFormat   *formats;
+    xWindowRoot	    *root;
+    xDepth	    *depth;
+    xVisualType	    *visual;
+    int		    screen = 0;
+    int		    d;
+
+    connSetup = (xConnSetup *) ConnectionInfo;
+    vendor = (char *) connSetup + sizeof (xConnSetup);
+    formats = (xPixmapFormat *) ((char *) vendor +
+				 connSetup->nbytesVendor +
+				 padlength[connSetup->nbytesVendor & 3]);
+    root = (xWindowRoot *) ((char *) formats +
+			    sizeof (xPixmapFormat) * screenInfo.numPixmapFormats);
+    while (screen != pScreen->myNum)
+    {
+	depth = (xDepth *) ((char *) root + 
+			    sizeof (xWindowRoot));
+	for (d = 0; d < root->nDepths; d++)
+	{
+	    visual = (xVisualType *) ((char *) depth +
+				      sizeof (xDepth));
+	    depth = (xDepth *) ((char *) visual +
+				depth->nVisuals * sizeof (xVisualType));
+	}
+	root = (xWindowRoot *) ((char *) depth);
+	screen++;
+    }
+    root->pixWidth = pScreen->width;
+    root->pixHeight = pScreen->height;
+    root->mmWidth = pScreen->mmWidth;
+    root->mmHeight = pScreen->mmHeight;
+}
+#endif
 
 /*
  * QuartzUpdateScreens
@@ -181,6 +255,7 @@ static void QuartzUpdateScreens(void)
     int x, y, width, height, sx, sy;
     xEvent e;
 
+    DEBUG_LOG("QuartzUpdateScreens()\n");
     if (noPseudoramiXExtension || screenInfo.numScreens != 1)
     {
         /* FIXME: if not using Xinerama, we have multiple screens, and
@@ -202,8 +277,11 @@ static void QuartzUpdateScreens(void)
     pScreen->mmHeight = pScreen->mmHeight * ((double) height / pScreen->height);
     pScreen->width = width;
     pScreen->height = height;
-
-    /* FIXME: should probably do something with RandR here. */
+    
+#ifndef FAKE_RANDR
+    if(!DarwinModeRandRInit(pScreen))
+      FatalError("Failed to init RandR extension.\n");
+#endif
 
     DarwinAdjustScreenOrigins(&screenInfo);
     quartzProcs->UpdateScreen(pScreen);
@@ -231,7 +309,9 @@ static void QuartzUpdateScreens(void)
     e.u.configureNotify.override = pRoot->overrideRedirect;
     DeliverEvents(pRoot, &e, 1, NullWindow);
 
-    /* FIXME: Should we use RREditConnectionInfo(pScreen)? */
+#ifdef FAKE_RANDR
+    RREditConnectionInfo(pScreen);
+#endif
 }
 
 
@@ -276,9 +356,6 @@ static void QuartzHide(void)
         }
     }
     quartzServerVisible = FALSE;
-#ifndef INXQUARTZ
-    QuartzMessageMainThread(kQuartzServerHidden, NULL, 0);
-#endif
 }
 
 
@@ -343,6 +420,7 @@ void DarwinModeProcessEvent(
 {
     switch (xe->u.u.type) {
         case kXDarwinControllerNotify:
+	  DEBUG_LOG("kXDarwinControllerNotify\n");
             AppleWMSendEvent(AppleWMControllerNotify,
                              AppleWMControllerNotifyMask,
                              xe->u.clientMessage.u.l.longs0,
@@ -350,6 +428,7 @@ void DarwinModeProcessEvent(
             break;
 
         case kXDarwinPasteboardNotify:
+	  DEBUG_LOG("kXDarwinPasteboardNotify\n");
             AppleWMSendEvent(AppleWMPasteboardNotify,
                              AppleWMPasteboardNotifyMask,
                              xe->u.clientMessage.u.l.longs0,
@@ -357,7 +436,7 @@ void DarwinModeProcessEvent(
             break;
 
         case kXDarwinActivate:
-  //	  ErrorF("kXDarwinActivate\n");
+	  DEBUG_LOG("kXDarwinActivate\n");
             QuartzShow(xe->u.keyButtonPointer.rootX,
                        xe->u.keyButtonPointer.rootY);
             AppleWMSendEvent(AppleWMActivationNotify,
@@ -366,7 +445,7 @@ void DarwinModeProcessEvent(
             break;
 
         case kXDarwinDeactivate:
-  //	  ErrorF("kXDarwinDeactivate\n");
+  	  DEBUG_LOG("kXDarwinDeactivate\n");
             AppleWMSendEvent(AppleWMActivationNotify,
                              AppleWMActivationNotifyMask,
                              AppleWMIsInactive, 0);
@@ -374,22 +453,23 @@ void DarwinModeProcessEvent(
             break;
 
         case kXDarwinDisplayChanged:
-  //	  ErrorF("kXDarwinDisplayChanged\n");
+	    DEBUG_LOG("kXDarwinDisplayChanged\n");
             QuartzUpdateScreens();
             break;
 
         case kXDarwinWindowState:
-  //	  ErrorF("kXDarwinWindowState\n");
+	  DEBUG_LOG("kXDarwinWindowState\n");
             RootlessNativeWindowStateChanged(xe->u.clientMessage.u.l.longs0,
 		  			     xe->u.clientMessage.u.l.longs1);
 	    break;
 	  
         case kXDarwinWindowMoved:
-  //	  ErrorF("kXDarwinWindowMoved\n");
-            RootlessNativeWindowMoved (xe->u.clientMessage.u.l.longs0);
+	  DEBUG_LOG("kXDarwinWindowMoved\n");
+	  RootlessNativeWindowMoved ((WindowPtr)xe->u.clientMessage.u.l.longs0);
 	    break;
 
         case kXDarwinToggleFullscreen:
+	  DEBUG_LOG("kXDarwinToggleFullscreen\n");
 #ifdef DARWIN_DDX_MISSING
             if (quartzEnableRootless) QuartzSetFullscreen(!quartzHasRoot);
             else if (quartzHasRoot) QuartzHide();
@@ -425,7 +505,7 @@ void DarwinModeProcessEvent(
             break;
 
         case kXDarwinBringAllToFront:
-  //	  ErrorF("kXDarwinBringAllToFront\n");
+  	  DEBUG_LOG("kXDarwinBringAllToFront\n");
 	    RootlessOrderAllWindows();
             break;
 
