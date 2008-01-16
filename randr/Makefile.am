@@ -1,6 +1,8 @@
 noinst_LTLIBRARIES = librandr.la
 
-AM_CFLAGS = $(DIX_CFLAGS) @SERVER_DEFINES@ @LOADER_DEFINES@
+AM_CFLAGS = $(DIX_CFLAGS)
+
+XINERAMA_SRCS = rrxinerama.c
 
 if XORG
 sdk_HEADERS = randrstr.h
@@ -9,4 +11,18 @@ endif
 librandr_la_SOURCES =	\
 	mirandr.c	\
 	randr.c		\
-	randrstr.h
+	randrstr.h	\
+	rrcrtc.c	\
+	rrdispatch.c	\
+	rrinfo.c	\
+	rrmode.c	\
+	rroutput.c	\
+	rrpointer.c	\
+	rrproperty.c	\
+	rrscreen.c	\
+	rrsdispatch.c
+
+if XINERAMA
+librandr_la_SOURCES += ${XINERAMA_SRCS}
+endif
+
