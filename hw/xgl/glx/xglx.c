@@ -41,6 +41,7 @@
 #include "mipointer.h"
 
 #ifdef RANDR
+#include <X11/Xatom.h>
 #include "randrstr.h"
 #endif
 
@@ -147,6 +148,7 @@ static int	 primaryScreen = 0;
 
 static Bool randrExtension = FALSE;
 static int  randrEvent, randrError;
+static Bool xRRPending = FALSE;
 
 static glitz_drawable_format_t *xglxScreenFormat = 0;
 
@@ -181,211 +183,782 @@ xglxAllocatePrivates (ScreenPtr pScreen)
 
 #ifdef RANDR
 
-#define DEFAULT_REFRESH_RATE 50
+#if RANDR_12_INTERFACE
+static RRModePtr
+xglxRRGetMode (XRRScreenResources *r,
+	       RRMode		  mode)
+{
+    xRRModeInfo modeInfo;
+    int		i;
+
+    for (i = 0; i < r->nmode; i++)
+    {
+	if (r->modes[i].id == mode)
+	{
+	    memset (&modeInfo, '\0', sizeof (modeInfo));
+
+	    modeInfo.width      = r->modes[i].width;
+	    modeInfo.height     = r->modes[i].height;
+	    modeInfo.dotClock   = r->modes[i].dotClock;
+	    modeInfo.hSyncStart = r->modes[i].hSyncStart;
+	    modeInfo.hSyncEnd   = r->modes[i].hSyncEnd;
+	    modeInfo.hTotal     = r->modes[i].hTotal;
+	    modeInfo.hSkew      = r->modes[i].hSkew;
+	    modeInfo.vSyncStart = r->modes[i].vSyncStart;
+	    modeInfo.vSyncEnd   = r->modes[i].vSyncEnd;
+	    modeInfo.vTotal     = r->modes[i].vTotal;
+	    modeInfo.nameLength = strlen (r->modes[i].name);
+	    modeInfo.modeFlags  = r->modes[i].modeFlags;
+
+	    return RRModeGet (&modeInfo, r->modes[i].name);
+	}
+    }
+
+    return NULL;
+}
+
+static RRCrtcPtr
+xglxRRGetCrtc (ScreenPtr pScreen,
+	       RRCrtc	 crtc)
+{
+    int i;
+
+    rrScrPriv (pScreen);
+
+    for (i = 0; i < pScrPriv->numCrtcs; i++)
+	if (pScrPriv->crtcs[i]->devPrivate == (void *) crtc)
+	    return pScrPriv->crtcs[i];
+
+    return NULL;
+}
+
+static RROutputPtr
+xglxRRGetOutput (ScreenPtr pScreen,
+		 RRMode	   output)
+{
+    int i;
+
+    rrScrPriv (pScreen);
+
+    for (i = 0; i < pScrPriv->numOutputs; i++)
+	if (pScrPriv->outputs[i]->devPrivate == (void *) output)
+	    return pScrPriv->outputs[i];
+
+    return NULL;
+}
 
 static Bool
-xglxRandRGetInfo (ScreenPtr pScreen,
-		  Rotation  *rotations)
+xglxRRUpdateCrtc (ScreenPtr	     pScreen,
+		  XRRScreenResources *r,
+		  RRCrtc	     xcrtc)
 {
-    RRScreenSizePtr pSize;
+    XRRCrtcInfo  *c;
+    RRCrtcPtr	 crtc;
+    RRModePtr	 mode = NULL;
+    RROutputPtr	 *outputs = NULL;
+    XRRCrtcGamma *gamma;
+    int		 i;
 
-    *rotations = RR_Rotate_0;
+    c = XRRGetCrtcInfo (xdisplay, r, xcrtc);
+    if (!c)
+	return FALSE;
 
-    if (randrExtension)
+    crtc = xglxRRGetCrtc (pScreen, xcrtc);
+    if (!crtc)
+	return FALSE;
+
+    if (c->noutput)
     {
-	XRRScreenConfiguration *xconfig;
-	XRRScreenSize	       *sizes;
-	int		       nSizes, currentSize = 0;
-	short		       *rates, currentRate;
-	int		       nRates, i, j;
-
-	XGLX_SCREEN_PRIV (pScreen);
-
-	xconfig	    = XRRGetScreenInfo (xdisplay, pScreenPriv->root);
-	sizes	    = XRRConfigSizes (xconfig, &nSizes);
-	currentRate = XRRConfigCurrentRate (xconfig);
-
-	if (pScreenPriv->fullscreen && nScreenRect == 0)
-	{
-	    Rotation rotation;
-
-	    currentSize = XRRConfigCurrentConfiguration (xconfig, &rotation);
-
-	    for (i = 0; i < nSizes; i++)
-	    {
-		pSize = RRRegisterSize (pScreen,
-					sizes[i].width,
-					sizes[i].height,
-					sizes[i].mwidth,
-					sizes[i].mheight);
-
-		rates = XRRConfigRates (xconfig, i, &nRates);
-
-		for (j = 0; j < nRates; j++)
-		{
-		    RRRegisterRate (pScreen, pSize, rates[j]);
-
-		    if (i == currentSize && rates[j] == currentRate)
-			RRSetCurrentConfig (pScreen, RR_Rotate_0, currentRate,
-					    pSize);
-		}
-	    }
-	}
-	else
-	{
-	    pSize = RRRegisterSize (pScreen,
-				    pScreen->width,
-				    pScreen->height,
-				    pScreen->mmWidth,
-				    pScreen->mmHeight);
-
-	    for (i = 0; i < nSizes; i++)
-	    {
-		rates = XRRConfigRates (xconfig, i, &nRates);
-
-		for (j = 0; j < nRates; j++)
-		{
-		    RRRegisterRate (pScreen, pSize, rates[j]);
-
-		    if (rates[j] == currentRate)
-			RRSetCurrentConfig (pScreen, RR_Rotate_0, currentRate,
-					    pSize);
-		}
-	    }
-	}
-
-	XRRFreeScreenConfigInfo (xconfig);
+	outputs = xalloc (sizeof (RROutputPtr) * c->noutput);
+	if (!outputs)
+	    return FALSE;
     }
-    else
+
+    if (c->mode)
+	mode = xglxRRGetMode (r, c->mode);
+
+    for (i = 0; i < c->noutput; i++)
     {
-	pSize = RRRegisterSize (pScreen,
-				pScreen->width,
-				pScreen->height,
-				pScreen->mmWidth,
-				pScreen->mmHeight);
-
-	RRRegisterRate (pScreen, pSize, DEFAULT_REFRESH_RATE);
-	RRSetCurrentConfig (pScreen, RR_Rotate_0, DEFAULT_REFRESH_RATE, pSize);
+	outputs[i] = xglxRRGetOutput (pScreen, c->outputs[i]);
+	if (!outputs[i])
+	    return FALSE;
     }
+
+    gamma = XRRGetCrtcGamma (xdisplay, xcrtc);
+    if (!gamma)
+	return FALSE;
+
+    RRCrtcGammaSet (crtc, gamma->red, gamma->green, gamma->blue);
+
+    XRRFreeGamma (gamma);
+
+    RRCrtcNotify (crtc, mode, c->x, c->y, c->rotation, c->noutput, outputs);
+
+    if (outputs)
+	xfree (outputs);
+
+    XRRFreeCrtcInfo (c);
 
     return TRUE;
 }
 
 static Bool
-xglxRandRSetConfig (ScreenPtr	    pScreen,
-		    Rotation	    rotations,
-		    int		    rate,
-		    RRScreenSizePtr pSize)
+xglxRRUpdateOutput (ScreenPtr	       pScreen,
+		    XRRScreenResources *r,
+		    RROutput	       xoutput)
 {
-    if (randrExtension)
+    XRROutputInfo *o;
+    RROutputPtr	  output, *clones = NULL;
+    RRModePtr	  *modes = NULL;
+    RRCrtcPtr	  *crtcs = NULL;
+    int		  i;
+
+    o = XRRGetOutputInfo (xdisplay, r, xoutput);
+    if (!o)
+	return FALSE;
+
+    if (o->nclone)
     {
-	XRRScreenConfiguration *xconfig;
-	XRRScreenSize	       *sizes;
-	int		       nSizes, currentSize;
-	int		       i, size = -1;
-	int		       status = RRSetConfigFailed;
-	Rotation	       rotation;
+	clones = xalloc (sizeof (RROutputPtr) * o->nclone);
+	if (!clones)
+	    return FALSE;
+    }
 
-	XGLX_SCREEN_PRIV (pScreen);
+    if (o->nmode)
+    {
+	modes = xalloc (sizeof (RRModePtr) * o->nmode);
+	if (!modes)
+	    return FALSE;
+    }
 
-	xconfig	    = XRRGetScreenInfo (xdisplay, pScreenPriv->root);
-	sizes	    = XRRConfigSizes (xconfig, &nSizes);
-	currentSize = XRRConfigCurrentConfiguration (xconfig, &rotation);
+    if (o->ncrtc)
+    {
+	crtcs = xalloc (sizeof (RRCrtcPtr) * o->ncrtc);
+	if (!crtcs)
+	    return FALSE;
+    }
 
-	for (i = 0; i < nSizes; i++)
+    output = xglxRRGetOutput (pScreen, xoutput);
+    if (!output)
+	return FALSE;
+
+    for (i = 0; i < o->nclone; i++)
+    {
+	clones[i] = xglxRRGetOutput (pScreen, o->clones[i]);
+	if (!clones[i])
+	    return FALSE;
+    }
+
+    if (!RROutputSetClones (output, clones, o->nclone))
+	return FALSE;
+
+    for (i = 0; i < o->nmode; i++)
+    {
+	modes[i] = xglxRRGetMode (r, o->modes[i]);
+	if (!modes[i])
+	    return FALSE;
+    }
+
+    if (!RROutputSetModes (output, modes, o->nmode, o->npreferred))
+	return FALSE;
+
+    for (i = 0; i < o->ncrtc; i++)
+    {
+	crtcs[i] = xglxRRGetCrtc (pScreen, o->crtcs[i]);
+	if (!crtcs[i])
+	    return FALSE;
+    }
+
+    if (!RROutputSetCrtcs (output, crtcs, o->ncrtc))
+	return FALSE;
+
+    if (!RROutputSetConnection (output, o->connection))
+	return FALSE;
+
+    if (!RROutputSetSubpixelOrder (output, o->subpixel_order))
+	return FALSE;
+
+    if (!RROutputSetPhysicalSize (output, o->mm_width, o->mm_height))
+	return FALSE;
+
+    if (clones)
+	xfree (clones);
+
+    if (modes)
+	xfree (modes);
+
+    if (crtcs)
+	xfree (crtcs);
+
+    XRRFreeOutputInfo (o);
+
+    return TRUE;
+}
+
+static Bool
+xglxRRUpdateOutputProperty (ScreenPtr	       pScreen,
+			    XRRScreenResources *r,
+			    RROutput	       xoutput,
+			    Atom	       xproperty)
+{
+    RROutputPtr     output;
+    XRRPropertyInfo *info;
+    unsigned char   *prop;
+    int		    format, status;
+    unsigned long   nElements, bytesAfter;
+    Atom	    type, atom;
+    char	    *name;
+    INT32           *values = NULL;
+
+    output = xglxRRGetOutput (pScreen, xoutput);
+    if (!output)
+	return FALSE;
+
+    name = XGetAtomName (xdisplay, xproperty);
+    if (!name)
+	return FALSE;
+
+    atom = MakeAtom (name, strlen (name), TRUE);
+
+    XFree (name);
+
+    status = XRRGetOutputProperty (xdisplay, xoutput, xproperty,
+				   0, 8192, FALSE, FALSE,
+				   AnyPropertyType, &type, &format,
+				   &nElements, &bytesAfter, &prop);
+
+    if (status != Success)
+	return FALSE;
+
+    info = XRRQueryOutputProperty (xdisplay, xoutput, xproperty);
+    if (!info)
+	return FALSE;
+
+    if (info->num_values)
+    {
+	values = xalloc (info->num_values * sizeof (INT32));
+	if (!values)
+	    return FALSE;
+
+	memcpy (values, info->values, info->num_values * sizeof (INT32));
+    }
+
+    if (type == XA_ATOM && format == 32)
+    {
+	int i;
+
+	for (i = 0; i < nElements; i++)
 	{
-	    if (pScreenPriv->fullscreen && nScreenRect == 0)
+	    name = XGetAtomName (xdisplay, prop[i]);
+	    if (!name)
+		return FALSE;
+
+	    prop[i] = MakeAtom (name, strlen (name), TRUE);
+
+	    XFree (name);
+	}
+
+	if (!info->range && info->num_values > 0)
+	{
+	    for (i = 0; i < info->num_values; i++)
 	    {
-		if (sizes[i].width   == pSize->width   &&
-		    sizes[i].height  == pSize->height  &&
-		    sizes[i].mwidth  == pSize->mmWidth &&
-		    sizes[i].mheight == pSize->mmHeight)
-		{
-		    size = i;
-		    break;
-		}
+		name = XGetAtomName (xdisplay, values[i]);
+		if (!name)
+		    return FALSE;
+
+		values[i] = MakeAtom (name, strlen (name), TRUE);
+
+		XFree (name);
 	    }
-	    else
+	}
+    }
+
+    RRConfigureOutputProperty (output, atom, FALSE,
+			       info->range, info->immutable, info->num_values,
+			       values);
+
+    RRChangeOutputProperty (output, atom, type, format, PropModeReplace,
+			    nElements, prop, FALSE, TRUE);
+
+    if (values)
+	xfree (values);
+
+    XFree (info);
+    XFree (prop);
+
+    return TRUE;
+}
+#endif
+
+static Bool
+xglxRRGetInfo (ScreenPtr pScreen,
+	       Rotation  *rotations)
+{
+    RRScreenSizePtr pSize;
+
+#if RANDR_12_INTERFACE
+    XGLX_SCREEN_PRIV (pScreen);
+
+    if (pScreenPriv->fullscreen)
+    {
+	XRRScreenResources *r;
+	int		   i;
+
+	rrScrPriv (pScreen);
+
+	xRRPending = TRUE;
+
+	r = XRRGetScreenResources (xdisplay, pScreenPriv->root);
+	if (!r)
+	    return (xRRPending = FALSE);
+
+	for (i = 0; i < r->noutput; i++)
+	{
+	    Atom *props;
+	    int  nProp, j;
+
+	    if (!xglxRRUpdateOutput (pScreen, r, r->outputs[i]))
+		return (xRRPending = FALSE);
+
+	    props = XRRListOutputProperties (xdisplay, r->outputs[i], &nProp);
+	    if (nProp)
 	    {
-		short *rates;
-		int   nRates, j;
+		for (j = 0; j < nProp; j++)
+		    if (!xglxRRUpdateOutputProperty (pScreen, r, r->outputs[i],
+						     props[j]))
+			return (xRRPending = FALSE);
 
-		rates = XRRConfigRates (xconfig, i, &nRates);
-
-		for (j = 0; j < nRates; j++)
-		{
-		    if (rates[j] == rate)
-		    {
-			size = i;
-			if (i >= currentSize)
-			    break;
-		    }
-		}
+		XFree (props);
 	    }
 	}
 
-	if (size >= 0)
-	    status = XRRSetScreenConfigAndRate (xdisplay,
-						xconfig,
-						pScreenPriv->root,
-						size,
-						RR_Rotate_0,
-						rate,
-						CurrentTime);
+	for (i = 0; i < r->ncrtc; i++)
+	    if (!xglxRRUpdateCrtc (pScreen, r, r->crtcs[i]))
+		return (xRRPending = FALSE);
 
-	XRRFreeScreenConfigInfo (xconfig);
+	XRRFreeScreenResources (r);
 
-	if (status == RRSetConfigSuccess)
+	*rotations = RR_Rotate_0;
+
+	for (i = 0; i < pScrPriv->numCrtcs; i++)
+	    *rotations |= pScrPriv->crtcs[i]->rotations;
+
+	xRRPending = FALSE;
+
+	return TRUE;
+    }
+#endif
+
+    *rotations = RR_Rotate_0;
+
+    return TRUE;
+}
+
+#if RANDR_12_INTERFACE
+static RRMode
+xglxRRGetXMode (XRRScreenResources *r,
+		RRModePtr	   mode)
+{
+    xRRModeInfo modeInfo = mode->mode;
+    int		i;
+
+    for (i = 0; i < r->nmode; i++)
+    {
+	if (modeInfo.width      == r->modes[i].width	  &&
+	    modeInfo.height     == r->modes[i].height	  &&
+	    modeInfo.dotClock   == r->modes[i].dotClock	  &&
+	    modeInfo.hSyncStart == r->modes[i].hSyncStart &&
+	    modeInfo.hSyncEnd   == r->modes[i].hSyncEnd	  &&
+	    modeInfo.hTotal     == r->modes[i].hTotal	  &&
+	    modeInfo.hSkew      == r->modes[i].hSkew	  &&
+	    modeInfo.vSyncStart == r->modes[i].vSyncStart &&
+	    modeInfo.vSyncEnd   == r->modes[i].vSyncEnd	  &&
+	    modeInfo.vTotal     == r->modes[i].vTotal	  &&
+	    modeInfo.nameLength == r->modes[i].nameLength &&
+	    modeInfo.modeFlags  == r->modes[i].modeFlags)
 	{
-	    PixmapPtr pPixmap;
-
-	    pPixmap = (*pScreen->GetScreenPixmap) (pScreen);
-
-	    if (pScreenPriv->fullscreen)
-	    {
-		XGL_PIXMAP_PRIV (pPixmap);
-
-		xglSetRootClip (pScreen, FALSE);
-
-		XResizeWindow (xdisplay, pScreenPriv->win,
-			       pSize->width, pSize->height);
-
-		glitz_drawable_update_size (pPixmapPriv->drawable,
-					    pSize->width, pSize->height);
-
-		pScreen->width    = pSize->width;
-		pScreen->height   = pSize->height;
-		pScreen->mmWidth  = pSize->mmWidth;
-		pScreen->mmHeight = pSize->mmHeight;
-
-		(*pScreen->ModifyPixmapHeader) (pPixmap,
-						pScreen->width,
-						pScreen->height,
-						pPixmap->drawable.depth,
-						pPixmap->drawable.bitsPerPixel,
-						0, 0);
-
-		xglSetRootClip (pScreen, TRUE);
-	    }
-
-	    return TRUE;
+	    if (!memcmp (r->modes[i].name, mode->name, modeInfo.nameLength))
+		return r->modes[i].id;
 	}
+    }
+
+    return None;
+}
+
+static Bool
+xglxRRScreenSetSize (ScreenPtr pScreen,
+		     CARD16    width,
+		     CARD16    height,
+		     CARD32    mmWidth,
+		     CARD32    mmHeight)
+{
+    PixmapPtr pPixmap;
+
+    XGLX_SCREEN_PRIV (pScreen);
+
+    pPixmap = (*pScreen->GetScreenPixmap) (pScreen);
+    if (pPixmap)
+    {
+	XGL_PIXMAP_PRIV (pPixmap);
+
+	if (width    != DisplayWidth (xdisplay, xscreen)   ||
+	    height   != DisplayHeight (xdisplay, xscreen)  ||
+	    mmWidth  != DisplayWidthMM (xdisplay, xscreen) ||
+	    mmHeight != DisplayHeightMM (xdisplay, xscreen))
+	    XRRSetScreenSize (xdisplay, pScreenPriv->root,
+			      width, height, mmWidth, mmHeight);
+
+	xglSetRootClip (pScreen, FALSE);
+
+	XResizeWindow (xdisplay, pScreenPriv->win, width, height);
+
+	glitz_drawable_update_size (pPixmapPriv->drawable, width, height);
+
+	pScreen->width    = width;
+	pScreen->height   = height;
+	pScreen->mmWidth  = mmWidth;
+	pScreen->mmHeight = mmHeight;
+
+	(*pScreen->ModifyPixmapHeader) (pPixmap,
+					pScreen->width,
+					pScreen->height,
+					pPixmap->drawable.depth,
+					pPixmap->drawable.bitsPerPixel,
+					0, 0);
+
+	xglSetRootClip (pScreen, TRUE);
+
+	RRScreenSizeNotify (pScreen);
+
+	return TRUE;
     }
 
     return FALSE;
 }
 
 static Bool
+xglxRRCrtcSet (ScreenPtr   pScreen,
+	       RRCrtcPtr   crtc,
+	       RRModePtr   mode,
+	       int	   x,
+	       int	   y,
+	       Rotation    rotation,
+	       int	   numOutputs,
+	       RROutputPtr *outputs)
+{
+    XRRScreenResources *r;
+    RROutput	       *o = NULL;
+    RRMode	       m = None;
+    int		       i;
+
+    XGLX_SCREEN_PRIV (pScreen);
+
+    if (xRRPending)
+	return RRCrtcNotify (crtc, mode, x, y, rotation, numOutputs, outputs);
+
+    if (numOutputs)
+    {
+	o = xalloc (sizeof (RROutput *) * numOutputs);
+	if (!o)
+	    return FALSE;
+    }
+
+    r = XRRGetScreenResources (xdisplay, pScreenPriv->root);
+    if (!r)
+	return FALSE;
+
+    if (mode)
+    {
+	m = xglxRRGetXMode (r, mode);
+	if (!m)
+	    return FALSE;
+    }
+
+    XRRFreeScreenResources (r);
+
+    for (i = 0; i < numOutputs; i++)
+	o[i] = (RROutput) outputs[i]->devPrivate;
+
+    XRRSetCrtcConfig (xdisplay, r,
+		      (RRCrtc) crtc->devPrivate,
+		      CurrentTime,
+		      x, y,
+		      m,
+		      rotation,
+		      o, numOutputs);
+
+    if (o)
+	free (o);
+
+    return RRCrtcNotify (crtc, mode, x, y, rotation, numOutputs, outputs);
+}
+
+static Bool
+xglxRRCrtcSetGamma (ScreenPtr pScreen,
+		    RRCrtcPtr crtc)
+{
+    XRRCrtcGamma *gamma;
+
+    if (xRRPending)
+	return TRUE;
+
+    gamma = XRRAllocGamma (crtc->gammaSize);
+    if (!gamma)
+	return FALSE;
+
+    memcpy (gamma->red,   crtc->gammaRed,   gamma->size * sizeof (CARD16));
+    memcpy (gamma->green, crtc->gammaGreen, gamma->size * sizeof (CARD16));
+    memcpy (gamma->blue,  crtc->gammaBlue,  gamma->size * sizeof (CARD16));
+
+    XRRSetCrtcGamma (xdisplay, (RRCrtc) crtc->devPrivate, gamma);
+
+    XRRFreeGamma (gamma);
+
+    return TRUE;
+}
+
+static Bool
+xglxRROutputSetProperty (ScreenPtr	    pScreen,
+			 RROutputPtr	    output,
+			 Atom	            property,
+			 RRPropertyValuePtr value)
+{
+    RRPropertyPtr p;
+    Atom	  atom, type;
+    char	  *data = NULL;
+    long	  *values = NULL;
+    int		  i;
+
+    if (xRRPending)
+	return TRUE;
+
+    p = RRQueryOutputProperty (output, property);
+    if (!p)
+	return FALSE;
+
+    if (p->num_valid)
+    {
+	values = xalloc (p->num_valid * sizeof (long));
+	if (!values)
+	    return FALSE;
+
+	for (i = 0; i < p->num_valid; i++)
+	    values[i] = p->valid_values[i];
+    }
+
+    if (value->size)
+    {
+	int size = value->size * (value->format / 8);
+
+	data = xalloc (size);
+	if (!data)
+	    return FALSE;
+
+	memcpy (data, value->data, size);
+    }
+
+    atom = XInternAtom (xdisplay, NameForAtom (property), FALSE);
+    type = XInternAtom (xdisplay, NameForAtom (value->type), FALSE);
+
+    if (type == XA_ATOM && value->format == 32)
+    {
+	int i;
+
+	for (i = 0; i < value->size; i++)
+	    data[i] = XInternAtom (xdisplay, NameForAtom (data[i]), FALSE);
+
+	if (!p->range && p->num_valid > 0)
+	    for (i = 0; i < p->num_valid; i++)
+		values[i] = XInternAtom (xdisplay, NameForAtom (values[i]),
+					 FALSE);
+    }
+
+    XRRConfigureOutputProperty (xdisplay, (RROutput) output->devPrivate, atom,
+				p->is_pending, p->range, p->num_valid, values);
+
+    XRRChangeOutputProperty (xdisplay, (RROutput) output->devPrivate,
+			     atom, type, value->format, PropModeReplace,
+			     data, value->size);
+
+    if (values)
+	xfree (values);
+
+    if (data)
+	xfree (data);
+
+    return TRUE;
+}
+
+static Bool
+xglxRROutputValidateMode (ScreenPtr   pScreen,
+			  RROutputPtr output,
+			  RRModePtr   mode)
+{
+    XRRModeInfo *modeInfo;
+    RRMode	m;
+
+    XGLX_SCREEN_PRIV (pScreen);
+
+    if (xRRPending)
+	return TRUE;
+
+    modeInfo = XRRAllocModeInfo (mode->name, mode->mode.nameLength);
+    if (!modeInfo)
+	return FALSE;
+
+    m = XRRCreateMode (xdisplay, pScreenPriv->root, modeInfo);
+    if (!m)
+	return FALSE;
+
+    XRRFreeModeInfo (modeInfo);
+
+    XRRAddOutputMode (xdisplay, (RROutput) output->devPrivate, m);
+
+    return TRUE;
+}
+
+static void
+xglxRRModeDestroy (ScreenPtr pScreen,
+		   RRModePtr mode)
+{
+    XRRScreenResources *r;
+
+    XGLX_SCREEN_PRIV (pScreen);
+
+    if (xRRPending)
+	return;
+
+    r = XRRGetScreenResources (xdisplay, pScreenPriv->root);
+    if (r)
+    {
+	RRMode m;
+
+	m = xglxRRGetXMode (r, mode);
+	if (m)
+	    XRRDestroyMode (xdisplay, m);
+
+	XRRFreeScreenResources (r);
+    }
+}
+#endif
+
+static Bool
 xglxRandRInit (ScreenPtr pScreen)
 {
     rrScrPrivPtr pScrPriv;
+
+    XGLX_SCREEN_PRIV (pScreen);
 
     if (!RRScreenInit (pScreen))
 	return FALSE;
 
     pScrPriv = rrGetScrPriv (pScreen);
-    pScrPriv->rrGetInfo   = xglxRandRGetInfo;
-    pScrPriv->rrSetConfig = xglxRandRSetConfig;
+    pScrPriv->rrGetInfo	= xglxRRGetInfo;
+
+#if RANDR_12_INTERFACE
+    if (pScreenPriv->fullscreen)
+    {
+	XRRScreenResources *r;
+	int		   i, minWidth, minHeight, maxWidth, maxHeight;
+
+	pScrPriv->rrScreenSetSize      = xglxRRScreenSetSize;
+	pScrPriv->rrCrtcSet	       = xglxRRCrtcSet;
+	pScrPriv->rrCrtcSetGamma       = xglxRRCrtcSetGamma;
+	pScrPriv->rrOutputSetProperty  = xglxRROutputSetProperty;
+	pScrPriv->rrOutputValidateMode = xglxRROutputValidateMode;
+	pScrPriv->rrModeDestroy	       = xglxRRModeDestroy;
+
+	if (!XRRGetScreenSizeRange (xdisplay, pScreenPriv->root,
+				    &minWidth, &minHeight,
+				    &maxWidth, &maxHeight))
+	    return FALSE;
+
+	RRScreenSetSizeRange (pScreen,
+			      minWidth, minHeight, maxWidth, maxHeight);
+
+	r = XRRGetScreenResources (xdisplay, pScreenPriv->root);
+	if (!r)
+	    return FALSE;
+
+	for (i = 0; i < r->ncrtc; i++)
+	{
+	    XRRCrtcInfo *c;
+	    RRCrtcPtr	crtc;
+
+	    crtc = RRCrtcCreate (pScreen, (void *) r->crtcs[i]);
+	    if (!crtc)
+		return FALSE;
+
+	    c = XRRGetCrtcInfo (xdisplay, r, r->crtcs[i]);
+	    if (!c)
+		return FALSE;
+
+	    RRCrtcSetRotations (crtc, c->rotations);
+	    RRCrtcGammaSetSize (crtc, XRRGetCrtcGammaSize (xdisplay,
+							   r->crtcs[i]));
+
+	    XRRFreeCrtcInfo (c);
+	}
+
+	for (i = 0; i < r->noutput; i++)
+	{
+	    XRROutputInfo *o;
+	    RROutputPtr	  output;
+
+	    o = XRRGetOutputInfo (xdisplay, r, r->outputs[i]);
+	    if (!o)
+		return FALSE;
+
+	    if (!RROutputCreate (pScreen, o->name, strlen (o->name),
+				 (void *) r->outputs[i]))
+		return FALSE;
+
+	    XRRFreeOutputInfo (o);
+	}
+
+	XRRFreeScreenResources (r);
+    }
+    else
+    {
+	RRModePtr    mode;
+	RRCrtcPtr    crtc;
+	RROutputPtr  output;
+	xRRModeInfo  modeInfo;
+	char	     name[64];
+
+	RRScreenSetSizeRange (pScreen,
+			      pScreen->width, pScreen->height,
+			      pScreen->width, pScreen->height);
+
+	sprintf (name, "%dx%d", pScreen->width, pScreen->height);
+	memset (&modeInfo, '\0', sizeof (modeInfo));
+	modeInfo.width = pScreen->width;
+	modeInfo.height = pScreen->height;
+	modeInfo.nameLength = strlen (name);
+
+	mode = RRModeGet (&modeInfo, name);
+	if (!mode)
+	    return FALSE;
+
+	crtc = RRCrtcCreate (pScreen, NULL);
+	if (!crtc)
+	    return FALSE;
+
+	output = RROutputCreate (pScreen, "screen", 6, NULL);
+	if (!output)
+	    return FALSE;
+	if (!RROutputSetClones (output, NULL, 0))
+	    return FALSE;
+	if (!RROutputSetModes (output, &mode, 1, 0))
+	    return FALSE;
+	if (!RROutputSetCrtcs (output, &crtc, 1))
+	    return FALSE;
+	if (!RROutputSetConnection (output, RR_Connected))
+	    return FALSE;
+
+	RRCrtcNotify (crtc, mode, 0, 0, RR_Rotate_0, 1, &output);
+    }
+#endif
 
     return TRUE;
 }
@@ -510,7 +1083,35 @@ xglxEnqueueEvents (void)
 	    }
 	    break;
 	default:
+
+#if RANDR_12_INTERFACE
+	    XRRUpdateConfiguration (&X);
+
+	    switch (X.type - randrEvent) {
+	    case RRScreenChangeNotify: {
+		int i;
+
+		if (!randrExtension)
+		    break;
+
+		for (i = 0; i < screenInfo.numScreens; i++)
+		{
+		    ScreenPtr pScreen = screenInfo.screens[i];
+
+		    XGLX_SCREEN_PRIV (pScreen);
+
+		    if (pScreenPriv->root == X.xany.window)
+			RRScreenSizeSet (pScreen,
+					 DisplayWidth (xdisplay, xscreen),
+					 DisplayHeight (xdisplay, xscreen),
+					 DisplayWidthMM (xdisplay, xscreen),
+					 DisplayHeightMM (xdisplay, xscreen));
+		}
+	    } break;
+	    }
 	    break;
+#endif
+
 	}
     }
 }
@@ -954,6 +1555,7 @@ xglxScreenInit (int	  index,
     glitz_drawable_format_t *format;
     glitz_drawable_t	    *drawable;
     int			    x = 0, y = 0;
+    long		    eventMask;
 
     format = xglxScreenFormat;
 
@@ -985,25 +1587,6 @@ xglxScreenInit (int	  index,
 	xglScreenInfo.height   = DisplayHeight (xdisplay, xscreen);
 	xglScreenInfo.widthMm  = DisplayWidthMM (xdisplay, xscreen);
 	xglScreenInfo.heightMm = DisplayHeightMM (xdisplay, xscreen);
-
-	if (randrExtension)
-	{
-	    XRRScreenConfiguration *xconfig;
-	    Rotation		   rotation;
-	    XRRScreenSize	   *sizes;
-	    int			   nSizes, currentSize;
-
-	    xconfig	= XRRGetScreenInfo (xdisplay, pScreenPriv->root);
-	    currentSize = XRRConfigCurrentConfiguration (xconfig, &rotation);
-	    sizes	= XRRConfigSizes (xconfig, &nSizes);
-
-	    xglScreenInfo.width    = sizes[currentSize].width;
-	    xglScreenInfo.height   = sizes[currentSize].height;
-	    xglScreenInfo.widthMm  = sizes[currentSize].mwidth;
-	    xglScreenInfo.heightMm = sizes[currentSize].mheight;
-
-	    XRRFreeScreenConfigInfo (xconfig);
-	}
 
 	if (nScreenRect)
 	{
@@ -1082,10 +1665,24 @@ xglxScreenInit (int	  index,
 	return FALSE;
     }
 
-    XSelectInput (xdisplay, pScreenPriv->win,
-		  ButtonPressMask | ButtonReleaseMask |
-		  KeyPressMask | KeyReleaseMask | EnterWindowMask |
-		  PointerMotionMask | ExposureMask);
+    eventMask = ButtonPressMask | ButtonReleaseMask |
+	KeyPressMask | KeyReleaseMask | EnterWindowMask |
+	PointerMotionMask | ExposureMask | StructureNotifyMask;
+
+#ifdef XEVDEV
+    if (useEvdev)
+	eventMask = ExposureMask | StructureNotifyMask;
+#endif
+
+    XSelectInput (xdisplay, pScreenPriv->win, eventMask);
+
+#if RANDR_12_INTERFACE
+    if (fullscreen && randrExtension)
+    {
+	XSelectInput (xdisplay, pScreenPriv->root, StructureNotifyMask);
+	XRRSelectInput (xdisplay, pScreenPriv->root, RRScreenChangeNotifyMask);
+    }
+#endif
 
     XMapWindow (xdisplay, pScreenPriv->win);
 
@@ -1297,9 +1894,6 @@ xglxWakeupHandler (pointer blockData,
 		   int     result,
 		   pointer pReadMask)
 {
-#ifdef XEVDEV
-    if (!useEvdev)
-#endif    	    
     xglxEnqueueEvents ();
 }
 
