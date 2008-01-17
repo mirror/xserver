@@ -725,8 +725,8 @@ xglxRROutputSetProperty (ScreenPtr	    pScreen,
 {
     RRPropertyPtr p;
     Atom	  atom, type;
-    char	  *data = NULL;
-    long	  *values = NULL;
+    long	  *values = value->data;
+    long	  *validValues;
     int		  i;
 
     if (xRRPending)
@@ -736,55 +736,87 @@ xglxRROutputSetProperty (ScreenPtr	    pScreen,
     if (!p)
 	return FALSE;
 
-    if (p->num_valid)
-    {
-	values = xalloc (p->num_valid * sizeof (long));
-	if (!values)
-	    return FALSE;
-
-	for (i = 0; i < p->num_valid; i++)
-	    values[i] = p->valid_values[i];
-    }
-
-    if (value->size)
-    {
-	int size = value->size * (value->format / 8);
-
-	data = xalloc (size);
-	if (!data)
-	    return FALSE;
-
-	memcpy (data, value->data, size);
-    }
+    validValues = p->valid_values;
 
     atom = XInternAtom (xdisplay, NameForAtom (property), FALSE);
     type = XInternAtom (xdisplay, NameForAtom (value->type), FALSE);
 
     if (type == XA_ATOM && value->format == 32)
     {
-	int i;
+	Atom *atoms = (Atom *) value->data;
 
 	for (i = 0; i < value->size; i++)
-	    data[i] = XInternAtom (xdisplay, NameForAtom (data[i]), FALSE);
+	    if (!ValidAtom (atoms[i]))
+		return FALSE;
 
-	if (!p->range && p->num_valid > 0)
+	if (p->num_valid > 0)
+	{
 	    for (i = 0; i < p->num_valid; i++)
-		values[i] = XInternAtom (xdisplay, NameForAtom (values[i]),
+		if (!ValidAtom (p->valid_values[i]))
+		    return FALSE;
+
+	    for (i = 0; i < value->size; i++)
+	    {
+		int j;
+
+		for (j = 0; j < p->num_valid; j++)
+		    if (p->valid_values[j] == atoms[i])
+			break;
+
+		if (j == p->num_valid)
+		    return FALSE;
+	    }
+
+	    validValues = xalloc (p->num_valid * sizeof (long));
+	    if (!validValues)
+		return FALSE;
+
+	    for (i = 0; i < p->num_valid; i++)
+		validValues[i] = XInternAtom (xdisplay,
+					      NameForAtom (p->valid_values[i]),
+					      FALSE);
+	}
+
+	if (value->size)
+	{
+	    int size = value->size * (value->format / 8);
+
+	    values = xalloc (size);
+	    if (!values)
+		return FALSE;
+
+	    for (i = 0; i < value->size; i++)
+		values[i] = XInternAtom (xdisplay,
+					 NameForAtom (atoms[i]),
 					 FALSE);
+	}
+    }
+    else
+    {
+	if (p->num_valid > 0)
+	{
+	    validValues = xalloc (p->num_valid * sizeof (long));
+	    if (!validValues)
+		return FALSE;
+
+	    for (i = 0; i < p->num_valid; i++)
+		validValues[i] = p->valid_values[i];
+	}
     }
 
     XRRConfigureOutputProperty (xdisplay, (RROutput) output->devPrivate, atom,
-				p->is_pending, p->range, p->num_valid, values);
+				p->is_pending, p->range, p->num_valid,
+				validValues);
 
     XRRChangeOutputProperty (xdisplay, (RROutput) output->devPrivate,
 			     atom, type, value->format, PropModeReplace,
-			     data, value->size);
+			     (unsigned char *) values, value->size);
 
-    if (values)
+    if (validValues != p->valid_values)
+	xfree (validValues);
+
+    if (values != value->data)
 	xfree (values);
-
-    if (data)
-	xfree (data);
 
     return TRUE;
 }
