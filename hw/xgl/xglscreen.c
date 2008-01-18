@@ -477,6 +477,62 @@ xglCloseScreen (int	  index,
     return (*pScreen->CloseScreen) (index, pScreen);
 }
 
+Bool
+xglScreenSetSize (ScreenPtr pScreen,
+		  int	    width,
+		  int	    height,
+		  int	    mmWidth,
+		  int	    mmHeight)
+{
+    if (width != pScreen->width || height != pScreen->height)
+    {
+	PixmapPtr	pPixmap = (*pScreen->GetScreenPixmap) (pScreen);
+	glitz_surface_t *surface;
+
+	XGL_SCREEN_PRIV (pScreen);
+
+	surface =
+	    glitz_surface_create (pScreenPriv->drawable,
+				  pScreenPriv->rootVisual->format.surface,
+				  width, height, 0, NULL);
+	if (!surface)
+	    return FALSE;
+
+	xglSetRootClip (pScreen, FALSE);
+
+	pScreen->width    = width;
+	pScreen->height   = height;
+	pScreen->mmWidth  = mmWidth;
+	pScreen->mmHeight = mmHeight;
+
+	if (pScreenPriv->surface)
+	    glitz_surface_destroy (pScreenPriv->surface);
+
+	pScreenPriv->surface = surface;
+
+	glitz_drawable_update_size (pScreenPriv->drawable, width, height);
+
+	glitz_surface_attach (pScreenPriv->surface, pScreenPriv->drawable,
+			      GLITZ_DRAWABLE_BUFFER_FRONT_COLOR);
+
+	(*pScreen->ModifyPixmapHeader) (pPixmap,
+					pScreen->width,
+					pScreen->height,
+					pPixmap->drawable.depth,
+					pPixmap->drawable.bitsPerPixel,
+					0, 0);
+
+	xglSetRootClip (pScreen, TRUE);
+    }
+    else
+    {
+	pScreen->mmWidth  = mmWidth;
+	pScreen->mmHeight = mmHeight;
+    }
+
+    return TRUE;
+}
+
 #ifdef RENDER
 void
 xglCreateSolidAlphaPicture (ScreenPtr pScreen)

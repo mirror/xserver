@@ -598,6 +598,13 @@ Bool
 xglCloseScreen (int	  index,
 		ScreenPtr pScreen);
 
+Bool
+xglScreenSetSize (ScreenPtr pScreen,
+		  int	    width,
+		  int	    height,
+		  int	    mmWidth,
+		  int	    mmHeight);
+
 void
 xglCreateSolidAlphaPicture (ScreenPtr pScreen);
 
