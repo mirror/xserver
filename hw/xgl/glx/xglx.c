@@ -592,48 +592,23 @@ xglxRRScreenSetSize (ScreenPtr pScreen,
 		     CARD32    mmWidth,
 		     CARD32    mmHeight)
 {
-    PixmapPtr pPixmap;
-
     XGLX_SCREEN_PRIV (pScreen);
 
-    pPixmap = (*pScreen->GetScreenPixmap) (pScreen);
-    if (pPixmap)
-    {
-	XGL_PIXMAP_PRIV (pPixmap);
+    if (!xglScreenSetSize (pScreen, width, height, mmWidth, mmHeight))
+	return FALSE;
 
-	if (width    != DisplayWidth (xdisplay, xscreen)   ||
-	    height   != DisplayHeight (xdisplay, xscreen)  ||
-	    mmWidth  != DisplayWidthMM (xdisplay, xscreen) ||
-	    mmHeight != DisplayHeightMM (xdisplay, xscreen))
-	    XRRSetScreenSize (xdisplay, pScreenPriv->root,
-			      width, height, mmWidth, mmHeight);
+    if (width    != DisplayWidth (xdisplay, xscreen)   ||
+	height   != DisplayHeight (xdisplay, xscreen)  ||
+	mmWidth  != DisplayWidthMM (xdisplay, xscreen) ||
+	mmHeight != DisplayHeightMM (xdisplay, xscreen))
+	XRRSetScreenSize (xdisplay, pScreenPriv->root,
+			  width, height, mmWidth, mmHeight);
 
-	xglSetRootClip (pScreen, FALSE);
+    XResizeWindow (xdisplay, pScreenPriv->win, width, height);
 
-	XResizeWindow (xdisplay, pScreenPriv->win, width, height);
+    RRScreenSizeNotify (pScreen);
 
-	glitz_drawable_update_size (pPixmapPriv->drawable, width, height);
-
-	pScreen->width    = width;
-	pScreen->height   = height;
-	pScreen->mmWidth  = mmWidth;
-	pScreen->mmHeight = mmHeight;
-
-	(*pScreen->ModifyPixmapHeader) (pPixmap,
-					pScreen->width,
-					pScreen->height,
-					pPixmap->drawable.depth,
-					pPixmap->drawable.bitsPerPixel,
-					0, 0);
-
-	xglSetRootClip (pScreen, TRUE);
-
-	RRScreenSizeNotify (pScreen);
-
-	return TRUE;
-    }
-
-    return FALSE;
+    return TRUE;
 }
 
 static Bool
@@ -1047,6 +1022,10 @@ xglxEnqueueEvents (void)
     XEvent X;
     xEvent x;
 
+#if RANDR_12_INTERFACE
+    int oldWidth, oldWidthMM, oldHeight, oldHeightMM;
+#endif
+
     while (XCheckIfEvent (xdisplay, &X, xglxNotExposurePredicate, NULL))
     {
 	switch (X.type) {
@@ -1117,14 +1096,22 @@ xglxEnqueueEvents (void)
 	default:
 
 #if RANDR_12_INTERFACE
+	    oldWidth    = DisplayWidth (xdisplay, xscreen);
+	    oldHeight   = DisplayHeight (xdisplay, xscreen);
+	    oldWidthMM  = DisplayWidthMM (xdisplay, xscreen);
+	    oldHeightMM = DisplayHeightMM (xdisplay, xscreen);
+
 	    XRRUpdateConfiguration (&X);
 
-	    switch (X.type - randrEvent) {
-	    case RRScreenChangeNotify: {
-		int i;
+	    if (!randrExtension)
+		break;
 
-		if (!randrExtension)
-		    break;
+	    if (oldWidth    != DisplayWidth (xdisplay, xscreen)   ||
+		oldHeight   != DisplayHeight (xdisplay, xscreen)  ||
+		oldWidthMM  != DisplayWidthMM (xdisplay, xscreen) ||
+		oldHeightMM != DisplayHeightMM (xdisplay, xscreen))
+	    {
+		int i;
 
 		for (i = 0; i < screenInfo.numScreens; i++)
 		{
@@ -1132,18 +1119,28 @@ xglxEnqueueEvents (void)
 
 		    XGLX_SCREEN_PRIV (pScreen);
 
-		    if (pScreenPriv->root == X.xany.window)
+		    if (pScreenPriv->root != X.xany.window)
+			continue;
+
+		    oldWidth    = pScreen->width;
+		    oldHeight   = pScreen->width;
+		    oldWidthMM  = pScreen->mmWidth;
+		    oldHeightMM = pScreen->mmHeight;
+
+		    if (oldWidth    != DisplayWidth (xdisplay, xscreen)   ||
+			oldHeight   != DisplayHeight (xdisplay, xscreen)  ||
+			oldWidthMM  != DisplayWidthMM (xdisplay, xscreen) ||
+			oldHeightMM != DisplayHeightMM (xdisplay, xscreen))
 			RRScreenSizeSet (pScreen,
 					 DisplayWidth (xdisplay, xscreen),
 					 DisplayHeight (xdisplay, xscreen),
 					 DisplayWidthMM (xdisplay, xscreen),
 					 DisplayHeightMM (xdisplay, xscreen));
 		}
-	    } break;
 	    }
-	    break;
 #endif
 
+	    break;
 	}
     }
 }
@@ -1655,20 +1652,26 @@ xglxScreenInit (int	  index,
     XFree (vinfo);
 
     normalHints = XAllocSizeHints ();
-    normalHints->flags      = PMinSize | PMaxSize | PSize;
-    normalHints->min_width  = xglScreenInfo.width;
-    normalHints->min_height = xglScreenInfo.height;
-    normalHints->max_width  = xglScreenInfo.width;
-    normalHints->max_height = xglScreenInfo.height;
+    normalHints->flags  = PSize;
+    normalHints->width  = xglScreenInfo.width;
+    normalHints->height = xglScreenInfo.height;
 
     if (fullscreen)
     {
+	normalHints->flags |= PPosition;
+
 	normalHints->x = x;
 	normalHints->y = y;
-	normalHints->flags |= PPosition;
     }
     else
     {
+	normalHints->flags |= PMinSize | PMaxSize;
+
+	normalHints->min_width  = xglScreenInfo.width;
+	normalHints->min_height = xglScreenInfo.height;
+	normalHints->max_width  = xglScreenInfo.width;
+	normalHints->max_height = xglScreenInfo.height;
+
 	currentEventWindow = pScreenPriv->win;
     }
 
