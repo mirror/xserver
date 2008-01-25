@@ -624,6 +624,7 @@ xglxRRCrtcSet (ScreenPtr   pScreen,
     XRRScreenResources *r;
     RROutput	       *o = NULL;
     RRMode	       m = None;
+    Status	       status;
     int		       i;
 
     XGLX_SCREEN_PRIV (pScreen);
@@ -652,18 +653,21 @@ xglxRRCrtcSet (ScreenPtr   pScreen,
     for (i = 0; i < numOutputs; i++)
 	o[i] = (RROutput) outputs[i]->devPrivate;
 
-    XRRSetCrtcConfig (xdisplay, r,
-		      (RRCrtc) crtc->devPrivate,
-		      CurrentTime,
-		      x, y,
-		      m,
-		      rotation,
-		      o, numOutputs);
+    status = XRRSetCrtcConfig (xdisplay, r,
+			       (RRCrtc) crtc->devPrivate,
+			       CurrentTime,
+			       x, y,
+			       m,
+			       rotation,
+			       o, numOutputs);
 
     XRRFreeScreenResources (r);
 
     if (o)
 	free (o);
+
+    if (status != RRSetConfigSuccess)
+	return FALSE;
 
     return RRCrtcNotify (crtc, mode, x, y, rotation, numOutputs, outputs);
 }
