@@ -69,12 +69,12 @@ typedef struct _xglGLBuffer {
     xglVisualPtr     pVisual;
     glitz_drawable_t *drawable;
     glitz_surface_t  *backSurface;
-    PixmapPtr	     pPixmap;
     GCPtr	     pGC;
     RegionRec	     damage;
     int		     screenX, screenY;
     int		     xOff, yOff;
     int		     yFlip;
+    int		     width, height;
 } xglGLBufferRec, *xglGLBufferPtr;
 
 typedef int xglGLXVisualConfigRec, *xglGLXVisualConfigPtr;
@@ -5562,7 +5562,6 @@ xglCreateDrawable (__GLXcontext *context,
 
     pBufferPriv->pScreen   = pScreen;
     pBufferPriv->pDrawable = NULL;
-    pBufferPriv->pPixmap   = NULL;
     pBufferPriv->pGC	   = NULL;
 
     pBufferPriv->base.destroy       = xglDestroyDrawable;
@@ -5572,6 +5571,9 @@ xglCreateDrawable (__GLXcontext *context,
 
     pBufferPriv->drawable    = NULL;
     pBufferPriv->backSurface = NULL;
+
+    pBufferPriv->width  = -1;
+    pBufferPriv->height = -1;
 
     REGION_INIT (pScreen, &pBufferPriv->damage, NullBox, 0);
 
@@ -5903,8 +5905,10 @@ xglMakeCurrent (__GLXcontext *context)
 
 	ValidateGC (pDrawBufferPriv->pDrawable, pDrawBufferPriv->pGC);
 
-	pReadBufferPriv->pPixmap = (PixmapPtr) 0;
-	pDrawBufferPriv->pPixmap = (PixmapPtr) 0;
+	pReadBufferPriv->width  = -1;
+	pReadBufferPriv->height = -1;
+	pDrawBufferPriv->width  = -1;
+	pDrawBufferPriv->height = -1;
 
 	pContext->pReadBuffer = pReadBufferPriv;
 	pContext->pDrawBuffer = pDrawBufferPriv;
@@ -6021,17 +6025,25 @@ xglForceCurrent (__GLXcontext *context)
 	    }
 
 	    /* buffer changed */
-	    if (cctx->pDrawBuffer->pPixmap != pDrawPixmap ||
-		cctx->pReadBuffer->pPixmap != pReadPixmap)
+	    if (cctx->pDrawBuffer->width  != pDrawPixmap->drawable.width ||
+		cctx->pDrawBuffer->height != pDrawPixmap->drawable.height)
 	    {
 		if (!xglResizeBuffer (cctx->pDrawBuffer))
 		    return FALSE;
 
+		cctx->pDrawBuffer->width  = pDrawPixmap->drawable.width;
+		cctx->pDrawBuffer->height = pDrawPixmap->drawable.height;
+	    }
+
+	    /* buffer changed */
+	    if (cctx->pReadBuffer->width  != pReadPixmap->drawable.width ||
+		cctx->pReadBuffer->height != pReadPixmap->drawable.height)
+	    {
 		if (!xglResizeBuffer (cctx->pReadBuffer))
 		    return FALSE;
 
-		cctx->pReadBuffer->pPixmap = pReadPixmap;
-		cctx->pDrawBuffer->pPixmap = pDrawPixmap;
+		cctx->pReadBuffer->width  = pReadPixmap->drawable.width;
+		cctx->pReadBuffer->height = pReadPixmap->drawable.height;
 	    }
 
 	    if (!xglSyncSurface (pContext->pDrawBuffer->pDrawable))
