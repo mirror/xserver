@@ -649,8 +649,6 @@ xglxRRCrtcSet (ScreenPtr   pScreen,
 	    return FALSE;
     }
 
-    XRRFreeScreenResources (r);
-
     for (i = 0; i < numOutputs; i++)
 	o[i] = (RROutput) outputs[i]->devPrivate;
 
@@ -661,6 +659,8 @@ xglxRRCrtcSet (ScreenPtr   pScreen,
 		      m,
 		      rotation,
 		      o, numOutputs);
+
+    XRRFreeScreenResources (r);
 
     if (o)
 	free (o);
