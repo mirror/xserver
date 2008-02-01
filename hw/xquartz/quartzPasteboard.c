@@ -54,18 +54,16 @@ extern int NumCurrentSelections;
 // Returns NULL if there is no cut text or there is not enough memory.
 static char * QuartzReadCutBuffer(void)
 {
-    int i;
+    int rc, i;
     char *text = NULL;
 
     for (i = 0; i < screenInfo.numScreens; i++) {
         ScreenPtr pScreen = screenInfo.screens[i];
         PropertyPtr pProp;
 
-        pProp = wUserProps (WindowTable[pScreen->myNum]);
-        while (pProp && pProp->propertyName != XA_CUT_BUFFER0) {
-	    pProp = pProp->next;
-        }
-        if (! pProp) continue;
+	rc = dixLookupProperty(&pProp, WindowTable[pScreen->myNum],
+			       XA_CUT_BUFFER0, serverClient, DixReadAccess);
+        if (rc != Success) continue;
         if (pProp->type != XA_STRING) continue;
         if (pProp->format != 8) continue;
 
@@ -114,9 +112,9 @@ void QuartzReadPasteboard(void)
 	    ScreenPtr pScreen = screenInfo.screens[scrn];
 	    // Set the cut buffers on each screen
 	    // fixme really on each screen?
-	    ChangeWindowProperty(WindowTable[pScreen->myNum], XA_CUT_BUFFER0,
-				 XA_STRING, 8, PropModeReplace,
-				 strlen(text), (pointer)text, TRUE);
+	    dixChangeWindowProperty(serverClient, WindowTable[pScreen->myNum],
+				    XA_CUT_BUFFER0, XA_STRING, 8, PropModeReplace,
+				    strlen(text), (pointer)text, TRUE);
         }
 
         // Undo any current X selection (similar to code in dispatch.c)
