@@ -68,7 +68,7 @@ extern int XaceHook(
  */
 extern int XaceHookDispatch(ClientPtr ptr, int major);
 extern int XaceHookPropertyAccess(ClientPtr ptr, WindowPtr pWin,
-				  PropertyPtr pProp, Mask access_mode);
+				  PropertyPtr *ppProp, Mask access_mode);
 extern void XaceHookAuditEnd(ClientPtr ptr, int result);
 
 /* Register a callback for a given hook.

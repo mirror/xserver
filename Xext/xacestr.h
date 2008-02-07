@@ -59,7 +59,7 @@ typedef struct {
 typedef struct {
     ClientPtr client;
     WindowPtr pWin;
-    PropertyPtr pProp;
+    PropertyPtr *ppProp;
     Mask access_mode;
     int status;
 } XacePropertyAccessRec;
