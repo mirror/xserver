@@ -251,6 +251,62 @@ SELinuxEventToSID(unsigned type, security_id_t sid_of_window,
 }
 
 /*
+ * Looks up the SID corresponding to the given property name
+ */
+static int
+SELinuxPropertyToSID(Atom propertyName, security_id_t ssid,
+		     security_id_t *sid_rtn, int *poly_rtn)
+{
+    const char *name = NameForAtom(propertyName);
+    security_context_t con;
+    security_id_t tsid;
+    int poly = 1;
+
+    /* Look in the mappings of property names to contexts */
+    if (selabel_lookup(label_hnd, &con, name, SELABEL_X_PROP) == 0) {
+	poly = 0;
+    } else if (errno != ENOENT) {
+	ErrorF("SELinux: a property label lookup failed!\n");
+	return BadValue;
+    } else if (selabel_lookup(label_hnd, &con, name, SELABEL_X_POLYPROP) < 0) {
+	ErrorF("SELinux: a property label lookup failed!\n");
+	return BadValue;
+    }
+
+    if (poly_rtn)
+	*poly_rtn = poly;
+
+    /* Get a SID for context */
+    if (avc_context_to_sid(con, &tsid) < 0) {
+	ErrorF("SELinux: a context_to_SID call failed!\n");
+	freecon(con);
+	return BadAlloc;
+    }
+    freecon(con);
+
+    /* Perform a transition */
+    if (avc_compute_create(ssid, tsid, SECCLASS_X_PROPERTY, sid_rtn) < 0) {
+	ErrorF("SELinux: a compute_create call failed!\n");
+	sidput(tsid);
+	return BadValue;
+    }
+    sidput(tsid);
+
+    /* Polyinstantiate if necessary to obtain the final SID */
+    if (poly) {
+	tsid = *sid_rtn;
+	if (avc_compute_member(ssid, tsid, SECCLASS_X_PROPERTY, sid_rtn) < 0) {
+	    ErrorF("SELinux: a compute_member call failed!\n");
+	    sidput(tsid);
+	    return BadValue;
+	}
+	sidput(tsid);
+    }
+
+    return Success;
+}
+
+/*
  * Returns the object class corresponding to the given resource type.
  */
 static security_class_t
@@ -677,8 +733,9 @@ SELinuxProperty(CallbackListPtr *pcbl, pointer unused, pointer calldata)
     XacePropertyAccessRec *rec = calldata;
     SELinuxSubjectRec *subj;
     SELinuxObjectRec *obj;
-    SELinuxAuditRec auditdata = { .client = rec->client };
     PropertyPtr pProp = *rec->ppProp;
+    Atom name = pProp->propertyName;
+    SELinuxAuditRec auditdata = { .client = rec->client, .property = name };
     int rc;
 
     subj = dixLookupPrivate(&rec->client->devPrivates, subjectKey);
@@ -686,38 +743,38 @@ SELinuxProperty(CallbackListPtr *pcbl, pointer unused, pointer calldata)
 
     /* If this is a new object that needs labeling, do it now */
     if (rec->access_mode & DixCreateAccess) {
-	const char *name = NameForAtom(pProp->propertyName);
-	security_context_t con;
-	security_id_t sid;
-
-	/* Look in the mappings of property names to contexts */
-	if (selabel_lookup(label_hnd, &con, name, SELABEL_X_PROP) < 0) {
-	    ErrorF("SELinux: a property label lookup failed!\n");
-	    rec->status = BadValue;
-	    return;
-	}
-	/* Get a SID for context */
-	if (avc_context_to_sid(con, &sid) < 0) {
-	    ErrorF("SELinux: a context_to_SID call failed!\n");
-	    rec->status = BadAlloc;
-	    return;
-	}
-
 	sidput(obj->sid);
-
-	/* Perform a transition to obtain the final SID */
-	if (avc_compute_create(subj->sid, sid, SECCLASS_X_PROPERTY,
-			       &obj->sid) < 0) {
-	    ErrorF("SELinux: a SID transition call failed!\n");
-	    freecon(con);
-	    rec->status = BadValue;
+	rc = SELinuxPropertyToSID(name, subj->sid, &obj->sid, &obj->poly);
+	if (rc != Success) {
+	    rec->status = rc;
 	    return;
 	}
-	freecon(con);
+    }
+    /* If this is a polyinstantiated object, find the right instance */
+    else if (obj->poly) {
+	security_id_t tsid;
+	rc = SELinuxPropertyToSID(name, subj->sid, &tsid, NULL);
+	if (rc != Success) {
+	    rec->status = rc;
+	    return;
+	}
+
+	while (pProp->propertyName != name || obj->sid != tsid) {
+	    if ((pProp = pProp->next) == NULL)
+		break;
+	    obj = dixLookupPrivate(&pProp->devPrivates, objectKey);
+	}
+	sidput(tsid);
+
+	if (pProp)
+	    *rec->ppProp = pProp;
+	else {
+	    rec->status = BadMatch;
+	    return;
+	}
     }
 
     /* Perform the security check */
-    auditdata.property = pProp->propertyName;
     rc = SELinuxDoCheck(subj, obj, SECCLASS_X_PROPERTY, rec->access_mode,
 			&auditdata);
     if (rc != Success)
