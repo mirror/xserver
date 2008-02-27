@@ -42,8 +42,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <ctype.h>
 #define EXTENSION_EVENT_BASE 64
 
-static unsigned int _xkbServerGeneration;
-int xkbDevicePrivateIndex = -1;
+DevPrivateKey xkbDevicePrivateKey = &xkbDevicePrivateKey;
 
 void
 xkbUnwrapProc(DeviceIntPtr device, DeviceHandleProc proc,
@@ -67,20 +66,12 @@ XkbSetExtension(DeviceIntPtr device, ProcessInputProc proc)
 {
     xkbDeviceInfoPtr xkbPrivPtr;
 
-    if (serverGeneration != _xkbServerGeneration) {
-	if ((xkbDevicePrivateIndex = AllocateDevicePrivateIndex()) == -1)
-	    return;
-	_xkbServerGeneration = serverGeneration;
-    }
-    if (!AllocateDevicePrivate(device, xkbDevicePrivateIndex))
-	return;
-
     xkbPrivPtr = (xkbDeviceInfoPtr) xcalloc(1, sizeof(xkbDeviceInfoRec));
     if (!xkbPrivPtr)
 	return;
     xkbPrivPtr->unwrapProc = NULL;
 
-    device->devPrivates[xkbDevicePrivateIndex].ptr = xkbPrivPtr;
+    dixSetPrivate(&device->devPrivates, xkbDevicePrivateKey, xkbPrivPtr);
     WRAP_PROCESS_INPUT_PROC(device, xkbPrivPtr, proc, xkbUnwrapProc);
 }
 
@@ -561,6 +552,9 @@ _XkbFilterPointerMove(	XkbSrvInfoPtr	xkbi,
 int	x,y;
 Bool	accel;
 
+    if (xkbi->device == inputInfo.keyboard)
+        return 0;
+
     if (filter->keycode==0) {		/* initial press */
 	filter->keycode = keycode;
 	filter->active = 1;
@@ -601,6 +595,9 @@ _XkbFilterPointerBtn(	XkbSrvInfoPtr	xkbi,
 			unsigned	keycode,
 			XkbAction *	pAction)
 {
+    if (xkbi->device == inputInfo.keyboard)
+        return 0;
+
     if (filter->keycode==0) {		/* initial press */
 	int	button= pAction->btn.button;
 
@@ -846,7 +843,7 @@ _XkbFilterRedirectKey(	XkbSrvInfoPtr	xkbi,
 			unsigned	keycode,
 			XkbAction *	pAction)
 {
-unsigned	realMods;
+unsigned	realMods = 0;
 xEvent 		ev;
 int		x,y;
 XkbStateRec	old;
@@ -980,8 +977,11 @@ _XkbFilterSwitchScreen(	XkbSrvInfoPtr	xkbi,
 			unsigned	keycode,
 			XkbAction *	pAction)
 {
+    DeviceIntPtr dev = xkbi->device;
+    if (dev == inputInfo.keyboard)
+        return 0;
+
     if (filter->keycode==0) {		/* initial press */
-        DeviceIntPtr	dev = xkbi->device;
 	filter->keycode = keycode;
 	filter->active = 1;
 	filter->filterOthers = 0;
@@ -1003,8 +1003,11 @@ _XkbFilterXF86Private(	XkbSrvInfoPtr	xkbi,
 			unsigned	keycode,
 			XkbAction *	pAction)
 {
+    DeviceIntPtr dev = xkbi->device;
+    if (dev == inputInfo.keyboard)
+        return 0;
+
     if (filter->keycode==0) {		/* initial press */
-        DeviceIntPtr	dev = xkbi->device;
 	filter->keycode = keycode;
 	filter->active = 1;
 	filter->filterOthers = 0;
@@ -1029,9 +1032,13 @@ _XkbFilterDeviceBtn(	XkbSrvInfoPtr	xkbi,
 DeviceIntPtr	dev;
 int		button;
 
+    if (dev == inputInfo.keyboard)
+        return 0;
+
     if (filter->keycode==0) {		/* initial press */
-	dev= _XkbLookupButtonDevice(pAction->devbtn.device,NULL);
-	if ((!dev)||(!dev->public.on)||(&dev->public==LookupPointerDevice()))
+	_XkbLookupButtonDevice(&dev, pAction->devbtn.device, serverClient,
+			       DixUnknownAccess, &button);
+	if (!dev || !dev->public.on || dev == inputInfo.pointer)
 	    return 1;
 
 	button= pAction->devbtn.button;
@@ -1070,8 +1077,9 @@ int		button;
 	int	button;
 
 	filter->active= 0;
-	dev= _XkbLookupButtonDevice(filter->upAction.devbtn.device,NULL);
-	if ((!dev)||(!dev->public.on)||(&dev->public==LookupPointerDevice()))
+	_XkbLookupButtonDevice(&dev, filter->upAction.devbtn.device,
+			       serverClient, DixUnknownAccess, &button);
+	if (!dev || !dev->public.on || dev == inputInfo.pointer)
 	    return 1;
 
 	button= filter->upAction.btn.button;
@@ -1137,7 +1145,7 @@ void
 XkbHandleActions(DeviceIntPtr dev,DeviceIntPtr kbd,xEvent *xE,int count)
 {
 int		key,bit,i;
-CARD8		realMods;
+CARD8		realMods = 0;
 XkbSrvInfoPtr	xkbi;
 KeyClassPtr	keyc;
 int		changed,sendEvent;

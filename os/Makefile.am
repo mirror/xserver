@@ -3,7 +3,6 @@ noinst_LTLIBRARIES = libos.la
 AM_CFLAGS = $(DIX_CFLAGS)
 
 SECURERPC_SRCS = rpcauth.c
-XCSECURITY_SRCS = secauth.c
 XDMCP_SRCS = xdmcp.c
 STRLCAT_SRCS = strlcat.c strlcpy.c
 XORG_SRCS = log.c
@@ -29,10 +28,6 @@ if SECURE_RPC
 libos_la_SOURCES += $(SECURERPC_SRCS)
 endif
 
-if XCSECURITY
-libos_la_SOURCES += $(XCSECURITY_SRCS)
-endif
-
 if XDMCP
 libos_la_SOURCES += $(XDMCP_SRCS)
 endif
@@ -42,7 +37,7 @@ libos_la_SOURCES += $(STRLCAT_SRCS)
 endif
 
 EXTRA_DIST = $(SECURERPC_SRCS) $(INTERNALMALLOC_SRCS) \
-     $(XCSECURITY_SRCS) $(XDMCP_SRCS) $(STRLCAT_SRCS)
+     $(XDMCP_SRCS) $(STRLCAT_SRCS)
 
 if XSERVER_DTRACE
 # Generate dtrace object code for probes in libos & libdix

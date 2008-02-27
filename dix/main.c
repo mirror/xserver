@@ -100,6 +100,8 @@ Equipment Corporation.
 #include "site.h"
 #include "dixfont.h"
 #include "extnsionst.h"
+#include "privates.h"
+#include "registry.h"
 #ifdef XPRINT
 #include "DiPrint.h"
 #endif
@@ -116,15 +118,12 @@ Equipment Corporation.
 #include "dpmsproc.h"
 #endif
 
-extern int InitClientPrivates(ClientPtr client);
-
 extern void Dispatch(void);
 
 char *ConnectionInfo;
 xConnSetupPrefix connSetupPrefix;
 
 extern FontPtr defaultFont;
-extern int screenPrivateCount;
 
 extern void InitProcVectors(void);
 extern Bool CreateGCperDepthArray(void);
@@ -134,13 +133,9 @@ static
 #endif
 Bool CreateConnectionBlock(void);
 
-static void FreeScreen(ScreenPtr);
-
 _X_EXPORT PaddingInfo PixmapWidthPaddingInfo[33];
 
 int connBlockScreenStart;
-
-static int restart = 0;
 
 _X_EXPORT void
 NotImplemented(xEvent *from, xEvent *to)
@@ -241,6 +236,10 @@ static int indexForScanlinePad[ 65 ] = {
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
+#ifdef __APPLE__
+void DarwinHandleGUI(int argc, char **argv, char **envp);
+#endif
+
 int
 main(int argc, char *argv[], char *envp[])
 {
@@ -262,13 +261,6 @@ main(int argc, char *argv[], char *envp[])
      * from another thread. */
     DarwinHandleGUI(argc, argv, envp);
 #endif
-
-    /* Notice if we're restarted.  Probably this is because we jumped through
-     * an uninitialized pointer */
-    if (restart)
-	FatalError("server restarted. Jumped through uninitialized pointer?\n");
-    else
-	restart = 1;
 
     CheckUserParameters(argc, argv, envp);
 
@@ -355,15 +347,10 @@ main(int argc, char *argv[], char *envp[])
 	InitAtoms();
 	InitEvents();
 	InitGlyphCaching();
-	ResetExtensionPrivates();
-	ResetClientPrivates();
-	ResetScreenPrivates();
-	ResetWindowPrivates();
-	ResetGCPrivates();
-	ResetPixmapPrivates();
-	ResetColormapPrivates();
+	if (!dixResetPrivates())
+	    FatalError("couldn't init private data storage");
+	dixResetRegistry();
 	ResetFontPrivateIndex();
-	ResetDevicePrivateIndex();
 	InitCallbackManager();
 	InitVisualWrap();
 	InitOutput(&screenInfo, argc, argv);
@@ -376,8 +363,6 @@ main(int argc, char *argv[], char *envp[])
 	if (screenInfo.numVideoScreens < 0)
 	    screenInfo.numVideoScreens = screenInfo.numScreens;
 	InitExtensions(argc, argv);
-	if (!InitClientPrivates(serverClient))
-	    FatalError("failed to allocate serverClient devprivates");
 	for (i = 0; i < screenInfo.numScreens; i++)
 	{
 	    ScreenPtr pScreen = screenInfo.screens[i];
@@ -399,9 +384,9 @@ main(int argc, char *argv[], char *envp[])
 	    FatalError("failed to initialize core devices");
 
 	InitFonts();
-	if (loadableFonts) {
-	    SetFontPath(0, 0, (unsigned char *)defaultFontPath, &error);
-	}
+	if (loadableFonts)
+	    SetFontPath(serverClient, 0, (unsigned char *)defaultFontPath,
+			&error);
         else {
 	    if (SetDefaultFontPath(defaultFontPath) != Success)
 		ErrorF("failed to set default font path '%s'",
@@ -434,7 +419,7 @@ main(int argc, char *argv[], char *envp[])
 	for (i = 0; i < screenInfo.numScreens; i++)
 	    InitRootWindow(WindowTable[i]);
 	DefineInitialRootWindow(WindowTable[0]);
-	SaveScreens(SCREEN_SAVER_FORCER, ScreenSaverReset);
+	dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 
 #ifdef PANORAMIX
 	if (!noPanoramiXExtension) {
@@ -455,7 +440,7 @@ main(int argc, char *argv[], char *envp[])
 
 	/* Now free up whatever must be freed */
 	if (screenIsSaved == SCREEN_SAVER_ON)
-	    SaveScreens(SCREEN_SAVER_OFF, ScreenSaverReset);
+	    dixSaveScreens(serverClient, SCREEN_SAVER_OFF, ScreenSaverReset);
 	FreeScreenSaverTimer();
 	CloseDownExtensions();
 
@@ -478,7 +463,8 @@ main(int argc, char *argv[], char *envp[])
 	    FreeGCperDepth(i);
 	    FreeDefaultStipple(i);
 	    (* screenInfo.screens[i]->CloseScreen)(i, screenInfo.screens[i]);
-	    FreeScreen(screenInfo.screens[i]);
+	    dixFreePrivates(screenInfo.screens[i]->devPrivates);
+	    xfree(screenInfo.screens[i]);
 	    screenInfo.numScreens = i;
 	}
   	CloseDownEvents();
@@ -488,7 +474,7 @@ main(int argc, char *argv[], char *envp[])
 
 	FreeAuditTimer();
 
-	xfree(serverClient->devPrivates);
+	dixFreePrivates(serverClient->devPrivates);
 	serverClient->devPrivates = NULL;
 
 	if (dispatchException & DE_TERMINATE)
@@ -700,24 +686,8 @@ AddScreen(
     if (!pScreen)
 	return -1;
 
-    pScreen->devPrivates = (DevUnion *)xcalloc(sizeof(DevUnion),
-						screenPrivateCount);
-    if (!pScreen->devPrivates && screenPrivateCount)
-    {
-	xfree(pScreen);
-	return -1;
-    }
+    pScreen->devPrivates = NULL;
     pScreen->myNum = i;
-    pScreen->WindowPrivateLen = 0;
-    pScreen->WindowPrivateSizes = (unsigned *)NULL;
-    pScreen->totalWindowSize =
-        ((sizeof(WindowRec) + sizeof(long) - 1) / sizeof(long)) * sizeof(long);
-    pScreen->GCPrivateLen = 0;
-    pScreen->GCPrivateSizes = (unsigned *)NULL;
-    pScreen->totalGCSize =
-        ((sizeof(GC) + sizeof(long) - 1) / sizeof(long)) * sizeof(long);
-    pScreen->PixmapPrivateLen = 0;
-    pScreen->PixmapPrivateSizes = (unsigned *)NULL;
     pScreen->totalPixmapSize = BitmapBytePad(sizeof(PixmapRec)*8);
     pScreen->ClipNotify = 0;	/* for R4 ddx compatibility */
     pScreen->CreateScreenResources = 0;
@@ -770,19 +740,10 @@ AddScreen(
     screenInfo.numScreens++;
     if (!(*pfnInit)(i, pScreen, argc, argv))
     {
-	FreeScreen(pScreen);
+	dixFreePrivates(pScreen->devPrivates);
+	xfree(pScreen);
 	screenInfo.numScreens--;
 	return -1;
     }
     return i;
-}
-
-static void
-FreeScreen(ScreenPtr pScreen)
-{
-    xfree(pScreen->WindowPrivateSizes);
-    xfree(pScreen->GCPrivateSizes);
-    xfree(pScreen->PixmapPrivateSizes);
-    xfree(pScreen->devPrivates);
-    xfree(pScreen);
 }

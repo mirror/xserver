@@ -206,6 +206,9 @@ extern Bool noXkbExtension;
 #ifdef PANORAMIX
 extern Bool noPanoramiXExtension;
 #endif
+#ifdef INXQUARTZ
+extern Bool noPseudoramiXExtension;
+#endif
 #ifdef XINPUT
 extern Bool noXInputExtension;
 #endif
@@ -241,12 +244,12 @@ typedef void (*InitExtension)(INITARGS);
 #define _XAG_SERVER_
 #include <X11/extensions/Xagstr.h>
 #endif
-#ifdef XACE
-#include "xace.h"
-#endif
 #ifdef XCSECURITY
 #include "securitysrv.h"
 #include <X11/extensions/securstr.h>
+#endif
+#ifdef XSELINUX
+#include "xselinux.h"
 #endif
 #ifdef PANORAMIX
 #include <X11/extensions/panoramiXproto.h>
@@ -270,6 +273,9 @@ extern void MultibufferExtensionInit(INITARGS);
 #endif
 #ifdef PANORAMIX
 extern void PanoramiXExtensionInit(INITARGS);
+#endif
+#ifdef INXQUARTZ
+extern void PseudoramiXExtensionInit(INITARGS);
 #endif
 #ifdef XINPUT
 extern void XInputExtensionInit(INITARGS);
@@ -314,12 +320,11 @@ extern void DbeExtensionInit(INITARGS);
 #ifdef XAPPGROUP
 extern void XagExtensionInit(INITARGS);
 #endif
-#ifdef XACE
-extern void XaceExtensionInit(INITARGS);
-#endif
 #ifdef XCSECURITY
-extern void SecurityExtensionSetup(INITARGS);
 extern void SecurityExtensionInit(INITARGS);
+#endif
+#ifdef XSELINUX
+extern void SELinuxExtensionInit(INITARGS);
 #endif
 #ifdef XPRINT
 extern void XpExtensionInit(INITARGS);
@@ -523,13 +528,13 @@ InitExtensions(argc, argv)
     int		argc;
     char	*argv[];
 {
-#ifdef XCSECURITY
-    SecurityExtensionSetup();
-#endif
 #ifdef PANORAMIX
 # if !defined(PRINT_ONLY_SERVER) && !defined(NO_PANORAMIX)
   if (!noPanoramiXExtension) PanoramiXExtensionInit();
 # endif
+#endif
+#ifdef INXQUARTZ
+    if(!noPseudoramiXExtension) PseudoramiXExtensionInit();
 #endif
 #ifdef SHAPE
     if (!noShapeExtension) ShapeExtensionInit();
@@ -588,11 +593,11 @@ InitExtensions(argc, argv)
 #ifdef XAPPGROUP
     if (!noXagExtension) XagExtensionInit();
 #endif
-#ifdef XACE
-    XaceExtensionInit();
-#endif
 #ifdef XCSECURITY
     if (!noSecurityExtension) SecurityExtensionInit();
+#endif
+#ifdef XSELINUX
+    SELinuxExtensionInit();
 #endif
 #ifdef XPRINT
     XpExtensionInit(); /* server-specific extension, cannot be disabled */
@@ -682,11 +687,8 @@ static ExtensionModule staticExtensions[] = {
 #ifdef XAPPGROUP
     { XagExtensionInit, XAGNAME, &noXagExtension, NULL, NULL },
 #endif
-#ifdef XACE
-    { XaceExtensionInit, XACE_EXTENSION_NAME, NULL, NULL, NULL },
-#endif
 #ifdef XCSECURITY
-    { SecurityExtensionInit, SECURITY_EXTENSION_NAME, &noSecurityExtension, SecurityExtensionSetup, NULL },
+    { SecurityExtensionInit, SECURITY_EXTENSION_NAME, &noSecurityExtension, NULL, NULL },
 #endif
 #ifdef XPRINT
     { XpExtensionInit, XP_PRINTNAME, NULL, NULL, NULL },
@@ -737,16 +739,6 @@ InitExtensions(argc, argv)
 	/* Sort the extensions according the init dependencies. */
 	LoaderSortExtensions();
 	listInitialised = TRUE;
-    } else {
-	/* Call the setup functions on subsequent server resets as well */
-	for (i = 0; ExtensionModuleList[i].name != NULL; i++) {
-	    ext = &ExtensionModuleList[i];
-	    if (ext->setupFunc != NULL &&
-		(ext->disablePtr == NULL ||
-		 (ext->disablePtr != NULL && !*ext->disablePtr))) {
-		(ext->setupFunc)();
-	    }
-	}
     }
 
     for (i = 0; ExtensionModuleList[i].name != NULL; i++) {

@@ -47,6 +47,8 @@
 #include <xf86.h>
 #include <dri.h>
 
+#include "servermd.h"
+
 #define DRI_NEW_INTERFACE_ONLY
 #include "glxserver.h"
 #include "glxutil.h"
@@ -178,10 +180,53 @@ __glXDRIenterServer(GLboolean rendering)
     DRIWakeupHandler(NULL, 0, NULL);
 }
 
+
+static void
+__glXDRIdoReleaseTexImage(__GLXDRIscreen *screen, __GLXDRIdrawable *drawable)
+{
+    GLuint lastOverride = screen->lastTexOffsetOverride;
+
+    if (lastOverride) {
+	__GLXDRIdrawable **texOffsetOverride = screen->texOffsetOverride;
+	int i;
+
+	for (i = 0; i < lastOverride; i++) {
+	    if (texOffsetOverride[i] == drawable) {
+
+		texOffsetOverride[i] = NULL;
+
+		if (i + 1 == lastOverride) {
+		    lastOverride = 0;
+
+		    while (i--) {
+			if (texOffsetOverride[i]) {
+			    lastOverride = i + 1;
+			    break;
+			}
+		    }
+
+		    screen->lastTexOffsetOverride = lastOverride;
+
+		    break;
+		}
+	    }
+	}
+    }
+}
+
+
 static void
 __glXDRIdrawableDestroy(__GLXdrawable *drawable)
 {
     __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
+
+    int i;
+
+    for (i = 0; i < screenInfo.numScreens; i++) {
+	__glXDRIdoReleaseTexImage((__GLXDRIscreen *)
+				  glxGetScreen(screenInfo.screens[i]),
+				  private);
+    }
 
     (*private->driDrawable.destroyDrawable)(&private->driDrawable);
 
@@ -308,18 +353,20 @@ __glXDRIcontextForceCurrent(__GLXcontext *baseContext)
 }
 
 static void
-glxFillAlphaChannel (PixmapPtr pixmap, int x, int y, int width, int height)
+glxFillAlphaChannel (CARD32 *pixels, CARD32 rowstride, int width, int height)
 {
     int i;
-    CARD32 *p, *end, *pixels = (CARD32 *)pixmap->devPrivate.ptr;
-    CARD32 rowstride = pixmap->devKind / 4;
+    CARD32 *p, *end;
+
+    rowstride /= 4;
     
-    for (i = y; i < y + height; i++)
+    for (i = 0; i < height; i++)
     {
-	p = &pixels[i * rowstride + x];
+	p = pixels;
 	end = p + width;
 	while (p < end)
 	  *p++ |= 0xFF000000;
+	pixels += rowstride;
     }
 }
 
@@ -430,22 +477,31 @@ nooverride:
 	type = GL_UNSIGNED_SHORT_5_6_5;
     }
 
-    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_ROW_LENGTH,
-				       pixmap->devKind / bpp) );
-
     if (pRegion == NULL)
     {
-	if (!override && pixmap->drawable.depth == 24)
-	    glxFillAlphaChannel(pixmap,
-				pixmap->drawable.x,
-				pixmap->drawable.y,
-				pixmap->drawable.width,
-				pixmap->drawable.height);
+	void *data = NULL;
 
-        CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_PIXELS,
-					   pixmap->drawable.x) );
-	CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_ROWS,
-					   pixmap->drawable.y) );
+	if (!override) {
+	    unsigned pitch = PixmapBytePad(pixmap->drawable.width,
+					   pixmap->drawable.depth); 
+
+	    data = xalloc(pitch * pixmap->drawable.height);
+
+	    pScreen->GetImage(&pixmap->drawable, 0 /*pixmap->drawable.x*/,
+			      0 /*pixmap->drawable.y*/, pixmap->drawable.width,
+			      pixmap->drawable.height, ZPixmap, ~0, data);
+
+	    if (pixmap->drawable.depth == 24)
+		glxFillAlphaChannel(data,
+				    pitch,
+				    pixmap->drawable.width,
+				    pixmap->drawable.height);
+
+	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_ROW_LENGTH,
+					       pitch / bpp) );
+	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_PIXELS, 0) );
+	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_ROWS, 0) );
+	}
 
 	CALL_TexImage2D( GET_DISPATCH(),
 			 (glxPixmap->target,
@@ -456,26 +512,37 @@ nooverride:
 			  0,
 			  format,
 			  type,
-			  override ? NULL : pixmap->devPrivate.ptr) );
+			  data) );
+
+	xfree(data);
     } else if (!override) {
         int i, numRects;
 	BoxPtr p;
 
 	numRects = REGION_NUM_RECTS (pRegion);
 	p = REGION_RECTS (pRegion);
+
+	CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_PIXELS, 0) );
+	CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_ROWS, 0) );
+
 	for (i = 0; i < numRects; i++)
 	{
+	    unsigned pitch = PixmapBytePad(p[i].x2 - p[i].x1,
+					   pixmap->drawable.depth);
+	    void *data = xalloc(pitch * (p[i].y2 - p[i].y1));
+
+	    pScreen->GetImage(&pixmap->drawable, /*pixmap->drawable.x +*/ p[i].x1,
+			      /*pixmap->drawable.y*/ + p[i].y1, p[i].x2 - p[i].x1,
+			      p[i].y2 - p[i].y1, ZPixmap, ~0, data);
+
 	    if (pixmap->drawable.depth == 24)
-		glxFillAlphaChannel(pixmap,
-				    pixmap->drawable.x + p[i].x1,
-				    pixmap->drawable.y + p[i].y1,
+		glxFillAlphaChannel(data,
+				    pitch,
 				    p[i].x2 - p[i].x1,
 				    p[i].y2 - p[i].y1);
 
-	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_PIXELS,
-					       pixmap->drawable.x + p[i].x1) );
-	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_SKIP_ROWS,
-					       pixmap->drawable.y + p[i].y1) );
+	    CALL_PixelStorei( GET_DISPATCH(), (GL_UNPACK_ROW_LENGTH,
+					       pitch / bpp) );
 
 	    CALL_TexSubImage2D( GET_DISPATCH(),
 				(glxPixmap->target,
@@ -484,7 +551,9 @@ nooverride:
 				 p[i].x2 - p[i].x1, p[i].y2 - p[i].y1,
 				 format,
 				 type,
-				 pixmap->devPrivate.ptr) );
+				 data) );
+
+	    xfree(data);
 	}
     }
 
@@ -499,41 +568,9 @@ __glXDRIreleaseTexImage(__GLXcontext *baseContext,
 			int buffer,
 			__GLXdrawable *pixmap)
 {
-    ScreenPtr pScreen = pixmap->pDraw->pScreen;
-    __GLXDRIdrawable *driDraw =
-	    containerOf(pixmap, __GLXDRIdrawable, base);
-    __GLXDRIscreen * const screen =
-	(__GLXDRIscreen *) glxGetScreen(pScreen);
-    GLuint lastOverride = screen->lastTexOffsetOverride;
-
-    if (lastOverride) {
-	__GLXDRIdrawable **texOffsetOverride = screen->texOffsetOverride;
-	int i;
-
-	for (i = 0; i < lastOverride; i++) {
-	    if (texOffsetOverride[i] == driDraw) {
-		if (screen->texOffsetFinish)
-		    screen->texOffsetFinish((PixmapPtr)pixmap->pDraw);
-
-		texOffsetOverride[i] = NULL;
-
-		if (i + 1 == lastOverride) {
-		    lastOverride = 0;
-
-		    while (i--) {
-			if (texOffsetOverride[i]) {
-			    lastOverride = i + 1;
-			    break;
-			}
-		    }
-
-		    screen->lastTexOffsetOverride = lastOverride;
-
-		    break;
-		}
-	    }
-	}
-    }
+    __glXDRIdoReleaseTexImage((__GLXDRIscreen *)
+			      glxGetScreen(pixmap->pDraw->pScreen),
+			      containerOf(pixmap, __GLXDRIdrawable, base));
 
     return Success;
 }
@@ -577,6 +614,9 @@ __glXDRIscreenCreateContext(__GLXscreen *baseScreen,
     else
 	driShare = NULL;
 
+    if (baseShareContext && baseShareContext->isDirect)
+        return NULL;
+
     context = xalloc(sizeof *context);
     if (context == NULL)
 	return NULL;
@@ -611,6 +651,14 @@ __glXDRIscreenCreateContext(__GLXscreen *baseScreen,
 					   driShare,
 					   hwContext,
 					   &context->driContext);
+
+    if (context->driContext.private == NULL) {
+    	__glXenterServer(GL_FALSE);
+	retval = DRIDestroyContext(baseScreen->pScreen, context->hwContextID);
+    	__glXleaveServer(GL_FALSE);
+	xfree(context);
+	return NULL;
+    }
 
     return &context->base;
 }
@@ -657,6 +705,14 @@ __glXDRIscreenCreateDrawable(__GLXscreen *screen,
 						 modes,
 						 &private->driDrawable,
 						 hwDrawable, 0, NULL);
+
+    if (private->driDrawable.private == NULL) {
+	__glXenterServer(GL_FALSE);
+	DRIDestroyDrawable(screen->pScreen, serverClient, pDraw);
+	__glXleaveServer(GL_FALSE);
+	xfree(private);
+	return NULL;
+    }
 
     return &private->base;
 }
@@ -761,10 +817,14 @@ static void __glXReportDamage(__DRIdrawable *driDraw,
     DrawablePtr pDraw = drawable->base.pDraw;
     RegionRec region;
 
+    __glXenterServer(GL_FALSE);
+
     REGION_INIT(pDraw->pScreen, &region, (BoxPtr) rects, num_rects);
     REGION_TRANSLATE(pScreen, &region, pDraw->x, pDraw->y);
     DamageDamageRegion(pDraw, &region);
     REGION_UNINIT(pDraw->pScreen, &region);
+
+    __glXleaveServer(GL_FALSE);
 }
 
 /* Table of functions that we export to the driver. */

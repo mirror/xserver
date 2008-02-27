@@ -857,7 +857,7 @@ xf86VTSwitch()
 #endif
 #ifdef DPMSExtension
     if (DPMSPowerLevel != DPMSModeOn)
-	DPMSSet(DPMSModeOn);
+	DPMSSet(serverClient, DPMSModeOn);
 #endif
     for (i = 0; i < xf86NumScreens; i++) {
       if (!(dispatchException & DE_TERMINATE))
@@ -906,7 +906,7 @@ xf86VTSwitch()
 	    (*xf86Screens[i]->EnableDisableFBAccess) (i, TRUE);
 	}
       }
-      SaveScreens(SCREEN_SAVER_FORCER, ScreenSaverReset);
+      dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 
       pInfo = xf86InputDevs;
       while (pInfo) {
@@ -970,7 +970,7 @@ xf86VTSwitch()
     }
 
     /* Turn screen saver off when switching back */
-    SaveScreens(SCREEN_SAVER_FORCER,ScreenSaverReset);
+    dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 
     pInfo = xf86InputDevs;
     while (pInfo) {

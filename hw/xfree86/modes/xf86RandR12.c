@@ -59,11 +59,11 @@ static Bool xf86RandR12Init12 (ScreenPtr pScreen);
 static Bool xf86RandR12CreateScreenResources12 (ScreenPtr pScreen);
 #endif
 
-static int	    xf86RandR12Index = -1;
-static int	    xf86RandR12Generation;
+static int xf86RandR12Generation;
+static DevPrivateKey xf86RandR12Key;
 
-#define XF86RANDRINFO(p) \
-	((XF86RandRInfoPtr)(p)->devPrivates[xf86RandR12Index].ptr)
+#define XF86RANDRINFO(p) ((XF86RandRInfoPtr) \
+    dixLookupPrivate(&(p)->devPrivates, xf86RandR12Key))
 
 static int
 xf86RandR12ModeRefresh (DisplayModePtr mode)
@@ -340,7 +340,7 @@ xf86RandR12ScreenSetSize (ScreenPtr	pScreen,
     PixmapPtr		pScrnPix = (*pScreen->GetScreenPixmap)(pScreen);
     Bool		ret = FALSE;
 
-    if (xf86RandR12Index != -1) {
+    if (xf86RandR12Key) {
         if (randrp->virtualX == -1 || randrp->virtualY == -1)
         {
 	    randrp->virtualX = pScrn->virtualX;
@@ -368,7 +368,7 @@ finish:
     if (pRoot && pScrn->vtSema)
 	(*pScrn->EnableDisableFBAccess) (pScreen->myNum, TRUE);
 #if RANDR_12_INTERFACE
-    if ((xf86RandR12Index != -1) && WindowTable[pScreen->myNum] && ret)
+    if (xf86RandR12Key && WindowTable[pScreen->myNum] && ret)
 	RRScreenSizeNotify (pScreen);
 #endif
     return ret;
@@ -468,7 +468,7 @@ xf86RandR12CreateScreenResources (ScreenPtr pScreen)
 				  mmHeight);
     }
 
-    if (xf86RandR12Index == -1)
+    if (xf86RandR12Key == NULL)
 	return TRUE;
 
     if (randrp->virtualX == -1 || randrp->virtualY == -1)
@@ -496,11 +496,11 @@ xf86RandR12Init (ScreenPtr pScreen)
     if (!noPanoramiXExtension)
 	return TRUE;
 #endif
+
     if (xf86RandR12Generation != serverGeneration)
-    {
-	xf86RandR12Index = AllocateScreenPrivateIndex();
 	xf86RandR12Generation = serverGeneration;
-    }
+
+    xf86RandR12Key = &xf86RandR12Key;
 
     randrp = xalloc (sizeof (XF86RandRInfoRec));
     if (!randrp)
@@ -526,7 +526,7 @@ xf86RandR12Init (ScreenPtr pScreen)
 
     randrp->maxX = randrp->maxY = 0;
 
-    pScreen->devPrivates[xf86RandR12Index].ptr = randrp;
+    dixSetPrivate(&pScreen->devPrivates, xf86RandR12Key, randrp);
 
 #if RANDR_12_INTERFACE
     if (!xf86RandR12Init12 (pScreen))
@@ -545,7 +545,7 @@ xf86RandR12SetRotations (ScreenPtr pScreen, Rotation rotations)
     xf86CrtcConfigPtr   config = XF86_CRTC_CONFIG_PTR(pScrn);
 #endif
 
-    if (xf86RandR12Index == -1)
+    if (xf86RandR12Key == NULL)
 	return;
 
     randrp = XF86RANDRINFO(pScreen);
@@ -1076,7 +1076,7 @@ xf86RandR12CreateScreenResources12 (ScreenPtr pScreen)
     ScrnInfoPtr		pScrn = xf86Screens[pScreen->myNum];
     xf86CrtcConfigPtr   config = XF86_CRTC_CONFIG_PTR(pScrn);
 
-    if (xf86RandR12Index == -1)
+    if (xf86RandR12Key == NULL)
 	return TRUE;
 
     for (c = 0; c < config->num_crtc; c++)
@@ -1099,7 +1099,7 @@ xf86RandR12TellChanged (ScreenPtr pScreen)
     xf86CrtcConfigPtr   config = XF86_CRTC_CONFIG_PTR(pScrn);
     int			c;
 
-    if (xf86RandR12Index == -1)
+    if (xf86RandR12Key == NULL)
 	return;
 
     xf86RandR12SetInfo12 (pScreen);

@@ -493,7 +493,7 @@ extension) to connect from another host.
 Default: off.
 .TP 7
 .BI "Option \*qDisableModInDev\*q  \*q" boolean \*q
-This disables the parts of the __xservername__\-Misc extension that can be used to
+This disables the parts of the XFree86\-Misc extension that can be used to
 modify the input device settings dynamically.
 Default: that functionality is enabled.
 .TP 7
@@ -506,17 +506,6 @@ Default: off.
 This allows the server to start up even if the mouse device can't be
 opened/initialised.
 Default: false.
-.TP 7
-.BI "Option \*qVTInit\*q  \*q" command \*q
-Runs
-.I command
-after the VT used by the server has been opened.
-The command string is passed to \*q/bin/sh \-c\*q, and is run with the real
-user's id with stdin and stdout set to the VT.
-The purpose of this option is to allow system dependent VT initialisation
-commands to be run.
-This option should rarely be needed.
-Default: not set.
 .TP 7
 .BI "Option \*qVTSysReq\*q  \*q" boolean \*q
 enables the SYSV\-style VT switch sequence for non\-SYSV systems
@@ -704,6 +693,20 @@ default.
 .BI "Option \*qIgnoreABI\*q \*q" boolean \*q
 Allow modules built for a different, potentially incompatible version of
 the X server to load. Disabled by default.
+.TP 7
+.BI "Option \*qAllowEmptyInput\*q \*q" boolean \*q
+If enabled, don't add the standard keyboard and mouse drivers, if there are no
+input devices in the config file.  Disabled by default.
+.TP 7
+.BI "Option \*qAutoAddDevices\*q \*q" boolean \*q
+If this option is disabled, then no devices will be added from HAL events.
+Enabled by default.
+.TP 7
+.BI "Option \*qAutoEnableDevices\*q \*q" boolean \*q
+If this option is disabled, then the devices will be added (and the
+DevicePresenceNotify event sent), but not enabled, thus leaving policy up
+to the client.
+Enabled by default.
 .SH "MODULE SECTION"
 The
 .B Module
@@ -991,10 +994,8 @@ In multi-head configurations, or when using a secondary graphics card in a
 single-head configuration, this entry is mandatory.
 Its main purpose is to make an unambiguous connection between the device
 section and the hardware it is representing.
-This information can usually be found by running the __xservername__ server
-with the
-.B \-scanpci
-command line option.
+This information can usually be found by running the pciaccess tool
+scanpci.
 .TP 7
 .BI "Screen  " number
 This option is mandatory for cards where a single PCI entity can drive more
@@ -1418,24 +1419,24 @@ This optional entry specifies the position of the monitor within the X
 screen.
 (RandR 1.2-supporting drivers only)
 .TP 7
-.BI "Option " "\*qLeftOf\*q  " \*qmonitor\*q
+.BI "Option " "\*qLeftOf\*q  " \*qoutput\*q
 This optional entry specifies that the monitor should be positioned to the
-left of the monitor of the given name.
+left of the output (not monitor) of the given name.
 (RandR 1.2-supporting drivers only)
 .TP 7
-.BI "Option " "\*qRightOf\*q  " \*qmonitor\*q
+.BI "Option " "\*qRightOf\*q  " \*qoutput\*q
 This optional entry specifies that the monitor should be positioned to the
-right of the monitor of the given name.
+right of the output (not monitor) of the given name.
 (RandR 1.2-supporting drivers only)
 .TP 7
-.BI "Option " "\*qAbove\*q  " \*qmonitor\*q
+.BI "Option " "\*qAbove\*q  " \*qoutput\*q
 This optional entry specifies that the monitor should be positioned above the
-monitor of the given name.
+output (not monitor) of the given name.
 (RandR 1.2-supporting drivers only)
 .TP 7
-.BI "Option " "\*qBelow\*q  " \*qmonitor\*q
+.BI "Option " "\*qBelow\*q  " \*qoutput\*q
 This optional entry specifies that the monitor should be positioned below the
-monitor of the given name.
+output (not monitor) of the given name.
 (RandR 1.2-supporting drivers only)
 .TP 7
 .BI "Option " "\*qEnable\*q  " \*qbool\*q
@@ -2015,7 +2016,7 @@ These both specify that the upper left corner's coordinates are
 The
 .B Absolute
 keyword is optional.
-Some older versions of __xservername__ (4.2 and earlier) don't recognise the
+Some older versions of XFree86 (4.2 and earlier) don't recognise the
 .B Absolute
 keyword, so it's safest to just specify the coordinates without it.
 .TP 4
@@ -2144,7 +2145,9 @@ The data therein is not used in this release.
 General:
 .BR X (__miscmansuffix__),
 .BR Xserver (__appmansuffix__),
-.BR __xservername__ (__appmansuffix__).
+.BR __xservername__ (__appmansuffix__),
+.BR cvt (__appmansuffix__),
+.BR gtf (__appmansuffix__).
 .PP
 .B Not all modules or interfaces are available on all platforms.
 .PP

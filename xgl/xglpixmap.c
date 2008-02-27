@@ -316,6 +316,7 @@ xglDestroyPixmap (PixmapPtr pPixmap)
 
     xglFiniPixmap (pPixmap);
 
+    dixFreePrivates(pPixmap->devPrivates);
     xfree (pPixmap);
 
     return TRUE;

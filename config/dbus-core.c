@@ -56,8 +56,9 @@ wakeup_handler(pointer data, int err, pointer read_mask)
     if (info->connection && FD_ISSET(info->fd, (fd_set *) read_mask)) {
         do {
             dbus_connection_read_write_dispatch(info->connection, 0);
-        } while (dbus_connection_get_dispatch_status(info->connection) ==
-                  DBUS_DISPATCH_DATA_REMAINS);
+        } while (info->connection &&
+                 dbus_connection_get_is_connected(info->connection) &&
+                 dbus_connection_get_dispatch_status(info->connection) == DBUS_DISPATCH_DATA_REMAINS);
     }
 }
 
@@ -76,7 +77,7 @@ teardown(void)
     struct config_dbus_core_hook *hook;
 
     if (bus_info.timer) {
-        TimerCancel(bus_info.timer);
+        TimerFree(bus_info.timer);
         bus_info.timer = NULL;
     }
 
@@ -116,6 +117,8 @@ message_filter(DBusConnection *connection, DBusMessage *message, void *data)
         bus_info.connection = NULL;
         teardown();
 
+        if (bus_info.timer)
+            TimerFree(bus_info.timer);
         bus_info.timer = TimerSet(NULL, 0, 1, reconnect_timer, NULL);
 
         return DBUS_HANDLER_RESULT_HANDLED;
@@ -186,6 +189,7 @@ static CARD32
 reconnect_timer(OsTimerPtr timer, CARD32 time, pointer arg)
 {
     if (connect_to_bus()) {
+        TimerFree(bus_info.timer);
         bus_info.timer = NULL;
         return 0;
     }

@@ -61,8 +61,8 @@ SOFTWARE.
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
 #include "exevents.h"
-#include "extinit.h"	/* LookupDeviceIntRec */
 #include "exglobals.h"
+#include "xace.h"
 
 #include "grabdev.h"
 #include "grabdevk.h"
@@ -77,8 +77,6 @@ int
 SProcXGrabDeviceKey(ClientPtr client)
 {
     char n;
-    long *p;
-    int i;
 
     REQUEST(xGrabDeviceKeyReq);
     swaps(&stuff->length, n);
@@ -86,11 +84,8 @@ SProcXGrabDeviceKey(ClientPtr client)
     swapl(&stuff->grabWindow, n);
     swaps(&stuff->modifiers, n);
     swaps(&stuff->event_count, n);
-    p = (long *)&stuff[1];
-    for (i = 0; i < stuff->event_count; i++) {
-	swapl(p, n);
-	p++;
-    }
+    REQUEST_FIXED_SIZE(xGrabDeviceKeyReq, stuff->event_count * sizeof(CARD32));
+    SwapLongs((CARD32 *) (&stuff[1]), stuff->event_count);
     return (ProcXGrabDeviceKey(client));
 }
 
@@ -115,18 +110,23 @@ ProcXGrabDeviceKey(ClientPtr client)
     if (stuff->length != (sizeof(xGrabDeviceKeyReq) >> 2) + stuff->event_count)
 	return BadLength;
 
-    dev = LookupDeviceIntRec(stuff->grabbed_device);
-    if (dev == NULL)
-	return BadDevice;
+    ret = dixLookupDevice(&dev, stuff->grabbed_device, client, DixGrabAccess);
+    if (ret != Success)
+	return ret;
 
     if (stuff->modifier_device != UseXKeyboard) {
-	mdev = LookupDeviceIntRec(stuff->modifier_device);
-	if (mdev == NULL)
-	    return BadDevice;
+	ret = dixLookupDevice(&mdev, stuff->modifier_device, client,
+			      DixReadAccess);
+	if (ret != Success)
+	    return ret;
 	if (mdev->key == NULL)
 	    return BadMatch;
-    } else
-	mdev = (DeviceIntPtr) LookupKeyboardDevice();
+    } else {
+	mdev = inputInfo.keyboard;
+	ret = XaceHook(XACE_DEVICE_ACCESS, client, mdev, DixReadAccess);
+	if (ret != Success)
+	    return ret;
+    }
 
     class = (XEventClass *) (&stuff[1]);	/* first word of values */
 

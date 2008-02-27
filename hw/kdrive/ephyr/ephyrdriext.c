@@ -44,6 +44,7 @@
 #include <X11/dri/xf86dri.h>
 #include <X11/dri/xf86dristr.h>
 #include "misc.h"
+#include "privates.h"
 #include "dixstruct.h"
 #include "extnsionst.h"
 #include "colormapst.h"
@@ -58,10 +59,6 @@
 #define _HAVE_XALLOC_DECLS
 #include "ephyrlog.h"
 
-typedef struct {
-    WindowPtr local ;
-    int remote ;
-} EphyrWindowPair;
 
 typedef struct {
     int foo;
@@ -118,14 +115,13 @@ static Bool findWindowPairFromLocal (WindowPtr a_local,
 
 static unsigned char DRIReqCode = 0;
 
-static int ephyrDRIGeneration=-1 ;
-static int ephyrDRIWindowIndex=-1 ;
-static int ephyrDRIScreenIndex=-1 ;
+static DevPrivateKey ephyrDRIWindowKey = &ephyrDRIWindowKey;
+static DevPrivateKey ephyrDRIScreenKey = &ephyrDRIScreenKey;
 
-#define GET_EPHYR_DRI_WINDOW_PRIV(win) \
-    ((EphyrDRIWindowPrivPtr)((win)->devPrivates[ephyrDRIWindowIndex].ptr))
-#define GET_EPHYR_DRI_SCREEN_PRIV(screen) \
-    ((EphyrDRIScreenPrivPtr)((screen)->devPrivates[ephyrDRIScreenIndex].ptr))
+#define GET_EPHYR_DRI_WINDOW_PRIV(win) ((EphyrDRIWindowPrivPtr) \
+    dixLookupPrivate(&(win)->devPrivates, ephyrDRIWindowKey))
+#define GET_EPHYR_DRI_SCREEN_PRIV(screen) ((EphyrDRIScreenPrivPtr) \
+    dixLookupPrivate(&(screen)->devPrivates, ephyrDRIScreenKey))
 
 
 Bool
@@ -164,28 +160,18 @@ ephyrDRIExtensionInit (ScreenPtr a_screen)
         EPHYR_LOG_ERROR ("failed to register DRI extension\n") ;
         goto out ;
     }
-    if (ephyrDRIGeneration != serverGeneration) {
-        ephyrDRIScreenIndex = AllocateScreenPrivateIndex () ;
-        if (ephyrDRIScreenIndex < 0) {
-            EPHYR_LOG_ERROR ("failed to allocate screen priv index\n") ;
-            goto out ;
-        }
-    }
     screen_priv = xcalloc (1, sizeof (EphyrDRIScreenPrivRec)) ;
     if (!screen_priv) {
         EPHYR_LOG_ERROR ("failed to allocate screen_priv\n") ;
         goto out ;
     }
-    a_screen->devPrivates[ephyrDRIScreenIndex].ptr = screen_priv;
+    dixSetPrivate(&a_screen->devPrivates, ephyrDRIScreenKey, screen_priv);
 
     if (!ephyrDRIScreenInit (a_screen)) {
         EPHYR_LOG_ERROR ("ephyrDRIScreenInit() failed\n") ;
         goto out ;
     }
     EphyrMirrorHostVisuals (a_screen) ;
-    if (ephyrDRIGeneration != serverGeneration) {
-        ephyrDRIGeneration = serverGeneration ;
-    }
     is_ok=TRUE ;
 out:
     EPHYR_LOG ("leave\n") ;
@@ -203,17 +189,6 @@ ephyrDRIScreenInit (ScreenPtr a_screen)
     screen_priv=GET_EPHYR_DRI_SCREEN_PRIV (a_screen) ;
     EPHYR_RETURN_VAL_IF_FAIL (screen_priv, FALSE) ;
 
-    if (ephyrDRIGeneration != serverGeneration) {
-        ephyrDRIWindowIndex = AllocateWindowPrivateIndex () ;
-        if (ephyrDRIWindowIndex < 0) {
-            EPHYR_LOG_ERROR ("failed to allocate window priv index\n") ;
-            goto out ;
-        }
-    }
-    if (!AllocateWindowPrivate (a_screen, ephyrDRIWindowIndex, 0)) {
-        EPHYR_LOG_ERROR ("failed to allocate window privates\n") ;
-        goto out ;
-    }
     screen_priv->CreateWindow = a_screen->CreateWindow ;
     screen_priv->DestroyWindow = a_screen->DestroyWindow ;
     screen_priv->MoveWindow = a_screen->MoveWindow ;
@@ -227,7 +202,7 @@ ephyrDRIScreenInit (ScreenPtr a_screen)
     a_screen->ClipNotify = ephyrDRIClipNotify ;
 
     is_ok = TRUE ;
-out:
+
     return is_ok ;
 }
 
@@ -254,7 +229,7 @@ ephyrDRICreateWindow (WindowPtr a_win)
     screen->CreateWindow = ephyrDRICreateWindow ;
 
     if (is_ok) {
-        a_win->devPrivates[ephyrDRIWindowIndex].ptr = NULL ;
+	dixSetPrivate(&a_win->devPrivates, ephyrDRIWindowKey, NULL);
     }
     return is_ok ;
 }
@@ -285,7 +260,7 @@ ephyrDRIDestroyWindow (WindowPtr a_win)
         if (win_priv) {
             destroyHostPeerWindow (a_win) ;
             xfree (win_priv) ;
-            a_win->devPrivates[ephyrDRIWindowIndex].ptr = NULL ;
+	    dixSetPrivate(&a_win->devPrivates, ephyrDRIWindowKey, NULL);
             EPHYR_LOG ("destroyed the remote peer window\n") ;
         }
     }
@@ -971,6 +946,26 @@ findWindowPairFromLocal (WindowPtr a_local,
     return FALSE ;
 }
 
+Bool
+findWindowPairFromRemote (int a_remote,
+                          EphyrWindowPair **a_pair)
+{
+    int i=0 ;
+
+    EPHYR_RETURN_VAL_IF_FAIL (a_pair, FALSE) ;
+
+    for (i=0; i < NUM_WINDOW_PAIRS; i++) {
+        if (window_pairs[i].remote == a_remote) {
+            *a_pair = &window_pairs[i] ;
+            EPHYR_LOG ("found (%p, %d)\n",
+                       (*a_pair)->local,
+                       (*a_pair)->remote) ;
+            return TRUE ;
+        }
+    }
+    return FALSE ;
+}
+
 static Bool
 createHostPeerWindow (const WindowPtr a_win,
                       int *a_peer_win)
@@ -1088,7 +1083,7 @@ ProcXF86DRICreateDrawable (ClientPtr client)
             EPHYR_LOG_ERROR ("failed to allocate window private\n") ;
             return BadAlloc ;
         }
-        window->devPrivates[ephyrDRIWindowIndex].ptr = win_priv ;
+	dixSetPrivate(&window->devPrivates, ephyrDRIWindowKey, win_priv);
         EPHYR_LOG ("paired window '%#x' with remote '%d'\n",
                    (unsigned int)window, remote_win) ;
     }

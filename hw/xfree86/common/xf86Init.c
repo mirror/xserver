@@ -102,7 +102,6 @@ static void xf86PrintBanner(void);
 static void xf86PrintMarkers(void);
 static void xf86PrintDefaultModulePath(void);
 static void xf86PrintDefaultLibraryPath(void);
-static void xf86RunVtInit(void);
 
 static Bool probe_devices_from_device_sections(DriverPtr drvp);
 static Bool add_matching_devices_to_configure_list(DriverPtr drvp);
@@ -139,8 +138,8 @@ xf86CreateRootWindow(WindowPtr pWin)
   int err = Success;
   ScreenPtr pScreen = pWin->drawable.pScreen;
   RootWinPropPtr pProp;
-  CreateWindowProcPtr CreateWindow =
-    (CreateWindowProcPtr)(pScreen->devPrivates[xf86CreateRootWindowIndex].ptr);
+  CreateWindowProcPtr CreateWindow = (CreateWindowProcPtr)
+      dixLookupPrivate(&pScreen->devPrivates, xf86CreateRootWindowKey);
 
 #ifdef DEBUG
   ErrorF("xf86CreateRootWindow(%p)\n", pWin);
@@ -156,7 +155,7 @@ xf86CreateRootWindow(WindowPtr pWin)
 
   /* Unhook this function ... */
   pScreen->CreateWindow = CreateWindow;
-  pScreen->devPrivates[xf86CreateRootWindowIndex].ptr = NULL;
+  dixSetPrivate(&pScreen->devPrivates, xf86CreateRootWindowKey, NULL);
 
   /* ... and call the previous CreateWindow fuction, if any */
   if (NULL!=pScreen->CreateWindow) {
@@ -199,13 +198,6 @@ xf86CreateRootWindow(WindowPtr pWin)
 }
 
 
-/*
- * InitOutput --
- *	Initialize screenInfo for all actually accessible framebuffers.
- *      That includes vt-manager setup, querying all possible devices and
- *      collecting the pixmap formats.
- */
-
 static void
 PostConfigInit(void)
 {
@@ -238,9 +230,6 @@ PostConfigInit(void)
     xf86OSPMClose = xf86OSPMOpen();
 #endif
     
-    /* Run an external VT Init program if specified in the config file */
-    xf86RunVtInit();
-
     /* Do this after XF86Config is read (it's normally in OsInit()) */
     OsInitColors();
 }
@@ -471,12 +460,16 @@ xf86CallDriverProbe( DriverPtr drv, Bool detect_only )
     return foundScreen;
 }
 
-
+/*
+ * InitOutput --
+ *	Initialize screenInfo for all actually accessible framebuffers.
+ *      That includes vt-manager setup, querying all possible devices and
+ *      collecting the pixmap formats.
+ */
 void
 InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 {
   int                    i, j, k, scr_index;
-  static unsigned long   generation = 0;
   char                   **modulelist;
   pointer                *optionlist;
   screenLayoutPtr	 layout;
@@ -486,14 +479,6 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
   Bool			 autoconfig = FALSE;
   
   xf86Initialising = TRUE;
-
-  /* Do this early? */
-  if (generation != serverGeneration) {
-      xf86ScreenIndex = AllocateScreenPrivateIndex();
-      xf86CreateRootWindowIndex = AllocateScreenPrivateIndex();
-      xf86PixmapIndex = AllocatePixmapPrivateIndex();
-      generation = serverGeneration;
-  }
 
   if (serverGeneration == 1) {
 
@@ -1070,8 +1055,8 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 	 * Hook in our ScrnInfoRec, and initialise some other pScreen
 	 * fields.
 	 */
-	screenInfo.screens[scr_index]->devPrivates[xf86ScreenIndex].ptr
-	  = (pointer)xf86Screens[i];
+	dixSetPrivate(&screenInfo.screens[scr_index]->devPrivates,
+		      xf86ScreenKey, xf86Screens[i]);
 	xf86Screens[i]->pScreen = screenInfo.screens[scr_index];
 	/* The driver should set this, but make sure it is set anyway */
 	xf86Screens[i]->vtSema = TRUE;
@@ -1087,8 +1072,9 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 	     i, xf86Screens[i]->pScreen->CreateWindow );
 #endif
 
-      screenInfo.screens[scr_index]->devPrivates[xf86CreateRootWindowIndex].ptr
-	= (void*)(xf86Screens[i]->pScreen->CreateWindow);
+      dixSetPrivate(&screenInfo.screens[scr_index]->devPrivates,
+		    xf86CreateRootWindowKey,
+		    xf86Screens[i]->pScreen->CreateWindow);
       xf86Screens[i]->pScreen->CreateWindow = xf86CreateRootWindow;
 
 #ifdef RENDER
@@ -1143,12 +1129,6 @@ InitInput(argc, argv)
 	for (pDev = xf86ConfigLayout.inputs; pDev && *pDev; pDev++) {
 	    /* Replace obsolete keyboard driver with kbd */
 	    if (!xf86NameCmp((*pDev)->driver, "keyboard")) {
-		xf86MsgVerb(X_WARNING, 0,
-			    "*** WARNING the legacy keyboard driver \"%s\" has been removed\n",
-			    (*pDev)->driver);
-		xf86MsgVerb(X_WARNING, 0,
-			    "*** Using the new \"kbd\" driver for \"%s\".\n",
-			    (*pDev)->identifier);
 		strcpy((*pDev)->driver, "kbd");
             }
 
@@ -1307,7 +1287,7 @@ AbortDDX()
    */
 #ifdef DPMSExtension /* Turn screens back on */
   if (DPMSPowerLevel != DPMSModeOn)
-      DPMSSet(DPMSModeOn);
+      DPMSSet(serverClient, DPMSModeOn);
 #endif
   if (xf86Screens) {
       if (xf86Screens[0]->vtSema)
@@ -1574,15 +1554,6 @@ ddxProcessArgument(int argc, char **argv, int i)
     xf86sFlag = TRUE;
     return 0;
   }
-  if (!strcmp(argv[i], "-bpp"))
-  {
-    ErrorF("The -bpp option is no longer supported.\n"
-	"\tUse -depth to set the color depth, and use -fbbpp if you really\n"
-	"\tneed to force a non-default framebuffer (hardware) pixel format.\n");
-    if (++i >= argc)
-      return 1;
-    return 2;
-  }
   if (!strcmp(argv[i], "-pixmap24"))
   {
     xf86Pix24 = Pix24Use24;
@@ -1695,10 +1666,6 @@ ddxProcessArgument(int argc, char **argv, int i)
     return 1;
   }
 #endif
-  if (!strcmp(argv[i], "-scanpci"))
-  {
-    DoScanPci(argc, argv, i);
-  }
   if (!strcmp(argv[i], "-probe"))
   {
     xf86DoProbe = TRUE;
@@ -1761,7 +1728,6 @@ ddxUseMsg()
   ErrorF("-config file           specify a configuration file, relative to the\n");
   ErrorF("                       "__XCONFIGFILE__" search path, only root can use absolute\n");
   ErrorF("-probeonly             probe for devices, then exit\n");
-  ErrorF("-scanpci               execute the scanpci module and exit\n");
   ErrorF("-verbose [n]           verbose startup messages\n");
   ErrorF("-logverbose [n]        verbose log messages\n");
   ErrorF("-quiet                 minimal startup messages\n");
@@ -1936,44 +1902,6 @@ static void
 xf86PrintDefaultLibraryPath(void)
 {
   ErrorF("%s\n", DEFAULT_LIBRARY_PATH);
-}
-
-static void
-xf86RunVtInit(void)
-{
-    int i;
-
-    /*
-     * If VTInit was set, run that program with consoleFd as stdin and stdout
-     */
-
-    if (xf86Info.vtinit) {
-      switch(fork()) {
-      case -1:
-          FatalError("xf86RunVtInit: fork failed (%s)\n", strerror(errno));
-          break;
-      case 0:  /* child */
-	  if (setuid(getuid()) == -1) {
-	      xf86Msg(X_ERROR, "xf86RunVtInit: setuid failed (%s)\n",
-			 strerror(errno));
-	      exit(255);
-	  }
-          /* set stdin, stdout to the consoleFd */
-          for (i = 0; i < 2; i++) {
-            if (xf86Info.consoleFd != i) {
-              close(i);
-              dup(xf86Info.consoleFd);
-            }
-          }
-          execl("/bin/sh", "sh", "-c", xf86Info.vtinit, (void *)NULL);
-          xf86Msg(X_WARNING, "exec of /bin/sh failed for VTInit (%s)\n",
-                 strerror(errno));
-          exit(255);
-          break;
-      default:  /* parent */
-          wait(NULL);
-      }
-    }
 }
 
 /*

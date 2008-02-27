@@ -176,6 +176,9 @@ int ProcGetReservedColormapEntries(
 
     REQUEST_SIZE_MATCH (xXcupGetReservedColormapEntriesReq);
 
+    if (stuff->screen >= screenInfo.numScreens)
+	return BadValue;
+
 #ifndef HAVE_SPECIAL_DESKTOP_COLORS
     citems[CUP_BLACK_PIXEL].pixel = 
 	screenInfo.screens[stuff->screen]->blackPixel;
@@ -204,12 +207,13 @@ int ProcStoreColors(
 {
     REQUEST (xXcupStoreColorsReq);
     ColormapPtr pcmp;
+    int rc;
 
     REQUEST_AT_LEAST_SIZE (xXcupStoreColorsReq);
-    pcmp = (ColormapPtr) SecurityLookupIDByType (client, stuff->cmap,
-						 RT_COLORMAP, DixWriteAccess);
+    rc = dixLookupResource((pointer *)&pcmp, stuff->cmap, RT_COLORMAP,
+			   client, DixAddAccess);
 
-    if (pcmp) {
+    if (rc == Success) {
 	int ncolors, n;
 	xXcupStoreColorsReply rep;
 	xColorItem* cptr;
@@ -253,7 +257,7 @@ int ProcStoreColors(
 	return client->noClientException;
     } else {
 	client->errorValue = stuff->cmap;
-	return BadColor;
+	return (rc == BadValue) ? BadColor : rc;
     }
 }
 

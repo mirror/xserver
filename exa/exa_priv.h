@@ -134,9 +134,9 @@ typedef struct {
     (PixmapWidthPaddingInfo[d].padRoundUp+1)))
 #endif
 
-extern int exaScreenPrivateIndex;
-extern int exaPixmapPrivateIndex;
-#define ExaGetScreenPriv(s)	((ExaScreenPrivPtr)(s)->devPrivates[exaScreenPrivateIndex].ptr)
+extern DevPrivateKey exaScreenPrivateKey;
+extern DevPrivateKey exaPixmapPrivateKey;
+#define ExaGetScreenPriv(s) ((ExaScreenPrivPtr)dixLookupPrivate(&(s)->devPrivates, exaScreenPrivateKey))
 #define ExaScreenPriv(s)	ExaScreenPrivPtr    pExaScr = ExaGetScreenPriv(s)
 
 /** Align an offset to an arbitrary alignment */
@@ -152,8 +152,8 @@ extern int exaPixmapPrivateIndex;
 #define EXA_PIXMAP_SCORE_PINNED	    1000
 #define EXA_PIXMAP_SCORE_INIT	    1001
 
-#define ExaGetPixmapPriv(p)	((ExaPixmapPrivPtr)(p)->devPrivates[exaPixmapPrivateIndex].ptr)
-#define ExaSetPixmapPriv(p,a)	((p)->devPrivates[exaPixmapPrivateIndex].ptr = (pointer) (a))
+#define ExaGetPixmapPriv(p) ((ExaPixmapPrivPtr)dixLookupPrivate(&(p)->devPrivates, exaPixmapPrivateKey))
+#define ExaSetPixmapPriv(p,a) dixSetPrivate(&(p)->devPrivates, exaPixmapPrivateKey, a)
 #define ExaPixmapPriv(p)	ExaPixmapPrivPtr pExaPixmap = ExaGetPixmapPriv(p)
 
 #define EXA_RANGE_PITCH (1 << 0)
@@ -290,9 +290,6 @@ ExaCheckGetSpans (DrawablePtr pDrawable,
 		 int *pwidth,
 		 int nspans,
 		 char *pdstStart);
-
-CARD32
-exaGetPixmapFirstPixel (PixmapPtr pPixmap); 
 
 /* exa_accel.c */
 

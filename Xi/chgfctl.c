@@ -60,7 +60,6 @@ SOFTWARE.
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>	/* control constants */
 
-#include "extinit.h"	/* LookupDeviceIntRec */
 #include "exglobals.h"
 
 #include "chgfctl.h"
@@ -303,18 +302,13 @@ ChangeStringFeedback(ClientPtr client, DeviceIntPtr dev,
 		     xStringFeedbackCtl * f)
 {
     char n;
-    long *p;
     int i, j;
     KeySym *syms, *sup_syms;
 
     syms = (KeySym *) (f + 1);
     if (client->swapped) {
 	swaps(&f->length, n);	/* swapped num_keysyms in calling proc */
-	p = (long *)(syms);
-	for (i = 0; i < f->num_keysyms; i++) {
-	    swapl(p, n);
-	    p++;
-	}
+	SwapLongs((CARD32 *) syms, f->num_keysyms);
     }
 
     if (f->num_keysyms > s->ctrl.max_symbols)
@@ -444,14 +438,15 @@ ProcXChangeFeedbackControl(ClientPtr client)
     StringFeedbackPtr s;
     BellFeedbackPtr b;
     LedFeedbackPtr l;
+    int rc;
 
     REQUEST(xChangeFeedbackControlReq);
     REQUEST_AT_LEAST_SIZE(xChangeFeedbackControlReq);
 
     len = stuff->length - (sizeof(xChangeFeedbackControlReq) >> 2);
-    dev = LookupDeviceIntRec(stuff->deviceid);
-    if (dev == NULL)
-	return BadDevice;
+    rc = dixLookupDevice(&dev, stuff->deviceid, client, DixManageAccess);
+    if (rc != Success)
+	return rc;
 
     switch (stuff->feedbackid) {
     case KbdFeedbackClass:

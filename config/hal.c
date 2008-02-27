@@ -92,6 +92,8 @@ add_option(InputOption **options, const char *key, const char *value)
     for (; *options; options = &(*options)->next)
         ;
     *options = xcalloc(sizeof(**options), 1);
+    if (!*options) /* Yeesh. */
+        return;
     (*options)->key = xstrdup(key);
     (*options)->value = xstrdup(value);
     (*options)->next = NULL;
@@ -103,7 +105,7 @@ get_prop_string(LibHalContext *hal_ctx, const char *udi, const char *name)
     char *prop, *ret;
 
     prop = libhal_device_get_property_string(hal_ctx, udi, name, NULL);
-    DebugF(" [config/hal] getting %s on %s returned %s\n", name, udi, prop);
+    DebugF("[config/hal] getting %s on %s returned %s\n", name, udi, prop);
     if (prop) {
         ret = xstrdup(prop);
         libhal_free_string(prop);
@@ -134,10 +136,11 @@ get_prop_string_array(LibHalContext *hal_ctx, const char *udi, const char *prop)
 
         str = ret;
         for (i = 0; props[i]; i++) {
-            str = strcpy(str, props[i]);
+            strcpy(str, props[i]);
+            str += strlen(props[i]);
             *str++ = ',';
         }
-        *str = '\0';
+        *(str-1) = '\0';
 
         libhal_free_string_array(props);
     }
@@ -155,7 +158,7 @@ device_added(LibHalContext *hal_ctx, const char *udi)
     char *path = NULL, *driver = NULL, *name = NULL, *xkb_rules = NULL;
     char *xkb_model = NULL, *xkb_layout = NULL, *xkb_variant = NULL;
     char *xkb_options = NULL, *config_info = NULL;
-    InputOption *options = NULL;
+    InputOption *options = NULL, *tmpo = NULL;
     DeviceIntPtr dev;
     DBusError error;
     int type = TYPE_NONE;
@@ -220,6 +223,8 @@ device_added(LibHalContext *hal_ctx, const char *udi)
         goto unwind;
     sprintf(config_info, "hal:%s", udi);
 
+    if (xkb_rules)
+        add_option(&options, "xkb_rules", xkb_rules);
     if (xkb_model)
         add_option(&options, "xkb_model", xkb_model);
     if (xkb_layout)
@@ -229,8 +234,10 @@ device_added(LibHalContext *hal_ctx, const char *udi)
     if (xkb_options)
         add_option(&options, "xkb_options", xkb_options);
 
+    DebugF("[config/hal] Adding device %s\n", name);
     if (NewInputDeviceRequest(options, &dev) != Success) {
-        DebugF("[config/hal] NewInputDeviceRequest failed\n");
+        ErrorF("[config/hal] NewInputDeviceRequest failed\n");
+        dev = NULL;
         goto unwind;
     }
 
@@ -250,10 +257,18 @@ unwind:
         xfree(xkb_model);
     if (xkb_layout)
         xfree(xkb_layout);
+    if (xkb_variant)
+        xfree(xkb_variant);
     if (xkb_options)
         xfree(xkb_options);
     if (config_info)
         xfree(config_info);
+    while (!dev && (tmpo = options)) {
+        options = tmpo->next;
+        xfree(tmpo->key);
+        xfree(tmpo->value);
+        xfree(tmpo);
+    }
 
 out_error:
     dbus_error_free(&error);
@@ -268,12 +283,14 @@ disconnect_hook(void *data)
     struct config_hal_info *info = data;
 
     if (info->hal_ctx) {
-        dbus_error_init(&error);
-        if (!libhal_ctx_shutdown(info->hal_ctx, &error))
-            DebugF("[config/hal] couldn't shut down context: %s (%s)\n",
-                   error.name, error.message);
+        if (dbus_connection_get_is_connected(info->system_bus)) {
+            dbus_error_init(&error);
+            if (!libhal_ctx_shutdown(info->hal_ctx, &error))
+                DebugF("[config/hal] couldn't shut down context: %s (%s)\n",
+                        error.name, error.message);
+            dbus_error_free(&error);
+        }
         libhal_ctx_free(info->hal_ctx);
-        dbus_error_free(&error);
     }
 
     info->hal_ctx = NULL;

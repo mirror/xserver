@@ -254,13 +254,13 @@ WaitForSomething(int *pClientsReady)
 		}
 		else if (selecterr == EINVAL)
 		{
-		    FatalError("WaitForSomething(): select: errno=%d\n",
-			selecterr);
+		    FatalError("WaitForSomething(): select: %s\n",
+			strerror(selecterr));
             }
-		else if (selecterr != EINTR)
+		else if (selecterr != EINTR && selecterr != EAGAIN)
 		{
-		    ErrorF("WaitForSomething(): select: errno=%d\n",
-			selecterr);
+		    ErrorF("WaitForSomething(): select: %s\n",
+			strerror(selecterr));
 		}
 	    }
 #ifdef SMART_SCHEDULE
@@ -563,7 +563,7 @@ TimerInit(void)
 
 #define DPMS_CHECK_MODE(mode,time)\
     if (time > 0 && DPMSPowerLevel < mode && timeout >= time)\
-	DPMSSet(mode);
+	DPMSSet(serverClient, mode);
 
 #define DPMS_CHECK_TIMEOUT(time)\
     if (time > 0 && (time - timeout) > 0)\
@@ -632,7 +632,7 @@ ScreenSaverTimeoutExpire(OsTimerPtr timer,CARD32 now,pointer arg)
     }
 
     ResetOsBuffers(); /* not ideal, but better than nothing */
-    SaveScreens(SCREEN_SAVER_ON, ScreenSaverActive);
+    dixSaveScreens(serverClient, SCREEN_SAVER_ON, ScreenSaverActive);
 
     if (ScreenSaverInterval > 0)
     {

@@ -42,8 +42,7 @@ typedef struct _ExaXorgScreenPrivRec {
     OptionInfoPtr		 options;
 } ExaXorgScreenPrivRec, *ExaXorgScreenPrivPtr;
 
-static int exaXorgServerGeneration;
-static int exaXorgScreenPrivateIndex;
+static DevPrivateKey exaXorgScreenPrivateKey = &exaXorgScreenPrivateKey;
 
 typedef enum {
     EXAOPT_MIGRATION_HEURISTIC,
@@ -72,8 +71,8 @@ static Bool
 exaXorgCloseScreen (int i, ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = XF86SCRNINFO(pScreen);
-    ExaXorgScreenPrivPtr pScreenPriv =
-	pScreen->devPrivates[exaXorgScreenPrivateIndex].ptr;
+    ExaXorgScreenPrivPtr pScreenPriv = (ExaXorgScreenPrivPtr)
+	dixLookupPrivate(&pScreen->devPrivates, exaXorgScreenPrivateKey);
 
     pScreen->CloseScreen = pScreenPriv->SavedCloseScreen;
 
@@ -89,8 +88,8 @@ static void
 exaXorgEnableDisableFBAccess (int index, Bool enable)
 {
     ScreenPtr pScreen = screenInfo.screens[index];
-    ExaXorgScreenPrivPtr pScreenPriv =
-	pScreen->devPrivates[exaXorgScreenPrivateIndex].ptr;
+    ExaXorgScreenPrivPtr pScreenPriv = (ExaXorgScreenPrivPtr)
+	dixLookupPrivate(&pScreen->devPrivates, exaXorgScreenPrivateKey);
 
     if (!enable)
 	exaEnableDisableFBAccess (index, enable);
@@ -113,11 +112,6 @@ exaDDXDriverInit(ScreenPtr pScreen)
     /* Do NOT use XF86SCRNINFO macro here!! */
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     ExaXorgScreenPrivPtr pScreenPriv;
-
-    if (exaXorgServerGeneration != serverGeneration) {
-	exaXorgScreenPrivateIndex = AllocateScreenPrivateIndex();
-	exaXorgServerGeneration = serverGeneration;
-    }
 
     pScreenPriv = xcalloc (1, sizeof(ExaXorgScreenPrivRec));
     if (pScreenPriv == NULL)
@@ -174,7 +168,7 @@ exaDDXDriverInit(ScreenPtr pScreen)
 	pExaScr->info->DownloadFromScreen = NULL;
     }
 
-    pScreen->devPrivates[exaXorgScreenPrivateIndex].ptr = pScreenPriv;
+    dixSetPrivate(&pScreen->devPrivates, exaXorgScreenPrivateKey, pScreenPriv);
 
     pScreenPriv->SavedEnableDisableFBAccess = pScrn->EnableDisableFBAccess;
     pScrn->EnableDisableFBAccess = exaXorgEnableDisableFBAccess;
@@ -183,8 +177,6 @@ exaDDXDriverInit(ScreenPtr pScreen)
     pScreen->CloseScreen = exaXorgCloseScreen;
     
 }
-
-static MODULESETUPPROTO(exaSetup);
 
 /*ARGSUSED*/
 static const OptionInfoRec *
@@ -207,26 +199,4 @@ static XF86ModuleVersionInfo exaVersRec =
 	{0,0,0,0}
 };
 
-_X_EXPORT XF86ModuleData exaModuleData = { &exaVersRec, exaSetup, NULL };
-
-static ModuleInfoRec EXA = {
-    1,
-    "EXA",
-    NULL,
-    0,
-    EXAAvailableOptions,
-};
-
-/*ARGSUSED*/
-static pointer
-exaSetup(pointer Module, pointer Options, int *ErrorMajor, int *ErrorMinor)
-{
-    static Bool Initialised = FALSE;
-
-    if (!Initialised) {
-	Initialised = TRUE;
-	xf86AddModuleInfo(&EXA, Module);
-    }
-
-    return (pointer)TRUE;
-}
+_X_EXPORT XF86ModuleData exaModuleData = { &exaVersRec, NULL, NULL };

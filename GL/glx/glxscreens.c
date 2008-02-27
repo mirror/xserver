@@ -42,12 +42,13 @@
 #include <os.h>
 #include <colormapst.h>
 
+#include "privates.h"
 #include "glxserver.h"
 #include "glxutil.h"
 #include "glxext.h"
 #include "glcontextmodes.h"
 
-static int glxScreenPrivateIndex;
+static DevPrivateKey glxScreenPrivateKey = &glxScreenPrivateKey;
 
 const char GLServerVersion[] = "1.4";
 static const char GLServerExtensions[] = 
@@ -174,7 +175,7 @@ static char GLXServerExtensions[] =
                         "GLX_EXT_texture_from_pixmap "
 			"GLX_OML_swap_method "
 			"GLX_SGI_make_current_read "
-#ifndef __DARWIN__
+#ifndef __APPLE__
 			"GLX_SGIS_multisample "
                         "GLX_SGIX_hyperpipe "
                         "GLX_SGIX_swap_barrier "
@@ -269,7 +270,7 @@ glxCloseScreen (int index, ScreenPtr pScreen)
 __GLXscreen *
 glxGetScreen(ScreenPtr pScreen)
 {
-    return (__GLXscreen *) pScreen->devPrivates[glxScreenPrivateIndex].ptr;
+    return dixLookupPrivate(&pScreen->devPrivates, glxScreenPrivateKey);
 }
 
 void GlxSetVisualConfigs(int nconfigs, 
@@ -277,6 +278,30 @@ void GlxSetVisualConfigs(int nconfigs,
 {
     /* We keep this stub around for the DDX drivers that still
      * call it. */
+}
+
+static void
+filterOutNativeConfigs(__GLXscreen *pGlxScreen)
+{
+    __GLcontextModes *m, *next, *native_modes, **last;
+    ScreenPtr pScreen = pGlxScreen->pScreen;
+    int i, depth;
+
+    last = &pGlxScreen->fbconfigs;
+    for (m = pGlxScreen->fbconfigs; m != NULL; m = next) {
+	next = m->next;
+	depth = m->redBits + m->blueBits + m->greenBits;
+
+	for (i = 0; i < pScreen->numVisuals; i++) {
+	    if (pScreen->visuals[i].nplanes == depth) {
+		*last = m;
+		last = &m->next;
+		break;
+	    }
+	}
+    }
+
+    *last = NULL;
 }
 
 static XID
@@ -497,18 +522,8 @@ void GlxSetVisualConfig(int config)
 
 void __glXScreenInit(__GLXscreen *pGlxScreen, ScreenPtr pScreen)
 {
-    static int glxGeneration;
     __GLcontextModes *m;
     int i;
-
-    if (glxGeneration != serverGeneration)
-    {
-	glxScreenPrivateIndex = AllocateScreenPrivateIndex ();
-	if (glxScreenPrivateIndex == -1)
-	    return;
-
-	glxGeneration = serverGeneration;
-    }
 
     pGlxScreen->pScreen       = pScreen;
     pGlxScreen->GLextensions  = xstrdup(GLServerExtensions);
@@ -521,6 +536,8 @@ void __glXScreenInit(__GLXscreen *pGlxScreen, ScreenPtr pScreen)
  
     pGlxScreen->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = glxCloseScreen;
+
+    filterOutNativeConfigs(pGlxScreen);
 
     i = 0;
     for (m = pGlxScreen->fbconfigs; m != NULL; m = m->next) {
@@ -548,9 +565,9 @@ void __glXScreenInit(__GLXscreen *pGlxScreen, ScreenPtr pScreen)
 	break;
     }
 
-    pScreen->devPrivates[glxScreenPrivateIndex].ptr = (pointer) pGlxScreen;
+    dixSetPrivate(&pScreen->devPrivates, glxScreenPrivateKey, pGlxScreen);
 }
- 
+
 void __glXScreenDestroy(__GLXscreen *screen)
 {
     xfree(screen->GLXvendor);

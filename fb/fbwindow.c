@@ -32,8 +32,8 @@ Bool
 fbCreateWindow(WindowPtr pWin)
 {
 #ifndef FB_NO_WINDOW_PIXMAPS
-    pWin->devPrivates[fbWinPrivateIndex].ptr = 
-	(pointer) fbGetScreenPixmap(pWin->drawable.pScreen);
+    dixSetPrivate(&pWin->devPrivates, fbGetWinPrivateKey(),
+		  fbGetScreenPixmap(pWin->drawable.pScreen));
 #endif
 #ifdef FB_SCREEN_PRIVATE
     if (pWin->drawable.bitsPerPixel == 32)
@@ -248,70 +248,5 @@ fbFillRegionSolid (DrawablePtr	pDrawable,
 	pbox++;
     }
     
-    fbFinishAccess (pDrawable);
-}
-
-#ifdef PANORAMIX
-#include "panoramiX.h"
-#include "panoramiXsrv.h"
-#endif
-
-void
-fbFillRegionTiled (DrawablePtr	pDrawable,
-		   RegionPtr	pRegion,
-		   PixmapPtr	pTile)
-{
-    FbBits	*dst;
-    FbStride	dstStride;
-    int		dstBpp;
-    int		dstXoff, dstYoff;
-    FbBits	*tile;
-    FbStride	tileStride;
-    int		tileBpp;
-    int		tileXoff, tileYoff; /* XXX assumed to be zero */
-    int		tileWidth, tileHeight;
-    int		n = REGION_NUM_RECTS(pRegion);
-    BoxPtr	pbox = REGION_RECTS(pRegion);
-    int		xRot = pDrawable->x;
-    int		yRot = pDrawable->y;
-    
-#ifdef PANORAMIX
-    if(!noPanoramiXExtension) 
-    {
-	int index = pDrawable->pScreen->myNum;
-	if(&WindowTable[index]->drawable == pDrawable) 
-	{
-	    xRot -= panoramiXdataPtr[index].x;
-	    yRot -= panoramiXdataPtr[index].y;
-	}
-    }
-#endif
-    fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
-    fbGetDrawable (&pTile->drawable, tile, tileStride, tileBpp, tileXoff, tileYoff);
-    tileWidth = pTile->drawable.width;
-    tileHeight = pTile->drawable.height;
-    xRot += dstXoff;
-    yRot += dstYoff;
-    
-    while (n--)
-    {
-	fbTile (dst + (pbox->y1 + dstYoff) * dstStride,
-		dstStride,
-		(pbox->x1 + dstXoff) * dstBpp,
-		(pbox->x2 - pbox->x1) * dstBpp,
-		pbox->y2 - pbox->y1,
-		tile,
-		tileStride,
-		tileWidth * dstBpp,
-		tileHeight,
-		GXcopy,
-		FB_ALLONES,
-		dstBpp,
-		xRot * dstBpp,
-		yRot - (pbox->y1 + dstYoff));
-	pbox++;
-    }
-
-    fbFinishAccess (&pTile->drawable);
     fbFinishAccess (pDrawable);
 }

@@ -301,7 +301,7 @@ xf86ReadBIOS(unsigned long Base, unsigned long Offset, unsigned char *Buf,
 	    return(-1);
 	}
 
-	psize = xf86getpagesize();
+	psize = getpagesize();
 	Offset += Base & (psize - 1);
 	Base &= ~(psize - 1);
 	mlen = (Offset + Len + psize - 1) & ~(psize - 1);
@@ -602,7 +602,7 @@ cleanMTRR()
 #ifdef DEBUG
 			ErrorF("Clean for (0x%lx,0x%lx)\n",
 				(unsigned long)mrd[i].mr_base,
-				(unsigned long)rd[i].mr_len);
+				(unsigned long)mrd[i].mr_len);
 #endif
 			if (mrd[i].mr_flags & MDF_FIXACTIVE) {
 				mro.mo_arg[0] = MEMRANGE_SET_UPDATE;

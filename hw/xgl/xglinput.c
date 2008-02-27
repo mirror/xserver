@@ -229,7 +229,7 @@ xglKeybdProc (DeviceIntPtr pDevice,
 
     switch (onoff) {
     case DEVICE_INIT:
-	if (pDev != LookupKeyboardDevice ())
+	if (pDev != (DevicePtr)inputInfo.keyboard)
 	    return !Success;
 
 	ret = InitKeyboardDeviceStruct (pDev,

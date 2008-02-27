@@ -143,9 +143,6 @@ SOFTWARE.
 #include "appgroup.h"
 #endif
 #include "xace.h"
-#ifdef XCSECURITY
-#include "securitysrv.h"
-#endif
 
 #ifdef X_NOT_POSIX
 #define Pid_t int
@@ -356,7 +353,8 @@ InitConnectionLimits(void)
 #endif
 
 #if !defined(WIN32)
-    ConnectionTranslation = (int *)xnfalloc(sizeof(int)*(lastfdesc + 1));
+    if (!ConnectionTranslation)
+        ConnectionTranslation = (int *)xnfalloc(sizeof(int)*(lastfdesc + 1));
 #else
     InitConnectionTranslation();
 #endif
@@ -719,13 +717,7 @@ ClientAuthorized(ClientPtr client,
 
     if (auth_id == (XID) ~0L)
     {
-	if (
-#ifdef XCSECURITY	    
-	    (proto_n == 0 ||
-	    strncmp (auth_proto, XSecurityAuthorizationName, proto_n) != 0) &&
-#endif
-	    _XSERVTransGetPeerAddr (trans_conn,
-	        &family, &fromlen, &from) != -1)
+	if (_XSERVTransGetPeerAddr(trans_conn, &family, &fromlen, &from) != -1)
 	{
 	    if (InvalidHost ((struct sockaddr *) from, fromlen, client))
 		AuthAudit(client, FALSE, (struct sockaddr *) from,
@@ -1057,9 +1049,12 @@ CheckConnections(void)
 	    curclient = curoff + (i * (sizeof(fd_mask)*8));
             FD_ZERO(&tmask);
             FD_SET(curclient, &tmask);
-            r = Select (curclient + 1, &tmask, NULL, NULL, &notime);
+            do {
+                r = Select (curclient + 1, &tmask, NULL, NULL, &notime);
+            } while (r < 0 && (errno == EINTR || errno == EAGAIN));
             if (r < 0)
-		CloseDownClient(clients[ConnectionTranslation[curclient]]);
+                if (ConnectionTranslation[curclient] > 0)
+                    CloseDownClient(clients[ConnectionTranslation[curclient]]);
 	    mask &= ~((fd_mask)1 << curoff);
 	}
     }	
@@ -1070,9 +1065,12 @@ CheckConnections(void)
 	curclient = XFD_FD(&savedAllClients, i);
 	FD_ZERO(&tmask);
 	FD_SET(curclient, &tmask);
-	r = Select (curclient + 1, &tmask, NULL, NULL, &notime);
-	if (r < 0 && GetConnectionTranslation(curclient) > 0)
-	    CloseDownClient(clients[GetConnectionTranslation(curclient)]);
+        do {
+            r = Select (curclient + 1, &tmask, NULL, NULL, &notime);
+        } while (r < 0 && (errno == EINTR || errno == EAGAIN));
+	if (r < 0)
+            if (GetConnectionTranslation(curclient) > 0)
+                CloseDownClient(clients[GetConnectionTranslation(curclient)]);
     }	
 #endif
 }
@@ -1141,11 +1139,15 @@ RemoveEnabledDevice(int fd)
  *    This routine is "undone" by ListenToAllClients()
  *****************/
 
-void
+int
 OnlyListenToOneClient(ClientPtr client)
 {
     OsCommPtr oc = (OsCommPtr)client->osPrivate;
-    int connection = oc->fd;
+    int rc, connection = oc->fd;
+
+    rc = XaceHook(XACE_SERVER_ACCESS, client, DixGrabAccess);
+    if (rc != Success)
+	return rc;
 
     if (! GrabInProgress)
     {
@@ -1166,6 +1168,7 @@ OnlyListenToOneClient(ClientPtr client)
 	XFD_ORSET(&AllSockets, &AllSockets, &AllClients);
 	GrabInProgress = client->index;
     }
+    return rc;
 }
 
 /****************

@@ -236,6 +236,9 @@ xf86CrtcSetMode (xf86CrtcPtr crtc, DisplayModePtr mode, Rotation rotation,
     int			saved_x, saved_y;
     Rotation		saved_rotation;
 
+    if (crtc->funcs->set_mode_major)
+	return crtc->funcs->set_mode_major(crtc, mode, rotation, x, y);
+	
     crtc->enabled = xf86CrtcInUse (crtc);
     
     if (!crtc->enabled)
@@ -1362,8 +1365,8 @@ xf86ProbeOutputModes (ScrnInfoPtr scrn, int maxX, int maxY)
 			if (sync_source == sync_default)
 			    sync_source = sync_edid;
 		    }
-		    if (ranges->max_clock > max_clock)
-			max_clock = ranges->max_clock;
+		    if (ranges->max_clock * 1000 > max_clock)
+			max_clock = ranges->max_clock * 1000;
 		}
 	    }
 	}
@@ -1410,9 +1413,12 @@ xf86ProbeOutputModes (ScrnInfoPtr scrn, int maxX, int maxY)
 	/*
 	 * Check default modes against monitor max clock
 	 */
-	if (max_clock)
+	if (max_clock) {
 	    xf86ValidateModesClocks(scrn, default_modes,
 				    &min_clock, &max_clock, 1);
+	    xf86ValidateModesClocks(scrn, output_modes,
+				    &min_clock, &max_clock, 1);
+	}
 	
 	output->probed_modes = NULL;
 	output->probed_modes = xf86ModesAdd (output->probed_modes, config_modes);
@@ -2186,14 +2192,18 @@ xf86OutputGetEDID (xf86OutputPtr output, I2CBusPtr pDDCBus)
     xf86MonPtr mon;
 
     mon = xf86DoEDID_DDC2 (scrn->scrnIndex, pDDCBus);
-    xf86DDCApplyQuirks (scrn->scrnIndex, pDDCBus);
+    if (mon)
+        xf86DDCApplyQuirks (scrn->scrnIndex, mon);
 
     return mon;
 }
 
-static char *_xf86ConnectorNames[] = { "None", "VGA", "DVI-I", "DVI-D",
-				      "DVI-A", "Composite", "S-Video",
-				      "Component", "LFP", "Proprietary" };
+static char *_xf86ConnectorNames[] = {
+					"None", "VGA", "DVI-I", "DVI-D",
+					"DVI-A", "Composite", "S-Video",
+					"Component", "LFP", "Proprietary",
+					"HDMI", "DisplayPort",
+				     };
 _X_EXPORT char *
 xf86ConnectorGetName(xf86ConnectorType connector)
 {

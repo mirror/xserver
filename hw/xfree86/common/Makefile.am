@@ -31,7 +31,7 @@ BUILT_SOURCES = xf86DefModeSet.c
 AM_LDFLAGS = -r
 libcommon_la_SOURCES = xf86Configure.c xf86Bus.c xf86Config.c \
                       xf86Cursor.c xf86cvt.c xf86DGA.c xf86DPMS.c \
-                      xf86DoProbe.c xf86DoScanPci.c xf86Events.c \
+                      xf86DoProbe.c xf86Events.c \
                       xf86Globals.c xf86AutoConfig.c \
                       xf86MiscExt.c xf86Option.c \
                       xf86VidMode.c xf86fbman.c xf86cmap.c \
@@ -85,9 +85,8 @@ EXTRA_DIST = \
 	xf86Version.h \
 	xorgVersion.h \
 	xf86Date.h \
-	xf86DefModes.c \
 	$(MODEDEFSOURCES) \
-	modeline2c.pl \
+	modeline2c.awk \
         $(DISTKBDSOURCES)
 
 if LNXACPI

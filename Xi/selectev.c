@@ -61,7 +61,6 @@ SOFTWARE.
 #include "windowstr.h"	/* window structure  */
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
-#include "extinit.h"	/* LookupDeviceIntRec */
 #include "exevents.h"
 #include "exglobals.h"
 
@@ -128,19 +127,16 @@ int
 SProcXSelectExtensionEvent(ClientPtr client)
 {
     char n;
-    long *p;
-    int i;
 
     REQUEST(xSelectExtensionEventReq);
     swaps(&stuff->length, n);
     REQUEST_AT_LEAST_SIZE(xSelectExtensionEventReq);
     swapl(&stuff->window, n);
     swaps(&stuff->count, n);
-    p = (long *)&stuff[1];
-    for (i = 0; i < stuff->count; i++) {
-	swapl(p, n);
-	p++;
-    }
+    REQUEST_FIXED_SIZE(xSelectExtensionEventReq,
+                      stuff->count * sizeof(CARD32));
+    SwapLongs((CARD32 *) (&stuff[1]), stuff->count);
+
     return (ProcXSelectExtensionEvent(client));
 }
 
@@ -164,7 +160,7 @@ ProcXSelectExtensionEvent(ClientPtr client)
     if (stuff->length != (sizeof(xSelectExtensionEventReq) >> 2) + stuff->count)
 	return BadLength;
 
-    ret = dixLookupWindow(&pWin, stuff->window, client, DixUnknownAccess);
+    ret = dixLookupWindow(&pWin, stuff->window, client, DixReceiveAccess);
     if (ret != Success)
 	return ret;
 

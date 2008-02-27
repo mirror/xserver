@@ -9,6 +9,8 @@ Makefile.in
 *.o
 *~
 .*.swp
+*.pbxuser
+*.mode1v3
 obj*
 build*
 aclocal.m4
@@ -25,6 +27,8 @@ install-sh
 libtool
 ltmain.sh
 missing
+TAGS
+tags
 ylwrap
 xorg-server.pc
 stamp-h?
@@ -95,8 +99,6 @@ cfb32/cfbzerarcG.c
 cfb32/cfbzerarcX.c
 doc/Xserver.1x
 doc/Xserver.man
-doc/SecurityPolicy.5
-doc/SecurityPolicy.man
 hw/dmx/Xdmx
 hw/dmx/Xdmx.1x
 hw/dmx/config/dmxtodmx

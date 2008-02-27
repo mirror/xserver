@@ -183,6 +183,8 @@ xf86ModeStatusToString(ModeStatus status)
         return "all modes must have the same resolution";
     case MODE_NO_REDUCED:
         return "monitor doesn't support reduced blanking";
+    case MODE_BANDWIDTH:
+	return "mode requires too much memory bandwidth";
     case MODE_BAD:
 	return "unknown reason";
     case MODE_ERROR:
@@ -367,52 +369,6 @@ xf86HandleBuiltinMode(ScrnInfoPtr scrp,
     
     return MODE_OK;
 }
-
-#if 0
-/** Calculates the horizontal sync rate of a mode */
-_X_EXPORT double
-xf86ModeHSync(DisplayModePtr mode)
-{
-    double hsync = 0.0;
-    
-    if (mode->HSync > 0.0)
-	    hsync = mode->HSync;
-    else if (mode->HTotal > 0)
-	    hsync = (float)mode->Clock / (float)mode->HTotal;
-
-    return hsync;
-}
-
-/** Calculates the vertical refresh rate of a mode */
-_X_EXPORT double
-xf86ModeVRefresh(DisplayModePtr mode)
-{
-    double refresh = 0.0;
-
-    if (mode->VRefresh > 0.0)
-	refresh = mode->VRefresh;
-    else if (mode->HTotal > 0 && mode->VTotal > 0) {
-	refresh = mode->Clock * 1000.0 / mode->HTotal / mode->VTotal;
-	if (mode->Flags & V_INTERLACE)
-	    refresh *= 2.0;
-	if (mode->Flags & V_DBLSCAN)
-	    refresh /= 2.0;
-	if (mode->VScan > 1)
-	    refresh /= (float)(mode->VScan);
-    }
-    return refresh;
-}
-
-/** Sets a default mode name of <width>x<height> on a mode. */
-_X_EXPORT void
-xf86SetModeDefaultName(DisplayModePtr mode)
-{
-    if (mode->name != NULL)
-	xfree(mode->name);
-
-    mode->name = XNFprintf("%dx%d", mode->HDisplay, mode->VDisplay);
-}
-#endif
 
 /*
  * xf86LookupMode
@@ -1259,20 +1215,40 @@ inferVirtualSize(ScrnInfoPtr scrp, DisplayModePtr modes, int *vx, int *vy)
 {
     float aspect = 0.0;
     MonPtr mon = scrp->monitor;
+    xf86MonPtr DDC;
     int x = 0, y = 0;
     DisplayModePtr mode;
 
     if (!mon) return 0;
+    DDC = mon->DDC;
+
+    if (DDC && DDC->ver.revision >= 4) {
+	/* For 1.4, we might actually get native pixel format.  How novel. */
+	if (PREFERRED_TIMING_MODE(DDC->features.msc)) {
+		for (mode = modes; mode; mode = mode->next) {
+		    if (mode->type & (M_T_DRIVER | M_T_PREFERRED)) {
+			x = mode->HDisplay;
+			y = mode->VDisplay;
+			goto found;
+		    }
+		}
+	}
+	/*
+	 * Even if we don't, we might get aspect ratio from extra CVT info
+	 * or from the monitor size fields.  TODO.
+	 */
+    }
 
     /*
-     * technically this triggers if _either_ is zero, which is not what EDID
-     * says, but if only one is zero this is best effort.  also we don't
-     * know that all projectors are 4:3, but we certainly suspect it.
+     * Technically this triggers if either is zero.  That wasn't legal
+     * before EDID 1.4, but right now we'll get that wrong. TODO.
      */
-    if (!mon->widthmm || !mon->heightmm)
-	aspect = 4.0/3.0;
-    else
-	aspect = (float)mon->widthmm / (float)mon->heightmm;
+    if (!aspect) {
+	if (!mon->widthmm || !mon->heightmm)
+	    aspect = 4.0/3.0;
+	else
+	    aspect = (float)mon->widthmm / (float)mon->heightmm;
+    }
 
     /* find the largest M_T_DRIVER mode with that aspect ratio */
     for (mode = modes; mode; mode = mode->next) {
@@ -1296,6 +1272,7 @@ inferVirtualSize(ScrnInfoPtr scrp, DisplayModePtr modes, int *vx, int *vy)
 	return 0;
     }
 
+found:
     *vx = x;
     *vy = y;
 

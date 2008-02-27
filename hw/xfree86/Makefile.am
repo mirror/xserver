@@ -8,6 +8,10 @@ if GLUCOSE
 GLUCOSE_DIR=glucose
 endif
 
+if DRI2
+DRI2_SUBDIR = dri2
+endif
+
 if XF86UTILS
 XF86UTILS_SUBDIR = utils
 endif
@@ -25,12 +29,21 @@ DOC_SUBDIR = doc
 SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support parser rac \
 	  ramdac shadowfb vbe vgahw xaa $(MFB_SUBDIR) $(CFB_SUBDIR) \
 	  xf8_16bpp loader dixmods exa modes \
+<<<<<<< HEAD:hw/xfree86/Makefile.am
 	  $(DRI_SUBDIR) $(XF86UTILS_SUBDIR) $(DOC_SUBDIR) $(GLUCOSE_DIR)
+=======
+	  $(DRI_SUBDIR) $(DRI2_SUBDIR) $(XF86UTILS_SUBDIR) $(DOC_SUBDIR)
+>>>>>>> 41aea6194bd29ab34cc166b3fd90eee64299ddf8:hw/xfree86/Makefile.am
 
 DIST_SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support \
                parser rac ramdac shadowfb vbe vgahw xaa xf1bpp xf4bpp \
+<<<<<<< HEAD:hw/xfree86/Makefile.am
                xf8_16bpp xf8_32bpp loader dixmods dri exa modes \
 	       utils doc glucose
+=======
+               xf8_16bpp xf8_32bpp loader dixmods dri dri2 exa modes \
+	       utils doc
+>>>>>>> 41aea6194bd29ab34cc166b3fd90eee64299ddf8:hw/xfree86/Makefile.am
 
 bin_PROGRAMS = Xorg
 

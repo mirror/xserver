@@ -22,6 +22,7 @@
 
 #include "randrstr.h"
 #include "swaprep.h"
+#include "registry.h"
 
 RESTYPE	RRCrtcType;
 
@@ -501,9 +502,7 @@ RRCrtcInit (void)
     RRCrtcType = CreateNewResourceType (RRCrtcDestroyResource);
     if (!RRCrtcType)
 	return FALSE;
-#ifdef XResExtension
-	RegisterResourceName (RRCrtcType, "CRTC");
-#endif
+    RegisterResourceName (RRCrtcType, "CRTC");
     return TRUE;
 }
 

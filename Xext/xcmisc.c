@@ -64,11 +64,9 @@ static DISPATCH_PROC(SProcXCMiscGetXIDRange);
 void
 XCMiscExtensionInit(INITARGS)
 {
-    (void) AddExtension(XCMiscExtensionName, 0, 0,
-			ProcXCMiscDispatch, SProcXCMiscDispatch,
-			XCMiscResetProc, StandardMinorOpcode);
-
-    DeclareExtensionSecurity(XCMiscExtensionName, TRUE);
+    AddExtension(XCMiscExtensionName, 0, 0,
+		 ProcXCMiscDispatch, SProcXCMiscDispatch,
+		 XCMiscResetProc, StandardMinorOpcode);
 }
 
 /*ARGSUSED*/

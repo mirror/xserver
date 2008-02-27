@@ -179,7 +179,7 @@ void RootlessStartDrawing(WindowPtr pWindow)
     }
     else
     {
-        PixmapPtr oldPixmap = pWindow->devPrivates[rootlessWindowOldPixmapPrivateIndex].ptr;
+        PixmapPtr oldPixmap = dixLookupPrivate(&pWindow->devPrivates, rootlessWindowOldPixmapPrivateKey);
         if (oldPixmap != NULL)
         {
             if (oldPixmap == curPixmap)
@@ -187,7 +187,7 @@ void RootlessStartDrawing(WindowPtr pWindow)
             else
                 RL_DEBUG_MSG("Window %p's existing oldPixmap %p being lost!\n", pWindow, oldPixmap);
         }
-        pWindow->devPrivates[rootlessWindowOldPixmapPrivateIndex].ptr = curPixmap;
+	dixSetPrivate(&pWindow->devPrivates, rootlessWindowOldPixmapPrivateKey, curPixmap);
         pScreen->SetWindowPixmap(pWindow, winRec->pixmap);
     }
 }
@@ -203,7 +203,7 @@ static int RestorePreDrawingPixmapVisitor(WindowPtr pWindow, pointer data)
     RootlessWindowRec *winRec = (RootlessWindowRec*)data;
     ScreenPtr pScreen = pWindow->drawable.pScreen;
     PixmapPtr exPixmap = pScreen->GetWindowPixmap(pWindow);
-    PixmapPtr oldPixmap = pWindow->devPrivates[rootlessWindowOldPixmapPrivateIndex].ptr;
+    PixmapPtr oldPixmap = dixLookupPrivate(&pWindow->devPrivates, rootlessWindowOldPixmapPrivateKey);
     if (oldPixmap == NULL)
     {
         if (exPixmap == winRec->pixmap)
@@ -216,7 +216,7 @@ static int RestorePreDrawingPixmapVisitor(WindowPtr pWindow, pointer data)
         if (oldPixmap == winRec->pixmap)
             RL_DEBUG_MSG("Window %p's oldPixmap %p is winRec->pixmap, which has just been freed!\n", pWindow, oldPixmap);
         pScreen->SetWindowPixmap(pWindow, oldPixmap);
-        pWindow->devPrivates[rootlessWindowOldPixmapPrivateIndex].ptr = NULL;
+        dixSetPrivate(&pWindow->devPrivates, rootlessWindowOldPixmapPrivateKey, NULL);
     }
     return WT_WALKCHILDREN;
 }

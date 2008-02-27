@@ -125,6 +125,7 @@ typedef enum {
     MODE_ONE_HEIGHT,    /* only one height is supported */
     MODE_ONE_SIZE,      /* only one resolution is supported */
     MODE_NO_REDUCED,    /* monitor doesn't accept reduced blanking */
+    MODE_BANDWIDTH,	/* mode requires too much memory bandwidth */
     MODE_BAD = -2,	/* unspecified reason */
     MODE_ERROR	= -1	/* error condition */
 } ModeStatus;
@@ -347,7 +348,7 @@ typedef struct _DriverRec {
  * functions to configuration tools, the Xserver, or any other
  * application/module interested in such information.
  */
-typedef struct _ModuleInfoRec {
+_X_DEPRECATED typedef struct _ModuleInfoRec {
     int			moduleVersion;
     char *		moduleName;
     pointer		module;

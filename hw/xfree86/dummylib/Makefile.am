@@ -1,6 +1,6 @@
 # libdummy.a contains just those bits used in the server itself
 # libdummy-nonserver.a contains additional routines normally found in the
-# server for use in building the utilities like scanpci & the config tools
+# server for use in building the utilities like config tools
 
 noinst_LIBRARIES = libdummy-nonserver.a
 
@@ -13,6 +13,7 @@ STRL_SRCS = $(top_srcdir)/os/strlcat.c $(top_srcdir)/os/strlcpy.c
 endif
 
 libdummy_nonserver_a_SOURCES = \
+	dixprivates.c \
 	fatalerror.c \
 	logvwrite.c \
 	$(STRL_SRCS) \
@@ -24,7 +25,6 @@ libdummy_nonserver_a_SOURCES = \
 	xf86drvmsgverb.c \
 	xf86errorf.c \
 	xf86errorfverb.c \
-	xf86getpagesize.c \
 	xf86getverb.c \
 	xf86info.c \
 	xf86msg.c \

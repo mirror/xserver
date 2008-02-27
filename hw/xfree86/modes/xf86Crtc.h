@@ -61,7 +61,9 @@ typedef enum _xf86ConnectorType {
    XF86ConnectorSvideo,
    XF86ConnectorComponent,
    XF86ConnectorLFP,
-   XF86ConnectorProprietary
+   XF86ConnectorProprietary,
+   XF86ConnectorHDMI,
+   XF86ConnectorDisplayPort,
 } xf86ConnectorType;
 
 typedef enum _xf86OutputStatus {
@@ -204,6 +206,13 @@ typedef struct _xf86CrtcFuncs {
      */
     void
     (*destroy) (xf86CrtcPtr	crtc);
+
+    /**
+     * Less fine-grained mode setting entry point for kernel modesetting
+     */
+    Bool
+    (*set_mode_major)(xf86CrtcPtr crtc, DisplayModePtr mode,
+		      Rotation rotation, int x, int y);
 } xf86CrtcFuncsRec, *xf86CrtcFuncsPtr;
 
 struct _xf86Crtc {

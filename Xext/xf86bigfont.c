@@ -236,15 +236,15 @@ shmalloc(
     size = (size + pagesize-1) & -pagesize;
     shmid = shmget(IPC_PRIVATE, size, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
     if (shmid == -1) {
-	ErrorF(XF86BIGFONTNAME " extension: shmget() failed, size = %u, errno = %d\n",
-	       size, errno);
+	ErrorF(XF86BIGFONTNAME " extension: shmget() failed, size = %u, %s\n",
+	       size, strerror(errno));
 	xfree(pDesc);
 	return (ShmDescPtr) NULL;
     }
 
     if ((addr = shmat(shmid, 0, 0)) == (char *)-1) {
-	ErrorF(XF86BIGFONTNAME " extension: shmat() failed, size = %u, errno = %d\n",
-	       size, errno);
+	ErrorF(XF86BIGFONTNAME " extension: shmat() failed, size = %u, %s\n",
+	       size, strerror(errno));
 	shmctl(shmid, IPC_RMID, (void *) 0);
 	xfree(pDesc);
 	return (ShmDescPtr) NULL;
@@ -428,10 +428,10 @@ ProcXF86BigfontQueryFont(
 #endif
     client->errorValue = stuff->id;		/* EITHER font or gc */
     pFont = (FontPtr)SecurityLookupIDByType(client, stuff->id, RT_FONT,
-					    DixReadAccess);
+					    DixGetAttrAccess);
     if (!pFont) {
 	GC *pGC = (GC *) SecurityLookupIDByType(client, stuff->id, RT_GC,
-						DixReadAccess);
+						DixGetAttrAccess);
         if (!pGC) {
 	    client->errorValue = stuff->id;
             return BadFont;    /* procotol spec says only error is BadFont */

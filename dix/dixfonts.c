@@ -65,6 +65,7 @@ Equipment Corporation.
 #include "dixfontstr.h"
 #include "closestr.h"
 #include "dixfont.h"
+#include "xace.h"
 
 #ifdef DEBUG
 #include	<stdio.h>
@@ -324,6 +325,13 @@ doOpenFont(ClientPtr client, OFclosurePtr c)
     if (!pfont) {
 	err = BadFontName;
 	goto bail;
+    }
+    /* check values for firstCol, lastCol, firstRow, and lastRow */
+    if (pfont->info.firstCol > pfont->info.lastCol ||
+       pfont->info.firstRow > pfont->info.lastRow ||
+       pfont->info.lastCol - pfont->info.firstCol > 255) {
+       err = AllocError;
+       goto bail;
     }
     if (!pfont->fpe)
 	pfont->fpe = fpe;
@@ -833,6 +841,10 @@ ListFonts(ClientPtr client, unsigned char *pattern, unsigned length,
     if (length > XLFDMAXFONTNAMELEN)
 	return BadAlloc;
 
+    i = XaceHook(XACE_SERVER_ACCESS, client, DixGetAttrAccess);
+    if (i != Success)
+	return i;
+
     if (!(c = (LFclosurePtr) xalloc(sizeof *c)))
 	return BadAlloc;
     c->fpe_list = (FontPathElementPtr *)
@@ -1104,6 +1116,10 @@ StartListFontsWithInfo(ClientPtr client, int length, unsigned char *pattern,
      */
     if (length > XLFDMAXFONTNAMELEN)
 	return BadAlloc;
+
+    i = XaceHook(XACE_SERVER_ACCESS, client, DixGetAttrAccess);
+    if (i != Success)
+	return i;
 
     if (!(c = (LFWIclosurePtr) xalloc(sizeof *c)))
 	goto badAlloc;
@@ -1628,9 +1644,6 @@ FreeFontPath(FontPathElementPtr *list, int n, Bool force)
 		    found++;
 	    }
 	    if (list[i]->refcount != found) {
-		ErrorF("FreeFontPath: FPE \"%.*s\" refcount is %d, should be %d; fixing.\n",
-		       list[i]->name_length, list[i]->name,
-		       list[i]->refcount, found);
 		list[i]->refcount = found; /* ensure it will get freed */
 	    }
 	}
@@ -1771,7 +1784,9 @@ bail:
 int
 SetFontPath(ClientPtr client, int npaths, unsigned char *paths, int *error)
 {
-    int   err = Success;
+    int err = XaceHook(XACE_SERVER_ACCESS, client, DixManageAccess);
+    if (err != Success)
+	return err;
 
     if (npaths == 0) {
 	if (SetDefaultFontPath(defaultFontPath) != Success)
@@ -1823,13 +1838,17 @@ SetDefaultFontPath(char *path)
     return err;
 }
 
-unsigned char *
-GetFontPath(int *count, int *length)
+int
+GetFontPath(ClientPtr client, int *count, int *length, unsigned char **result)
 {
     int			i;
     unsigned char       *c;
     int			len;
     FontPathElementPtr	fpe;
+
+    i = XaceHook(XACE_SERVER_ACCESS, client, DixGetAttrAccess);
+    if (i != Success)
+	return i;
 
     len = 0;
     for (i = 0; i < num_fpes; i++) {
@@ -1838,7 +1857,7 @@ GetFontPath(int *count, int *length)
     }
     font_path_string = (unsigned char *) xrealloc(font_path_string, len);
     if (!font_path_string)
-	return NULL;
+	return BadAlloc;
 
     c = font_path_string;
     *length = 0;
@@ -1850,7 +1869,8 @@ GetFontPath(int *count, int *length)
 	c += fpe->name_length;
     }
     *count = num_fpes;
-    return font_path_string;
+    *result = font_path_string;
+    return Success;
 }
 
 _X_EXPORT int
@@ -1911,12 +1931,15 @@ GetDefaultPointSize ()
 FontResolutionPtr
 GetClientResolutions (int *num)
 {
+#ifdef XPRINT
     if (requestingClient && requestingClient->fontResFunc != NULL &&
 	!requestingClient->clientGone)
     {
 	return (*requestingClient->fontResFunc)(requestingClient, num);
     }
-    else {
+    else
+#endif
+    {
 	static struct _FontResolution res;
 	ScreenPtr   pScreen;
 

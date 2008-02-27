@@ -56,9 +56,9 @@ static DISPATCH_PROC(SProcMITSetBugMode);
 void
 MITMiscExtensionInit(INITARGS)
 {
-    (void) AddExtension(MITMISCNAME, 0, 0,
-			ProcMITDispatch, SProcMITDispatch,
-			MITResetProc, StandardMinorOpcode);
+    AddExtension(MITMISCNAME, 0, 0,
+		 ProcMITDispatch, SProcMITDispatch,
+		 MITResetProc, StandardMinorOpcode);
 }
 
 /*ARGSUSED*/

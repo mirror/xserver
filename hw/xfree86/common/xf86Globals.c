@@ -46,10 +46,12 @@
 
 /* Globals that video drivers may access */
 
-_X_EXPORT int xf86ScreenIndex = -1;	/* Index of ScrnInfo in pScreen.devPrivates */
-int xf86CreateRootWindowIndex = -1;	/* Index into pScreen.devPrivates */
+/* Index into pScreen.devPrivates */
+DevPrivateKey xf86CreateRootWindowKey = &xf86CreateRootWindowKey;
+/* Index of ScrnInfo in pScreen.devPrivates */
+_X_EXPORT DevPrivateKey xf86ScreenKey = &xf86ScreenKey;
+_X_EXPORT DevPrivateKey xf86PixmapKey = &xf86PixmapKey;
 _X_EXPORT ScrnInfoPtr *xf86Screens = NULL;	/* List of ScrnInfos */
-_X_EXPORT int xf86PixmapIndex = 0;
 _X_EXPORT const unsigned char byte_reversed[256] =
 {
     0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
@@ -95,7 +97,6 @@ InputInfoPtr xf86InputDevs = NULL;
 xf86InfoRec xf86Info = {
 	-1,		/* consoleFd */
 	-1,		/* vtno */
-	NULL,		/* vtinit */
 	FALSE,		/* vtSysreq */
 	SKWhenNeeded,	/* ddxSpecialKeys */
 	NULL,		/* pMouse */
@@ -152,8 +153,6 @@ DriverPtr *xf86DriverList = NULL;
 int xf86NumDrivers = 0;
 InputDriverPtr *xf86InputDriverList = NULL;
 int xf86NumInputDrivers = 0;
-ModuleInfoPtr *xf86ModuleInfoList = NULL;
-int xf86NumModuleInfos = 0;
 int xf86NumScreens = 0;
 
 const char *xf86VisualNames[] = {

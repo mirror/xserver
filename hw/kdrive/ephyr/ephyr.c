@@ -402,6 +402,7 @@ ephyrUnsetInternalDamage (ScreenPtr pScreen)
   
   pPixmap = (*pScreen->GetScreenPixmap) (pScreen);
   DamageUnregister (&pPixmap->drawable, scrpriv->pDamage);
+  DamageDestroy (scrpriv->pDamage);
   
   RemoveBlockAndWakeupHandlers (ephyrInternalDamageBlockHandler,
 				ephyrInternalDamageWakeupHandler,
@@ -634,7 +635,9 @@ ephyrInitScreen (ScreenPtr pScreen)
   if (!ephyrNoDRI && !hostx_has_dri ()) {
       EPHYR_LOG ("host x does not support DRI. Disabling DRI forwarding\n") ;
       ephyrNoDRI = TRUE ;
+#ifdef GLXEXT
       noGlxVisualInit = FALSE ;
+#endif
   }
   if (!ephyrNoDRI) {
     ephyrDRIExtensionInit (pScreen) ;
@@ -737,7 +740,7 @@ ephyrUpdateModifierState(unsigned int state)
   int          i;
   CARD8        mask;
 
-  pkeydev = (DeviceIntPtr)LookupKeyboardDevice();
+  pkeydev = inputInfo.keyboard;
 
   if (!pkeydev)
     return;
@@ -838,6 +841,39 @@ miPointerScreenFuncRec ephyrPointerScreenFuncs =
   ephyrWarpCursor
 };
 
+#ifdef XEPHYR_DRI
+/**
+ * find if the remote window denoted by a_remote
+ * is paired with an internal Window within the Xephyr server.
+ * If the remove window is paired with an internal window, send an
+ * expose event to the client insterested in the internal window expose event.
+ *
+ * Pairing happens when a drawable inside Xephyr is associated with
+ * a GL surface in a DRI environment.
+ * Look at the function ProcXF86DRICreateDrawable in ephyrdriext.c to
+ * know a paired window is created.
+ *
+ * This is useful to make GL drawables (only windows for now) handle
+ * expose events and send those events to clients.
+ */
+static void
+ephyrExposePairedWindow (int a_remote)
+{
+    EphyrWindowPair *pair = NULL;
+    RegionRec reg;
+    ScreenPtr screen;
+
+    if (!findWindowPairFromRemote (a_remote, &pair)) {
+	EPHYR_LOG ("did not find a pair for this window\n");
+	return;
+    }
+    screen = pair->local->drawable.pScreen;
+    REGION_NULL (screen, &reg);
+    REGION_COPY (screen, &reg, &pair->local->clipList);
+    screen->WindowExposures (pair->local, &reg, NullRegion);
+    REGION_UNINIT (screen, &reg);
+}
+#endif /*XEPHYR_DRI*/
 
 void
 ephyrPoll(void)
@@ -858,9 +894,13 @@ ephyrPoll(void)
             if (ephyrCurScreen != ev.data.mouse_motion.screen)
               {
                   EPHYR_LOG ("warping mouse cursor:%d\n", ephyrCurScreen) ;
-                  ephyrWarpCursor(screenInfo.screens[ev.data.mouse_motion.screen],
-                                   ev.data.mouse_motion.x,
-                                   ev.data.mouse_motion.y );
+                  if (ev.data.mouse_motion.screen >= 0)
+                    {
+                      ephyrWarpCursor
+                            (screenInfo.screens[ev.data.mouse_motion.screen],
+                             ev.data.mouse_motion.x,
+                             ev.data.mouse_motion.y );
+                    }
               }
             else
               {
@@ -909,6 +949,18 @@ ephyrPoll(void)
               continue;
 	  KdEnqueueKeyboardEvent (ephyrKbd, ev.data.key_up.scancode, TRUE);
 	  break;
+
+#ifdef XEPHYR_DRI
+	case EPHYR_EV_EXPOSE:
+	  /*
+	   * We only receive expose events when the expose event have
+	   * be generated for a drawable that is a host X window managed
+	   * by Xephyr. Host X windows managed by Xephyr exists for instance
+	   * when Xephyr is asked to create a GL drawable in a DRI environment.
+	   */
+	  ephyrExposePairedWindow (ev.data.expose.window);
+	  break;
+#endif /*XEPHYR_DRI*/
 
 	default:
 	  break;
@@ -1028,6 +1080,7 @@ EphyrKeyboardInit (KdKeyboardInfo *ki)
   ki->minScanCode = ki->keySyms.minKeyCode;
   ki->maxScanCode = ki->keySyms.maxKeyCode;
   ki->keySyms.mapWidth = ephyrKeySyms.mapWidth;
+  xfree(ki->keySyms.map);
   ki->keySyms.map = ephyrKeySyms.map;
   ki->name = KdSaveString("Xephyr virtual keyboard");
   ephyrKbd = ki;

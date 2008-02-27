@@ -100,6 +100,7 @@ fbDestroyPixmap (PixmapPtr pPixmap)
 {
     if(--pPixmap->refcnt)
 	return TRUE;
+    dixFreePrivates(pPixmap->devPrivates);
     xfree(pPixmap);
     return TRUE;
 }

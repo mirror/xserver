@@ -839,16 +839,38 @@ hostx_load_keymap(void)
 static struct EphyrHostScreen *
 host_screen_from_window (Window w)
 {
-  int index;
+  int index = 0;
+  struct EphyrHostScreen *result  = NULL;
+#if 0
+  unsigned int num_children = 0;
+  Window root = None, parent = None, *children = NULL;
+#endif
 
   for (index = 0 ; index < HostX.n_screens ; index++)
     {
       if (HostX.screens[index].win == w)
         {
-          return &HostX.screens[index];
+          result = &HostX.screens[index];
+          goto out;
         }
     }
-  return NULL;
+#if 0
+  XQueryTree (hostx_get_display (), w, &root, &parent,
+              &children, &num_children);
+  if (parent == root || parent == None)
+      goto out;
+  result = host_screen_from_window (parent);
+#endif
+
+out:
+#if 0
+  if (children)
+      {
+        XFree (children);
+        children = NULL;
+      }
+#endif
+  return result;
 }
 
 int
@@ -870,9 +892,19 @@ hostx_get_event(EphyrHostXEvent *ev)
 	  {
 	    struct EphyrHostScreen *host_screen =
                 host_screen_from_window (xev.xexpose.window);
-	    hostx_paint_rect (host_screen->info, 0, 0, 0, 0,
-                              host_screen->win_width,
-                              host_screen->win_height);
+            if (host_screen)
+              {
+                hostx_paint_rect (host_screen->info, 0, 0, 0, 0,
+                                  host_screen->win_width,
+                                  host_screen->win_height);
+              }
+            else
+              {
+                EPHYR_LOG_ERROR ("failed to get host screen\n");
+                ev->type = EPHYR_EV_EXPOSE;
+                ev->data.expose.window = xev.xexpose.window;
+                return 1;
+              }
 	  }
 	  return 0;
 
@@ -1078,16 +1110,6 @@ out:
 
 }
 
-typedef struct {
-    int is_valid ;
-    int local_id ;
-    int remote_id ;
-} ResourcePair ;
-
-#define RESOURCE_PEERS_SIZE 1024*10
-static ResourcePair resource_peers[RESOURCE_PEERS_SIZE] ;
-
-
 int
 hostx_create_window (int a_screen_number,
                      EphyrBox *a_geometry,
@@ -1123,12 +1145,18 @@ hostx_create_window (int a_screen_number,
                                                   visual_info->screen),
                                       visual_info->visual,
                                       AllocNone) ;
-    winmask = CWColormap;
+    attrs.event_mask = ButtonPressMask
+                       |ButtonReleaseMask
+                       |PointerMotionMask
+                       |KeyPressMask
+                       |KeyReleaseMask
+                       |ExposureMask;
+    winmask = CWColormap|CWEventMask;
 
     win = XCreateWindow (dpy, hostx_get_window (a_screen_number),
                          a_geometry->x, a_geometry->y,
                          a_geometry->width, a_geometry->height, 0,
-                         visual_info->depth, InputOutput,
+                         visual_info->depth, CopyFromParent,
                          visual_info->visual, winmask, &attrs) ;
     if (win == None) {
         EPHYR_LOG_ERROR ("failed to create peer window\n") ;
@@ -1259,6 +1287,16 @@ hostx_has_xshape (void)
 }
 
 #ifdef XEPHYR_DRI
+typedef struct {
+    int is_valid ;
+    int local_id ;
+    int remote_id ;
+} ResourcePair ;
+
+#define RESOURCE_PEERS_SIZE 1024*10
+static ResourcePair resource_peers[RESOURCE_PEERS_SIZE] ;
+
+
 int
 hostx_allocate_resource_id_peer (int a_local_resource_id,
                                  int *a_remote_resource_id)

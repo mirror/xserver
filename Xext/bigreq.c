@@ -50,11 +50,9 @@ static DISPATCH_PROC(ProcBigReqDispatch);
 void
 BigReqExtensionInit(INITARGS)
 {
-    (void) AddExtension(XBigReqExtensionName, 0, 0,
-			ProcBigReqDispatch, ProcBigReqDispatch,
-			BigReqResetProc, StandardMinorOpcode);
-
-    DeclareExtensionSecurity(XBigReqExtensionName, TRUE);
+    AddExtension(XBigReqExtensionName, 0, 0,
+		 ProcBigReqDispatch, ProcBigReqDispatch,
+		 BigReqResetProc, StandardMinorOpcode);
 }
 
 /*ARGSUSED*/

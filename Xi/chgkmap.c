@@ -59,7 +59,6 @@ SOFTWARE.
 #include "inputstr.h"	/* DeviceIntPtr      */
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
-#include "extinit.h"	/* LookupDeviceIntRec */
 #include "exevents.h"
 #include "exglobals.h"
 
@@ -76,18 +75,14 @@ int
 SProcXChangeDeviceKeyMapping(ClientPtr client)
 {
     char n;
-    long *p;
-    int i, count;
+    unsigned int count;
 
     REQUEST(xChangeDeviceKeyMappingReq);
     swaps(&stuff->length, n);
     REQUEST_AT_LEAST_SIZE(xChangeDeviceKeyMappingReq);
-    p = (long *)&stuff[1];
     count = stuff->keyCodes * stuff->keySymsPerKeyCode;
-    for (i = 0; i < count; i++) {
-	swapl(p, n);
-	p++;
-    }
+    REQUEST_FIXED_SIZE(xChangeDeviceKeyMappingReq, count * sizeof(CARD32));
+    SwapLongs((CARD32 *) (&stuff[1]), count);
     return (ProcXChangeDeviceKeyMapping(client));
 }
 
@@ -103,13 +98,17 @@ ProcXChangeDeviceKeyMapping(ClientPtr client)
     int ret;
     unsigned len;
     DeviceIntPtr dev;
+    unsigned int count;
 
     REQUEST(xChangeDeviceKeyMappingReq);
     REQUEST_AT_LEAST_SIZE(xChangeDeviceKeyMappingReq);
 
-    dev = LookupDeviceIntRec(stuff->deviceid);
-    if (dev == NULL)
-	return BadDevice;
+    count = stuff->keyCodes * stuff->keySymsPerKeyCode;
+    REQUEST_FIXED_SIZE(xChangeDeviceKeyMappingReq, count * sizeof(CARD32));
+
+    ret = dixLookupDevice(&dev, stuff->deviceid, client, DixManageAccess);
+    if (ret != Success)
+	return ret;
     len = stuff->length - (sizeof(xChangeDeviceKeyMappingReq) >> 2);
 
     ret = ChangeKeyMapping(client, dev, len, DeviceMappingNotify,
