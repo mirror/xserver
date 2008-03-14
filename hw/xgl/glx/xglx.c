@@ -2311,8 +2311,6 @@ xglxProcessArgument (int  argc,
 	    {
 		if (++j < argc)
 		    xDisplayName = argv[j];
-
-		break;
 	    }
 	    else if (argv[j][0] == ':')
 	    {
