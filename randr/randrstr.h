@@ -116,6 +116,12 @@ struct _rrCrtc {
     CARD16	    *gammaBlue;
     CARD16	    *gammaGreen;
     void	    *devPrivate;
+    PictTransform   client_pending_transform;
+    PictTransform   client_pending_inverse;
+    PictTransform   client_current_transform;
+    PictTransform   client_current_inverse;
+    PictTransform   transform;
+    PictTransform   inverse;
 };
 
 struct _rrOutput {
@@ -416,6 +422,11 @@ miRROutputSetProperty (ScreenPtr	    pScreen,
 		       RRPropertyValuePtr   value);
 
 Bool
+miRROutputGetProperty (ScreenPtr	    pScreen,
+		       RROutputPtr	    output,
+		       Atom		    property);
+
+Bool
 miRROutputValidateMode (ScreenPtr	    pScreen,
 			RROutputPtr	    output,
 			RRModePtr	    mode);
@@ -579,6 +590,23 @@ void
 RRCrtcGetScanoutSize(RRCrtcPtr crtc, int *width, int *height);
 
 /*
+ * Compute the complete transformation matrix including
+ * client-specified transform, rotation/reflection values and the crtc 
+ * offset.
+ *
+ * Return TRUE if the resulting transform is not a simple translation.
+ */
+Bool
+RRComputeTransform (RRModePtr		mode,
+		    Rotation		rotation,
+		    int			x,
+		    int			y,
+		    PictTransformPtr	client_transform,
+		    PictTransformPtr	client_inverse,
+		    PictTransformPtr    transform,
+		    PictTransformPtr    inverse);
+
+/*
  * Return crtc transform
  */
 Bool
@@ -593,10 +621,26 @@ void
 RRCrtcPostPendingTransform (RRCrtcPtr crtc);
 
 /*
+ * Check whether the pending and current transforms are the same
+ */
+Bool
+RRCrtcPendingTransform (RRCrtcPtr crtc);
+
+/*
  * Destroy a Crtc at shutdown
  */
 void
 RRCrtcDestroy (RRCrtcPtr crtc);
+
+
+/*
+ * Set the pending CRTC transformation
+ */
+
+int
+RRCrtcTransformSet (RRCrtcPtr		crtc,
+		    PictTransformPtr	transform,
+		    PictTransformPtr	inverse);
 
 /*
  * Initialize crtc type
@@ -622,6 +666,12 @@ ProcRRGetCrtcGamma (ClientPtr client);
 
 int
 ProcRRSetCrtcGamma (ClientPtr client);
+
+int
+ProcRRSetCrtcTransform (ClientPtr client);
+
+int
+ProcRRGetCrtcTransform (ClientPtr client);
 
 /* rrdispatch.c */
 Bool
