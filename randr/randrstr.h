@@ -127,6 +127,7 @@ struct _rrCrtc {
     CARD16	    *gammaBlue;
     CARD16	    *gammaGreen;
     void	    *devPrivate;
+    Bool	    transforms;
     RRTransformRec  client_pending_transform;
     RRTransformRec  client_current_transform;
     PictTransform   transform;
@@ -534,6 +535,12 @@ RRCrtcCreate (ScreenPtr pScreen, void	*devPrivate);
  */
 void
 RRCrtcSetRotations (RRCrtcPtr crtc, Rotation rotations);
+
+/*
+ * Set whether transforms are allowed on a CRTC
+ */
+void
+RRCrtcSetTransform (RRCrtcPtr crtc, Bool transforms);
 
 /*
  * Notify the extension that the Crtc has been reconfigured,
