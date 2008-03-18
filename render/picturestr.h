@@ -723,6 +723,9 @@ void
 PictureTransformBounds (BoxPtr b, PictTransformPtr matrix);
 
 Bool
+PictureTransformInvert (PictTransformPtr dst, const PictTransformPtr src);
+
+Bool
 PictureTransformIsIdentity(PictTransform *t);
 
 Bool
