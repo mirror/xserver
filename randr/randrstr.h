@@ -104,7 +104,8 @@ struct _rrProperty {
 
 struct _rrTransform {
     PictTransform   transform;
-    PictTransform   inverse;
+    struct pict_f_transform f_transform;
+    struct pict_f_transform f_inverse;
     PictFilterPtr   filter;
     xFixed	    *params;
     int		    nparams;
@@ -131,7 +132,8 @@ struct _rrCrtc {
     RRTransformRec  client_pending_transform;
     RRTransformRec  client_current_transform;
     PictTransform   transform;
-    PictTransform   inverse;
+    struct pict_f_transform f_transform;
+    struct pict_f_transform f_inverse;
 };
 
 struct _rrOutput {
@@ -613,14 +615,16 @@ RRCrtcGetScanoutSize(RRCrtcPtr crtc, int *width, int *height);
  * Return TRUE if the resulting transform is not a simple translation.
  */
 Bool
-RRComputeTransform (RRModePtr		mode,
-		    Rotation		rotation,
-		    int			x,
-		    int			y,
-		    PictTransformPtr	client_transform,
-		    PictTransformPtr	client_inverse,
-		    PictTransformPtr    transform,
-		    PictTransformPtr    inverse);
+RRComputeTransform (int			    x,
+		    int			    y,
+		    int			    width,
+		    int			    height,
+		    Rotation		    rotation,
+		    RRTransformPtr	    rr_transform,
+
+		    PictTransformPtr	    transform,
+		    struct pict_f_transform *f_transform,
+		    struct pict_f_transform *f_inverse);
 
 /*
  * Return crtc transform
@@ -654,7 +658,8 @@ RRCrtcDestroy (RRCrtcPtr crtc);
 int
 RRCrtcTransformSet (RRCrtcPtr		crtc,
 		    PictTransformPtr	transform,
-		    PictTransformPtr	inverse,
+		    struct pict_f_transform *f_transform,
+		    struct pict_f_transform *f_inverse,
 		    char		*filter,
 		    int			filter_len,
 		    xFixed		*params,
