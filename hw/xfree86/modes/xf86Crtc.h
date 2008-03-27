@@ -435,6 +435,13 @@ typedef struct _xf86OutputFuncs {
     (*get_property)(xf86OutputPtr output,
 		    Atom property);
 #endif
+#ifdef RANDR_GET_CRTC_INTERFACE
+    /**
+     * Callback to get current CRTC for a given output
+     */
+    xf86CrtcPtr
+    (*get_crtc)(xf86OutputPtr output);
+#endif
     /**
      * Clean up driver-specific bits of the output
      */
@@ -707,7 +714,11 @@ xf86ProbeOutputModes (ScrnInfoPtr pScrn, int maxX, int maxY);
 void
 xf86SetScrnInfoModes (ScrnInfoPtr pScrn);
 
+#ifdef RANDR_13_INTERFACE
+int
+#else
 Bool
+#endif
 xf86CrtcScreenInit (ScreenPtr pScreen);
 
 Bool
