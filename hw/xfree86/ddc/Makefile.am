@@ -10,3 +10,7 @@ INCLUDES = $(XORG_INCS) -I$(srcdir)/../i2c
 AM_CFLAGS = $(DIX_CFLAGS) $(XORG_CFLAGS)
 
 EXTRA_DIST = ddcPriv.h DDC.HOWTO
+
+bin_PROGRAMS = decode_edid
+
+decode_edid_SOURCES = decode_edid.c interpret_edid.c print_edid.c
