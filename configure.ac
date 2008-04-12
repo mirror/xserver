@@ -58,6 +58,7 @@ AC_PROG_LN_S
 AC_LIBTOOL_WIN32_DLL
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
+DOLT
 AC_PROG_MAKE_SET
 PKG_PROG_PKG_CONFIG
 AC_PROG_LEX
@@ -313,6 +314,7 @@ case $host_cpu in
 	case $host_os in
 		*linux*)	DEFAULT_INT10=vm86 ;;
 		*freebsd*)	AC_DEFINE(USE_DEV_IO) ;;
+		*dragonfly*)	AC_DEFINE(USE_DEV_IO) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL)
 				SYS_LIBS=-li386
 				;;
@@ -337,6 +339,7 @@ case $host_cpu in
 	I386_VIDEO=yes
 	case $host_os in
 		*freebsd*)	AC_DEFINE(USE_DEV_IO, 1, [BSD /dev/io]) ;;
+		*dragonfly*)	AC_DEFINE(USE_DEV_IO, 1, [BSD /dev/io]) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL, 1, [BSD i386 iopl])
 				SYS_LIBS=-lx86_64
 				;;
@@ -367,7 +370,7 @@ DRI2=no
 KDRIVE_HW=no
 dnl it would be nice to autodetect these *CONS_SUPPORTs
 case $host_os in
-  *freebsd*)
+  *freebsd* | *dragonfly*)
 	case $host_os in
 		kfreebsd*-gnu) ;;
 		*) AC_DEFINE(CSRG_BASED, 1, [System is BSD-like]) ;;
@@ -571,9 +574,8 @@ AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (
 AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
 AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
 dnl legacy fb support
-AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: enabled)]), [MFB=$enableval], [MFB=$XORG])
-AC_ARG_ENABLE(cfb,            AS_HELP_STRING([--enable-cfb], [Build legacy color framebuffer support (default: enabled)]), [CFB=$enableval], [CFB=$XORG])
-AC_ARG_ENABLE(afb,            AS_HELP_STRING([--enable-afb], [Build legacy advanced framebuffer support (default: enabled)]), [AFB=$enableval], [AFB=$XORG])
+AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: disable)]), [MFB=$enableval], [MFB=no])
+AC_ARG_ENABLE(afb,            AS_HELP_STRING([--enable-afb], [Build legacy advanced framebuffer support (default: disable)]), [AFB=$enableval], [AFB=no])
 dnl kdrive and its subsystems
 AC_ARG_ENABLE(kdrive,         AS_HELP_STRING([--enable-kdrive], [Build kdrive servers (default: no)]), [KDRIVE=$enableval], [KDRIVE=no])
 AC_ARG_ENABLE(xephyr,         AS_HELP_STRING([--enable-xephyr], [Build the kdrive Xephyr server (default: auto)]), [XEPHYR=$enableval], [XEPHYR=auto])
@@ -705,6 +707,15 @@ if test "x$NEED_DBUS" = xyes; then
 fi
 CONFIG_LIB='$(top_builddir)/config/libconfig.a'
 
+AC_MSG_CHECKING([for glibc...])
+AC_PREPROC_IFELSE([
+#include <features.h>
+#ifndef __GLIBC__
+#error
+#endif
+], glibc=yes, glibc=no)
+AC_MSG_RESULT([$glibc])
+
 AC_CHECK_FUNCS([clock_gettime], [have_clock_gettime=yes],
                [AC_CHECK_LIB([rt], [clock_gettime], [have_clock_gettime=-lrt],
                              [have_clock_gettime=no])])
@@ -720,9 +731,13 @@ if ! test "x$have_clock_gettime" = xno; then
 
     LIBS_SAVE="$LIBS"
     LIBS="$CLOCK_LIBS"
+    CPPFLAGS_SAVE="$CPPFLAGS"
+
+    if test x"$glibc" = xyes; then
+        CPPFLAGS="$CPPFLAGS -D_POSIX_C_SOURCE=200112L"
+    fi
 
     AC_RUN_IFELSE([
-#define _POSIX_C_SOURCE 199309L
 #include <time.h>
 
 int main(int argc, char *argv[[]]) {
@@ -737,6 +752,7 @@ int main(int argc, char *argv[[]]) {
        [MONOTONIC_CLOCK="cross compiling"])
 
     LIBS="$LIBS_SAVE"
+    CPPFLAGS="$CPPFLAGS_SAVE"
 else
     MONOTONIC_CLOCK=no
 fi
@@ -860,7 +876,7 @@ AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
 if test "x$DRI2" = xyes; then
 	# FIXME: Bump the versions once we have releases of these.
 	AC_DEFINE(DRI2, 1, [Build DRI2 extension])
-	PKG_CHECK_MODULES([DRIPROTO], [xf86driproto >= 2.0.3])
+	PKG_CHECK_MODULES([DRI2PROTO], [dri2proto >= 1.1])
 	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.1])
 fi
 
@@ -1009,6 +1025,8 @@ XKB_STUB_LIB='$(top_builddir)/xkb/libxkbstubs.la'
 
 AC_CHECK_FUNC(strcasecmp, [], AC_DEFINE([NEED_STRCASECMP], 1,
                                         [Do not have 'strcasecmp'.]))
+AC_CHECK_FUNC(strncasecmp, [], AC_DEFINE([NEED_STRNCASECMP], 1,
+                                        [Do not have 'strncasecmp'.]))
 
 if test "x$NULL_ROOT_CURSOR" = xyes; then
         AC_DEFINE(NULL_ROOT_CURSOR, 1, [Use an empty root cursor])
@@ -1080,8 +1098,6 @@ AC_DEFINE(NO_LIBCWRAPPER, 1, [Define to 1 if modules should avoid the libcwrappe
 
 if test "x$DEBUGGING" = xyes; then
        AC_DEFINE(DEBUG, 1, [Enable debugging code])
-else
-       AC_DEFINE(NDEBUG, 1, [Disable some debugging code])
 fi
 AM_CONDITIONAL(DEBUG, [test "x$DEBUGGING" = xyes])
 
@@ -1344,7 +1360,7 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 			;;
 		esac
 		;;
-	  freebsd* | kfreebsd*-gnu)
+	  freebsd* | kfreebsd*-gnu | dragonfly*)
 	  	XORG_OS="freebsd"
 		XORG_OS_SUBDIR="bsd"
 		xorg_bus_bsdpci="yes"
@@ -1539,7 +1555,11 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	abi_xinput=`extract_abi XINPUT`
 	abi_extension=`extract_abi EXTENSION`
 	abi_font=`extract_abi FONT`
-	AC_SUBST([abi_ansic abi_videodrv abi_xinput abi_extension abi_font])
+	AC_SUBST([abi_ansic])
+	AC_SUBST([abi_videodrv])
+	AC_SUBST([abi_xinput])
+	AC_SUBST([abi_extension])
+	AC_SUBST([abi_font])
 fi
 AM_CONDITIONAL([XORG], [test "x$XORG" = xyes])
 AM_CONDITIONAL([XORG_BUS_LINUXPCI], [test "x$xorg_bus_linuxpci" = xyes])
@@ -1560,12 +1580,10 @@ AM_CONDITIONAL([XF86VIDMODE], [test "x$XF86VIDMODE" = xyes])
 
 dnl legacy fb support
 test "x$MFB" = xauto && MFB="$XORG"
-test "x$CFB" = xauto && CFB="$XORG"
 test "x$AFB" = xauto && AFB="$XORG"
 AM_CONDITIONAL(MFB, [test "x$MFB" = xyes])
-AM_CONDITIONAL(CFB, [test "x$CFB" = xyes])
 AM_CONDITIONAL(AFB, [test "x$AFB" = xyes])
-if test "x$MFB" = xyes -o "x$CFB" = xyes -o "x$AFB" = xyes; then
+if test "x$MFB" = xyes -o "x$AFB" = xyes; then
 	if test "x$XORG" != xyes; then
 		AC_MSG_ERROR([legacy fb support requires the Xorg server])
 	fi
@@ -1714,7 +1732,8 @@ if test "X$XQUARTZ" = Xauto; then
 fi
 
 if test "x$XQUARTZ" = xyes; then
-	AC_DEFINE([XQUARTZ],[1],[Have Quartz])
+	AC_DEFINE(XQUARTZ,1,[Have Quartz])
+	AC_DEFINE(ROOTLESS,1,[Build Rootless code])
 
 #glxAGL / glxCGL don't work yet
 #	AC_CACHE_CHECK([for AGL framework],xorg_cv_AGL_framework,[
@@ -2078,7 +2097,9 @@ DIX_CFLAGS="-DHAVE_DIX_CONFIG_H $XSERVER_CFLAGS"
 
 AC_SUBST([DIX_CFLAGS])
 
-AC_SUBST([libdir exec_prefix prefix])
+AC_SUBST([libdir])
+AC_SUBST([exec_prefix])
+AC_SUBST([prefix])
 
 # Man page sections - used in config utils & generating man pages
 XORG_MANPAGE_SECTIONS
@@ -2111,8 +2132,6 @@ fb/Makefile
 record/Makefile
 XTrap/Makefile
 mfb/Makefile
-cfb/Makefile
-cfb32/Makefile
 config/Makefile
 mi/Makefile
 miext/Makefile
@@ -2120,7 +2139,6 @@ miext/damage/Makefile
 miext/shadow/Makefile
 miext/cw/Makefile
 miext/rootless/Makefile
-miext/rootless/safeAlpha/Makefile
 miext/rootless/accel/Makefile
 os/Makefile
 randr/Makefile
@@ -2172,7 +2190,6 @@ hw/xfree86/xaa/Makefile
 hw/xfree86/xf1bpp/Makefile
 hw/xfree86/xf4bpp/Makefile
 hw/xfree86/xf8_16bpp/Makefile
-hw/xfree86/xf8_32bpp/Makefile
 hw/xfree86/utils/Makefile
 hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile

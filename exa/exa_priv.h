@@ -121,6 +121,7 @@ typedef struct {
     Bool			 checkDirtyCorrectness;
     unsigned			 disableFbCount;
     Bool			 optimize_migration;
+    unsigned			 offScreenCounter;
 } ExaScreenPrivRec, *ExaScreenPrivPtr;
 
 /*

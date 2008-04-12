@@ -119,8 +119,11 @@ static ModuleDefault ModuleDefaults[] = {
     {.name = "dbe",      .toLoad = TRUE,    .load_opt=NULL},
     {.name = "glx",      .toLoad = TRUE,    .load_opt=NULL},
     {.name = "freetype", .toLoad = TRUE,    .load_opt=NULL},
+#ifdef XRECORD
     {.name = "record",   .toLoad = TRUE,    .load_opt=NULL},
+#endif
     {.name = "dri",      .toLoad = TRUE,    .load_opt=NULL},
+    {.name = "dri2",     .toLoad = TRUE,    .load_opt=NULL},
     {.name = NULL,       .toLoad = FALSE,   .load_opt=NULL}
 };
 
@@ -1335,8 +1338,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     /* 5. Built-in default. */
     if (!foundPointer) {
 	bzero(&defPtr, sizeof(defPtr));
-	defPtr.inp_identifier = "<default pointer>";
-	defPtr.inp_driver = "mouse";
+	defPtr.inp_identifier = strdup("<default pointer>");
+	defPtr.inp_driver = strdup("mouse");
 	confInput = &defPtr;
 	foundPointer = TRUE;
 	from = X_DEFAULT;
@@ -1382,8 +1385,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     if (!found) {
 	xf86Msg(X_INFO, "No default mouse found, adding one\n");
 	bzero(&defPtr, sizeof(defPtr));
-	defPtr.inp_identifier = "<default pointer>";
-	defPtr.inp_driver = "mouse";
+	defPtr.inp_identifier = strdup("<default pointer>");
+	defPtr.inp_driver = strdup("mouse");
 	confInput = &defPtr;
 	foundPointer = configInput(&Pointer, confInput, from);
         if (foundPointer) {
@@ -1471,8 +1474,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     /* 5. Built-in default. */
     if (!foundKeyboard) {
 	bzero(&defKbd, sizeof(defKbd));
-	defKbd.inp_identifier = "<default keyboard>";
-	defKbd.inp_driver = "kbd";
+	defKbd.inp_identifier = strdup("<default keyboard>");
+	defKbd.inp_driver = strdup("kbd");
 	confInput = &defKbd;
 	foundKeyboard = TRUE;
 	keyboardMsg = "default keyboard configuration";
