@@ -1,7 +1,7 @@
 noinst_LTLIBRARIES = liblinux.la
 
 if LINUX_IA64
-PLATFORM_PCI_SUPPORT = $(srcdir)/lnx_ia64.c $(srcdir)/../shared/ia64Pci.c
+PLATFORM_PCI_SUPPORT = $(srcdir)/../shared/ia64Pci.c
 PLATFORM_DEFINES = -DOS_PROBE_PCI_CHIPSET=lnxProbePciChipset
 PLATFORM_INCLUDES = -I$(srcdir)/../shared
 endif
@@ -45,7 +45,6 @@ INCLUDES = $(XORG_INCS) $(PLATFORM_INCLUDES) -I/usr/include/drm # FIXME this las
 # FIXME: These need to be added to the build
 LNX_EXTRA_SRCS = \
 	lnx_font.c \
-	lnx_jstk.c \
 	lnxResource.c
 
 EXTRA_DIST = \

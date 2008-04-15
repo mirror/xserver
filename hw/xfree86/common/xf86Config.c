@@ -119,8 +119,11 @@ static ModuleDefault ModuleDefaults[] = {
     {.name = "dbe",      .toLoad = TRUE,    .load_opt=NULL},
     {.name = "glx",      .toLoad = TRUE,    .load_opt=NULL},
     {.name = "freetype", .toLoad = TRUE,    .load_opt=NULL},
+#ifdef XRECORD
     {.name = "record",   .toLoad = TRUE,    .load_opt=NULL},
+#endif
     {.name = "dri",      .toLoad = TRUE,    .load_opt=NULL},
+    {.name = "dri2",     .toLoad = TRUE,    .load_opt=NULL},
     {.name = NULL,       .toLoad = FALSE,   .load_opt=NULL}
 };
 
@@ -494,7 +497,7 @@ xf86InputDriverlistFromConfig()
 static void
 fixup_video_driver_list(char **drivers)
 {
-    static const char *fallback[5] = { "vga", "vesa", "fbdev", "wsfb", NULL };
+    static const char *fallback[4] = { "vesa", "fbdev", "wsfb", NULL };
     char **end, **drv;
     char *x;
     char **ati, **atimisc;
@@ -763,6 +766,7 @@ typedef enum {
     FLAG_AUTO_ADD_DEVICES,
     FLAG_AUTO_ENABLE_DEVICES,
     FLAG_GLX_VISUALS,
+    FLAG_DRI2,
 } FlagValues;
    
 static OptionInfoRec FlagOptions[] = {
@@ -834,16 +838,18 @@ static OptionInfoRec FlagOptions[] = {
 	{0}, FALSE },
   { FLAG_ALLOW_EMPTY_INPUT,     "AllowEmptyInput",              OPTV_BOOLEAN,
         {0}, FALSE },
-  { FLAG_IGNORE_ABI,			"IgnoreABI",			OPTV_BOOLEAN,
+  { FLAG_IGNORE_ABI,		"IgnoreABI",			OPTV_BOOLEAN,
 	{0}, FALSE },
-  { FLAG_USE_DEFAULT_FONT_PATH,  "UseDefaultFontPath",			OPTV_BOOLEAN,
+  { FLAG_USE_DEFAULT_FONT_PATH,  "UseDefaultFontPath",		OPTV_BOOLEAN,
 	{0}, FALSE },
-  { FLAG_AUTO_ADD_DEVICES,       "AutoAddDevices",                      OPTV_BOOLEAN,
+  { FLAG_AUTO_ADD_DEVICES,       "AutoAddDevices",		OPTV_BOOLEAN,
         {0}, TRUE },
-  { FLAG_AUTO_ENABLE_DEVICES,    "AutoEnableDevices",                   OPTV_BOOLEAN,
+  { FLAG_AUTO_ENABLE_DEVICES,    "AutoEnableDevices",		OPTV_BOOLEAN,
         {0}, TRUE },
   { FLAG_GLX_VISUALS,		"GlxVisuals",			OPTV_STRING,
         {0}, FALSE },
+  { FLAG_DRI2,			"DRI2",				OPTV_BOOLEAN,
+	{0}, FALSE },
   { -1,				NULL,				OPTV_NONE,
 	{0}, FALSE },
 };
@@ -1176,7 +1182,21 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
       xf86Msg(from, "Xinerama: enabled\n");
 #endif
 
+#ifdef DRI2
+    xf86Info.dri2 = FALSE;
+    xf86Info.dri2From = X_DEFAULT;
+    if (xf86GetOptValBool(FlagOptions, FLAG_DRI2, &value)) {
+	xf86Info.dri2 = value;
+	xf86Info.dri2From = X_CONFIG;
+    }
+#endif
+
     return TRUE;
+}
+
+Bool xf86DRI2Enabled(void)
+{
+    return xf86Info.dri2;
 }
 
 /*
@@ -1335,8 +1355,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     /* 5. Built-in default. */
     if (!foundPointer) {
 	bzero(&defPtr, sizeof(defPtr));
-	defPtr.inp_identifier = "<default pointer>";
-	defPtr.inp_driver = "mouse";
+	defPtr.inp_identifier = strdup("<default pointer>");
+	defPtr.inp_driver = strdup("mouse");
 	confInput = &defPtr;
 	foundPointer = TRUE;
 	from = X_DEFAULT;
@@ -1382,8 +1402,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     if (!found) {
 	xf86Msg(X_INFO, "No default mouse found, adding one\n");
 	bzero(&defPtr, sizeof(defPtr));
-	defPtr.inp_identifier = "<default pointer>";
-	defPtr.inp_driver = "mouse";
+	defPtr.inp_identifier = strdup("<default pointer>");
+	defPtr.inp_driver = strdup("mouse");
 	confInput = &defPtr;
 	foundPointer = configInput(&Pointer, confInput, from);
         if (foundPointer) {
@@ -1471,8 +1491,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
     /* 5. Built-in default. */
     if (!foundKeyboard) {
 	bzero(&defKbd, sizeof(defKbd));
-	defKbd.inp_identifier = "<default keyboard>";
-	defKbd.inp_driver = "kbd";
+	defKbd.inp_identifier = strdup("<default keyboard>");
+	defKbd.inp_driver = strdup("kbd");
 	confInput = &defKbd;
 	foundKeyboard = TRUE;
 	keyboardMsg = "default keyboard configuration";
@@ -2088,8 +2108,7 @@ configMonitor(MonPtr monitorp, XF86ConfMonitorPtr conf_monitor)
      */
     cmodep = conf_monitor->mon_modeline_lst;
     while( cmodep ) {
-        mode = xnfalloc(sizeof(DisplayModeRec));
-        memset(mode,'\0',sizeof(DisplayModeRec));
+        mode = xnfcalloc(1, sizeof(DisplayModeRec));
 	mode->type       = 0;
         mode->Clock      = cmodep->ml_clock;
         mode->HDisplay   = cmodep->ml_hdisplay;
@@ -2421,31 +2440,16 @@ addDefaultModes(MonPtr monitorp)
     DisplayModePtr last = monitorp->Last;
     int i = 0;
 
-    while (xf86DefaultModes[i].name != NULL)
+    for (i = 0; i < xf86NumDefaultModes; i++)
     {
-	if ( ! modeIsPresent(xf86DefaultModes[i].name,monitorp) )
-	    do
-	    {
-		mode = xnfalloc(sizeof(DisplayModeRec));
-		memcpy(mode,&xf86DefaultModes[i],sizeof(DisplayModeRec));
-		if (xf86DefaultModes[i].name)
-		    mode->name = xnfstrdup(xf86DefaultModes[i].name);
-		if( last ) {
-		    mode->prev = last;
-		    last->next = mode;
-		}
-		else {
-		    /* this is the first mode */
-		    monitorp->Modes = mode;
-		    mode->prev = NULL;
-		}
-		last = mode;
-		i++;
-	    }
-	    while((xf86DefaultModes[i].name != NULL) &&
-		  (!strcmp(xf86DefaultModes[i].name,xf86DefaultModes[i-1].name)));
-	else
-	    i++;
+	mode = xf86DuplicateMode(&xf86DefaultModes[i]);
+	if (!modeIsPresent(mode, monitorp))
+	{
+	    monitorp->Modes = xf86ModesAdd(monitorp->Modes, mode);
+	    last = mode;
+	} else {
+	    xfree(mode);
+	}
     }
     monitorp->Last = last;
 

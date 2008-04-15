@@ -26,7 +26,7 @@ dnl
 dnl Process this file with autoconf to create configure.
 
 AC_PREREQ(2.57)
-AC_INIT([xorg-server], 1.4.99.2, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
+AC_INIT([xorg-server], 1.5.99.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([dist-bzip2 foreign])
 AM_MAINTAINER_MODE
@@ -58,6 +58,7 @@ AC_PROG_LN_S
 AC_LIBTOOL_WIN32_DLL
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
+DOLT
 AC_PROG_MAKE_SET
 PKG_PROG_PKG_CONFIG
 AC_PROG_LEX
@@ -293,7 +294,6 @@ dnl Bus options and CPU capabilities.  Replaces logic in
 dnl hw/xfree86/os-support/bus/Makefile.am, among others.
 dnl ---------------------------------------------------------------------------
 DEFAULT_INT10="x86emu"
-use_x86_asm="no"
 
 dnl Override defaults as needed for specific platforms:
 
@@ -310,12 +310,11 @@ case $host_cpu in
 	ARM_VIDEO=yes
 	;;
   i*86)
-	use_x86_asm="yes"
 	I386_VIDEO=yes
 	case $host_os in
-	        darwin*)	use_x86_asm="no" ;;
 		*linux*)	DEFAULT_INT10=vm86 ;;
 		*freebsd*)	AC_DEFINE(USE_DEV_IO) ;;
+		*dragonfly*)	AC_DEFINE(USE_DEV_IO) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL)
 				SYS_LIBS=-li386
 				;;
@@ -337,11 +336,10 @@ case $host_cpu in
 	GLX_ARCH_DEFINES="-D__GLX_ALIGN64"
 	;;
   x86_64*|amd64*)
-  	use_x86_asm="yes"
 	I386_VIDEO=yes
 	case $host_os in
-	        darwin*)	use_x86_asm="no" ;;
 		*freebsd*)	AC_DEFINE(USE_DEV_IO, 1, [BSD /dev/io]) ;;
+		*dragonfly*)	AC_DEFINE(USE_DEV_IO, 1, [BSD /dev/io]) ;;
 		*netbsd*)	AC_DEFINE(USE_I386_IOPL, 1, [BSD i386 iopl])
 				SYS_LIBS=-lx86_64
 				;;
@@ -372,7 +370,7 @@ DRI2=no
 KDRIVE_HW=no
 dnl it would be nice to autodetect these *CONS_SUPPORTs
 case $host_os in
-  *freebsd*)
+  *freebsd* | *dragonfly*)
 	case $host_os in
 		kfreebsd*-gnu) ;;
 		*) AC_DEFINE(CSRG_BASED, 1, [System is BSD-like]) ;;
@@ -576,9 +574,8 @@ AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (
 AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
 AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
 dnl legacy fb support
-AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: enabled)]), [MFB=$enableval], [MFB=$XORG])
-AC_ARG_ENABLE(cfb,            AS_HELP_STRING([--enable-cfb], [Build legacy color framebuffer support (default: enabled)]), [CFB=$enableval], [CFB=$XORG])
-AC_ARG_ENABLE(afb,            AS_HELP_STRING([--enable-afb], [Build legacy advanced framebuffer support (default: enabled)]), [AFB=$enableval], [AFB=$XORG])
+AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: disable)]), [MFB=$enableval], [MFB=no])
+AC_ARG_ENABLE(afb,            AS_HELP_STRING([--enable-afb], [Build legacy advanced framebuffer support (default: disable)]), [AFB=$enableval], [AFB=no])
 dnl kdrive and its subsystems
 AC_ARG_ENABLE(kdrive,         AS_HELP_STRING([--enable-kdrive], [Build kdrive servers (default: no)]), [KDRIVE=$enableval], [KDRIVE=no])
 AC_ARG_ENABLE(xephyr,         AS_HELP_STRING([--enable-xephyr], [Build the kdrive Xephyr server (default: auto)]), [XEPHYR=$enableval], [XEPHYR=auto])
@@ -710,6 +707,15 @@ if test "x$NEED_DBUS" = xyes; then
 fi
 CONFIG_LIB='$(top_builddir)/config/libconfig.a'
 
+AC_MSG_CHECKING([for glibc...])
+AC_PREPROC_IFELSE([
+#include <features.h>
+#ifndef __GLIBC__
+#error
+#endif
+], glibc=yes, glibc=no)
+AC_MSG_RESULT([$glibc])
+
 AC_CHECK_FUNCS([clock_gettime], [have_clock_gettime=yes],
                [AC_CHECK_LIB([rt], [clock_gettime], [have_clock_gettime=-lrt],
                              [have_clock_gettime=no])])
@@ -725,9 +731,13 @@ if ! test "x$have_clock_gettime" = xno; then
 
     LIBS_SAVE="$LIBS"
     LIBS="$CLOCK_LIBS"
+    CPPFLAGS_SAVE="$CPPFLAGS"
+
+    if test x"$glibc" = xyes; then
+        CPPFLAGS="$CPPFLAGS -D_POSIX_C_SOURCE=200112L"
+    fi
 
     AC_RUN_IFELSE([
-#define _POSIX_C_SOURCE 199309L
 #include <time.h>
 
 int main(int argc, char *argv[[]]) {
@@ -742,6 +752,7 @@ int main(int argc, char *argv[[]]) {
        [MONOTONIC_CLOCK="cross compiling"])
 
     LIBS="$LIBS_SAVE"
+    CPPFLAGS="$CPPFLAGS_SAVE"
 else
     MONOTONIC_CLOCK=no
 fi
@@ -758,7 +769,6 @@ if test "x$XV" = xyes; then
 	AC_DEFINE(XV, 1, [Support Xv extension])
 	AC_DEFINE(XvExtension, 1, [Build Xv extension])
 	REQUIRED_MODULES="$REQUIRED_MODULES videoproto"
-        PKG_CHECK_MODULES(XV, [xv >= 0.22])
 else
 	XVMC=no
 fi
@@ -874,7 +884,7 @@ AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
 if test "x$DRI2" = xyes; then
 	# FIXME: Bump the versions once we have releases of these.
 	AC_DEFINE(DRI2, 1, [Build DRI2 extension])
-	PKG_CHECK_MODULES([DRIPROTO], [xf86driproto >= 2.0.3])
+	PKG_CHECK_MODULES([DRI2PROTO], [dri2proto >= 1.1])
 	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.1])
 fi
 
@@ -1023,6 +1033,8 @@ XKB_STUB_LIB='$(top_builddir)/xkb/libxkbstubs.la'
 
 AC_CHECK_FUNC(strcasecmp, [], AC_DEFINE([NEED_STRCASECMP], 1,
                                         [Do not have 'strcasecmp'.]))
+AC_CHECK_FUNC(strncasecmp, [], AC_DEFINE([NEED_STRNCASECMP], 1,
+                                        [Do not have 'strncasecmp'.]))
 
 if test "x$NULL_ROOT_CURSOR" = xyes; then
         AC_DEFINE(NULL_ROOT_CURSOR, 1, [Use an empty root cursor])
@@ -1094,8 +1106,6 @@ AC_DEFINE(NO_LIBCWRAPPER, 1, [Define to 1 if modules should avoid the libcwrappe
 
 if test "x$DEBUGGING" = xyes; then
        AC_DEFINE(DEBUG, 1, [Enable debugging code])
-else
-       AC_DEFINE(NDEBUG, 1, [Disable some debugging code])
 fi
 AM_CONDITIONAL(DEBUG, [test "x$DEBUGGING" = xyes])
 
@@ -1151,6 +1161,9 @@ XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${LIBCRYPTO}"
 AC_SUBST([XSERVER_LIBS])
 AC_SUBST([XSERVER_SYS_LIBS])
 
+UTILS_SYS_LIBS="${SYS_LIBS}"
+AC_SUBST([UTILS_SYS_LIBS])
+
 # The Xorg binary needs to export symbols so that they can be used from modules
 # Some platforms require extra flags to do this.   gcc should set these flags
 # when -rdynamic is passed to it, other compilers/linkers may need to be added
@@ -1168,9 +1181,6 @@ if test "x$GCC" = "xyes"; then
        LD_EXPORT_SYMBOLS_FLAG="-rdynamic"
 fi
 case $host_os in
-       darwin*)
-       LD_EXPORT_SYMBOLS_FLAG=""
-       ;;
        openbsd*)
        LD_EXPORT_SYMBOLS_FLAG="-Wl,--export-dynamic"
        ;;
@@ -1330,6 +1340,13 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	XORG_LIBS="$COMPOSITE_LIB $FIXES_LIB $XEXTXORG_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XPSTUBS_LIB $SELINUX_LIB"
 
 	PKG_CHECK_MODULES([PCIACCESS], [pciaccess >= 0.8.0])
+	SAVE_LIBS=$LIBS
+	SAVE_CFLAGS=$CFLAGS
+	CFLAGS=$PCIACCESS_CFLAGS
+	LIBS=$PCIACCESS_LIBS
+	AC_CHECK_FUNCS([pci_system_init_dev_mem])
+	LIBS=$SAVE_LIBS
+	CFLAGS=$SAVE_CFLAGS
 	XORG_SYS_LIBS="$XORG_SYS_LIBS $PCIACCESS_LIBS $DLOPEN_LIBS $GLX_SYS_LIBS"
 	XORG_CFLAGS="$XORG_CFLAGS $PCIACCESS_CFLAGS"
 
@@ -1359,7 +1376,7 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 			;;
 		esac
 		;;
-	  freebsd* | kfreebsd*-gnu)
+	  freebsd* | kfreebsd*-gnu | dragonfly*)
 	  	XORG_OS="freebsd"
 		XORG_OS_SUBDIR="bsd"
 		xorg_bus_bsdpci="yes"
@@ -1439,17 +1456,9 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	esac
 
 	case $host_cpu in
-	  i*86)
-               case $host_os in
-                 darwin*) ;;
-		 *bsd*) ;;
-		 linux*) ;;
-                 *) xorg_bus_ix86pci=yes ;;
-               esac
-		;;
 	  powerpc*)
 		case $host_os in
-		  darwin*|linux*|freebsd*|netbsd*|openbsd*|kfreebsd*-gnu)
+		  linux*|freebsd*|netbsd*|openbsd*|kfreebsd*-gnu)
 			;;
 		  *)
 			xorg_bus_ppcpci="yes"
@@ -1460,9 +1469,9 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 		xorg_bus_sparcpci="yes"
 		xorg_bus_sparc="yes"
 		;;
-	  x86_64*|amd64*)
+	  i*86|x86_64*|amd64*)
 		case $host_os in
-		  darwin*|*bsd*|linux*)
+		  *bsd*|linux*)
 			;;
 		  *)
 			xorg_bus_ix86pci="yes"
@@ -1562,7 +1571,11 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	abi_xinput=`extract_abi XINPUT`
 	abi_extension=`extract_abi EXTENSION`
 	abi_font=`extract_abi FONT`
-	AC_SUBST([abi_ansic abi_videodrv abi_xinput abi_extension abi_font])
+	AC_SUBST([abi_ansic])
+	AC_SUBST([abi_videodrv])
+	AC_SUBST([abi_xinput])
+	AC_SUBST([abi_extension])
+	AC_SUBST([abi_font])
 fi
 AM_CONDITIONAL([XORG], [test "x$XORG" = xyes])
 AM_CONDITIONAL([XORG_BUS_LINUXPCI], [test "x$xorg_bus_linuxpci" = xyes])
@@ -1583,12 +1596,10 @@ AM_CONDITIONAL([XF86VIDMODE], [test "x$XF86VIDMODE" = xyes])
 
 dnl legacy fb support
 test "x$MFB" = xauto && MFB="$XORG"
-test "x$CFB" = xauto && CFB="$XORG"
 test "x$AFB" = xauto && AFB="$XORG"
 AM_CONDITIONAL(MFB, [test "x$MFB" = xyes])
-AM_CONDITIONAL(CFB, [test "x$CFB" = xyes])
 AM_CONDITIONAL(AFB, [test "x$AFB" = xyes])
-if test "x$MFB" = xyes -o "x$CFB" = xyes -o "x$AFB" = xyes; then
+if test "x$MFB" = xyes -o "x$AFB" = xyes; then
 	if test "x$XORG" != xyes; then
 		AC_MSG_ERROR([legacy fb support requires the Xorg server])
 	fi
@@ -1665,17 +1676,17 @@ fi
 AC_MSG_RESULT([$XWIN])
 
 if test "x$XWIN" = xyes; then
-	XWIN_SERVER_NAME=XWin
 	case $host_os in
 		cygwin*)
+			XWIN_SERVER_NAME=XWin
 			PKG_CHECK_MODULES([XWINMODULES],[x11 xdmcp xau xfont])
 			AC_DEFINE(HAS_DEVWINDOWS,1,[Cygwin has /dev/windows for signaling new win32 messages])
 			AC_DEFINE(ROOTLESS,1,[Build Rootless code])
 			CFLAGS="$CFLAGS -DFD_SETSIZE=256"
 			;;
 		mingw*)
-			PKG_CHECK_MODULES([XWINMODULES],[x11 xdmcp xau xfont])
 			XWIN_SERVER_NAME=Xming
+			PKG_CHECK_MODULES([XWINMODULES],[x11 xdmcp xau xfont])
 			AC_DEFINE(RELOCATE_PROJECTROOT,1,[Make PROJECT_ROOT relative to the xserver location])
 			AC_DEFINE(HAS_WINSOCK,1,[Use Windows sockets])
 			XWIN_SYS_LIBS=-lwinsock2
@@ -1737,7 +1748,8 @@ if test "X$XQUARTZ" = Xauto; then
 fi
 
 if test "x$XQUARTZ" = xyes; then
-	AC_DEFINE([XQUARTZ],[1],[Have Quartz])
+	AC_DEFINE(XQUARTZ,1,[Have Quartz])
+	AC_DEFINE(ROOTLESS,1,[Build Rootless code])
 
 #glxAGL / glxCGL don't work yet
 #	AC_CACHE_CHECK([for AGL framework],xorg_cv_AGL_framework,[
@@ -1770,10 +1782,6 @@ if test "x$XQUARTZ" = xyes; then
 	if test "x$DGA" = xyes || test "x$DGA" = xauto; then
 		AC_MSG_NOTICE([Disabling DGA extension])
 		DGA=no
-	fi
-	if test "x$DMX" = xyes || test "x$DMX" = xauto; then
-		AC_MSG_NOTICE([Disabling DMX DDX])
-		DMX=no
 	fi
 fi
 
@@ -1817,51 +1825,58 @@ if test "x$LAUNCHD" = "xyes" ; then
 fi
 AM_CONDITIONAL(LAUNCHD, [test "x$LAUNCHD" = "xyes"])
 
+
+dnl DMX DDX
+
 AC_MSG_CHECKING([whether to build Xdmx DDX])
 PKG_CHECK_MODULES([DMXMODULES], [xmuu xext x11 xrender xfixes xfont xi dmxproto xau $XDMCP_MODULES], [have_dmx=yes], [have_dmx=no])
 if test "x$DMX" = xauto; then
-       DMX="$have_dmx"
+	DMX="$have_dmx"
+	case $host_os in
+		cygwin*) DMX="no" ;;
+		darwin*) DMX="no" ;;
+	esac
 fi
 AC_MSG_RESULT([$DMX])
 AM_CONDITIONAL(DMX, [test "x$DMX" = xyes])
 
 if test "x$DMX" = xyes; then
-       if test "x$have_dmx" = xno; then
-               AC_MSG_ERROR([Xdmx build explicitly requested, but required
-                             modules not found.])
-       fi
-       DMX_INCLUDES="$XEXT_INC $RENDER_INC $XTRAP_INC $RECORD_INC"
-       XDMX_CFLAGS="$DMXMODULES_CFLAGS"
-       XDMX_LIBS="$XEXT_LIB $FB_LIB $CONFIG_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB"
-       XDMX_SYS_LIBS="$DMXMODULES_LIBS"
-       AC_SUBST([XDMX_CFLAGS])
-       AC_SUBST([XDMX_LIBS])
-       AC_SUBST([XDMX_SYS_LIBS])
+	if test "x$have_dmx" = xno; then
+		AC_MSG_ERROR([Xdmx build explicitly requested, but required
+		              modules not found.])
+	fi
+	DMX_INCLUDES="$XEXT_INC $RENDER_INC $XTRAP_INC $RECORD_INC"
+	XDMX_CFLAGS="$DMXMODULES_CFLAGS"
+	XDMX_LIBS="$XEXT_LIB $FB_LIB $CONFIG_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB"
+	XDMX_SYS_LIBS="$DMXMODULES_LIBS"
+	AC_SUBST([XDMX_CFLAGS])
+	AC_SUBST([XDMX_LIBS])
+	AC_SUBST([XDMX_SYS_LIBS])
 
 dnl USB sources in DMX require <linux/input.h>
-       AC_CHECK_HEADER([linux/input.h], DMX_BUILD_USB="yes",
-                       DMX_BUILD_USB="no")
+	AC_CHECK_HEADER([linux/input.h], DMX_BUILD_USB="yes",
+			DMX_BUILD_USB="no")
 dnl Linux sources in DMX require <linux/keyboard.h>
-       AC_CHECK_HEADER([linux/keyboard.h], DMX_BUILD_LNX="yes",
-                       DMX_BUILD_LNX="no")
-       if test "x$GLX" = xyes; then
-               PKG_CHECK_MODULES([GL], [glproto])
-       fi
-       PKG_CHECK_MODULES([XDMXCONFIG_DEP], [xaw7 xmu xt xpm x11])
-       AC_SUBST(XDMXCONFIG_DEP_CFLAGS)
-       AC_SUBST(XDMXCONFIG_DEP_LIBS)
-       PKG_CHECK_MODULES([DMXEXAMPLES_DEP], [dmx xext x11])
-       AC_SUBST(DMXEXAMPLES_DEP_LIBS)
-       PKG_CHECK_MODULES([DMXXMUEXAMPLES_DEP], [dmx xmu xext x11])
-       AC_SUBST(DMXXMUEXAMPLES_DEP_LIBS)
-       PKG_CHECK_MODULES([DMXXIEXAMPLES_DEP], [dmx xi xext x11])
-       AC_SUBST(DMXXIEXAMPLES_DEP_LIBS)
-       PKG_CHECK_MODULES([XTSTEXAMPLES_DEP], [xtst xext x11])
-       AC_SUBST(XTSTEXAMPLES_DEP_LIBS)
-       PKG_CHECK_MODULES([XRESEXAMPLES_DEP], [xres xext x11])
-       AC_SUBST(XRESEXAMPLES_DEP_LIBS)
-       PKG_CHECK_MODULES([X11EXAMPLES_DEP], [xext x11])
-       AC_SUBST(X11EXAMPLES_DEP_LIBS)
+	AC_CHECK_HEADER([linux/keyboard.h], DMX_BUILD_LNX="yes",
+			DMX_BUILD_LNX="no")
+	if test "x$GLX" = xyes; then
+		PKG_CHECK_MODULES([GL], [glproto])
+	fi
+	PKG_CHECK_MODULES([XDMXCONFIG_DEP], [xaw7 xmu xt xpm x11])
+	AC_SUBST(XDMXCONFIG_DEP_CFLAGS)
+	AC_SUBST(XDMXCONFIG_DEP_LIBS)
+	PKG_CHECK_MODULES([DMXEXAMPLES_DEP], [dmx xext x11])
+	AC_SUBST(DMXEXAMPLES_DEP_LIBS)
+	PKG_CHECK_MODULES([DMXXMUEXAMPLES_DEP], [dmx xmu xext x11])
+	AC_SUBST(DMXXMUEXAMPLES_DEP_LIBS)
+	PKG_CHECK_MODULES([DMXXIEXAMPLES_DEP], [dmx xi xext x11])
+	AC_SUBST(DMXXIEXAMPLES_DEP_LIBS)
+	PKG_CHECK_MODULES([XTSTEXAMPLES_DEP], [xtst xext x11])
+	AC_SUBST(XTSTEXAMPLES_DEP_LIBS)
+	PKG_CHECK_MODULES([XRESEXAMPLES_DEP], [xres xext x11])
+	AC_SUBST(XRESEXAMPLES_DEP_LIBS)
+	PKG_CHECK_MODULES([X11EXAMPLES_DEP], [xext x11])
+	AC_SUBST(X11EXAMPLES_DEP_LIBS)
 fi
 AM_CONDITIONAL([DMX_BUILD_LNX], [test "x$DMX_BUILD_LNX" = xyes])
 AM_CONDITIONAL([DMX_BUILD_USB], [test "x$DMX_BUILD_USB" = xyes])
@@ -1925,7 +1940,11 @@ if test "$KDRIVE" = yes; then
        XSDL_INCS="`sdl-config --cflags` $XSERVER_CFLAGS"
     fi
 
-    PKG_CHECK_MODULES(XEPHYR, x11 xext xfont xau xdmcp, [xephyr="yes"], [xephyr="no"])
+    XEPHYR_REQUIRED_LIBS="x11 xext xfont xau xdmcp"
+    if test "x$XV" = xyes; then
+        XEPHYR_REQUIRED_LIBS="$XEPHYR_REQUIRED_LIBS xv"
+    fi
+    PKG_CHECK_MODULES(XEPHYR, $XEPHYR_REQUIRED_LIBS, [xephyr="yes"], [xephyr="no"])
     if test "x$XEPHYR" = xauto; then
         XEPHYR=$xephyr
     fi
@@ -1957,7 +1976,7 @@ if test "$KDRIVE" = yes; then
     KDRIVE_OS_INC='-I$(top_srcdir)/hw/kdrive/linux'
     KDRIVE_INCS="$KDRIVE_PURE_INCS $KDRIVE_OS_INC"
     
-    KDRIVE_CFLAGS="$XSERVER_CFLAGS -DHAVE_KDRIVE_CONFIG_H $TSLIB_CFLAGS $XV_CFLAGS"
+    KDRIVE_CFLAGS="$XSERVER_CFLAGS -DHAVE_KDRIVE_CONFIG_H $TSLIB_CFLAGS"
 
     KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $OS_LIB"
     KDRIVE_LIB='$(top_builddir)/hw/kdrive/src/libkdrive.a'
@@ -1971,10 +1990,10 @@ if test "$KDRIVE" = yes; then
     KDRIVE_LOCAL_LIBS="$TSLIB_LIBS $DIX_LIB $KDRIVE_LIB $KDRIVE_STUB_LIB $CONFIG_LIB"
     KDRIVE_LOCAL_LIBS="$KDRIVE_LOCAL_LIBS $FB_LIB $MI_LIB $KDRIVE_PURE_LIBS"
     KDRIVE_LOCAL_LIBS="$KDRIVE_LOCAL_LIBS $KDRIVE_OS_LIB $OS_LIB"
-    KDRIVE_LIBS="$KDRIVE_LOCAL_LIBS $XSERVER_SYS_LIBS $XV_LIBS"
+    KDRIVE_LIBS="$KDRIVE_LOCAL_LIBS $XSERVER_SYS_LIBS"
 
     # check if we can build Xephyr
-    PKG_CHECK_MODULES(XEPHYR, x11 xext xfont xau xdmcp, [xephyr="yes"], [xephyr="no"])
+    PKG_CHECK_MODULES(XEPHYR, $XEPHYR_REQUIRED_LIBS, [xephyr="yes"], [xephyr="no"])
 
     AC_SUBST([XEPHYR_LIBS])
     AC_SUBST([XEPHYR_INCS])
@@ -2094,7 +2113,9 @@ DIX_CFLAGS="-DHAVE_DIX_CONFIG_H $XSERVER_CFLAGS"
 
 AC_SUBST([DIX_CFLAGS])
 
-AC_SUBST([libdir exec_prefix prefix])
+AC_SUBST([libdir])
+AC_SUBST([exec_prefix])
+AC_SUBST([prefix])
 
 # Man page sections - used in config utils & generating man pages
 XORG_MANPAGE_SECTIONS
@@ -2127,8 +2148,6 @@ fb/Makefile
 record/Makefile
 XTrap/Makefile
 mfb/Makefile
-cfb/Makefile
-cfb32/Makefile
 config/Makefile
 mi/Makefile
 miext/Makefile
@@ -2136,7 +2155,6 @@ miext/damage/Makefile
 miext/shadow/Makefile
 miext/cw/Makefile
 miext/rootless/Makefile
-miext/rootless/safeAlpha/Makefile
 miext/rootless/accel/Makefile
 os/Makefile
 randr/Makefile
@@ -2191,7 +2209,6 @@ hw/xfree86/xaa/Makefile
 hw/xfree86/xf1bpp/Makefile
 hw/xfree86/xf4bpp/Makefile
 hw/xfree86/xf8_16bpp/Makefile
-hw/xfree86/xf8_32bpp/Makefile
 hw/xfree86/utils/Makefile
 hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile

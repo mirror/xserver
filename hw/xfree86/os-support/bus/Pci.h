@@ -207,9 +207,8 @@
 # endif
 #elif defined(__ia64__)
 # if defined(linux)
-#  define ARCH_PCI_INIT ia64linuxPciInit
+#  define ARCH_PCI_INIT linuxPciInit
 # endif
-# define XF86SCANPCI_WRAPPER ia64ScanPCIWrapper
 #elif defined(__i386__) || defined(__i386)
 # if defined(linux)
 #  define ARCH_PCI_INIT linuxPciInit
@@ -247,7 +246,7 @@
 # if !defined(__FreeBSD__) && !defined(linux)
 #  define ARCH_PCI_PCI_BRIDGE sparcPciPciBridge
 # endif
-#elif defined(__amd64__) || defined(__amd64)
+#elif defined(__amd64__) || defined(__amd64) || defined(__x86_64__)
 # if defined(linux)
 #  define ARCH_PCI_INIT linuxPciInit
 # else
