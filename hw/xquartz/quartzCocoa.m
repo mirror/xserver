@@ -47,10 +47,12 @@
 #undef BOOL
 
 #include "pseudoramiX.h"
+#include <X11/extensions/composite.h>
 
 extern void FatalError(const char *, ...);
 extern char *display;
 extern int noPanoramiXExtension;
+int comp_redirect_done = 0;
 
 /*
  * QuartzWriteCocoaPasteboard
@@ -129,7 +131,7 @@ void QuartzBlockHandler(
     pointer pReadmask)
 {
     static NSAutoreleasePool *aPool = nil;
-
+//    ErrorF("QuartzBlockHandler()\n");
     [aPool release];
     aPool = [[NSAutoreleasePool alloc] init];
 }
@@ -143,5 +145,12 @@ void QuartzWakeupHandler(
     int result,
     pointer pReadmask)
 {
-    // nothing here
+//  ErrorF("QuartzWakeupHandler()\n");
+  if(comp_redirect_done) return;
+  comp_redirect_done=1;
+  ErrorF("QuartzWakeupHandler(%p,%d,%p)\n", blockData, result, pReadmask);
+//  ErrorF("requestingClient=%p\n",requestingClient);
+//  ErrorF("serverClient=%p\n",serverClient);
+  int retval=compRedirectSubwindows (serverClient, GetCurrentRootWindow(), CompositeRedirectAutomatic);
+  ErrorF("compRedirectSubwindows returned %d\n",retval);
 }
