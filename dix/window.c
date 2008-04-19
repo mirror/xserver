@@ -3689,6 +3689,7 @@ MakeWindowOptional (WindowPtr pWin)
     optional->userProps = NULL;
     optional->backingBitPlanes = ~0L;
     optional->backingPixel = 0;
+    optional->actualised = 0;
 #ifdef SHAPE
     optional->boundingShape = NULL;
     optional->clipShape = NULL;

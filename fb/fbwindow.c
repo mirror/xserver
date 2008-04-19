@@ -31,6 +31,7 @@
 Bool
 fbCreateWindow(WindowPtr pWin)
 {
+    MakeWindowOptional(pWin);
     pWin->optional->actualised = 1;
 #ifndef FB_NO_WINDOW_PIXMAPS
     pWin->devPrivates[fbWinPrivateIndex].ptr = 
