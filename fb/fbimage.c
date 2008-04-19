@@ -45,6 +45,9 @@ fbPutImage (DrawablePtr	pDrawable,
     FbStride	    srcStride;
     FbStip	    *src = (FbStip *) pImage;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     x += pDrawable->x;
     y += pDrawable->y;
     

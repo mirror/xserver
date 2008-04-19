@@ -31,6 +31,7 @@
 Bool
 fbCreateWindow(WindowPtr pWin)
 {
+    pWin->optional->actualised = 1;
 #ifndef FB_NO_WINDOW_PIXMAPS
     pWin->devPrivates[fbWinPrivateIndex].ptr = 
 	(pointer) fbGetScreenPixmap(pWin->drawable.pScreen);
@@ -88,6 +89,10 @@ fbCopyWindowProc (DrawablePtr	pSrcDrawable,
     int		dstBpp;
     int		dstXoff, dstYoff;
     
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDstDrawable)))
+        return;
+
     fbGetDrawable (pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
     fbGetDrawable (pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     
@@ -286,6 +291,7 @@ fbFillRegionTiled (DrawablePtr	pDrawable,
 	}
     }
 #endif
+
     fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     fbGetDrawable (&pTile->drawable, tile, tileStride, tileBpp, tileXoff, tileYoff);
     tileWidth = pTile->drawable.width;

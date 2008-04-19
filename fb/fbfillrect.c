@@ -41,6 +41,9 @@ fbPolyFillRect(DrawablePtr  pDrawable,
     int		    xorg, yorg;
     int		    n;
 
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     xorg = pDrawable->x;
     yorg = pDrawable->y;
     

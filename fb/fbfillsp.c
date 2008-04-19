@@ -41,6 +41,9 @@ fbFillSpans (DrawablePtr    pDrawable,
     int		    fullX1, fullX2, fullY1;
     int		    partX1, partX2;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     pextent = REGION_EXTENTS(pGC->pScreen, pClip);
     extentX1 = pextent->x1;
     extentY1 = pextent->y1;

@@ -39,7 +39,10 @@ fbFill (DrawablePtr pDrawable,
     int		    dstBpp;
     int		    dstXoff, dstYoff;
     FbGCPrivPtr	    pPriv = fbGetGCPrivate(pGC);
-    
+
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
     switch (pGC->fillStyle) {

@@ -51,7 +51,11 @@ fbCopyNtoN (DrawablePtr	pSrcDrawable,
     FbStride	dstStride;
     int		dstBpp;
     int		dstXoff, dstYoff;
-    
+
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pDstDrawable)))
+        return;
+
     fbGetDrawable (pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
     fbGetDrawable (pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
@@ -123,6 +127,10 @@ fbCopy1toN (DrawablePtr	pSrcDrawable,
     int		dstBpp;
     int		dstXoff, dstYoff;
 
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pDstDrawable)))
+        return;
+
     fbGetDrawable (pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
     fbGetDrawable (pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
@@ -188,6 +196,10 @@ fbCopyNto1 (DrawablePtr	pSrcDrawable,
 {
     FbGCPrivPtr	pPriv = fbGetGCPrivate (pGC);
     
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pDstDrawable)))
+        return;
+
     while (nbox--)
     {
 	if (pDstDrawable->bitsPerPixel == 1)
@@ -307,6 +319,10 @@ fbCopyRegion (DrawablePtr   pSrcDrawable,
     int		nbox;
     BoxPtr	pboxNew1, pboxNew2, pboxBase, pboxNext, pboxTmp;
     
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pDstDrawable)))
+        return;
+
     pbox = REGION_RECTS(pDstRegion);
     nbox = REGION_NUM_RECTS(pDstRegion);
     
@@ -435,6 +451,10 @@ fbDoCopy (DrawablePtr	pSrcDrawable,
     Bool	fastSrc = FALSE;    /* for fast clipping with pixmap source */
     Bool	fastDst = FALSE;    /* for fast clipping with one rect dest */
     Bool	fastExpose = FALSE; /* for fast exposures with pixmap source */
+
+    if ((pSrcDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pSrcDrawable)) ||
+        (pDstDrawable->type == DRAWABLE_WINDOW && wActualised((WindowPtr)pDstDrawable)))
+        return;
 
     /* Short cut for unmapped windows */
 

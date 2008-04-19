@@ -44,6 +44,9 @@ fbPolyArc (DrawablePtr	pDrawable,
 	   xArc		*parcs)
 {
     FbArc	arc;
+
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
     
     if (pGC->lineWidth == 0)
     {

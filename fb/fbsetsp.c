@@ -46,6 +46,9 @@ fbSetSpans (DrawablePtr	    pDrawable,
     int		    xoff;
     int		    x1, x2;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
 #ifdef FB_24_32BIT
     if (pDrawable->bitsPerPixel != BitsPerPixel(pDrawable->depth))
     {

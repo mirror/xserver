@@ -79,6 +79,7 @@ typedef struct _WindowOpt {
     struct _OtherClients *otherClients;	   /* default: NULL */
     struct _GrabRec	*passiveGrabs;	   /* default: NULL */
     PropertyPtr		userProps;	   /* default: NULL */
+    unsigned int        actualised;        /* default: 0 */
     unsigned long	backingBitPlanes;  /* default: ~0L */
     unsigned long	backingPixel;	   /* default: 0 */
 #ifdef SHAPE
@@ -201,6 +202,7 @@ extern Mask	    DontPropagateMasks[];
 #endif
 #define wClient(w)		(clients[CLIENT_ID((w)->drawable.id)])
 #define wBorderWidth(w)		((int) (w)->borderWidth)
+#define wActualised(w)          wUseDefault(w, actualised, 0)
 
 /* true when w needs a border drawn. */
 

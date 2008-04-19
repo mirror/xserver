@@ -37,6 +37,9 @@ fbZeroLine (DrawablePtr	pDrawable,
     int		    x, y;
     int		    dashOffset;
 
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     x = pDrawable->x;
     y = pDrawable->y;
     x1 = ppt->x;
@@ -71,6 +74,9 @@ fbZeroSegment (DrawablePtr  pDrawable,
     int	    x, y;
     Bool    drawLast = pGC->capStyle != CapNotLast;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     x = pDrawable->x;
     y = pDrawable->y;
     while (nseg--)
@@ -111,6 +117,9 @@ fbPolyLine (DrawablePtr	pDrawable,
 {
     void	(*line) (DrawablePtr, GCPtr, int mode, int npt, DDXPointPtr ppt);
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     if (pGC->lineWidth == 0)
     {
 	line = fbZeroLine;
@@ -147,6 +156,9 @@ fbPolySegment (DrawablePtr  pDrawable,
 	       xSegment	    *pseg)
 {
     void    (*seg) (DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment *pseg);
+
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
 
     if (pGC->lineWidth == 0)
     {

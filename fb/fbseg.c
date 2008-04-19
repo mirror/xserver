@@ -57,6 +57,9 @@ fbBresSolid (DrawablePtr    pDrawable,
     FbStip	mask, mask0;
     FbStip	bits;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fbGetStipDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     dst += ((y1 + dstYoff) * dstStride);
     x1 = (x1 + dstXoff) * dstBpp;
@@ -146,6 +149,9 @@ fbBresDash (DrawablePtr	pDrawable,
     Bool	even;
     Bool	doOdd;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fbGetStipDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     doOdd = pGC->lineStyle == LineDoubleDash;
 
@@ -217,6 +223,9 @@ fbBresFill (DrawablePtr	pDrawable,
 	    int		e3,
 	    int		len)
 {
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     while (len--)
     {
 	fbFill (pDrawable, pGC, x1, y1, 1, 1);
@@ -248,6 +257,9 @@ fbSetFg (DrawablePtr	pDrawable,
 	 GCPtr		pGC,
 	 Pixel		fg)
 {
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     if (fg != pGC->fgPixel)
     {
 	DoChangeGC (pGC, GCForeground, (XID *) &fg, FALSE);
@@ -277,6 +289,9 @@ fbBresFillDash (DrawablePtr pDrawable,
     Bool	doBg;
     Pixel	fg, bg;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fg = pGC->fgPixel;
     bg = pGC->bgPixel;
     
@@ -357,6 +372,9 @@ fbBresSolid24RRop (DrawablePtr  pDrawable,
     int		rot;
     FbStip	andT, xorT;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fbGetStipDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     dst += ((y1 + dstYoff) * dstStride);
     x1 = (x1 + dstXoff) * 24;
@@ -439,6 +457,9 @@ fbBresDash24RRop (DrawablePtr	pDrawable,
     Bool	even;
     Bool	doOdd;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     fbGetStipDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
     doOdd = pGC->lineStyle == LineDoubleDash;
 
@@ -521,6 +542,9 @@ fbSelectBres (DrawablePtr   pDrawable,
     int		dstBpp = pDrawable->bitsPerPixel;
     FbBres *	bres;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     if (pGC->lineStyle == LineSolid)
     {
 	bres = fbBresFill;
@@ -589,6 +613,9 @@ fbBres (DrawablePtr	pDrawable,
 	int		e3,
 	int		len)
 {
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     (*fbSelectBres (pDrawable, pGC)) (pDrawable, pGC, dashOffset,
 				      signdx, signdy, axis, x1, y1,
 				      e, e1, e3, len);
@@ -621,6 +648,9 @@ fbSegment (DrawablePtr	pDrawable,
     unsigned int bias = miGetZeroLineBias(pDrawable->pScreen);
     unsigned int oc1;	/* outcode of point 1 */
     unsigned int oc2;	/* outcode of point 2 */
+
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
 
     nBox = REGION_NUM_RECTS (pClip);
     pBox = REGION_RECTS (pClip);

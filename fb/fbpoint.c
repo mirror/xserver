@@ -127,6 +127,9 @@ fbPolyPoint (DrawablePtr    pDrawable,
     BoxPtr	pBox;
     int		nBox;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     /* make pointlist origin relative */
     ppt = pptInit;
     npt = nptInit;

@@ -281,6 +281,9 @@ fbPolyGlyphBlt (DrawablePtr	pDrawable,
     int		    dstBpp = 0;
     int		    dstXoff = 0, dstYoff = 0;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     glyph = 0;
     if (pGC->fillStyle == FillSolid && pPriv->and == 0)
     {
@@ -374,6 +377,9 @@ fbImageGlyphBlt (DrawablePtr	pDrawable,
     int		    dstBpp = 0;
     int		    dstXoff = 0, dstYoff = 0;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     glyph = 0;
     if (pPriv->and == 0)
     {

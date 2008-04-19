@@ -45,6 +45,9 @@ fbPushPattern (DrawablePtr  pDrawable,
     int		    w;
     int		    lenspan;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     src += srcX >> FB_STIP_SHIFT;
     srcX &= FB_STIP_MASK;
     
@@ -115,6 +118,9 @@ fbPushFill (DrawablePtr	pDrawable,
 {
     FbGCPrivPtr	pPriv = fbGetGCPrivate(pGC);
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     if (pGC->fillStyle == FillSolid)
     {
 	FbBits	    *dst;
@@ -190,6 +196,9 @@ fbPushImage (DrawablePtr    pDrawable,
     BoxPtr	pbox;
     int		x1, y1, x2, y2;
     
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
+
     for (nbox = REGION_NUM_RECTS (pClip),
 	 pbox = REGION_RECTS(pClip);
 	 nbox--;
@@ -236,6 +245,9 @@ fbPushPixels (GCPtr	    pGC,
     FbStride	stipStride;
     int		stipBpp;
     int		stipXoff, stipYoff; /* Assumed to be zero */
+
+    if (pDrawable->type == DRAWABLE_WINDOW && !wActualised((WindowPtr)pDrawable))
+        return;
 
     fbGetStipDrawable (&pBitmap->drawable, stip, stipStride, stipBpp, stipXoff, stipYoff);
 
