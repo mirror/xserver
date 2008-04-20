@@ -287,7 +287,7 @@ void QuartzDisplayChangedHandler(int screenNum, xEventPtr xe, DeviceIntPtr dev, 
     pRoot = WindowTable[pScreen->myNum];
     AppleWMSetScreenOrigin(pRoot);
     pScreen->ResizeWindow(pRoot, x - sx, y - sy, width, height, NULL);
-    miPaintWindow(pRoot, &pRoot->borderClip,  PW_BACKGROUND);
+    //    miPaintWindow(pRoot, &pRoot->borderClip,  PW_BACKGROUND);
 //    QuartzIgnoreNextWarpCursor();
     DefineInitialRootWindow(pRoot);
 
