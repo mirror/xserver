@@ -707,6 +707,7 @@ typedef struct {
 #define __fbPixOffXPix(pPix)	(__fbPixDrawableX(pPix))
 #define __fbPixOffYPix(pPix)	(__fbPixDrawableY(pPix))
 
+#if 0
 #define fbGetDrawable(pDrawable, pointer, stride, bpp, xoff, yoff) { \
     PixmapPtr   _pPix; \
     if ((pDrawable)->type != DRAWABLE_PIXMAP) { \
@@ -724,6 +725,10 @@ typedef struct {
     (bpp) = _pPix->drawable.bitsPerPixel;  (void)(bpp); \
     CHECK_NULL(pointer); \
 }
+#else
+	#define fbGetDrawable(pDrawable, pointer, stride, bpp, xoff, yoff) \
+		_fbGetDrawable(pDrawable, &(pointer), &(stride), &(bpp), &(xoff), &(yoff))
+#endif
 
 #define fbGetStipDrawable(pDrawable, pointer, stride, bpp, xoff, yoff) { \
     PixmapPtr   _pPix; \

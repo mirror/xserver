@@ -360,3 +360,46 @@ const FbBits	* const fbStippleTable[] = {
     0,
     fbStipple8Bits,
 };
+
+static char *_fb_drawable_type_names[] = {
+  "DRAWABLE_WINDOW",
+  "DRAWABLE_PIXMAP",
+  "UNDRAWABLE_WINDOW",
+  "DRAWABLE_BUFFER"
+};
+
+void _fbGetDrawable(DrawablePtr pDrawable, FbBits ** pointer, int *stride, 
+		    int *bpp, int *xoff, int *yoff) { 
+    PixmapPtr   _pPix;
+    switch (pDrawable->type) {
+    case DRAWABLE_PIXMAP:
+      _pPix = (PixmapPtr) pDrawable;
+      *xoff = __fbPixOffXPix(_pPix);
+      *yoff = __fbPixOffYPix(_pPix);
+      break;
+    case DRAWABLE_BUFFER:
+      ErrorF("Invalid call to fbGetDrawable on a non-window buffer\n");
+      assert(pDrawable->type != DRAWABLE_BUFFER); // die
+      break;
+    case UNDRAWABLE_WINDOW:
+      ErrorF("Undrawable window?\n");
+      assert(_pPix->type == DRAWABLE_PIXMAP);
+      break;
+    case DRAWABLE_WINDOW:
+      ErrorF("drawable type is %d\n", pDrawable->type);
+      _pPix = fbGetWindowPixmap(pDrawable);
+      assert(_pPix->type == DRAWABLE_PIXMAP);
+      *xoff = __fbPixOffXWin(_pPix);
+      *yoff = __fbPixOffYWin(_pPix);
+      break;
+    default: 
+      FatalError("Unknown drawable type %d\n", pDrawable->type);
+      break;
+    }
+
+    fbPrepareAccess(pDrawable);
+    *pointer = (FbBits *) _pPix->devPrivate.ptr;
+    *stride = ((int) _pPix->devKind) / sizeof (FbBits);
+    *bpp = _pPix->drawable.bitsPerPixel;
+    CHECK_NULL(pointer);
+  }
