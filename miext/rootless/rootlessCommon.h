@@ -235,6 +235,7 @@ extern RegionRec rootlessHugeRoot;
  */
 #define SetPixmapBaseToScreen(pix, _x, _y) {                                \
     PixmapPtr   _pPix = (PixmapPtr) (pix);                                  \
+    ErrorF("SetPixmapBaseToScreen(%p, %d, %d)\n", _pPix, (_x), (_y));       \
     _pPix->devPrivate.ptr = (char *) (_pPix->devPrivate.ptr) -              \
                             ((int)(_x) * _pPix->drawable.bitsPerPixel/8 +   \
                              (int)(_y) * _pPix->devKind);                   \

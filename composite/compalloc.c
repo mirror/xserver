@@ -462,8 +462,9 @@ compNewPixmap (WindowPtr pWin, int x, int y, int w, int h)
     WindowPtr	    pParent = pWin->parent;
     PixmapPtr	    pPixmap;
 
+    ErrorF("compNewPixmap(%p, %d, %d, %d, %d)=", pWin, x, y, w, h);
     pPixmap = (*pScreen->CreatePixmap) (pScreen, w, h, pWin->drawable.depth);
-
+    ErrorF("%p\n", pPixmap);
     if (!pPixmap)
 	return 0;
     

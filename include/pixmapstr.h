@@ -89,6 +89,8 @@ typedef struct _Pixmap {
 #ifdef COMPOSITE
     short		screen_x;
     short		screen_y;
+#else
+#error FAIL
 #endif
 } PixmapRec;
 

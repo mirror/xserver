@@ -44,7 +44,7 @@ fbFill (DrawablePtr pDrawable,
         return;
 
     fbGetDrawable (pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
-
+#define FB_ACCESS_WRAPPER //(whatever the hell that is
     switch (pGC->fillStyle) {
     case FillSolid:
 #ifndef FB_ACCESS_WRAPPER

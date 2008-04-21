@@ -41,7 +41,7 @@
 # define ROOTLESS_REDISPLAY_DELAY 10
 # define ROOTLESS_RESIZE_GRAVITY TRUE
 # undef  ROOTLESS_TRACK_DAMAGE
-/*# define ROOTLESSDEBUG*/
+# define ROOTLESSDEBUG
 
 /* Bit mask for alpha channel with a particular number of bits per
    pixel. Note that we only care for 32bpp data. Mac OS X uses planar

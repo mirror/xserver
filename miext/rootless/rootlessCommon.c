@@ -173,6 +173,7 @@ void RootlessStartDrawing(WindowPtr pWindow)
     }
 
     PixmapPtr curPixmap = pScreen->GetWindowPixmap(pWindow);
+    ErrorF("curPixmap = %p\n", curPixmap);
     if (curPixmap == winRec->pixmap)
     {
         RL_DEBUG_MSG("Window %p already has winRec->pixmap %p; not pushing\n", pWindow, winRec->pixmap);

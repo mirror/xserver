@@ -386,7 +386,6 @@ void _fbGetDrawable(DrawablePtr pDrawable, FbBits ** pointer, int *stride,
       assert(_pPix->type == DRAWABLE_PIXMAP);
       break;
     case DRAWABLE_WINDOW:
-      ErrorF("drawable type is %d\n", pDrawable->type);
       _pPix = fbGetWindowPixmap(pDrawable);
       assert(_pPix->type == DRAWABLE_PIXMAP);
       *xoff = __fbPixOffXWin(_pPix);

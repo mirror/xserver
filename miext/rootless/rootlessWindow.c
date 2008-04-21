@@ -213,7 +213,23 @@ RootlessCreateWindow(WindowPtr pWin)
 
     if (pWin->parent) {
         NORMAL_ROOT(pWin);
-    }
+    } else {
+      ErrorF("RootlessCreateWindow(pwin=%p, parent=%p)\n",
+	     pWin, pWin->parent);
+      assert(compRedirectWindow(serverClient, pWin, CompositeRedirectAutomatic) == Success);
+      compCheckRedirect(pWin);
+            assert(compRedirectSubwindows(serverClient, pWin, CompositeRedirectAutomatic) == Success);
+      compCheckRedirect(pWin);
+           
+#if 0
+     if(pWin->parent == NULL) {
+              fprintf(stderr, "calling RootlessFrameForWindow(%p, true)\n", pWin);
+              rFrameID = RootlessFrameForWindow(pWin, TRUE);
+              fprintf(stderr, "Got frame id = %d\n", rFrameID);
+               /* insert magic here */
+      }
+#endif
+}
 
     SCREEN_WRAP(pWin->drawable.pScreen, CreateWindow);
 

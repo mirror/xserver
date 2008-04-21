@@ -45,6 +45,8 @@
 #endif
 
 #include "compint.h"
+#include "../miext/rootless/rootlessCommon.h"
+#include "../miext/rootless/rootlessWindow.h"
 
 #ifdef COMPOSITE_DEBUG
 static int
@@ -147,7 +149,7 @@ compCheckRedirect (WindowPtr pWin)
 
     should = pWin->realized && (pWin->drawable.class != InputOnly) &&
 	     (cw != NULL);
-    
+    ErrorF("compCheckRedirect(%p), should = %d\n", pWin, should);
     /* Never redirect the overlay window */
     if (cs->pOverlayWin != NULL) {
 	if (pWin == cs->pOverlayWin) {
@@ -614,6 +616,7 @@ compCreateWindow (WindowPtr pWin)
     CompScreenPtr	cs = GetCompScreen (pScreen);
     Bool		ret;
 
+    ErrorF("compCreateWindow(%p)\n", pWin);
     pScreen->CreateWindow = cs->CreateWindow;
     ret = (*pScreen->CreateWindow) (pWin);
     if (pWin->parent && ret)
@@ -742,7 +745,14 @@ compWindowUpdateAutomatic (WindowPtr pWin)
 						 &subwindowMode,
 						 serverClient,
 						 &error);
-    
+					RootlessFrameID rFrameID;
+    fprintf(stderr, "compWindowUpdateAutomatic(%p), parent = %p\n", pWin, pWin->parent);
+	if(pWin->parent == NULL) {
+		fprintf(stderr, "calling RootlessFrameForWindow(%p, true)\n", pWin);
+		rFrameID = RootlessFrameForWindow(pWin, TRUE);
+		fprintf(stderr, "Got frame id = %d\n", rFrameID);
+		/* insert magic here */
+	}
     /*
      * First move the region from window to screen coordinates
      */
