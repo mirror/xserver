@@ -1,8 +1,5 @@
 /*
- * Platform specific rootless configuration
- */
-/*
- * Copyright (c) 2003 Torrey T. Lyons. All Rights Reserved.
+ * Copyright (C) 2008 Apple, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -31,36 +28,43 @@
 #include <dix-config.h>
 #endif
 
-#ifndef _ROOTLESSCONFIG_H
-#define _ROOTLESSCONFIG_H
+#include "threadSafety.h"
+#include "os.h"
 
-#ifdef __APPLE__
+#include <execinfo.h>
 
-# define ROOTLESS_GLOBAL_COORDS TRUE
-# define ROOTLESS_PROTECT_ALPHA TRUE
-# define ROOTLESS_REDISPLAY_DELAY 10
-# define ROOTLESS_RESIZE_GRAVITY TRUE
-# undef  ROOTLESS_TRACK_DAMAGE
-/*# define ROOTLESSDEBUG*/
+pthread_t APPKIT_THREAD_ID;
+pthread_t SERVER_THREAD_ID;
 
-/* Bit mask for alpha channel with a particular number of bits per
-   pixel. Note that we only care for 32bpp data. Mac OS X uses planar
-   alpha for 16bpp. */
-# define RootlessAlphaMask(bpp) ((bpp) == 32 ? 0xFF000000 : 0)
+void spewCallStack(void) {
+    void* callstack[128];
+    int i, frames = backtrace(callstack, 128);
+    char** strs = backtrace_symbols(callstack, frames);
+    
+    for (i = 0; i < frames; ++i) {
+        ErrorF("%s\n", strs[i]);
+    }
+    
+    free(strs);
+}
 
-#endif /* __APPLE__ */
+void _threadSafetyAssert(pthread_t tid, const char *file, const char *fun, int line) {
+    if(pthread_equal(pthread_self(), tid))
+        return;
+    
+    /* NOOOO! */
+    ErrorF("Thread Assertion Failed: self=%s, expected=%s\n%s:%s:%d\n",
+           threadSafetyID(pthread_self()), threadSafetyID(tid),
+           file, fun, line);
+    spewCallStack();
+}
 
-#if defined(__CYGWIN__) || defined(WIN32)
-
-# define ROOTLESS_GLOBAL_COORDS TRUE
-# define ROOTLESS_PROTECT_ALPHA NO
-# define ROOTLESS_REDISPLAY_DELAY 10
-# undef  ROOTLESS_RESIZE_GRAVITY
-# undef  ROOTLESS_TRACK_DAMAGE
-/*# define ROOTLESSDEBUG*/
-
-# define RootlessAlphaMask(bpp) ((bpp) == 32 ? 0xFF000000 : 0)
-
-#endif /* __CYGWIN__ */
-
-#endif /* _ROOTLESSCONFIG_H */
+const char *threadSafetyID(pthread_t tid) {
+    if(pthread_equal(tid, APPKIT_THREAD_ID)) {
+        return "Appkit Thread";
+    } else if(pthread_equal(tid, SERVER_THREAD_ID)) {
+        return "Xserver Thread";
+    } else {        
+        return "Unknown Thread";
+    }
+}

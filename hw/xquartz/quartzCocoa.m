@@ -32,6 +32,8 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#include "sanitizedCocoa.h"
+
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
 #endif
@@ -40,13 +42,7 @@
 #include "inputstr.h"
 #include "quartzPasteboard.h"
 
-#define BOOL xBOOL
 #include "darwin.h"
-
-#include <Cocoa/Cocoa.h>
-#undef BOOL
-
-#include "pseudoramiX.h"
 
 extern void FatalError(const char *, ...);
 extern char *display;

@@ -27,33 +27,28 @@
  promote the sale, use or other dealings in this Software without
  prior written authorization. */
 
+#include "sanitizedCarbon.h"
+
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
 #endif
 
-#include "quartzCommon.h"
 #include "quartzForeground.h"
+#include "quartzCommon.h"
 
 #import "X11Application.h"
-#include <Carbon/Carbon.h>
 
-/* ouch! */
-#define BOOL X_BOOL
 # include "darwin.h"
 # include "darwinEvents.h"
 # include "quartz.h"
 # define _APPLEWM_SERVER_
 # include "X11/extensions/applewm.h"
 # include "micmap.h"
-#undef BOOL
-
 #include <mach/mach.h>
 #include <unistd.h>
+
 #include <pthread.h>
-
-#include "rootlessCommon.h"
-
-WindowPtr xprGetXWindowFromAppKit(int windowNumber); // xpr/xprFrame.c
+extern pthread_cond_t server_can_start_cond;
 
 #define DEFAULTS_FILE "/usr/X11/lib/X11/xserver/Xquartz.plist"
 
@@ -159,7 +154,7 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
     [self orderFrontStandardAboutPanelWithOptions: dict];
 }
 
-- (void) activateX:(BOOL)state {
+- (void) activateX:(OSX_BOOL)state {
     /* Create a TSM document that supports full Unicode input, and
 	 have it activated while X is active (unless using the old
 	 keymapping files) */
@@ -193,7 +188,7 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
 
 - (void) sendEvent:(NSEvent *)e {
  	NSEventType type;
-	BOOL for_appkit, for_x;
+	OSX_BOOL for_appkit, for_x;
 
 	type = [e type];
 
@@ -210,8 +205,6 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
 			if (_x_active) [self activateX:NO];
 		} else if ([self modalWindow] == nil) {
 			/* Must be an X window. Tell appkit it doesn't have focus. */
-			WindowPtr pWin = xprGetXWindowFromAppKit([e windowNumber]);
-			if (pWin) RootlessReorderWindow(pWin);
 			for_appkit = NO;
 
 			if ([self isActive]) {
@@ -244,9 +237,6 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
 							|| [e keyCode] == 53 /*Esc*/)) {
 						swallow_up = 0;
 						for_x = NO;
-#ifdef DARWIN_DDX_MISSING
-						DarwinSendDDXEvent(kXquartzToggleFullscreen, 0);
-#endif
 					}
 			} else {
 			/* If we saw a key equivalent on the down, don't pass
@@ -277,7 +267,8 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
 				_appFlags._active = YES;
 
 				[self activateX:YES];
-				if ([e data2] & 0x10) X11ApplicationSetFrontProcess();
+				if ([e data2] & 0x10) 
+                    DarwinSendDDXEvent(kXquartzBringAllToFront, 0);
 			}
 			break;
 
@@ -647,8 +638,8 @@ static NSMutableArray * cfarray_to_nsarray (CFArrayRef in) {
     if(darwinDesiredDepth == 8)
         darwinDesiredDepth = -1;
 	
-    enable_stereo = [self prefs_get_boolean:@PREFS_ENABLE_STEREO
-                     default:false];
+//    enable_stereo = [self prefs_get_boolean:@PREFS_ENABLE_STEREO
+//                     default:false];
 }
 
 /* This will end up at the end of the responder chain. */
@@ -657,7 +648,7 @@ static NSMutableArray * cfarray_to_nsarray (CFArrayRef in) {
 			     AppleWMCopyToPasteboard);
 }
 
-- (BOOL) x_active {
+- (OSX_BOOL) x_active {
     return _x_active;
 }
 
@@ -744,19 +735,6 @@ void X11ApplicationShowHideMenubar (int state) {
     [n release];
 }
 
-static void * create_thread (void *func, void *arg) {
-    pthread_attr_t attr;
-    pthread_t tid;
-	
-    pthread_attr_init (&attr);
-    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM);
-    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create (&tid, &attr, func, arg);
-    pthread_attr_destroy (&attr);
-	
-    return (void *) tid;
-}
-
 static void check_xinitrc (void) {
     char *tem, buf[1024];
     NSString *msg;
@@ -798,7 +776,7 @@ environment?", @"Startup xinitrc dialog");
     [X11App prefs_synchronize];
 }
 
-void X11ApplicationMain (int argc, const char **argv, void (*server_thread) (void *), void *server_arg) {
+void X11ApplicationMain (int argc, const char **argv) {
     NSAutoreleasePool *pool;
 
 #ifdef DEBUG
@@ -824,13 +802,9 @@ void X11ApplicationMain (int argc, const char **argv, void (*server_thread) (voi
     /* Calculate the height of the menubar so we can avoid it. */
     aquaMenuBarHeight = NSHeight([[NSScreen mainScreen] frame]) -
     NSMaxY([[NSScreen mainScreen] visibleFrame]);
-  
-    if (!create_thread (server_thread, server_arg)) {
-        ErrorF("can't create secondary thread\n");
-        exit (1);
-    }
 
-    QuartzMoveToForeground();
+    /* Tell the server thread that it can proceed */
+    pthread_cond_broadcast(&server_can_start_cond);
 
     [NSApp run];
     /* not reached */
@@ -876,8 +850,6 @@ static void send_nsevent (NSEventType type, NSEvent *e) {
 		pointer_y = (screen.origin.y + screen.size.height) - location.y;
 	}
 
-	pointer_y -= aquaMenuBarHeight;
-
 	pressure = 0;  // for tablets
 	tilt_x = 0;
 	tilt_y = 0;
@@ -905,7 +877,7 @@ static void send_nsevent (NSEventType type, NSEvent *e) {
 		break;
 
 		case NSScrollWheel:
-			DarwinSendScrollEvents([e deltaY], pointer_x, pointer_y,
+			DarwinSendScrollEvents([e deltaX], [e deltaY], pointer_x, pointer_y,
 				pressure, tilt_x, tilt_y);
 		break;
 

@@ -27,6 +27,8 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
+#include "sanitizedCarbon.h"
+
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
 #endif
@@ -35,17 +37,15 @@
 #include "inputstr.h"
 #include "quartz.h"
 #include "xpr.h"
+#include "xprEvent.h"
 #include "pseudoramiX.h"
 #include "darwin.h"
 #include "rootless.h"
 #include "dri.h"
 #include "globals.h"
-#include "Xplugin.h"
+#include <Xplugin.h>
 #include "applewmExt.h"
 #include "micmap.h"
-
-// From xprFrame.c
-WindowPtr xprGetXWindow(xp_window_id wid);
 
 #ifdef DAMAGE
 # include "damage.h"
@@ -142,19 +142,26 @@ displayAtIndex(int index)
  *  Return the bounds of a particular display.
  */
 static CGRect
-displayScreenBounds(CGDirectDisplayID id)
+displayScreenBounds(CGDirectDisplayID id, Bool remove_menubar)
 {
     CGRect frame;
 
     frame = CGDisplayBounds(id);
 
+    DEBUG_LOG("    %dx%d @ (%d,%d).\n",
+              (int)frame.size.width, (int)frame.size.height,
+              (int)frame.origin.x, (int)frame.origin.y);
+    
     /* Remove menubar to help standard X11 window managers. */
-
-    if (frame.origin.x == 0 && frame.origin.y == 0)
-    {
+    if (remove_menubar && !quartzHasRoot && 
+        frame.origin.x == 0 && frame.origin.y == 0) {
         frame.origin.y += aquaMenuBarHeight;
         frame.size.height -= aquaMenuBarHeight;
     }
+
+    DEBUG_LOG("    %dx%d @ (%d,%d).\n",
+              (int)frame.size.width, (int)frame.size.height,
+              (int)frame.origin.x, (int)frame.origin.y);
 
     return frame;
 }
@@ -179,8 +186,13 @@ xprAddPseudoramiXScreens(int *x, int *y, int *width, int *height)
     /* Get the union of all screens */
     for (i = 0; i < displayCount; i++)
     {
+
+        /* we can't remove the menubar from the screen - doing so
+         * would constrain the pointer to the screen, not allowing it
+         * to reach the menubar..
+         */
         CGDirectDisplayID dpy = displayList[i];
-        frame = displayScreenBounds(dpy);
+        frame = displayScreenBounds(dpy, FALSE);
         unionRect = CGRectUnion(unionRect, frame);
     }
 
@@ -190,22 +202,20 @@ xprAddPseudoramiXScreens(int *x, int *y, int *width, int *height)
     *width = unionRect.size.width;
     *height = unionRect.size.height;
 
+    DEBUG_LOG("  screen union origin: (%d,%d) size: (%d,%d).\n",
+              *x, *y, *width, *height);
+
     /* Tell PseudoramiX about the real screens. */
     for (i = 0; i < displayCount; i++)
     {
         CGDirectDisplayID dpy = displayList[i];
 
-        frame = displayScreenBounds(dpy);
-
-	/*        ErrorF("PseudoramiX screen %d added: %dx%d @ (%d,%d).\n", i,
-               (int)frame.size.width, (int)frame.size.height,
-               (int)frame.origin.x, (int)frame.origin.y); */
-
+        frame = displayScreenBounds(dpy, TRUE);
         frame.origin.x -= unionRect.origin.x;
         frame.origin.y -= unionRect.origin.y;
 
-	/*        ErrorF("PseudoramiX screen %d placed at X11 coordinate (%d,%d).\n",
-		  i, (int)frame.origin.x, (int)frame.origin.y); */
+        DEBUG_LOG("    placed at X11 coordinate (%d,%d).\n",
+                  (int)frame.origin.x, (int)frame.origin.y);
 
         PseudoramiXAddScreen(frame.origin.x, frame.origin.y,
                              frame.size.width, frame.size.height);
@@ -223,7 +233,7 @@ xprDisplayInit(void)
 {
     CGDisplayCount displayCount;
 
-    //    ErrorF("Display mode: Rootless Quartz -- Xplugin implementation\n");
+    DEBUG_LOG("");
 
     CGGetActiveDisplayList(0, NULL, &displayCount);
 
@@ -259,6 +269,8 @@ xprAddScreen(int index, ScreenPtr pScreen)
 {
     DarwinFramebufferPtr dfb = SCREEN_PRIV(pScreen);
     int depth = darwinDesiredDepth;
+
+    DEBUG_LOG("index=%d depth=%d\n", index, depth);
     
     if(depth == -1) {
         depth = CGDisplaySamplesPerPixel(kCGDirectMainDisplay) * CGDisplayBitsPerSample(kCGDirectMainDisplay);
@@ -315,12 +327,14 @@ xprAddScreen(int index, ScreenPtr pScreen)
 
     if (noPseudoramiXExtension)
     {
+        ErrorF("Warning: noPseudoramiXExtension!\n");
+        
         CGDirectDisplayID dpy;
         CGRect frame;
 
         dpy = displayAtIndex(index);
 
-        frame = displayScreenBounds(dpy);
+        frame = displayScreenBounds(dpy, TRUE);
 
         dfb->x = frame.origin.x;
         dfb->y = frame.origin.y;
@@ -352,7 +366,9 @@ xprSetupScreen(int index, ScreenPtr pScreen)
 {
     // Initialize accelerated rootless drawing
     // Note that this must be done before DamageSetup().
-    RootlessAccelInit(pScreen);
+
+    // These are crashing ugly... better to be stable and not crash for now.
+    //RootlessAccelInit(pScreen);
 
 #ifdef DAMAGE
     // The Damage extension needs to wrap underneath the
