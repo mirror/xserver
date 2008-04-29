@@ -727,7 +727,7 @@ PictureTransformTranslate (PictTransformPtr forward,
 			   PictTransformPtr reverse,
 			   xFixed tx, xFixed ty);
 
-void
+Bool
 PictureTransformBounds (BoxPtr b, PictTransformPtr matrix);
 
 Bool

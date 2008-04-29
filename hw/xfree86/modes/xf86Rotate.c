@@ -177,7 +177,17 @@ xf86CrtcDamageShadow (xf86CrtcPtr crtc)
     damage_box.x2 = crtc->mode.HDisplay;
     damage_box.y1 = 0;
     damage_box.y2 = crtc->mode.VDisplay;
-    PictureTransformBounds (&damage_box, &crtc->crtc_to_framebuffer);
+    if (1 || !PictureTransformBounds (&damage_box, &crtc->crtc_to_framebuffer))
+    {
+	damage_box.x1 = 0;
+	damage_box.y1 = 0;
+	damage_box.x2 = pScreen->width;
+	damage_box.y2 = pScreen->height;
+    }
+    if (damage_box.x1 < 0) damage_box.x1 = 0;
+    if (damage_box.y1 < 0) damage_box.y1 = 0;
+    if (damage_box.x2 > pScreen->width) damage_box.x2 = pScreen->width;
+    if (damage_box.y2 > pScreen->height) damage_box.y2 = pScreen->height;
     REGION_INIT (pScreen, &damage_region, &damage_box, 1);
     DamageDamageRegion (&(*pScreen->GetScreenPixmap)(pScreen)->drawable,
 			&damage_region);
