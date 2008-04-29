@@ -75,6 +75,9 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #define PATHSEPARATOR "/"
 #endif
 
+#define DEBUG
+#define xkbDebugFlags	65535
+
 #ifdef WIN32
 
 #include <X11/Xwindows.h>
@@ -350,11 +353,12 @@ unsigned	missing;
     if ((names->keycodes==NULL)&&(names->types==NULL)&&
 	(names->compat==NULL)&&(names->symbols==NULL)&&
 	(names->geometry==NULL)) {
+	LogMessage (X_ERROR, "XKB: missing XKB definition\n");
         return 0;
     }
     else if (!XkbDDXCompileKeymapByNames(xkb,names,want,need,
                                          nameRtrn,nameRtrnLen)){
-	DebugF("Couldn't compile keymap file\n");
+	LogMessage (X_ERROR, "Couldn't compile keymap file\n");
 	return 0;
     }
     file= XkbDDXOpenConfigFile(nameRtrn,fileName,PATH_MAX);
