@@ -378,7 +378,7 @@ void glxSuspendClients(void)
     int i;
 
     for (i = 1; i < currentMaxClients; i++) {
-	if (clients[i] && glxGetClient(clients[i])->inUse)
+	if (clients[i] && clients[i]->osPrivate && glxGetClient(clients[i])->inUse)
 	    IgnoreClient(clients[i]);
     }
 
