@@ -13,19 +13,17 @@ if X11APP
 X11APP_SUBDIRS = bundle
 endif
 
-SUBDIRS = . xpr $(X11APP_SUBDIRS)
-DIST_SUBDIRS = xpr bundle
+SUBDIRS = . GL xpr $(X11APP_SUBDIRS)
+DIST_SUBDIRS = GL xpr bundle
 
 libXquartz_la_SOURCES = \
 	$(top_srcdir)/fb/fbcmap_mi.c \
 	$(top_srcdir)/mi/miinitext.c \
-	$(top_srcdir)/Xext/dpmsstubs.c \
 	X11Application.m \
 	X11Controller.m \
 	applewm.c \
 	darwin.c \
 	darwinEvents.c \
-	darwinKeyboard.c \
 	darwinXinput.c \
 	keysym2ucs.c \
 	pseudoramiX.c \
@@ -35,7 +33,8 @@ libXquartz_la_SOURCES = \
 	quartzForeground.c \
 	quartzKeyboard.c \
 	quartzPasteboard.c \
-	quartzStartup.c
+	quartzStartup.c \
+	threadSafety.c
 
 EXTRA_DIST = \
 	X11Application.h \
@@ -44,7 +43,6 @@ EXTRA_DIST = \
 	darwinClut8.h \
 	darwin.h \
 	darwinEvents.h \
-	darwinKeyboard.h \
 	keysym2ucs.h \
 	pseudoramiX.h \
 	quartz.h \
@@ -52,4 +50,7 @@ EXTRA_DIST = \
 	quartzCommon.h \
 	quartzForeground.h \
 	quartzKeyboard.h \
-	quartzPasteboard.h
+	quartzPasteboard.h \
+	sanitizedCarbon.h \
+	sanitizedCocoa.h \
+	threadSafety.h

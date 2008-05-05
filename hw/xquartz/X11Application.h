@@ -32,7 +32,6 @@
 
 #if __OBJC__
 
-#import <Cocoa/Cocoa.h>
 #import "X11Controller.h"
 
 @interface X11Application : NSApplication {
@@ -56,7 +55,7 @@
 - (void) prefs_set_string:(NSString *)key value:(NSString *)value;
 - (void) prefs_synchronize;
 
-- (BOOL) x_active;
+- (OSX_BOOL) x_active;
 
 @end
 
@@ -72,7 +71,7 @@ void X11ApplicationSetCanQuit (int state);
 void X11ApplicationServerReady (void);
 void X11ApplicationShowHideMenubar (int state);
 
-void X11ApplicationMain(int argc, const char **argv, void (*server_thread) (void *), void *server_arg);
+void X11ApplicationMain(int argc, char **argv, char **envp);
 
 extern int X11EnableKeyEquivalents;
 extern int quartzHasRoot, quartzEnableRootless;

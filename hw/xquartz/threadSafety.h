@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2004 Torrey T. Lyons. All Rights Reserved.
+ * Copyright (C) 2008 Apple, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -24,22 +24,33 @@
  * use or other dealings in this Software without prior written authorization.
  */
 
-#ifndef DARWIN_KEYBOARD_H
-#define DARWIN_KEYBOARD_H 1
+#ifndef _XQ_THREAD_SAFETY_H_
+#define _XQ_THREAD_SAFETY_H_
 
-#include "quartzKeyboard.h"
+#define DEBUG_THREADS 1
 
-/* Provided for darwinEvents.c */
-extern darwinKeyboardInfo keyInfo;
-void DarwinKeyboardReloadHandler(int screenNum, xEventPtr xe, DeviceIntPtr dev, int nevents);
-void DarwinKeyboardInit(DeviceIntPtr pDev);
-int DarwinModifierNXKeycodeToNXKey(unsigned char keycode, int *outSide);
-int DarwinModifierNXKeyToNXKeycode(int key, int side);
-int DarwinModifierNXKeyToNXMask(int key);
-int DarwinModifierNXMaskToNXKey(int mask);
-int DarwinModifierStringToNXKey(const char *string);
+#include <pthread.h>
 
-/* Provided for darwin.c */
-void DarwinKeyboardInit(DeviceIntPtr pDev);
+extern pthread_t APPKIT_THREAD_ID;
+extern pthread_t SERVER_THREAD_ID;
 
-#endif /* DARWIN_KEYBOARD_H */
+/* Dump the call stack */
+void spewCallStack(void);
+
+/* Print message to ErrorF if we're in the wrong thread */
+void _threadSafetyAssert(pthread_t tid, const char *file, const char *fun, int line);
+
+/* Get a string that identifies our thread nicely */
+const char *threadSafetyID(pthread_t tid);
+
+#define threadSafetyAssert(tid) _threadSafetyAssert(tid, __FILE__, __FUNCTION__, __LINE__)
+
+#ifdef DEBUG_THREADS
+#define TA_APPKIT() threadSafetyAssert(APPKIT_THREAD_ID)
+#define TA_SERVER() threadSafetyAssert(SERVER_THREAD_ID)
+#else
+#define TA_SERVER() 
+#define TA_APPKIT() 
+#endif
+
+#endif _XQ_THREAD_SAFETY_H_

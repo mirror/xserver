@@ -130,9 +130,6 @@ extern Bool noDbeExtension;
 #ifdef DPMSExtension
 extern Bool noDPMSExtension;
 #endif
-#ifdef EVI
-extern Bool noEVIExtension;
-#endif
 #ifdef FONTCACHE
 extern Bool noFontCacheExtension;
 #endif
@@ -144,9 +141,6 @@ extern Bool noScreenSaverExtension;
 #endif
 #ifdef MITSHM
 extern Bool noMITShmExtension;
-#endif
-#ifdef MITMISC
-extern Bool noMITMiscExtension;
 #endif
 #ifdef MULTIBUFFER
 extern Bool noMultibufferExtension;
@@ -166,14 +160,8 @@ extern Bool noSecurityExtension;
 #ifdef XSYNC
 extern Bool noSyncExtension;
 #endif
-#ifdef TOGCUP
-extern Bool noXcupExtension;
-#endif
 #ifdef RES
 extern Bool noResExtension;
-#endif
-#ifdef XAPPGROUP
-extern Bool noXagExtension;
 #endif
 #ifdef XCMISC
 extern Bool noXCMiscExtension;
@@ -243,10 +231,6 @@ typedef void (*InitExtension)(INITARGS);
 #ifdef XPRINT
 #include <X11/extensions/Print.h>
 #endif
-#ifdef XAPPGROUP
-#define _XAG_SERVER_
-#include <X11/extensions/Xagstr.h>
-#endif
 #ifdef XCSECURITY
 #include "securitysrv.h"
 #include <X11/extensions/securstr.h>
@@ -265,9 +249,6 @@ typedef void (*InitExtension)(INITARGS);
 #endif
 
 /* FIXME: this whole block of externs should be from the appropriate headers */
-#ifdef EVI
-extern void EVIExtensionInit(INITARGS);
-#endif
 #ifdef MITSHM
 extern void ShmExtensionInit(INITARGS);
 #endif
@@ -288,9 +269,6 @@ extern void XTestExtensionInit(INITARGS);
 #endif
 #ifdef BIGREQS
 extern void BigReqExtensionInit(INITARGS);
-#endif
-#ifdef MITMISC
-extern void MITMiscExtensionInit(INITARGS);
 #endif
 #ifdef XIDLE
 extern void XIdleExtensionInit(INITARGS);
@@ -319,9 +297,6 @@ extern void RecordExtensionInit(INITARGS);
 #endif
 #ifdef DBE
 extern void DbeExtensionInit(INITARGS);
-#endif
-#ifdef XAPPGROUP
-extern void XagExtensionInit(INITARGS);
 #endif
 #ifdef XCSECURITY
 extern void SecurityExtensionInit(INITARGS);
@@ -352,9 +327,6 @@ extern void GlxExtensionInit(INITARGS);
 #endif
 #ifdef XF86DRI
 extern void XFree86DRIExtensionInit(INITARGS);
-#endif
-#ifdef TOGCUP
-extern void XcupExtensionInit(INITARGS);
 #endif
 #ifdef DPMSExtension
 extern void DPMSExtensionInit(INITARGS);
@@ -413,9 +385,6 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef DPMSExtension
     { "DPMS", &noDPMSExtension },
 #endif
-#ifdef EVI
-    { "Extended-Visual-Information", &noEVIExtension },
-#endif
 #ifdef FONTCACHE
     { "FontCache", &noFontCacheExtension },
 #endif
@@ -427,9 +396,6 @@ static ExtensionToggle ExtensionToggleList[] =
 #endif
 #ifdef MITSHM
     { SHMNAME, &noMITShmExtension },
-#endif
-#ifdef MITMISC
-    { "MIT-SUNDRY-NONSTANDARD", &noMITMiscExtension },
 #endif
 #ifdef MULTIBUFFER
     { "Multi-Buffering", &noMultibufferExtension },
@@ -449,14 +415,8 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef XSYNC
     { "SYNC", &noSyncExtension },
 #endif
-#ifdef TOGCUP
-    { "TOG-CUP", &noXcupExtension },
-#endif
 #ifdef RES
     { "X-Resource", &noResExtension },
-#endif
-#ifdef XAPPGROUP
-    { "XC-APPGROUP", &noXagExtension },
 #endif
 #ifdef XCMISC
     { "XC-MISC", &noXCMiscExtension },
@@ -548,9 +508,6 @@ InitExtensions(argc, argv)
 #ifdef MITSHM
     if (!noMITShmExtension) ShmExtensionInit();
 #endif
-#ifdef EVI
-    if (!noEVIExtension) EVIExtensionInit();
-#endif
 #ifdef MULTIBUFFER
     if (!noMultibufferExtension) MultibufferExtensionInit();
 #endif
@@ -562,9 +519,6 @@ InitExtensions(argc, argv)
 #endif
 #ifdef BIGREQS
     if (!noBigReqExtension) BigReqExtensionInit();
-#endif
-#ifdef MITMISC
-    if (!noMITMiscExtension) MITMiscExtensionInit();
 #endif
 #ifdef XIDLE
     if (!noXIdleExtension) XIdleExtensionInit();
@@ -596,9 +550,6 @@ InitExtensions(argc, argv)
 #ifdef DBE
     if (!noDbeExtension) DbeExtensionInit();
 #endif
-#ifdef XAPPGROUP
-    if (!noXagExtension) XagExtensionInit();
-#endif
 #ifdef XCSECURITY
     if (!noSecurityExtension) SecurityExtensionInit();
 #endif
@@ -607,9 +558,6 @@ InitExtensions(argc, argv)
 #endif
 #ifdef XPRINT
     XpExtensionInit(); /* server-specific extension, cannot be disabled */
-#endif
-#ifdef TOGCUP
-    if (!noXcupExtension) XcupExtensionInit();
 #endif
 #if defined(DPMSExtension) && !defined(NO_HW_ONLY_EXTS)
     if (!noDPMSExtension) DPMSExtensionInit();
@@ -689,9 +637,6 @@ static ExtensionModule staticExtensions[] = {
 #endif
 #ifdef XKB
     { XkbExtensionInit, XkbName, &noXkbExtension, NULL, NULL },
-#endif
-#ifdef XAPPGROUP
-    { XagExtensionInit, XAGNAME, &noXagExtension, NULL, NULL },
 #endif
 #ifdef XCSECURITY
     { SecurityExtensionInit, SECURITY_EXTENSION_NAME, &noSecurityExtension, NULL, NULL },

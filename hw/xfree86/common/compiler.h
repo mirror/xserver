@@ -498,7 +498,7 @@ extern unsigned int inb(unsigned long port);
 extern unsigned int inw(unsigned long port);
 extern unsigned int inl(unsigned long port);
  
-#   elif defined(linux) && defined(__amd64__) 
+#   elif defined(linux) && (defined(__amd64__) || defined(__x86_64__))
  
 #    include <inttypes.h>
 
@@ -1363,7 +1363,7 @@ do {									\
 #    define write_mem_barrier()   /* NOP */
 
 #    if !defined(__SUNPRO_C)
-#    if !defined(FAKEIT) && !defined(__mc68000__) && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__) && !defined(__s390__)
+#    if !defined(FAKEIT) && !defined(__mc68000__) && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__) && !defined(__s390__) && !defined(__m32r__)
 #     ifdef GCCUSESGAS
 
 /*
@@ -1472,7 +1472,7 @@ inl(unsigned short port)
 
 #     endif /* GCCUSESGAS */
 
-#    else /* !defined(FAKEIT) && !defined(__mc68000__)  && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__)*/
+#    else /* !defined(FAKEIT) && !defined(__mc68000__)  && !defined(__arm__) && !defined(__sh__) && !defined(__hppa__) && !defined(__m32r__) */
 
 static __inline__ void
 outb(unsigned short port, unsigned char val)
