@@ -42,6 +42,7 @@
 
 #include "opaque.h"
 #include "darwin.h"
+#include "darwinEvents.h"
 #include "quartz.h"
 #define _APPLEWM_SERVER_
 #include "X11/extensions/applewm.h"
@@ -756,6 +757,6 @@ objectValueForTableColumn:(NSTableColumn *)tableColumn row:(int)row
 
 @end
 
-void X11ControllerMain(int argc, const char **argv) {
-    X11ApplicationMain (argc, argv);
+void X11ControllerMain(int argc, char **argv, char **envp) {
+    X11ApplicationMain (argc, argv, envp);
 }

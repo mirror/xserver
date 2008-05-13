@@ -191,7 +191,7 @@ dnl Checks for library functions.
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([geteuid getuid link memmove memset mkstemp strchr strrchr \
 		strtol getopt getopt_long vsnprintf walkcontext backtrace \
-		getisax getzoneid shmctl64])
+		getisax getzoneid shmctl64 strcasestr])
 AC_FUNC_ALLOCA
 dnl Old HAS_* names used in os/*.c.
 AC_CHECK_FUNC([getdtablesize],
@@ -402,6 +402,9 @@ case $host_os in
   *solaris*)
 	PKG_CHECK_EXISTS(libdrm, DRI=yes, DRI=no)
 	;;
+  darwin*)
+	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
+	;;
 esac
 AM_CONDITIONAL(KDRIVE_HW, test "x$KDRIVE_HW" = xyes)
 
@@ -524,11 +527,11 @@ AC_ARG_ENABLE(glx-tls,        AS_HELP_STRING([--enable-glx-tls], [Build GLX with
 
 dnl Extensions.
 AC_ARG_ENABLE(registry,       AS_HELP_STRING([--disable-registry], [Build string registry module (default: enabled)]), [XREGISTRY=$enableval], [XREGISTRY=yes])
-AC_ARG_ENABLE(composite,      AS_HELP_STRING([--disable-composite], [Build Composite extension (default: enabled)]), [COMPOSITE=$enableval], [COMPOSITE=auto])
+AC_ARG_ENABLE(composite,      AS_HELP_STRING([--disable-composite], [Build Composite extension (default: enabled)]), [COMPOSITE=$enableval], [COMPOSITE=yes])
 AC_ARG_ENABLE(mitshm,         AS_HELP_STRING([--disable-shm], [Build SHM extension (default: enabled)]), [MITSHM=$enableval], [MITSHM=yes])
 AC_ARG_ENABLE(xres,           AS_HELP_STRING([--disable-xres], [Build XRes extension (default: enabled)]), [RES=$enableval], [RES=yes])
 AC_ARG_ENABLE(xtrap,          AS_HELP_STRING([--disable-xtrap], [Build XTrap extension (default: enabled)]), [XTRAP=$enableval], [XTRAP=yes])
-AC_ARG_ENABLE(record,         AS_HELP_STRING([--disable-record], [Build Record extension (default: disabled)]), [RECORD=$enableval], [RECORD=no])
+AC_ARG_ENABLE(record,         AS_HELP_STRING([--enable-record], [Build Record extension (default: disabled)]), [RECORD=$enableval], [RECORD=no])
 AC_ARG_ENABLE(xv,             AS_HELP_STRING([--disable-xv], [Build Xv extension (default: enabled)]), [XV=$enableval], [XV=yes])
 AC_ARG_ENABLE(xvmc,           AS_HELP_STRING([--disable-xvmc], [Build XvMC extension (default: enabled)]), [XVMC=$enableval], [XVMC=yes])
 AC_ARG_ENABLE(dga,            AS_HELP_STRING([--disable-dga], [Build DGA extension (default: auto)]), [DGA=$enableval], [DGA=auto])
@@ -562,11 +565,7 @@ AC_ARG_ENABLE(dmx,    	      AS_HELP_STRING([--enable-dmx], [Build DMX server (d
 AC_ARG_ENABLE(xvfb,    	      AS_HELP_STRING([--enable-xvfb], [Build Xvfb server (default: yes)]), [XVFB=$enableval], [XVFB=yes])
 AC_ARG_ENABLE(xnest,   	      AS_HELP_STRING([--enable-xnest], [Build Xnest server (default: auto)]), [XNEST=$enableval], [XNEST=auto])
 AC_ARG_ENABLE(xquartz,        AS_HELP_STRING([--enable-xquartz], [Build Xquartz server for OS-X (default: auto)]), [XQUARTZ=$enableval], [XQUARTZ=auto])
-AC_ARG_ENABLE(x11app,         AS_HELP_STRING([--enable-x11app], [Build Apple's X11.app for Xquartz (default: auto)]), [X11APP=$enableval], [X11APP=auto])
-AC_ARG_WITH(x11app-archs,     AS_HELP_STRING([--with-x11app-archs=ARCHS], [Architectures to build X11.app for, space delimeted (default: "ppc i386")]), [X11APP_ARCHS=$enableval], [X11APP_ARCHS="ppc i386"])
-AC_SUBST([X11APP_ARCHS])
 AC_ARG_ENABLE(xwin,    	      AS_HELP_STRING([--enable-xwin], [Build XWin server (default: auto)]), [XWIN=$enableval], [XWIN=auto])
-AC_ARG_ENABLE(xprint,         AS_HELP_STRING([--enable-xprint], [Build Xprint extension and server (default: no)]), [XPRINT=$enableval], [XPRINT=no])
 AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (default: no)]), [XGL=$enableval], [XGL=no])
 AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
 AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
@@ -643,6 +642,40 @@ XORG_CHECK_LINUXDOC
 
 dnl Handle installing libxf86config
 AM_CONDITIONAL(INSTALL_LIBXF86CONFIG, [test "x$INSTALL_LIBXF86CONFIG" = xyes])
+
+dnl XQuartz DDX Detection... Yes, it's ugly to have it here... but we need to handle this early on
+case $host_os in
+	darwin*)
+		if test x$XQUARTZ = xauto; then
+			AC_CACHE_CHECK([whether to build Xquartz],xorg_cv_Carbon_framework,[
+		 		save_LDFLAGS=$LDFLAGS
+				LDFLAGS="$LDFLAGS -framework Carbon"
+				AC_LINK_IFELSE([char FSFindFolder(); int main() { FSFindFolder(); return 0;}],
+				[xorg_cv_Carbon_framework=yes],
+				[xorg_cv_Carbon_framework=no])
+			LDFLAGS=$save_LDFLAGS])
+                
+			if test "X$xorg_cv_Carbon_framework" = Xyes; then
+				XQUARTZ=yes
+			else
+				XQUARTZ=no
+			fi
+		fi
+
+		if test "x$XQUARTZ" = xyes ; then
+			XQUARTZ=yes
+			XVFB=no
+			XNEST=no
+
+			COMPOSITE=no
+			DGA=no
+			DPMSExtension=no
+			XF86BIGFONT=no
+			XF86MISC=no
+			XF86VIDMODE=no
+		fi
+		;;
+esac
 
 dnl ---------------------------------------------------------------------------
 dnl Extension section
@@ -786,18 +819,6 @@ fi
 AM_CONDITIONAL(XREGISTRY, [test "x$XREGISTRY" = xyes])
 if test "x$XREGISTRY" = xyes; then
 	AC_DEFINE(XREGISTRY, 1, [Build registry module])
-fi
-
-dnl XQuartz DDX Detection... Yes, it's ugly to have it here... but we need to disable COMPOSITE for 
-if test "x$COMPOSITE" = xauto; then
-	case $host_os in
-		darwin*)
-			test "x$XQUARTZ" = xyes -o "x$XQUARTZ" = xauto && COMPOSITE=no
-			;;
-		*)
-			COMPOSITE=yes
-			;;
-	esac
 fi
 
 AM_CONDITIONAL(COMPOSITE, [test "x$COMPOSITE" = xyes])
@@ -965,15 +986,6 @@ if test "x$DPMSExtension" = xyes; then
 	AC_DEFINE(DPMSExtension, 1, [Support DPMS extension])
 fi
 
-if test "x$XPRINT" = xauto; then
-	PKG_CHECK_MODULES([XPRINTPROTO], [printproto], [XPRINT=yes], [XPRINT=no])
-fi
-AM_CONDITIONAL(XPRINT, [test "x$XPRINT" = xyes])
-if test "x$XPRINT" = xyes; then
-	AC_DEFINE(XPRINT, 1, [Build Print extension])
-	REQUIRED_MODULES="$REQUIRED_MODULES printproto"
-fi
-
 if test "x$BUILTIN_FONTS" = xyes; then
        AC_DEFINE(BUILTIN_FONTS, 1, [Use only built-in fonts])
        AC_DEFINE(NOFONTSERVERACCESS, 1, [Avoid using a font server])
@@ -1126,15 +1138,25 @@ PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
 # OpenSSL used for SHA1 hashing in render/glyph.c, but we don't need all of
 # the OpenSSL libraries, just libcrypto
-PKG_CHECK_EXISTS([openssl],
- [PKG_CHECK_MODULES([OPENSSL], [openssl],
+# Some systems have matching functionality in the smaller/simpler libmd
+# Builders who want to force a choice can set SHA1_LIB and SHA1_CFLAGS
+if test "x$SHA1_LIB" = "x" ; then
+ AC_CHECK_LIB([md], [SHA1Init], [SHA1_LIB="-lmd"
+	AC_DEFINE([HAVE_SHA1_IN_LIBMD], [1],
+	   [Define to use libmd SHA1 functions instead of OpenSSL libcrypto])])
+fi
+if test "x$SHA1_LIB" = "x" ; then
+ PKG_CHECK_EXISTS([openssl],
+  [PKG_CHECK_MODULES([OPENSSL], [openssl],
    [OPENSSL_LIB_FLAGS=`$PKG_CONFIG --libs-only-L --libs-only-other openssl`])])
-LIBCRYPTO="$OPENSSL_LIB_FLAGS -lcrypto"
+ SHA1_LIB="$OPENSSL_LIB_FLAGS -lcrypto"
+ SHA1_CFLAGS="$OPENSSL_CFLAGS"
+fi
 
 # Autotools has some unfortunate issues with library handling.  In order to
 # get a server to rebuild when a dependency in the tree is changed, it must
 # be listed in SERVERNAME_DEPENDENCIES.  However, no system libraries may be
-# listed there, or some versions of autotols will break (especially if a -L
+# listed there, or some versions of autotools will break (especially if a -L
 # is required to find the library).  So, we keep two sets of libraries
 # detected: NAMESPACE_LIBS for in-tree libraries to be linked against, which
 # will go into the _DEPENDENCIES and _LDADD of the server, and
@@ -1146,9 +1168,9 @@ LIBCRYPTO="$OPENSSL_LIB_FLAGS -lcrypto"
 # XSERVER_SYS_LIBS is the set of out-of-tree libraries which all servers
 # require.
 #
-XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} ${OPENSSL_CFLAGS}"
+XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} ${SHA1_CFLAGS}"
 XSERVER_LIBS="$DIX_LIB $CONFIG_LIB $MI_LIB $OS_LIB"
-XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${LIBCRYPTO}"
+XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${SHA1_LIB}"
 AC_SUBST([XSERVER_LIBS])
 AC_SUBST([XSERVER_SYS_LIBS])
 
@@ -1596,62 +1618,6 @@ if test "x$MFB" = xyes -o "x$AFB" = xyes; then
 	fi
 fi
 
-dnl Xprint DDX
-
-AC_MSG_CHECKING([whether to build Xprint DDX])
-AC_MSG_RESULT([$XPRINT])
-
-if test "x$XPRINT" = xyes; then
-	PKG_CHECK_MODULES([XPRINTMODULES], [printproto x11 xfont $XDMCP_MODULES xau])
-	XPRINT_CFLAGS="$XPRINTMODULES_CFLAGS -DXPRINT"
-	XPRINT_LIBS="$XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $RENDER_LIB $COMPOSITE_LIB $RANDR_LIB $XI_LIB $FIXES_LIB $DAMAGE_LIB $XI_LIB $GLX_LIBS $MIEXT_DAMAGE_LIB $XKB_LIB $XKB_STUB_LIB"
-	XPRINT_SYS_LIBS="$XPRINTMODULES_LIBS"
-
-	xpconfigdir=$libdir/X11/xserver
-	AC_SUBST([xpconfigdir])
-
-	AC_PATH_PROG(MKFONTSCALE, mkfontscale)
-	AC_PATH_PROG(MKFONTDIR, mkfontdir)
-	
-        # freetype support code borrowed from lib/XFont
-        if test x$XP_USE_FREETYPE = xyes; then
-            AC_DEFINE(XP_USE_FREETYPE,1,[Support FreeType rasterizer in Xprint for nearly all font file formats])
-
-            if test "$freetype_config" = "auto" ; then
-                PKG_CHECK_MODULES(FREETYPE, freetype2,
-                        freetype_config=no, freetype_config=yes)
-            fi
-
-            if test "$freetype_config" = "yes"; then
-                AC_PATH_PROG(ft_config,freetype-config,no)
-                if test "$ft_config" = "no"; then
-                        AC_MSG_ERROR([You must have freetype installed; see http://www.freetype.org/])
-                fi
-            else
-                ft_config="$freetype_config"
-            fi
-
-            if test "$freetype_config" != "no"; then
-                FREETYPE_CFLAGS="`$ft_config --cflags`"
-                FREETYPE_LIBS="`$ft_config --libs`"
-            fi
-            FREETYPE_REQUIRES="freetype2"
-        else
-            FREETYPE_CFLAGS=""
-            FREETYPE_LIBS=""
-            FREETYPE_REQUIRES=""
-        fi
-	XPRINT_CFLAGS="$XPRINT_CFLAGS $FREETYPE_CFLAGS"
-	XPRINT_SYS_LIBS="$XPRINT_SYS_LIBS $FREETYPE_LIBS"
-	# end freetype support
-
-	AC_SUBST([XPRINT_CFLAGS])
-	AC_SUBST([XPRINT_LIBS])
-	AC_SUBST([XPRINT_SYS_LIBS])
-fi
-AM_CONDITIONAL(XP_USE_FREETYPE, [test "x$XPRINT" = xyes && test "x$XP_USE_FREETYPE" = xyes])
-
-
 dnl XWin DDX
 
 AC_MSG_CHECKING([whether to build XWin DDX])
@@ -1722,22 +1688,6 @@ AM_CONDITIONAL(XWIN_RANDR, [test "x$XWIN" = xyes])
 AM_CONDITIONAL(XWIN_XV, [test "x$XWIN" = xyes && test "x$XV" = xyes])
 
 dnl Darwin / OS X DDX
-if test "X$XQUARTZ" = Xauto; then
-	AC_CACHE_CHECK([whether to build Xquartz],xorg_cv_Carbon_framework,[
-	 	save_LDFLAGS=$LDFLAGS
-		LDFLAGS="$LDFLAGS -framework Carbon"
-		AC_LINK_IFELSE([char FSFindFolder(); int main() { FSFindFolder(); return 0;}],
-			[xorg_cv_Carbon_framework=yes],
-			[xorg_cv_Carbon_framework=no])
-		LDFLAGS=$save_LDFLAGS])
-                
-	if test "X$xorg_cv_Carbon_framework" = Xyes; then
-		XQUARTZ=yes
-	else
-		XQUARTZ=no
-	fi
-fi
-
 if test "x$XQUARTZ" = xyes; then
 	AC_DEFINE(XQUARTZ,1,[Have Quartz])
 	AC_DEFINE(ROOTLESS,1,[Build Rootless code])
@@ -1749,23 +1699,6 @@ if test "x$XQUARTZ" = xyes; then
 	AC_CHECK_LIB([Xplugin],[xp_init],[:])
 
 	CFLAGS="${CFLAGS} -DROOTLESS_WORKAROUND -DNO_ALLOCA"
-
-	if test "x$XF86MISC" = xyes || test "x$XF86MISC" = xauto; then
-		AC_MSG_NOTICE([Disabling XF86Misc extension])
-		XF86MISC=no
-	fi
-	if test "x$XF86VIDMODE" = xyes || test "x$XF86VIDMODE" = xauto; then
-		AC_MSG_NOTICE([Disabling XF86VidMode extension])
-		XF86VIDMODE=no
-	fi
-	if test "x$XF86BIGFONT" = xyes || test "x$XF86BIGFONT" = xauto; then
-		AC_MSG_NOTICE([Disabling XF86BigFont extension])
-		XF86BIGFONT=no
-	fi
-	if test "x$DGA" = xyes || test "x$DGA" = xauto; then
-		AC_MSG_NOTICE([Disabling DGA extension])
-		DGA=no
-	fi
 fi
 
 # Support for objc in autotools is minimal and not documented.
@@ -1782,17 +1715,6 @@ _AM_DEPENDENCIES([OBJC])
 AM_CONDITIONAL(HAVE_XPLUGIN, [test "x$ac_cv_lib_Xplugin_xp_init" = xyes])
 AM_CONDITIONAL(HAVE_AGL_FRAMEWORK, [test "x$xorg_cv_AGL_framework" = xyes])
 AM_CONDITIONAL(XQUARTZ, [test "x$XQUARTZ" = xyes])
-
-if test "x$X11APP" = xauto; then
-	AC_MSG_CHECKING([whether to build X11.app])
-	if test "x$XQUARTZ" = xyes ; then
-		X11APP=yes
-	else
-		X11APP=no
-	fi
-	AC_MSG_RESULT([$X11APP])
-fi
-AM_CONDITIONAL(X11APP,[test "X$X11APP" = Xyes]) 
 
 if test "x$LAUNCHD" = "xauto"; then
 	if test "x$XQUARTZ" = "xyes" ; then
@@ -2195,6 +2117,8 @@ hw/xwin/Makefile
 hw/xquartz/Makefile
 hw/xquartz/GL/Makefile
 hw/xquartz/bundle/Makefile
+hw/xquartz/doc/Makefile
+hw/xquartz/mach-startup/Makefile
 hw/xquartz/xpr/Makefile
 hw/kdrive/Makefile
 hw/kdrive/ati/Makefile
@@ -2217,41 +2141,5 @@ hw/kdrive/smi/Makefile
 hw/kdrive/src/Makefile
 hw/kdrive/vesa/Makefile
 hw/kdrive/via/Makefile
-hw/xprint/Makefile
-hw/xprint/doc/Makefile
-hw/xprint/pcl/Makefile
-hw/xprint/pcl-mono/Makefile
-hw/xprint/raster/Makefile
-hw/xprint/ps/Makefile
-hw/xprint/etc/Makefile
-hw/xprint/etc/Xsession.d/Makefile
-hw/xprint/etc/init.d/Makefile
-hw/xprint/etc/profile.d/Makefile
-hw/xprint/config/Makefile
-hw/xprint/config/C/print/attributes/Makefile
-hw/xprint/config/C/print/ddx-config/Makefile
-hw/xprint/config/C/print/ddx-config/raster/Makefile
-hw/xprint/config/C/print/models/CANONBJ10E-GS/Makefile
-hw/xprint/config/C/print/models/PSdefault/fonts/Makefile
-hw/xprint/config/C/print/models/PSdefault/Makefile
-hw/xprint/config/C/print/models/PSspooldir/Makefile
-hw/xprint/config/C/print/models/SPSPARC2/Makefile
-hw/xprint/config/C/print/models/SPSPARC2/fonts/Makefile
-hw/xprint/config/C/print/models/GSdefault/Makefile
-hw/xprint/config/C/print/models/HPLJ4050-PS/Makefile
-hw/xprint/config/C/print/models/HPLJ4050-PS/fonts/Makefile
-hw/xprint/config/C/print/models/Makefile
-hw/xprint/config/C/print/models/PS2PDFspooldir-GS/Makefile
-hw/xprint/config/C/print/models/CANONC3200-PS/Makefile
-hw/xprint/config/C/print/models/CANONC3200-PS/fonts/Makefile
-hw/xprint/config/C/print/models/HPLJ4family/fonts/Makefile
-hw/xprint/config/C/print/models/HPLJ4family/Makefile
-hw/xprint/config/C/print/models/HPDJ1600C/Makefile
-hw/xprint/config/C/print/models/HPDJ1600C/fonts/Makefile
-hw/xprint/config/C/print/Makefile
-hw/xprint/config/C/Makefile
-hw/xprint/config/en_US/print/attributes/Makefile
-hw/xprint/config/en_US/print/Makefile
-hw/xprint/config/en_US/Makefile
 xorg-server.pc
 ])

@@ -65,6 +65,10 @@ in this Software without prior written authorization from The Open Group.
 #define SCROLLWHEELLEFTFAKE  6
 #define SCROLLWHEELRIGHTFAKE 7
 
+/* These values were chosen to match the output of xinput under Linux */
+#define SCALEFACTOR_TILT        64.0
+#define SCALEFACTOR_PRESSURE    1000.0
+
 #define _APPLEWM_SERVER_
 #include "applewmExt.h"
 #include <X11/extensions/applewm.h>
@@ -77,22 +81,21 @@ int input_check_zero, input_check_flag;
 static int old_flags = 0;  // last known modifier state
 
 xEvent *darwinEvents = NULL;
+pthread_mutex_t darwinEvents_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_mutex_t mieqEnqueue_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static inline void mieqEnqueue_lock(void) {
+static inline void darwinEvents_lock(void) {
     int err;
-    if((err = pthread_mutex_lock(&mieqEnqueue_mutex))) {
-        ErrorF("%s:%s:%d: Failed to lock mieqEnqueue_mutex: %d\n",
+    if((err = pthread_mutex_lock(&darwinEvents_mutex))) {
+        ErrorF("%s:%s:%d: Failed to lock darwinEvents_mutex: %d\n",
                __FILE__, __FUNCTION__, __LINE__, err);
         spewCallStack();
     }
 }
 
-static inline void mieqEnqueue_unlock(void) {
+static inline void darwinEvents_unlock(void) {
     int err;
-    if((err = pthread_mutex_unlock(&mieqEnqueue_mutex))) {
-        ErrorF("%s:%s:%d: Failed to unlock mieqEnqueue_mutex: %d\n",
+    if((err = pthread_mutex_unlock(&darwinEvents_mutex))) {
+        ErrorF("%s:%s:%d: Failed to unlock darwinEvents_mutex: %d\n",
                __FILE__, __FUNCTION__, __LINE__, err);
         spewCallStack();
     }
@@ -303,7 +306,7 @@ static void DarwinEventHandler(int screenNum, xEventPtr xe, DeviceIntPtr dev, in
     }
 }
 
-Bool DarwinEQInit(DevicePtr pKbd, DevicePtr pPtr) { 
+Bool DarwinEQInit(void) { 
     if (!darwinEvents)
         darwinEvents = (xEvent *)xcalloc(sizeof(xEvent), GetMaximumEventsNum());
     if (!darwinEvents)
@@ -356,31 +359,54 @@ static void DarwinPokeEQ(void) {
 	write(darwinEventWriteFD, &nullbyte, 1);
 }
 
+/* Convert from Appkit pointer input values to X input values:
+ * Note: pointer_x and pointer_y are relative to the upper-left of primary
+ *       display.
+ */
+static void DarwinPrepareValuators(int *valuators, ScreenPtr screen,
+                                   int pointer_x, int pointer_y, 
+                                   float pressure, float tilt_x, float tilt_y) {
+    /* Fix offset between darwin and X screens */
+    pointer_x -= darwinMainScreenX + dixScreenOrigins[screen->myNum].x;
+    pointer_y -= darwinMainScreenY + dixScreenOrigins[screen->myNum].y;
+    
+    /* Setup our array of values */
+    valuators[0] = pointer_x;
+    valuators[1] = pointer_y;
+    valuators[2] = pressure * SCALEFACTOR_PRESSURE;
+    valuators[3] = tilt_x * SCALEFACTOR_TILT;
+    valuators[4] = tilt_y * SCALEFACTOR_TILT;
+    
+    DEBUG_LOG("Valuators: {%d,%d,%d,%d,%d}\n", 
+              valuators[0], valuators[1], valuators[2], valuators[3], valuators[4]);
+}
+
 void DarwinSendPointerEvents(int ev_type, int ev_button, int pointer_x, int pointer_y, 
 			     float pressure, float tilt_x, float tilt_y) {
 	static int darwinFakeMouseButtonDown = 0;
 	static int darwinFakeMouseButtonMask = 0;
 	int i, num_events;
-
-    //DEBUG_LOG("x=%d, y=%d, p=%f, tx=%f, ty=%f\n", pointer_x, pointer_y, pressure, tilt_x, tilt_y);
+	DeviceIntPtr dev;
+    ScreenPtr screen;
+    int valuators[5];
+	
+    DEBUG_LOG("x=%d, y=%d, p=%f, tx=%f, ty=%f\n", pointer_x, pointer_y, pressure, tilt_x, tilt_y);
     
 	if(!darwinEvents) {
-		ErrorF("DarwinSendPointerEvents called before darwinEvents was initialized\n");
+		DEBUG_LOG("DarwinSendPointerEvents called before darwinEvents was initialized\n");
 		return;
 	}
-	/* I can't find a spec for this, but at least GTK expects that tablets are
-     just like mice, except they have either one or three extra valuators, in this
-     order:
-     
-     X coord, Y coord, pressure, X tilt, Y tilt
-     Pressure and tilt should be represented natively as floats; unfortunately,
-     we can't do that.  Again, GTK seems to record the min/max of each valuator,
-     and then perform scaling back to float itself using that info. Soo.... */
 
-	int valuators[5] = {pointer_x, pointer_y, 
-		      pressure * INT32_MAX * 1.0f, 
-		      tilt_x * INT32_MAX * 1.0f, 
-		      tilt_y * INT32_MAX * 1.0f};
+	if (pressure == 0 && tilt_x == 0 && tilt_y == 0)
+        dev = darwinPointer;
+	else
+        dev = darwinTablet;
+
+    screen = miPointerGetScreen(dev);
+    if(!screen) {
+        DEBUG_LOG("DarwinSendPointerEvents called before screen was initialized\n");
+        return;
+    }
 
 	if (ev_type == ButtonPress && darwinFakeButtons && ev_button == 1) {
 		// Mimic multi-button mouse with modifier-clicks
@@ -411,22 +437,23 @@ void DarwinSendPointerEvents(int ev_type, int ev_button, int pointer_x, int poin
 		DarwinUpdateModifiers(KeyPress, darwinFakeMouseButtonMask & old_flags);
 		darwinFakeMouseButtonMask = 0;
 		return;
-	} 
+	}
 
-    mieqEnqueue_lock(); {
-        num_events = GetPointerEvents(darwinEvents, darwinPointer, ev_type, ev_button, 
-                                      POINTER_ABSOLUTE, 0, 5, valuators);
-        for(i=0; i<num_events; i++) mieqEnqueue (darwinPointer,&darwinEvents[i]);
+    DarwinPrepareValuators(valuators, screen, pointer_x, pointer_y, pressure, tilt_x, tilt_y);
+    darwinEvents_lock(); {
+        num_events = GetPointerEvents(darwinEvents, dev, ev_type, ev_button, 
+                                      POINTER_ABSOLUTE, 0, dev==darwinTablet?5:2, valuators);
+        for(i=0; i<num_events; i++) mieqEnqueue (dev, &darwinEvents[i]);
         DarwinPokeEQ();
 
-    } mieqEnqueue_unlock();
+    } darwinEvents_unlock();
 }
 
 void DarwinSendKeyboardEvents(int ev_type, int keycode) {
 	int i, num_events;
 
 	if(!darwinEvents) {
-		ErrorF("DarwinSendKeyboardEvents called before darwinEvents was initialized\n");
+		DEBUG_LOG("DarwinSendKeyboardEvents called before darwinEvents was initialized\n");
 		return;
 	}
 
@@ -443,32 +470,39 @@ void DarwinSendKeyboardEvents(int ev_type, int keycode) {
 		}
 	}
 
-    mieqEnqueue_lock(); {
+    darwinEvents_lock(); {
         num_events = GetKeyboardEvents(darwinEvents, darwinKeyboard, ev_type, keycode + MIN_KEYCODE);
         for(i=0; i<num_events; i++) mieqEnqueue(darwinKeyboard,&darwinEvents[i]);
         DarwinPokeEQ();
-    } mieqEnqueue_unlock();
+    } darwinEvents_unlock();
 }
 
-void DarwinSendProximityEvents(int ev_type, int pointer_x, int pointer_y, 
-			       float pressure, float tilt_x, float tilt_y) {
+void DarwinSendProximityEvents(int ev_type, int pointer_x, int pointer_y) {
 	int i, num_events;
-	int valuators[5] = {pointer_x, pointer_y, 
-		      pressure * INT32_MAX * 1.0f, 
-		      tilt_x * INT32_MAX * 1.0f, 
-		      tilt_y * INT32_MAX * 1.0f};
+    ScreenPtr screen;
+    DeviceIntPtr dev = darwinTablet;
+    int valuators[5];
+
+	DEBUG_LOG("DarwinSendProximityEvents(%d, %d, %d)\n", ev_type, pointer_x, pointer_y);
 
 	if(!darwinEvents) {
-		ErrorF("DarwinSendProximityvents called before darwinEvents was initialized\n");
+		DEBUG_LOG("DarwinSendProximityEvents called before darwinEvents was initialized\n");
 		return;
 	}
+    
+    screen = miPointerGetScreen(dev);
+    if(!screen) {
+        DEBUG_LOG("DarwinSendPointerEvents called before screen was initialized\n");
+        return;
+    }    
 
-    mieqEnqueue_lock(); {
-        num_events = GetProximityEvents(darwinEvents, darwinPointer, ev_type,
+    DarwinPrepareValuators(valuators, screen, pointer_x, pointer_y, 0.0f, 0.0f, 0.0f);
+    darwinEvents_lock(); {
+        num_events = GetProximityEvents(darwinEvents, dev, ev_type,
                                         0, 5, valuators);
-        for(i=0; i<num_events; i++) mieqEnqueue (darwinPointer,&darwinEvents[i]);
+        for(i=0; i<num_events; i++) mieqEnqueue (dev,&darwinEvents[i]);
         DarwinPokeEQ();
-    } mieqEnqueue_unlock();
+    } darwinEvents_unlock();
 }
 
 
@@ -477,7 +511,7 @@ void DarwinSendScrollEvents(float count_x, float count_y,
 							int pointer_x, int pointer_y, 
 			    			float pressure, float tilt_x, float tilt_y) {
 	if(!darwinEvents) {
-		ErrorF("DarwinSendScrollEvents called before darwinEvents was initialized\n");
+		DEBUG_LOG("DarwinSendScrollEvents called before darwinEvents was initialized\n");
 		return;
 	}
 
@@ -533,8 +567,8 @@ void DarwinSendDDXEvent(int type, int argc, ...) {
         va_end (args);
     }
 
-    mieqEnqueue_lock();
+    darwinEvents_lock();
     mieqEnqueue(darwinPointer, &xe);
     DarwinPokeEQ();
-    mieqEnqueue_unlock();
+    darwinEvents_unlock();
 }
