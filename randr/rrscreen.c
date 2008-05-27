@@ -22,6 +22,10 @@
 
 #include "randrstr.h"
 
+#ifdef PANORAMIX
+#include "panoramiXsrv.h"
+#endif
+
 static const int padlength[4] = {0, 3, 2, 1};
 
 static CARD16
@@ -42,6 +46,16 @@ RREditConnectionInfo (ScreenPtr pScreen)
     xVisualType	    *visual;
     int		    screen = 0;
     int		    d;
+    int             w = pScreen->width;
+    int             h = pScreen->height;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
 
     connSetup = (xConnSetup *) ConnectionInfo;
     vendor = (char *) connSetup + sizeof (xConnSetup);
@@ -64,8 +78,8 @@ RREditConnectionInfo (ScreenPtr pScreen)
 	root = (xWindowRoot *) ((char *) depth);
 	screen++;
     }
-    root->pixWidth = pScreen->width;
-    root->pixHeight = pScreen->height;
+    root->pixWidth = w;
+    root->pixHeight = h;
     root->mmWidth = pScreen->mmWidth;
     root->mmHeight = pScreen->mmHeight;
 }
@@ -75,6 +89,8 @@ RRSendConfigNotify (ScreenPtr pScreen)
 {
     WindowPtr	pWin = WindowTable[pScreen->myNum];
     xEvent	event;
+    int         w = pWin->drawable.width;
+    int         h = pWin->drawable.height;
 
     event.u.u.type = ConfigureNotify;
     event.u.configureNotify.window = pWin->drawable.id;
@@ -82,10 +98,16 @@ RRSendConfigNotify (ScreenPtr pScreen)
     event.u.configureNotify.x = 0;
     event.u.configureNotify.y = 0;
 
-    /* XXX xinerama stuff ? */
-    
-    event.u.configureNotify.width = pWin->drawable.width;
-    event.u.configureNotify.height = pWin->drawable.height;
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
+
+    event.u.configureNotify.width = w;
+    event.u.configureNotify.height = h;
     event.u.configureNotify.borderWidth = wBorderWidth (pWin);
     event.u.configureNotify.override = pWin->overrideRedirect;
     DeliverEvents(pWin, &event, 1, NullWindow);
@@ -98,6 +120,16 @@ RRDeliverScreenEvent (ClientPtr client, WindowPtr pWin, ScreenPtr pScreen)
     xRRScreenChangeNotifyEvent	se;
     RRCrtcPtr	crtc = pScrPriv->numCrtcs ? pScrPriv->crtcs[0] : NULL;
     WindowPtr	pRoot = WindowTable[pScreen->myNum];
+    int         w = pScreen->width;
+    int         h = pScreen->height;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
     
     se.type = RRScreenChangeNotify + RREventBase;
     se.rotation = (CARD8) (crtc ? crtc->rotation : RR_Rotate_0);
@@ -116,13 +148,13 @@ RRDeliverScreenEvent (ClientPtr client, WindowPtr pWin, ScreenPtr pScreen)
     se.sizeID = RR10CurrentSizeID (pScreen);
 
     if (se.rotation & (RR_Rotate_90 | RR_Rotate_270)) {
-	se.widthInPixels = pScreen->height;
-	se.heightInPixels = pScreen->width;
+	se.widthInPixels = h;
+	se.heightInPixels = w;
 	se.widthInMillimeters = pScreen->mmHeight;
 	se.heightInMillimeters = pScreen->mmWidth;
     } else {
-	se.widthInPixels = pScreen->width;
-	se.heightInPixels = pScreen->height;
+	se.widthInPixels = w;
+	se.heightInPixels = h;
 	se.widthInMillimeters = pScreen->mmWidth;
 	se.heightInMillimeters = pScreen->mmHeight;
     }
@@ -138,19 +170,31 @@ RRDeliverScreenEvent (ClientPtr client, WindowPtr pWin, ScreenPtr pScreen)
 void
 RRScreenSizeNotify (ScreenPtr	pScreen)
 {
+    int w = pScreen->width;
+    int h = pScreen->height;
+
     rrScrPriv(pScreen);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
+
     /*
      * Deliver ConfigureNotify events when root changes
      * pixel size
      */
-    if (pScrPriv->width == pScreen->width &&
-	pScrPriv->height == pScreen->height &&
+    if (pScrPriv->width == w &&
+	pScrPriv->height == h &&
 	pScrPriv->mmWidth == pScreen->mmWidth &&
 	pScrPriv->mmHeight == pScreen->mmHeight)
 	return;
     
-    pScrPriv->width = pScreen->width;
-    pScrPriv->height = pScreen->height;
+    pScrPriv->width = w;
+    pScrPriv->height = h;
     pScrPriv->mmWidth = pScreen->mmWidth;
     pScrPriv->mmHeight = pScreen->mmHeight;
     pScrPriv->changed = TRUE;
@@ -739,7 +783,7 @@ ProcRRSetScreenConfig (ClientPtr client)
     RRModePtr		    mode;
     RR10DataPtr		    pData = NULL;
     RRScreenSizePtr    	    pSize;
-    int			    width, height;
+    int			    width, height, w, h;
     
     UpdateCurrentTime ();
 
@@ -894,7 +938,19 @@ ProcRRSetScreenConfig (ClientPtr client)
 	width = mode->mode.height;
 	height = mode->mode.width;
     }
-    if (width != pScreen->width || height != pScreen->height)
+
+    w = pScreen->width;
+    h = pScreen->height;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
+
+    if (width != w || height != h)
     {
 	int	c;
 
@@ -958,6 +1014,16 @@ RR10CurrentSizeID (ScreenPtr pScreen)
 {
     CARD16	sizeID = 0xffff;
     RROutputPtr output = RRFirstOutput (pScreen);
+    int         w = pScreen->width;
+    int         h = pScreen->height;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
     
     if (output)
     {
@@ -966,8 +1032,8 @@ RR10CurrentSizeID (ScreenPtr pScreen)
 	{
 	    int i;
 	    for (i = 0; i < data->nsize; i++)
-		if (data->sizes[i].width == pScreen->width &&
-		    data->sizes[i].height == pScreen->height)
+		if (data->sizes[i].width == w &&
+		    data->sizes[i].height == h)
 		{
 		    sizeID = (CARD16) i;
 		    break;
