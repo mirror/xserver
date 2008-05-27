@@ -77,7 +77,7 @@ DMXConfigEntryPtr    dmxConfigEntry;
 static DMXConfigCmd  dmxConfigCmd;
 
 static int dmxDisplaysFromCommandLine = 0;
-static int dmxNumDetached = 0;
+static int dmxNumDetached = 4;
 
 /** Make a note that \a display is the name of an X11 display that
  * should be initialized as a backend (output) display.  Called from

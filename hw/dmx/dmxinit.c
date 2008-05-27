@@ -94,11 +94,11 @@ Bool            dmxErrorOccurred = FALSE;
 
 char           *dmxFontPath = NULL;
 
-Bool            dmxOffScreenOpt = TRUE;
+Bool            dmxOffScreenOpt = FALSE;
 
 Bool            dmxSubdividePrimitives = TRUE;
 
-Bool            dmxLazyWindowCreation = TRUE;
+Bool            dmxLazyWindowCreation = FALSE;
 
 Bool            dmxUseXKB = TRUE;
 
@@ -107,7 +107,7 @@ int             dmxDepth = 0;
 #ifndef GLXEXT
 static Bool     dmxGLXProxy = FALSE;
 #else
-Bool            dmxGLXProxy = TRUE;
+Bool            dmxGLXProxy = FALSE;
 
 Bool            dmxGLXSwapGroupSupport = TRUE;
 
@@ -118,12 +118,12 @@ Bool            dmxGLXFinishSwap = FALSE;
 
 Bool            dmxIgnoreBadFontPaths = FALSE;
 
-Bool            dmxAddRemoveScreens = FALSE;
+Bool            dmxAddRemoveScreens = TRUE;
 
 int             dmxLaunchIndex = 0;
 
 #ifdef DMXVNC
-Bool            dmxVnc = TRUE;
+Bool            dmxVnc = FALSE;
 #endif
 
 #include <execinfo.h>
@@ -984,6 +984,15 @@ void OsVendorFatalError(void)
 int ddxProcessArgument(int argc, char *argv[], int i)
 {
     int retval = 0;
+
+    if (i == 1)
+    {
+	defaultFontPath = "built-ins";
+#ifdef PANORAMIX
+	noPanoramiXExtension = FALSE;
+	PanoramiXExtensionDisabledHack = TRUE;
+#endif
+    }
     
     if (!strcmp(argv[i], "-display")) {
 	if (++i < argc) dmxConfigStoreDisplay(argv[i]);
@@ -1110,25 +1119,25 @@ void ddxUseMsg(void)
     ErrorF("-fontpath            Sets the default font path\n");
     ErrorF("-stat inter scrns    Print out performance statistics\n");
     ErrorF("-syncbatch inter     Set interval for XSync batching\n");
-    ErrorF("-nooffscreenopt      Disable offscreen optimization\n");
+    ErrorF("-offscreenopt        Enable offscreen optimization\n");
     ErrorF("-nosubdivprims       Disable primitive subdivision\n");
     ErrorF("                     optimization\n");
-    ErrorF("-nowindowopt         Disable lazy window creation optimization\n");
+    ErrorF("-windowopt           Enable lazy window creation optimization\n");
     ErrorF("-noxkb               Disable use of the XKB extension with\n");
     ErrorF("                     backend displays (cf. -kb).\n");
     ErrorF("-depth               Specify the default root window depth\n");
     ErrorF("-norender            Disable RENDER extension support\n");
 #ifdef GLXEXT
-    ErrorF("-noglxproxy          Disable GLX Proxy\n");
+    ErrorF("-glxproxy            Enable GLX Proxy\n");
     ErrorF("-noglxswapgroup      Disable swap group and swap barrier\n");
     ErrorF("                     extensions in GLX proxy\n");
     ErrorF("-glxsyncswap         Force XSync after swap buffers\n");
     ErrorF("-glxfinishswap       Force glFinish after swap buffers\n");
 #endif
     ErrorF("-ignorebadfontpaths  Ignore bad font paths during initialization\n");
-    ErrorF("-addremovescreens    Enable dynamic screen addition/removal\n");
+    ErrorF("-noaddremovescreens  Disable dynamic screen addition/removal\n");
 #ifdef DMXVNC
-    ErrorF("-novnc               Disable VNC\n");
+    ErrorF("-vnc                 Enable VNC\n");
 #endif
     ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
     ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");
