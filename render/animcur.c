@@ -439,3 +439,23 @@ AnimCursorCreate (CursorPtr *cursors, CARD32 *deltas, int ncursor, CursorPtr *pp
     *ppCursor = pCursor;
     return Success;
 }
+
+void
+AnimForEachCursorElt (ScreenPtr     pScreen,
+		      CursorPtr     pCursor,
+		      CursorProcPtr callBack)
+{
+    if (IsAnimCur (pCursor))
+    {
+	AnimCurPtr  ac = GetAnimCur (pCursor);
+	int	    i;
+
+	for (i = 0; i < ac->nelt; i++)
+	    (*callBack) (pScreen, ac->elts[i].pCursor);
+
+    }
+    else
+    {
+	(*callBack) (pScreen, pCursor);
+    }
+}

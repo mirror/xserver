@@ -673,4 +673,12 @@ void PanoramiXRenderInit (void);
 void PanoramiXRenderReset (void);
 #endif
 
+typedef void (*CursorProcPtr) (ScreenPtr pScreen,
+			       CursorPtr pCursor);
+
+void
+AnimForEachCursorElt (ScreenPtr     pScreen,
+		      CursorPtr     pCursor,
+		      CursorProcPtr callBack);
+
 #endif /* _PICTURESTR_H_ */
