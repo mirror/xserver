@@ -661,11 +661,6 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
     if (pWinPriv->window) {
 	/* Realize window on back-end server */
 
-	XLIB_PROLOGUE (dmxScreen);
-	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
-	XLIB_EPILOGUE (dmxScreen);
-	dmxSync(dmxScreen, False);
-
 	if (pWinPriv->redirected)
 	{
 	    PixmapPtr pPixmap;
@@ -679,24 +674,29 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
 		XCompositeRedirectWindow (dmxScreen->beDisplay,
 					  pWinPriv->window,
 					  CompositeRedirectManual);
-		XLIB_EPILOGUE (dmxScreen);
 
 		if (pPixPriv->pixmap)
 		{
-		    XLIB_PROLOGUE (dmxScreen);
 		    XFreePixmap (dmxScreen->beDisplay, pPixPriv->pixmap);
-		    XLIB_EPILOGUE (dmxScreen);
-
 		    pPixPriv->pixmap = None;
 		}
 
-		XLIB_PROLOGUE (dmxScreen);
+		XMapWindow (dmxScreen->beDisplay, pWinPriv->window);
+
 		pPixPriv->pixmap =
 		    XCompositeNameWindowPixmap (dmxScreen->beDisplay,
 						pWinPriv->window);
 		XLIB_EPILOGUE (dmxScreen);
 	    }
 	}
+	else
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
+
+	dmxSync(dmxScreen, False);
     }
 
     /* Let the other functions know that the window is now mapped */
