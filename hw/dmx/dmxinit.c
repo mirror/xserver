@@ -96,7 +96,7 @@ char           *dmxFontPath = NULL;
 
 Bool            dmxOffScreenOpt = FALSE;
 
-Bool            dmxSubdividePrimitives = FALSE;
+Bool            dmxSubdividePrimitives = TRUE;
 
 Bool            dmxLazyWindowCreation = FALSE;
 
@@ -1036,8 +1036,8 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-offscreenopt")) {
 	dmxOffScreenOpt = TRUE;
         retval = 1;
-    } else if (!strcmp(argv[i], "-subdivprims")) {
-	dmxSubdividePrimitives = TRUE;
+    } else if (!strcmp(argv[i], "-nosubdivprims")) {
+	dmxSubdividePrimitives = FALSE;
         retval = 1;
     } else if (!strcmp(argv[i], "-windowopt")) {
 	dmxLazyWindowCreation = TRUE;
@@ -1120,7 +1120,7 @@ void ddxUseMsg(void)
     ErrorF("-stat inter scrns    Print out performance statistics\n");
     ErrorF("-syncbatch inter     Set interval for XSync batching\n");
     ErrorF("-offscreenopt        Enable offscreen optimization\n");
-    ErrorF("-subdivprims         Enable primitive subdivision\n");
+    ErrorF("-nosubdivprims       Disable primitive subdivision\n");
     ErrorF("                     optimization\n");
     ErrorF("-windowopt           Enable lazy window creation optimization\n");
     ErrorF("-noxkb               Disable use of the XKB extension with\n");
