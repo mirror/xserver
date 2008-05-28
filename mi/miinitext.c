@@ -59,6 +59,7 @@ SOFTWARE.
 
 #ifdef HAVE_XNEST_CONFIG_H
 #include <xnest-config.h>
+#undef COMPOSITE
 #undef DPMSExtension
 #endif
 
@@ -169,9 +170,7 @@ extern Bool noPanoramiXExtension;
 #ifdef INXQUARTZ
 extern Bool noPseudoramiXExtension;
 #endif
-#ifdef XINPUT
 extern Bool noXInputExtension;
-#endif
 #ifdef XIDLE
 extern Bool noXIdleExtension;
 #endif
@@ -181,6 +180,7 @@ extern Bool noSELinuxExtension;
 #ifdef XV
 extern Bool noXvExtension;
 #endif
+extern Bool noGEExtension;
 
 #ifndef XFree86LOADER
 #define INITARGS void
@@ -230,9 +230,7 @@ extern void PanoramiXExtensionInit(INITARGS);
 #ifdef INXQUARTZ
 extern void PseudoramiXExtensionInit(INITARGS);
 #endif
-#ifdef XINPUT
 extern void XInputExtensionInit(INITARGS);
-#endif
 #ifdef XTEST
 extern void XTestExtensionInit(INITARGS);
 #endif
@@ -287,7 +285,7 @@ extern void XFree86DGAExtensionInit(INITARGS);
 #endif
 #ifdef GLXEXT
 typedef struct __GLXprovider __GLXprovider;
-extern __GLXprovider __glXMesaProvider;
+extern __GLXprovider __glXDRISWRastProvider;
 extern void GlxPushProvider(__GLXprovider *impl);
 extern void GlxExtensionInit(INITARGS);
 #endif
@@ -324,6 +322,7 @@ extern void DamageExtensionInit(INITARGS);
 #ifdef COMPOSITE
 extern void CompositeExtensionInit(INITARGS);
 #endif
+extern void GEExtensionInit(INITARGS);
 
 /* The following is only a small first step towards run-time
  * configurable extensions.
@@ -336,6 +335,7 @@ typedef struct {
 static ExtensionToggle ExtensionToggleList[] =
 {
     /* sort order is extension name string as shown in xdpyinfo */
+    { "Generic Events", &noGEExtension },
 #ifdef BIGREQS
     { "BIG-REQUESTS", &noBigReqExtension },
 #endif
@@ -411,9 +411,7 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef PANORAMIX
     { "XINERAMA", &noPanoramiXExtension },
 #endif
-#ifdef XINPUT
     { "XInputExtension", &noXInputExtension },
-#endif
 #ifdef XKB
     { "XKEYBOARD", &noXkbExtension },
 #endif
@@ -445,21 +443,21 @@ void EnableDisableExtensionError(char *name, Bool enable)
 {
     ExtensionToggle *ext = &ExtensionToggleList[0];
 
-    ErrorF("Extension \"%s\" is not recognized\n", name);
-    ErrorF("Only the following extensions can be run-time %s:\n",
+    ErrorF("[mi] Extension \"%s\" is not recognized\n", name);
+    ErrorF("[mi] Only the following extensions can be run-time %s:\n",
 	   enable ? "enabled" : "disabled");
     for (ext = &ExtensionToggleList[0]; ext->name != NULL; ext++)
-	ErrorF("    %s\n", ext->name);
+	ErrorF("[mi]    %s\n", ext->name);
 }
 
 #ifndef XFree86LOADER
 
 /*ARGSUSED*/
 void
-InitExtensions(argc, argv)
-    int		argc;
-    char	*argv[];
+InitExtensions(int argc, char *argv[])
 {
+    if (!noGEExtension) GEExtensionInit();
+
 #ifdef PANORAMIX
 # if !defined(NO_PANORAMIX)
   if (!noPanoramiXExtension) PanoramiXExtensionInit();
@@ -572,7 +570,7 @@ InitExtensions(argc, argv)
 #endif
 
 #ifdef GLXEXT
-    GlxPushProvider(&__glXMesaProvider);
+    GlxPushProvider(&__glXDRISWRastProvider);
     if (!noGlxExtension) GlxExtensionInit();
 #endif
 }
@@ -586,12 +584,11 @@ InitVisualWrap()
 #else /* XFree86LOADER */
 /* List of built-in (statically linked) extensions */
 static ExtensionModule staticExtensions[] = {
+    { GEExtensionInit, "Generic Event Extension", &noGEExtension, NULL, NULL},
 #ifdef MITSHM
     { ShmExtensionInit, SHMNAME, &noMITShmExtension, NULL, NULL },
 #endif
-#ifdef XINPUT
     { XInputExtensionInit, "XInputExtension", &noXInputExtension, NULL, NULL },
-#endif
 #ifdef XTEST
     { XTestExtensionInit, XTestExtensionName, &noTestExtensions, NULL, NULL },
 #endif
@@ -634,9 +631,7 @@ static ExtensionModule staticExtensions[] = {
 
 /*ARGSUSED*/
 void
-InitExtensions(argc, argv)
-    int		argc;
-    char	*argv[];
+InitExtensions(int argc, char *argv[])
 {
     int i;
     ExtensionModule *ext;

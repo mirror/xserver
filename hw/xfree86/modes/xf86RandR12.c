@@ -37,6 +37,7 @@
 #include "xf86DDC.h"
 #include "mipointer.h"
 #include "windowstr.h"
+#include "inputstr.h"
 #include <randrstr.h>
 #include <X11/extensions/render.h>
 
@@ -129,9 +130,7 @@ xf86RandR12GetInfo (ScreenPtr pScreen, Rotation *rotations)
 	    return FALSE;
 	RRRegisterRate (pScreen, pSize, refresh);
 
-	if (xf86ModesEqual(mode, scrp->currentMode) &&
-	    mode->HDisplay == scrp->virtualX &&
-	    mode->VDisplay == scrp->virtualY)
+	if (xf86ModesEqual(mode, scrp->currentMode))
 	{
 	    RRSetCurrentConfig (pScreen, randrp->rotation, refresh, pSize);
 	}
@@ -259,7 +258,7 @@ xf86RandR12SetConfig (ScreenPtr		pScreen,
 	randrp->virtualY = scrp->virtualY;
     }
 
-    miPointerPosition (&px, &py);
+    miPointerGetPosition (inputInfo.pointer, &px, &py);
     for (mode = scrp->modes; ; mode = mode->next)
     {
 	if (randrp->maxX == 0 || randrp->maxY == 0)
@@ -306,14 +305,14 @@ xf86RandR12SetConfig (ScreenPtr		pScreen,
     /*
      * Move the cursor back where it belongs; SwitchMode repositions it
      */
-    if (pScreen == miPointerCurrentScreen ())
+    if (pScreen == miPointerGetScreen(inputInfo.pointer))
     {
         px = (px >= pScreen->width ? (pScreen->width - 1) : px);
         py = (py >= pScreen->height ? (pScreen->height - 1) : py);
 
 	xf86SetViewport(pScreen, px, py);
 
-	(*pScreen->SetCursorPosition) (pScreen, px, py, FALSE);
+	(*pScreen->SetCursorPosition) (inputInfo.pointer, pScreen, px, py, FALSE);
     }
 
     return TRUE;

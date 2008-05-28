@@ -71,6 +71,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #endif
 #include "pixmapstr.h"          /* DrawableRec */
 #include "windowstr.h"          /* Drawable Lookup structures */
+#include "inputstr.h"
 #include <X11/extensions/xtrapdi.h>
 #include <X11/extensions/xtrapddmi.h>
 #include <X11/extensions/xtrapproto.h>
@@ -101,7 +102,7 @@ globalref int_function XETrapProcVector[256L]; /* The "shadowed" ProcVector */
 #ifndef VECTORED_EVENTS
 globalref int_function EventProcVector[XETrapCoreEvents];
 #else
-extern WindowPtr GetCurrentRootWindow();
+extern WindowPtr GetCurrentRootWindow(DeviceIntPtr);
 globalref int_function EventProcVector[128L];
 #endif
 static int_function keybd_process_inp = NULL;  /* Used for VECTORED_EVENTS */
@@ -1564,7 +1565,7 @@ void XETrapStampAndMail(xEvent *x_event)
                 data.u.event.u.u.type == ButtonRelease ||
                 data.u.event.u.u.type == KeyPress ||
                 data.u.event.u.u.type == KeyRelease)) {
-		    int scr = XineramaGetCursorScreen();
+		    int scr = XineramaGetCursorScreen(inputInfo.pointer);
 		    data.u.event.u.keyButtonPointer.rootX +=
 			panoramiXdataPtr[scr].x - panoramiXdataPtr[0].x;
 		    data.u.event.u.keyButtonPointer.rootY +=
@@ -1619,7 +1620,9 @@ int XETrapEventVector(ClientPtr client, xEvent *x_event)
                 (x_event->u.u.type <= MotionNotify) && 
                 (!x_event->u.keyButtonPointer.sameScreen)))
             {   /* we've moved/warped to another screen */
-                WindowPtr root_win = GetCurrentRootWindow();
+		/* XXX: we're getting the client's pointer root window.
+		 * is this correct?  Should it be the client's keyboard? */
+                WindowPtr root_win = GetCurrentRootWindow(PickPointer(client));
                 current_screen = root_win->drawable.pScreen->myNum;
             }
             data.hdr.screen = current_screen;

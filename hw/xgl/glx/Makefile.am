@@ -9,12 +9,9 @@ SUBDIRS =		  \
 	$(XGL_MODULE_DIRS)
 
 AM_CFLAGS = \
-	@DIX_CFLAGS@ \
-	@LIBDRM_CFLAGS@ \
-	@DRIPROTO_CFLAGS@ \
-	-DHAVE_XGL_CONFIG_H \
-	-DHAVE_DIX_CONFIG_H \
-	-I$(top_srcdir)/GL/glx \
+	-I$(srcdir)/.. \
+	-I$(srcdir)/../glxext \
+	-I$(top_srcdir)/glx \
 	-I$(top_srcdir)/GL/include \
 	-I@MESA_SOURCE@/include \
 	-I@MESA_SOURCE@/src/mesa/glapi \

@@ -1,16 +1,18 @@
 AM_CPPFLAGS = \
 	-DBUILD_DATE=\"$(BUILD_DATE)\" \
 	-DXSERVER_VERSION=\"$(VERSION)\"
+#	-DNEW_LAUNCH_METHOD -DNEW_LAUNCH_METHOD_2
 
 x11appdir = $(APPLE_APPLICATIONS_DIR)/X11.app/Contents/MacOS
 x11app_PROGRAMS = X11
 
 dist_X11_SOURCES = \
-	bundle-main.c
+	bundle-main.c \
+	launchd_fd.c
 
-nodist_X11_SOURCES = \
-	mach_startupServer.c \
-	mach_startupUser.c
+#nodist_X11_SOURCES = \
+#	mach_startupServer.c \
+#	mach_startupUser.c
 
 X11_LDADD = \
 	$(top_builddir)/hw/xquartz/libXquartz.la \
@@ -33,9 +35,10 @@ bin_PROGRAMS = Xquartz
 
 dist_Xquartz_SOURCES = \
 	stub.c
+#	launchd_fd.c
 
-nodist_Xquartz_SOURCES = \
-	mach_startupUser.c
+#nodist_Xquartz_SOURCES = \
+#	mach_startupUser.c
 
 Xquartz_LDFLAGS =  \
 	-Wl,-framework,CoreServices
@@ -53,6 +56,7 @@ $(BUILT_SOURCES): mach_startup.defs
 	mig -sheader mach_startupServer.h mach_startup.defs
 
 EXTRA_DIST = \
+	launchd_fd.h \
 	mach_startup.defs \
 	mach_startup_types.h
 

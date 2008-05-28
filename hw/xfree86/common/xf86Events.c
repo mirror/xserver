@@ -239,8 +239,8 @@ ProcessInputEvents ()
   xf86Info.inputPending = FALSE;
 
   mieqProcessInputEvents();
-  miPointerUpdateSprite(inputInfo.pointer);
 
+  /* FIXME: This is a problem if we have multiple pointers */
   miPointerGetPosition(inputInfo.pointer, &x, &y);
   xf86SetViewport(xf86Info.currentScreen, x, y);
 }
@@ -283,12 +283,13 @@ xf86ProcessActionEvent(ActionEvent action, void *arg)
 	break;
     case ACTION_DISABLEGRAB:
 	if (!xf86Info.grabInfo.disabled && xf86Info.grabInfo.allowDeactivate) {
-	  if (inputInfo.pointer && inputInfo.pointer->grab != NULL &&
-	      inputInfo.pointer->DeactivateGrab)
-	    inputInfo.pointer->DeactivateGrab(inputInfo.pointer);
-	  if (inputInfo.keyboard && inputInfo.keyboard->grab != NULL &&
-	      inputInfo.keyboard->DeactivateGrab)
-	    inputInfo.keyboard->DeactivateGrab(inputInfo.keyboard);
+	  if (inputInfo.pointer && inputInfo.pointer->deviceGrab.grab != NULL &&
+	      inputInfo.pointer->deviceGrab.DeactivateGrab)
+	    inputInfo.pointer->deviceGrab.DeactivateGrab(inputInfo.pointer);
+	  if (inputInfo.keyboard && 
+                  inputInfo.keyboard->deviceGrab.grab != NULL &&
+	      inputInfo.keyboard->deviceGrab.DeactivateGrab)
+	    inputInfo.keyboard->deviceGrab.DeactivateGrab(inputInfo.keyboard);
 	}
 	break;
     case ACTION_CLOSECLIENT:
@@ -296,10 +297,11 @@ xf86ProcessActionEvent(ActionEvent action, void *arg)
 	  ClientPtr pointer, keyboard, server;
 
 	  pointer = keyboard = server = NULL;
-	  if (inputInfo.pointer && inputInfo.pointer->grab != NULL)
-	    pointer = clients[CLIENT_ID(inputInfo.pointer->grab->resource)];
-	  if (inputInfo.keyboard && inputInfo.keyboard->grab != NULL) {
-	    keyboard = clients[CLIENT_ID(inputInfo.keyboard->grab->resource)];
+	  if (inputInfo.pointer && inputInfo.pointer->deviceGrab.grab != NULL)
+	    pointer = clients[CLIENT_ID(inputInfo.pointer->deviceGrab.grab->resource)];
+	  if (inputInfo.keyboard && inputInfo.keyboard->deviceGrab.grab != NULL)
+          {
+	    keyboard = clients[CLIENT_ID(inputInfo.keyboard->deviceGrab.grab->resource)];
 	    if (keyboard == pointer)
 	      keyboard = NULL;
 	  }
@@ -816,7 +818,7 @@ xf86ReleaseKeys(DeviceIntPtr pDev)
 		    int sigstate = xf86BlockSIGIO ();
                     nevents = GetKeyboardEvents(xf86Events, pDev, KeyRelease, i);
                     for (j = 0; j < nevents; j++)
-                        mieqEnqueue(pDev, xf86Events + j);
+                        mieqEnqueue(pDev, (xf86Events + j)->event);
 		    xf86UnblockSIGIO(sigstate);
                 }
                 break;

@@ -60,6 +60,7 @@ SOFTWARE.
 # include "extnsionst.h"        /* Server ExtensionEntry definitions */
 # include "scrnintstr.h"        /* Screen struct */
 #endif
+#include "inputstr.h"
 
 #include <X11/extensions/xtrapdi.h>
 #include <X11/extensions/xtrapddmi.h>
@@ -96,8 +97,8 @@ int XETrapSimulateXEvent(register xXTrapInputReq *request,
     xEvent xev;
     register int x = request->input.x;
     register int y = request->input.y;
-    DevicePtr keydev = (DevicePtr)inputInfo.keyboard;
-    DevicePtr ptrdev = (DevicePtr)inputInfo.pointer;
+    DevicePtr keydev = (DevicePtr)PickKeyboard(client);
+    DevicePtr ptrdev = (DevicePtr)PickPointer(client);
 
     if (request->input.screen < screenInfo.numScreens)
     {
@@ -130,8 +131,8 @@ int XETrapSimulateXEvent(register xXTrapInputReq *request,
         {   /* Set new cursor position on screen */
             XETrap_avail.data.cur_x = x;
             XETrap_avail.data.cur_y = y;
-          NewCurrentScreen (pScr, x, y); /* fix from amnonc@mercury.co.il */
-            if (!(*pScr->SetCursorPosition)(pScr, x, y, xFalse))
+          NewCurrentScreen (inputInfo.pointer, pScr, x, y); /* fix from amnonc@mercury.co.il */
+            if (!(*pScr->SetCursorPosition)(inputInfo.pointer, pScr, x, y, xFalse))
             {
                 status = BadImplementation;
             }

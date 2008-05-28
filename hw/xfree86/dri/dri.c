@@ -70,6 +70,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "mi.h"
 #include "mipointer.h"
 #include "xf86_OSproc.h"
+#include "inputstr.h"
 
 #define PCI_BUS_NO_DOMAIN(bus) ((bus) & 0xffu)
 
@@ -2467,7 +2468,7 @@ DRIAdjustFrame(int scrnIndex, int x, int y, int flags)
 	if (px > pScrn->frameX1) px = pScrn->frameX1;
 	if (py < pScrn->frameY0) py = pScrn->frameY0;
 	if (py > pScrn->frameY1) py = pScrn->frameY1;
-	pScreen->SetCursorPosition(pScreen, px, py, TRUE);
+	pScreen->SetCursorPosition(inputInfo.pointer, pScreen, px, py, TRUE);
 	return;
     }
 

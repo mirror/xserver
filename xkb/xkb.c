@@ -175,7 +175,7 @@ ProcXkbUseExtension(ClientPtr client)
 	client->vMinor= stuff->wantedMinor;
     }
     else if (xkbDebugFlags&0x1) {
-	ErrorF("Rejecting client %d (0x%lx) (wants %d.%02d, have %d.%02d)\n",
+	ErrorF("[xkb] Rejecting client %d (0x%lx) (wants %d.%02d, have %d.%02d)\n",
 					client->index,
 					(long)client->clientAsMask,
 					stuff->wantedMajor,stuff->wantedMinor,
@@ -339,7 +339,7 @@ ProcXkbSelectEvents(ClientPtr client)
 	    }
 	}
 	if (dataLeft>2) {
-	    ErrorF("Extra data (%d bytes) after SelectEvents\n",dataLeft);
+	    ErrorF("[xkb] Extra data (%d bytes) after SelectEvents\n",dataLeft);
 	    return BadLength;
 	}
 	return client->noClientException;
@@ -1344,7 +1344,7 @@ char		*desc,*start;
     if ( rep->totalVModMapKeys>0 )
 	desc= XkbWriteVirtualModMap(xkb,rep,desc,client);
     if ((desc-start)!=(len)) {
-	ErrorF("BOGUS LENGTH in write keyboard desc, expected %d, got %ld\n",
+	ErrorF("[xkb] BOGUS LENGTH in write keyboard desc, expected %d, got %ld\n",
 					len, (unsigned long)(desc-start));
     }
     if (client->swapped) {
@@ -2379,7 +2379,7 @@ ProcXkbSetMap(ClientPtr client)
 	return BadValue;
     }
     if (((tmp-((char *)stuff))/4)!=stuff->length) {
-	ErrorF("Internal error! Bad length in XkbSetMap (after check)\n");
+	ErrorF("[xkb] Internal error! Bad length in XkbSetMap (after check)\n");
 	client->errorValue = tmp-((char *)&stuff[1]);
 	return BadLength;
     }
@@ -2430,7 +2430,7 @@ ProcXkbSetMap(ClientPtr client)
     if (stuff->present&XkbVirtualModMapMask)
 	tmp= SetVirtualModMap(xkbi,stuff,(xkbVModMapWireDesc *)tmp,&change);
     if (((tmp-((char *)stuff))/4)!=stuff->length) {
-	ErrorF("Internal error! Bad length in XkbSetMap (after set)\n");
+	ErrorF("[xkb] Internal error! Bad length in XkbSetMap (after set)\n");
 	client->errorValue = tmp-((char *)&stuff[1]);
 	return BadLength;
     }
@@ -2706,7 +2706,7 @@ ProcXkbSetCompatMap(ClientPtr client)
     }
     i= XkbPaddedSize((data-((char *)stuff)));
     if ((i/4)!=stuff->length) {
-	ErrorF("Internal length error on read in ProcXkbSetCompatMap\n");
+	ErrorF("[xkb] Internal length error on read in ProcXkbSetCompatMap\n");
 	return BadLength;
     }
     
@@ -3413,7 +3413,7 @@ register int            n;
     }
 
     if ((desc-start)!=(length)) {
-	ErrorF("BOGUS LENGTH in write names, expected %d, got %ld\n",
+	ErrorF("[xkb] BOGUS LENGTH in write names, expected %d, got %ld\n",
 					length, (unsigned long)(desc-start));
     }
     WriteToClient(client, SIZEOF(xkbGetNamesReply), (char *)rep);
@@ -4104,9 +4104,9 @@ xkbDoodadWireDesc *	doodadWire;
 		wire= XkbWriteCountedString(wire,doodad->logo.logo_name,swap);
 		break;
 	    default:
-		ErrorF("Unknown doodad type %d in XkbWriteGeomDoodads\n",
+		ErrorF("[xkb] Unknown doodad type %d in XkbWriteGeomDoodads\n",
 			doodad->any.type);
-		ErrorF("Ignored\n");
+		ErrorF("[xkb] Ignored\n");
 		break;
 	}
     }
@@ -4334,7 +4334,7 @@ XkbSendGeometry(	ClientPtr		client,
 	if ( rep->nKeyAliases>0 )
 	    desc = XkbWriteGeomKeyAliases(desc,geom,client->swapped);
 	if ((desc-start)!=(len)) {
-	    ErrorF("BOGUS LENGTH in XkbSendGeometry, expected %d, got %ld\n",
+	    ErrorF("[xkb] BOGUS LENGTH in XkbSendGeometry, expected %d, got %ld\n",
 			len, (unsigned long)(desc-start));
 	}
     }
@@ -5778,8 +5778,8 @@ char *			str;
 	    return status;
     }
     else if (length!=0)  {
-	ErrorF("Internal Error!  BadLength in ProcXkbGetDeviceInfo\n");
-	ErrorF("                 Wrote %d fewer bytes than expected\n",length);
+	ErrorF("[xkb] Internal Error!  BadLength in ProcXkbGetDeviceInfo\n");
+	ErrorF("[xkb]                  Wrote %d fewer bytes than expected\n",length);
 	return BadLength;
     }
     if (stuff->wanted&(~supported)) {
@@ -6079,25 +6079,25 @@ int rc;
     newCtrls=  xkbDebugCtrls&(~stuff->affectCtrls);
     newCtrls|= (stuff->ctrls&stuff->affectCtrls);
     if (xkbDebugFlags || newFlags || stuff->msgLength) {
-	ErrorF("XkbDebug: Setting debug flags to 0x%lx\n",(long)newFlags);
+	ErrorF("[xkb] XkbDebug: Setting debug flags to 0x%lx\n",(long)newFlags);
 	if (newCtrls!=xkbDebugCtrls)
-	    ErrorF("XkbDebug: Setting debug controls to 0x%lx\n",(long)newCtrls);
+	    ErrorF("[xkb] XkbDebug: Setting debug controls to 0x%lx\n",(long)newCtrls);
     }
     extraLength= (stuff->length<<2)-sz_xkbSetDebuggingFlagsReq;
     if (stuff->msgLength>0) {
 	char *msg;
 	if (extraLength<XkbPaddedSize(stuff->msgLength)) {
-	    ErrorF("XkbDebug: msgLength= %d, length= %ld (should be %d)\n",
+	    ErrorF("[xkb] XkbDebug: msgLength= %d, length= %ld (should be %d)\n",
 			stuff->msgLength,(long)extraLength,
 			XkbPaddedSize(stuff->msgLength));
 	    return BadLength;
 	}
 	msg= (char *)&stuff[1];
 	if (msg[stuff->msgLength-1]!='\0') {
-	    ErrorF("XkbDebug: message not null-terminated\n");
+	    ErrorF("[xkb] XkbDebug: message not null-terminated\n");
 	    return BadValue;
 	}
-	ErrorF("XkbDebug: %s\n",msg);
+	ErrorF("[xkb] XkbDebug: %s\n",msg);
     }
     xkbDebugFlags = newFlags;
     xkbDebugCtrls = newCtrls;
@@ -6194,7 +6194,7 @@ XkbClientGone(pointer data,XID id)
     DevicePtr	pXDev = (DevicePtr)data;
 
     if (!XkbRemoveResourceClient(pXDev,id)) {
-	ErrorF("Internal Error! bad RemoveResourceClient in XkbClientGone\n");
+	ErrorF("[xkb] Internal Error! bad RemoveResourceClient in XkbClientGone\n");
     }
     return 1;
 }

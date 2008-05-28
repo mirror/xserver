@@ -32,8 +32,23 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #include <X11/extensions/XIproto.h>
 
+/**
+ * Attached to the devPrivates of each client. Specifies the version number as
+ * supported by the client.
+ */
+typedef struct _XIClientRec {
+        int major_version;
+        int minor_version;
+} XIClientRec, *XIClientPtr;
+
 extern void RegisterOtherDevice (
 	DeviceIntPtr           /* device */);
+
+extern int
+UpdateDeviceState (
+	DeviceIntPtr           /* device */,
+	xEventPtr              /*  xE    */,
+        int                    /* count  */);
 
 extern void ProcessOtherEvent (
 	xEventPtr /* FIXME deviceKeyButtonPointer * xE */,

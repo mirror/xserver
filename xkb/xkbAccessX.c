@@ -131,7 +131,7 @@ xEvent		xE;
     xE.u.u.detail = keyCode;
     xE.u.keyButtonPointer.time = GetTimeInMillis();	    
     if (xkbDebugFlags&0x8) {
-	DebugF("AXKE: Key %d %s\n",keyCode,(xE.u.u.type==KeyPress?"down":"up"));
+	DebugF("[xkb] AXKE: Key %d %s\n",keyCode,(xE.u.u.type==KeyPress?"down":"up"));
     }
 
     if (_XkbIsPressEvent(type))
@@ -316,9 +316,8 @@ BOOL            is_core;
 
     is_core = (dev == inputInfo.keyboard);
     key = xkbi->repeatKey;
-    AccessXKeyboardEvent(dev, is_core ? KeyRelease : DeviceKeyRelease, key,
-                         True);
-    AccessXKeyboardEvent(dev, is_core ? KeyPress : DeviceKeyPress, key, True);
+    AccessXKeyboardEvent(dev, DeviceKeyRelease, key, True);
+    AccessXKeyboardEvent(dev, DeviceKeyPress, key, True);
     return xkbi->desc->ctrls->repeat_interval;
 }
 
@@ -685,12 +684,14 @@ Bool		ignoreKeyEvent = FALSE;
 /* don't accidentally turn on StickyKeys or the Keyboard Response Group.*/
 /*									*/
 /************************************************************************/
+extern int xkbDevicePrivateIndex;
+extern void xkbUnwrapProc(DeviceIntPtr, DeviceHandleProc, pointer);
 void
 ProcessPointerEvent(	register xEvent  *	xE, 
 			register DeviceIntPtr	mouse, 
 			int		        count)
 {
-DeviceIntPtr	dev = inputInfo.keyboard;
+DeviceIntPtr	dev = GetPairedDevice(mouse);
 XkbSrvInfoPtr	xkbi = dev->key->xkbInfo;
 unsigned 	changed = 0;
 ProcessInputProc backupproc;

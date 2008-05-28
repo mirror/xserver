@@ -126,11 +126,11 @@ Win32System(const char *cmdline)
 		    0,
 		    NULL ))
 	{
-	    ErrorF("Starting '%s' failed!\n", cmdline); 
+	    ErrorF("[xkb] Starting '%s' failed!\n", cmdline); 
 	}
 	else
 	{
-	    ErrorF("Starting '%s' failed: %s", cmdline, (char *)buffer); 
+	    ErrorF("[xkb] Starting '%s' failed: %s", cmdline, (char *)buffer); 
 	    LocalFree(buffer);
 	}
 
@@ -197,7 +197,7 @@ char tmpname[PATH_MAX];
     }
     else {
 	if (strlen(names->keymap) > PATH_MAX - 1) {
-	    ErrorF("name of keymap (%s) exceeds max length\n", names->keymap);
+	    ErrorF("[xkb] name of keymap (%s) exceeds max length\n", names->keymap);
 	    return False;
 	}
 	strcpy(keymap,names->keymap);
@@ -252,7 +252,7 @@ char tmpname[PATH_MAX];
     if (out!=NULL) {
 #ifdef DEBUG
     if (xkbDebugFlags) {
-       ErrorF("XkbDDXCompileKeymapByNames compiling keymap:\n");
+       ErrorF("[xkb] XkbDDXCompileKeymapByNames compiling keymap:\n");
        XkbWriteXKBKeymapForNames(stderr,names,xkb,want,need);
     }
 #endif
@@ -264,7 +264,7 @@ char tmpname[PATH_MAX];
 #endif
 	{
             if (xkbDebugFlags)
-                DebugF("xkb executes: %s\n",buf);
+                DebugF("[xkb] xkb executes: %s\n",buf);
 	    if (nameRtrn) {
 		strncpy(nameRtrn,keymap,nameRtrnLen);
 		nameRtrn[nameRtrnLen-1]= '\0';
@@ -401,7 +401,7 @@ XkbRF_RulesPtr	rules;
 
     file = fopen(buf, "r");
     if (!file) {
-        LogMessage(X_ERROR, "XKB: Couldn't open rules file %s\n", file);
+        LogMessage(X_ERROR, "XKB: Couldn't open rules file %s\n", buf);
 	return False;
     }
 

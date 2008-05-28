@@ -168,7 +168,3 @@ OsVendorInit (void)
 {
     xglxOsVendorInit ();
 }
-
-void ddxInitGlobals()
-{
-}

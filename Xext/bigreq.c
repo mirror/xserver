@@ -64,11 +64,11 @@ BigReqResetProc (extEntry)
 
 static int
 ProcBigReqDispatch (client)
-    register ClientPtr	client;
+     ClientPtr	client;
 {
     REQUEST(xBigReqEnableReq);
     xBigReqEnableReply rep;
-    register int n;
+     int n;
 
     if (client->swapped) {
 	swaps(&stuff->length, n);

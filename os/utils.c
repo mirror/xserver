@@ -210,9 +210,7 @@ _X_EXPORT Bool noXFixesExtension = FALSE;
 /* Xinerama is disabled by default unless enabled via +xinerama */
 _X_EXPORT Bool noPanoramiXExtension = TRUE;
 #endif
-#ifdef XINPUT
 _X_EXPORT Bool noXInputExtension = FALSE;
-#endif
 #ifdef XIDLE
 _X_EXPORT Bool noXIdleExtension = FALSE;
 #endif
@@ -226,6 +224,8 @@ _X_EXPORT Bool noXvExtension = FALSE;
 #ifdef DRI2
 _X_EXPORT Bool noDRI2Extension = FALSE;
 #endif
+
+_X_EXPORT Bool noGEExtension = FALSE;
 
 #define X_INCLUDE_NETDB_H
 #include <X11/Xos_r.h>
@@ -658,17 +658,6 @@ VerifyDisplayName(const char *d)
     if ( strchr(d, '/') != (char *)0 ) return( 0 );  /*  very important!!!  */
     return( 1 );
 }
-
-/*
- * This function is responsible for doing initalisation of any global
- * variables at an very early point of server startup (even before
- * |ProcessCommandLine()|. 
- */
-void InitGlobals(void)
-{
-    ddxInitGlobals();
-}
-
 
 /*
  * This function parses the command line. Handles device-independent fields

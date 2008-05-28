@@ -153,7 +153,7 @@ void XevieResetProc (ExtensionEntry *extEntry)
 }
 
 static 
-int ProcXevieQueryVersion (register ClientPtr client)
+int ProcXevieQueryVersion (ClientPtr client)
 {
     xXevieQueryVersionReply rep;
 
@@ -168,7 +168,7 @@ int ProcXevieQueryVersion (register ClientPtr client)
 }
 
 static
-int ProcXevieStart (register ClientPtr client)
+int ProcXevieStart (ClientPtr client)
 {
     xXevieStartReply rep;
 
@@ -209,7 +209,7 @@ int ProcXevieStart (register ClientPtr client)
 }
 
 static
-int ProcXevieEnd (register ClientPtr client)
+int ProcXevieEnd (ClientPtr client)
 {
     xXevieEndReply rep;
 
@@ -230,7 +230,7 @@ int ProcXevieEnd (register ClientPtr client)
 }
 
 static
-int ProcXevieSend (register ClientPtr client)
+int ProcXevieSend (ClientPtr client)
 {
     REQUEST (xXevieSendReq);
     xXevieSendReply rep;
@@ -278,7 +278,7 @@ int ProcXevieSend (register ClientPtr client)
 }
 
 static
-int ProcXevieSelectInput (register ClientPtr client)
+int ProcXevieSelectInput (ClientPtr client)
 {
     REQUEST (xXevieSelectInputReq);
     xXevieSelectInputReply rep;
@@ -296,7 +296,7 @@ int ProcXevieSelectInput (register ClientPtr client)
 }
 
 static 
-int ProcXevieDispatch (register ClientPtr client)
+int ProcXevieDispatch (ClientPtr client)
 {
     REQUEST (xReq);
     switch (stuff->data)
@@ -317,9 +317,9 @@ int ProcXevieDispatch (register ClientPtr client)
 }
 
 static 
-int SProcXevieQueryVersion (register ClientPtr client)
+int SProcXevieQueryVersion (ClientPtr client)
 {
-    register int n;
+    int n;
 
     REQUEST(xXevieQueryVersionReq);
     swaps (&stuff->length, n);
@@ -332,7 +332,7 @@ int SProcXevieQueryVersion (register ClientPtr client)
 static 
 int SProcXevieStart (ClientPtr client)
 {
-    register int n;
+    int n;
 
     REQUEST (xXevieStartReq);
     swaps (&stuff->length, n);
@@ -344,7 +344,7 @@ int SProcXevieStart (ClientPtr client)
 static 
 int SProcXevieEnd (ClientPtr client)
 {
-    register int n;
+    int n;
 
     REQUEST (xXevieEndReq);
     swaps (&stuff->length, n);
@@ -356,7 +356,7 @@ int SProcXevieEnd (ClientPtr client)
 static
 int SProcXevieSend (ClientPtr client)
 {
-    register int n;
+    int n;
     xEvent eventT;
     EventSwapPtr proc;
 
@@ -378,7 +378,7 @@ int SProcXevieSend (ClientPtr client)
 static
 int SProcXevieSelectInput (ClientPtr client)
 {
-    register int n;
+    int n;
 
     REQUEST (xXevieSelectInputReq);
     swaps (&stuff->length, n);
@@ -389,7 +389,7 @@ int SProcXevieSelectInput (ClientPtr client)
 
 
 static 
-int SProcXevieDispatch (register ClientPtr client)
+int SProcXevieDispatch (ClientPtr client)
 {
     REQUEST(xReq);
     switch (stuff->data)
@@ -471,7 +471,7 @@ XevieKbdProcessInputProc(xEvent *xE, DeviceIntPtr dev, int count)
             xevieModifiersOn = TRUE;
 
         xE->u.keyButtonPointer.event = xeviewin->drawable.id;
-        xE->u.keyButtonPointer.root = GetCurrentRootWindow()->drawable.id;
+        xE->u.keyButtonPointer.root = GetCurrentRootWindow(dev)->drawable.id;
         xE->u.keyButtonPointer.child = (xeviewin->firstChild)
             ? xeviewin->firstChild->drawable.id:0;
         xE->u.keyButtonPointer.rootX = xeviehot.x;

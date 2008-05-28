@@ -6,11 +6,15 @@ AM_CFLAGS = \
 	-I$(top_srcdir)/xgl \
 	-I$(top_srcdir)/hw/xgl 
 
-libglxext_la_LDFLAGS = -avoid-version
-libglxext_la_SOURCES = glxmodule.c
-libglxext_la_LIBADD  = $(top_builddir)/GL/glx/libglx.la \
-		       $(top_builddir)/GL/mesa/libGLcore.la
-libglxext_modules    = libglxext.la
+libglx_la_LDFLAGS = -avoid-version
+libglx_la_SOURCES = glxmodule.c
+libglx_la_LIBADD  = $(top_builddir)/glx/libglx.la
+libglx_modules    = libglx.la
+
+libglcore_la_LDFLAGS = -avoid-version
+libglcore_la_SOURCES = glcoremodule.c
+libglcore_la_LIBADD  = $(top_builddir)/GL/mesa/libGLcore.la
+libglcore_modules    = libglcore.la
 
 moduledir = @XGL_MODULE_PATH@
 

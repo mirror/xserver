@@ -3394,6 +3394,7 @@ CloseDownClient(ClientPtr client)
 	DeleteClientFromAnySelections(client);
 	ReleaseActiveGrabs(client);
 	DeleteClientFontStuff(client);
+        ACUnregisterClient(client);
 	if (!really_close_down)
 	{
 	    /*  This frees resources that should never be retained
@@ -3514,6 +3515,8 @@ void InitClient(ClientPtr client, int i, pointer ospriv)
     client->smart_stop_tick = SmartScheduleTime;
     client->smart_check_tick = SmartScheduleTime;
 #endif
+
+    client->clientPtr = NULL;
 }
 
 /************************

@@ -48,7 +48,7 @@ DevicePtr ptr;
 
     if ((ptr = (DevicePtr)inputInfo.pointer)==NULL)
 	return;
-    GetSpritePosition(&x,&y);
+    GetSpritePosition(inputInfo.pointer, &x,&y);
     ev.u.u.type = event;
     ev.u.u.detail = button;
     ev.u.keyButtonPointer.time = GetTimeInMillis();

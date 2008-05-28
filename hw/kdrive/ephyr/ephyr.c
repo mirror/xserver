@@ -841,7 +841,7 @@ ephyrWarpCursor (ScreenPtr pScreen, int x, int y)
 {
     ephyrBlockSigio ();
     ephyrCurScreen = pScreen->myNum;
-    miPointerWarpCursor (pScreen, x, y);
+    miPointerWarpCursor (inputInfo.pointer, pScreen, x, y);
     ephyrUnblockSigio ();
 }
 

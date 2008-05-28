@@ -28,20 +28,28 @@
  promote the sale, use or other dealings in this Software without
  prior written authorization. */
 
+#include <CoreFoundation/CoreFoundation.h>
+
 #include <X11/Xlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdbool.h>
 
-#include <CoreFoundation/CoreFoundation.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <mach/mach.h>
 #include <mach/mach_error.h>
 #include <servers/bootstrap.h>
 #include "mach_startup.h"
 #include "mach_startupServer.h"
+
+#include "launchd_fd.h"
+void DarwinListenOnOpenFD(int fd);
+
 
 #define DEFAULT_CLIENT "/usr/X11/bin/xterm"
 #define DEFAULT_STARTX "/usr/X11/bin/startx"
@@ -53,6 +61,24 @@ static char *command_from_prefs(const char *key, const char *default_value);
 /* This is in quartzStartup.c */
 int server_main(int argc, char **argv, char **envp);
 
+static int execute(const char *command);
+static char *command_from_prefs(const char *key, const char *default_value);
+
+/*** Pthread Magics ***/
+static pthread_t create_thread(void *func, void *arg) {
+    pthread_attr_t attr;
+    pthread_t tid;
+	
+    pthread_attr_init (&attr);
+    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM);
+    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create (&tid, &attr, func, arg);
+    pthread_attr_destroy (&attr);
+	
+    return tid;
+}
+
+#ifdef NEW_LAUNCH_METHOD
 struct arg {
     int argc;
     char **argv;
@@ -65,20 +91,6 @@ union MaxMsgSize {
 	union __RequestUnion__mach_startup_subsystem req;
 	union __ReplyUnion__mach_startup_subsystem rep; 
 };
-
-kern_return_t do_start_x11_server(mach_port_t port, string_array_t argv,
-                                  mach_msg_type_number_t argvCnt,
-                                  string_array_t envp,
-                                  mach_msg_type_number_t envpCnt) {
-    if(server_main(argvCnt, argv, envp) == 0)
-        return KERN_SUCCESS;
-    else
-        return KERN_FAILURE;
-}
-
-kern_return_t do_exit(mach_port_t port, int value) {
-    exit(value);
-}
 
 static mach_port_t checkin_or_register(char *bname) {
     kern_return_t kr;
@@ -111,105 +123,234 @@ static mach_port_t checkin_or_register(char *bname) {
     return mp;
 }
 
-/*** Pthread Magics ***/
-static pthread_t create_thread(void *func, void *arg) {
-    pthread_attr_t attr;
-    pthread_t tid;
-	
-    pthread_attr_init (&attr);
-    pthread_attr_setscope (&attr, PTHREAD_SCOPE_SYSTEM);
-    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create (&tid, &attr, func, arg);
-    pthread_attr_destroy (&attr);
-	
-    return tid;
+/*** $DISPLAY handoff ***/
+/* From darwinEvents.c ... but don't want to pull in all the server cruft */
+void DarwinListenOnOpenFD(int fd);
+
+static void accept_fd_handoff(int connected_fd) {
+    int launchd_fd;
+    
+    char databuf[] = "display";
+    struct iovec iov[1];
+    
+    iov[0].iov_base = databuf;
+    iov[0].iov_len  = sizeof(databuf);
+    
+    union {
+        struct cmsghdr hdr;
+        char bytes[CMSG_SPACE(sizeof(int))];
+    } buf;
+    
+    struct msghdr msg;
+    msg.msg_iov = iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = buf.bytes;
+    msg.msg_controllen = sizeof(buf);
+    msg.msg_name = 0;
+    msg.msg_namelen = 0;
+    msg.msg_flags = 0;
+    
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR (&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    
+    msg.msg_controllen = cmsg->cmsg_len;
+    
+    *((int*)CMSG_DATA(cmsg)) = -1;
+    
+    if(recvmsg(connected_fd, &msg, 0) < 0) {
+        fprintf(stderr, "Error receiving $DISPLAY file descriptor: %s\n", strerror(errno));
+        return;
+    }
+    
+    launchd_fd = *((int*)CMSG_DATA(cmsg));
+    
+    if(launchd_fd == -1)
+        fprintf(stderr, "Error receiving $DISPLAY file descriptor, no descriptor received? %d\n", launchd_fd);
+        
+    fprintf(stderr, "Received new DISPLAY fd: %d\n", launchd_fd);
+    DarwinListenOnOpenFD(launchd_fd);
 }
 
-/*** Main ***/
-static int execute(const char *command);
-static char *command_from_prefs(const char *key, const char *default_value);
+typedef struct {
+    string_t socket_filename;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    kern_return_t retval;
+} handoff_data_t;
 
-#ifdef NEW_LAUNCH_METHOD
-static void startup_trigger_thread(void *arg) {
-    struct arg args = *((struct arg *)arg);
-    free(arg);
-    startup_trigger(args.argc, args.argv, args.envp);
+/* This thread loops accepting incoming connections and handing off the file
+ * descriptor for the new connection to accept_fd_handoff()
+ */
+static void socket_handoff_thread(void *arg) {
+    handoff_data_t *data = (handoff_data_t *)arg;
+    string_t filename;
+    struct sockaddr_un servaddr_un;
+    struct sockaddr *servaddr;
+    socklen_t servaddr_len;
+    int handoff_fd, connected_fd;
+
+    /* We need to save it since data dies after we pthread_cond_broadcast */
+    strlcpy(filename, data->socket_filename, STRING_T_SIZE); 
+    
+    /* Make sure we only run once the dispatch thread is waiting for us */
+    pthread_mutex_lock(&data->lock);
+    
+    /* Setup servaddr_un */
+    memset (&servaddr_un, 0, sizeof (struct sockaddr_un));
+    servaddr_un.sun_family  = AF_UNIX;
+    strlcpy(servaddr_un.sun_path, filename, sizeof(servaddr_un.sun_path));
+
+    servaddr = (struct sockaddr *) &servaddr_un;
+    servaddr_len = sizeof(struct sockaddr_un) - sizeof(servaddr_un.sun_path) + strlen(filename);
+    
+    handoff_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(handoff_fd == 0) {
+        fprintf(stderr, "Failed to create socket: %s - %s\n", filename, strerror(errno));
+        data->retval = EXIT_FAILURE;
+        return;
+    }
+    
+    if(bind(handoff_fd, servaddr, servaddr_len) != 0) {
+        fprintf(stderr, "Failed to bind socket: %s - %s\n", filename, strerror(errno));
+        data->retval = EXIT_FAILURE;
+        return;
+    }
+    
+    if(listen(handoff_fd, 10) != 0) {
+        fprintf(stderr, "Failed to listen to socket: %s - %s\n", filename, strerror(errno));
+        data->retval = EXIT_FAILURE;
+        return;
+    }
+
+    /* Let the dispatch thread now tell the caller that we're listening */
+    data->retval = EXIT_SUCCESS;
+    pthread_mutex_unlock(&data->lock);
+    pthread_cond_broadcast(&data->cond);
+    
+    connected_fd = accept(handoff_fd, NULL, NULL);
+    
+    if(connected_fd == -1) {
+        fprintf(stderr, "Failed to accept incoming connection on socket: %s - %s\n", filename, strerror(errno));
+        return;
+    }
+
+    /* Now actually get the passed file descriptor from this connection */
+    accept_fd_handoff(connected_fd);
+
+    close(connected_fd);
+    close(handoff_fd);
+    unlink(filename);
 }
 
-int main(int argc, char **argv, char **envp) {
-    BOOL listenOnly = FALSE;
-    int i;
-    mach_msg_size_t mxmsgsz = sizeof(union MaxMsgSize) + MAX_TRAILER_SIZE;
-    mach_port_t mp;
-    kern_return_t kr;
+kern_return_t do_prep_fd_handoff(mach_port_t port, string_t socket_filename) {
+    handoff_data_t handoff_data;
 
-    for(i=1; i < argc; i++) {
-        if(!strcmp(argv[i], "--listenonly")) {
-            listenOnly = TRUE;
-            break;
-        }
+    pthread_mutex_init(&handoff_data.lock, NULL);
+    pthread_cond_init(&handoff_data.cond, NULL);
+    strlcpy(handoff_data.socket_filename, socket_filename, STRING_T_SIZE); 
+
+    pthread_mutex_lock(&handoff_data.lock);
+    
+    create_thread(socket_handoff_thread, &handoff_data);
+    
+    pthread_cond_wait(&handoff_data.cond, &handoff_data.lock);
+
+    return handoff_data.retval;
+}
+
+/*** Server Startup ***/
+kern_return_t do_start_x11_server(mach_port_t port, string_array_t argv,
+                                  mach_msg_type_number_t argvCnt,
+                                  string_array_t envp,
+                                  mach_msg_type_number_t envpCnt) {
+    /* And now back to char ** */
+    char **_argv = alloca((argvCnt + 1) * sizeof(char *));
+    char **_envp = alloca((envpCnt + 1) * sizeof(char *));
+    size_t i;
+    
+    if(!_argv || !_envp) {
+        return KERN_FAILURE;
     }
-
-    /* TODO: This should be unconditional once we figure out fd passing */
-    if((argc > 1 && argv[1][0] == ':') || listenOnly) {
-        mp = checkin_or_register(SERVER_BOOTSTRAP_NAME);
+    
+    for(i=0; i < argvCnt; i++) {
+        _argv[i] = argv[i];
     }
-
-    /* Check if we need to do something other than listen, and make another
-     * thread handle it.
-     */
-    if(!listenOnly) {
-        struct arg *args = (struct arg*)malloc(sizeof(struct arg));
-        if(!args)
-            FatalError("Could not allocate memory.\n");
-
-        args->argc = argc;
-        args->argv = argv;
-        args->envp = envp;
-
-        create_thread(startup_trigger_thread, args);
+    _argv[argvCnt] = NULL;
+    
+    for(i=0; i < envpCnt; i++) {
+        _envp[i] = envp[i];
     }
-
-    /* TODO: This should actually fall through rather than be the else
-     *       case once we figure out how to get the stub to pass the
-     *       file descriptor.  For now, we only listen if we are explicitly
-     *       told to.
-     */
-    if((argc > 1 && argv[1][0] == ':') || listenOnly) {
-        /* Main event loop */
-        kr = mach_msg_server(mach_startup_server, mxmsgsz, mp, 0);
-        if (kr != KERN_SUCCESS) {
-            asl_log(NULL, NULL, ASL_LEVEL_ERR,
-                    "org.x.X11(mp): %s\n", mach_error_string(kr));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    return EXIT_SUCCESS;
+    _envp[envpCnt] = NULL;
+    
+    if(server_main(argvCnt, _argv, _envp) == 0)
+        return KERN_SUCCESS;
+    else
+        return KERN_FAILURE;
 }
 
 int startup_trigger(int argc, char **argv, char **envp) {
 #else
+void *add_launchd_display_thread(void *data);
+    
 int main(int argc, char **argv, char **envp) {
 #endif
     Display *display;
     const char *s;
     
     size_t i;
+#ifndef NEW_LAUNCH_METHOD
     fprintf(stderr, "X11.app: main(): argc=%d\n", argc);
     for(i=0; i < argc; i++) {
         fprintf(stderr, "\targv[%u] = %s\n", (unsigned)i, argv[i]);
     }
+#endif
     
     /* Take care of the case where we're called like a normal DDX */
     if(argc > 1 && argv[1][0] == ':') {
 #ifdef NEW_LAUNCH_METHOD
+        kern_return_t kr;
+        mach_port_t mp;
+        string_array_t newenvp;
+        string_array_t newargv;
+
         /* We need to count envp */
         int envpc;
         for(envpc=0; envp[envpc]; envpc++);
 
-        return start_x11_server(argc, argv, envp, envpc);
+        /* We have fixed-size string lengths due to limitations in IPC,
+         * so we need to copy our argv and envp.
+         */
+        newargv = (string_array_t)alloca(argc * sizeof(string_t));
+        newenvp = (string_array_t)alloca(envpc * sizeof(string_t));
+        
+        if(!newargv || !newenvp) {
+            fprintf(stderr, "Memory allocation failure\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        for(i=0; i < argc; i++) {
+            strlcpy(newargv[i], argv[i], STRING_T_SIZE);
+        }
+        for(i=0; i < envpc; i++) {
+            strlcpy(newenvp[i], envp[i], STRING_T_SIZE);
+        }
+
+        kr = bootstrap_look_up(bootstrap_port, SERVER_BOOTSTRAP_NAME, &mp);
+        if (kr != KERN_SUCCESS) {
+            fprintf(stderr, "bootstrap_look_up(): %s\n", bootstrap_strerror(kr));
+            exit(EXIT_FAILURE);
+        }
+
+        kr = start_x11_server(mp, newargv, argc, newenvp, envpc);
+        if (kr != KERN_SUCCESS) {
+            fprintf(stderr, "start_x11_server: %s\n", mach_error_string(kr));
+            exit(EXIT_FAILURE);
+        }
+        exit(EXIT_SUCCESS);
 #else
+        create_thread(add_launchd_display_thread, NULL);
         return server_main(argc, argv, envp);
 #endif
     }
@@ -221,14 +362,9 @@ int main(int argc, char **argv, char **envp) {
         /* Now, try to open a display, if so, run the launcher */
         display = XOpenDisplay(NULL);
         if(display) {
-            fprintf(stderr, "X11.app: Closing the display and sleeping for 2s to allow the X server to start up.\n");
             /* Could open the display, start the launcher */
             XCloseDisplay(display);
             
-            /* Give 2 seconds for the server to start... 
-             * TODO: *Really* fix this race condition
-             */
-            usleep(2000);
             return execute(command_from_prefs("app_to_run", DEFAULT_CLIENT));
         }
     }
@@ -243,6 +379,78 @@ int main(int argc, char **argv, char **envp) {
     return execute(command_from_prefs("startx_script", DEFAULT_STARTX));
 }
 
+#ifdef NEW_LAUNCH_METHOD
+static void startup_trigger_thread(void *arg) {
+    struct arg args = *((struct arg *)arg);
+    free(arg);
+    startup_trigger(args.argc, args.argv, args.envp);
+}
+
+/*** Main ***/
+int main(int argc, char **argv, char **envp) {
+    Bool listenOnly = FALSE;
+    int i;
+    mach_msg_size_t mxmsgsz = sizeof(union MaxMsgSize) + MAX_TRAILER_SIZE;
+    mach_port_t mp;
+    kern_return_t kr;
+    
+    fprintf(stderr, "X11.app: main(): argc=%d\n", argc);
+    for(i=1; i < argc; i++) {
+        fprintf(stderr, "\targv[%u] = %s\n", (unsigned)i, argv[i]);
+        if(!strcmp(argv[i], "--listenonly")) {
+            listenOnly = TRUE;
+        }
+    }
+    
+    mp = checkin_or_register(SERVER_BOOTSTRAP_NAME);
+    if(mp == MACH_PORT_NULL) {
+        fprintf(stderr, "NULL mach service: %s", SERVER_BOOTSTRAP_NAME);
+        return EXIT_FAILURE;
+    }
+    
+    /* Check if we need to do something other than listen, and make another
+     * thread handle it.
+     */
+    if(!listenOnly) {
+        struct arg *args = (struct arg*)malloc(sizeof(struct arg));
+        if(!args) {
+            fprintf(stderr, "Memory allocation error.\n");
+            return EXIT_FAILURE;
+        }
+        
+        args->argc = argc;
+        args->argv = argv;
+        args->envp = envp;
+        
+        create_thread(startup_trigger_thread, args);
+    }
+    
+    /* Main event loop */
+    fprintf(stderr, "Statrup coming...\n");
+    kr = mach_msg_server(mach_startup_server, mxmsgsz, mp, 0);
+    if (kr != KERN_SUCCESS) {
+        fprintf(stderr, "org.x.X11(mp): %s\n", mach_error_string(kr));
+        return EXIT_FAILURE;
+    }
+    
+    return EXIT_SUCCESS;
+}
+#else
+void *add_launchd_display_thread(void *data) {
+    /* TODO: Really fix this race... we want xinitrc to finish before connections
+     *       are accepted on the launchd socket.
+     */
+    sleep(2);
+    
+    /* Start listening on the launchd fd */
+    int launchd_fd = launchd_display_fd();
+    if(launchd_fd != -1) {
+        DarwinListenOnOpenFD(launchd_fd);
+    }
+    return NULL;
+}
+#endif
+    
 static int execute(const char *command) {
     const char *newargv[7];
     const char **s;

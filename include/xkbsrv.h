@@ -576,6 +576,14 @@ extern XkbSrvLedInfoPtr XkbAllocSrvLedInfo(
     unsigned int		/* needed_parts */
 );
 
+extern XkbSrvLedInfoPtr XkbCopySrvLedInfo(
+    DeviceIntPtr		/* dev */,
+    XkbSrvLedInfoPtr		/* src */,
+    KbdFeedbackPtr		/* kf */,
+    LedFeedbackPtr		/* lf */
+);
+
+
 extern XkbSrvLedInfoPtr XkbFindSrvLedInfo(
     DeviceIntPtr		/* dev */,
     unsigned int		/* class */,
@@ -745,14 +753,14 @@ extern void AccessXInit(
 );
 
 extern Bool AccessXFilterPressEvent(
-    register struct _xEvent *	/* xE */,
-    register DeviceIntPtr	/* keybd */,
+    struct _xEvent *	/* xE */,
+    DeviceIntPtr	/* keybd */,
     int				/* count */
 );
 
 extern Bool AccessXFilterReleaseEvent(
-    register struct _xEvent *	/* xE */,
-    register DeviceIntPtr	/* keybd */,
+    struct _xEvent *	/* xE */,
+    DeviceIntPtr	/* keybd */,
     int				/* count */
 );
 
