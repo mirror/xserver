@@ -337,10 +337,9 @@ Bool dmxCreateWindow(WindowPtr pWindow)
     Bool                  ret = TRUE;
 
     DMX_UNWRAP(CreateWindow, dmxScreen, pScreen);
-#if 0
+
     if (pScreen->CreateWindow)
 	ret = pScreen->CreateWindow(pWindow);
-#endif
 
     /* Set up the defaults */
     pWinPriv->window     = (Window)0;
