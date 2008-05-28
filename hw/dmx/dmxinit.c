@@ -96,7 +96,7 @@ char           *dmxFontPath = NULL;
 
 Bool            dmxOffScreenOpt = FALSE;
 
-Bool            dmxSubdividePrimitives = TRUE;
+Bool            dmxSubdividePrimitives = FALSE;
 
 Bool            dmxLazyWindowCreation = FALSE;
 
@@ -1033,14 +1033,14 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-syncbatch")) {
         if (++i < argc) dmxSyncActivate(argv[i]);
         retval = 2;
-    } else if (!strcmp(argv[i], "-nooffscreenopt")) {
-	dmxOffScreenOpt = FALSE;
+    } else if (!strcmp(argv[i], "-offscreenopt")) {
+	dmxOffScreenOpt = TRUE;
         retval = 1;
-    } else if (!strcmp(argv[i], "-nosubdivprims")) {
-	dmxSubdividePrimitives = FALSE;
+    } else if (!strcmp(argv[i], "-subdivprims")) {
+	dmxSubdividePrimitives = TRUE;
         retval = 1;
-    } else if (!strcmp(argv[i], "-nowindowopt")) {
-	dmxLazyWindowCreation = FALSE;
+    } else if (!strcmp(argv[i], "-windowopt")) {
+	dmxLazyWindowCreation = TRUE;
         retval = 1;
     } else if (!strcmp(argv[i], "-noxkb")) {
 	dmxUseXKB = FALSE;
@@ -1068,8 +1068,8 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-ignorebadfontpaths")) {
 	dmxIgnoreBadFontPaths = TRUE;
         retval = 1;
-    } else if (!strcmp(argv[i], "-addremovescreens")) {
-	dmxAddRemoveScreens = TRUE;
+    } else if (!strcmp(argv[i], "-noaddremovescreens")) {
+	dmxAddRemoveScreens = FALSE;
         retval = 1;
 #ifdef DMXVNC
     } else if (!strcmp(argv[i], "-novnc")) {
@@ -1120,7 +1120,7 @@ void ddxUseMsg(void)
     ErrorF("-stat inter scrns    Print out performance statistics\n");
     ErrorF("-syncbatch inter     Set interval for XSync batching\n");
     ErrorF("-offscreenopt        Enable offscreen optimization\n");
-    ErrorF("-nosubdivprims       Disable primitive subdivision\n");
+    ErrorF("-subdivprims         Enable primitive subdivision\n");
     ErrorF("                     optimization\n");
     ErrorF("-windowopt           Enable lazy window creation optimization\n");
     ErrorF("-noxkb               Disable use of the XKB extension with\n");
