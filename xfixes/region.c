@@ -864,3 +864,84 @@ SProcXFixesExpandRegion (ClientPtr client)
     return (*ProcXFixesVector[stuff->xfixesReqType]) (client);
 }
 
+#ifdef PANORAMIX
+#include "panoramiX.h"
+#include "panoramiXsrv.h"
+
+#define VERIFY_XIN_PICTURE(pPicture, pid, client, mode, err) {\
+    pPicture = SecurityLookupIDByType(client, pid, XRT_PICTURE, mode);\
+    if (!pPicture) { \
+	client->errorValue = pid; \
+	return err; \
+    } \
+}
+
+extern unsigned long	XRT_PICTURE;
+
+extern int (*PanoramiXSaveXFixesVector[XFixesNumberRequests])(ClientPtr);
+
+int
+PanoramiXFixesSetGCClipRegion (ClientPtr client)
+{
+    REQUEST(xXFixesSetGCClipRegionReq);
+    int		    result = Success, j;
+    PanoramiXRes    *gc;
+    REQUEST_SIZE_MATCH(xXFixesSetGCClipRegionReq);
+
+    if(!(gc = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->gc, XRT_GC, DixReadAccess)))
+	return BadGC;
+
+    FOR_NSCREENS_BACKWARD(j) {
+        stuff->gc = gc->info[j].id;
+        result = (*PanoramiXSaveXFixesVector[X_XFixesSetGCClipRegion]) (client);
+        if(result != Success) break;
+    }
+
+    return (result);
+}
+
+int
+PanoramiXFixesSetWindowShapeRegion (ClientPtr client)
+{
+    int		    result = Success, j;
+    PanoramiXRes    *win;
+    REQUEST(xXFixesSetWindowShapeRegionReq);
+
+    REQUEST_SIZE_MATCH(xXFixesSetWindowShapeRegionReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->dest, XRT_WINDOW, DixWriteAccess)))
+	return BadWindow;
+
+    FOR_NSCREENS_FORWARD(j) {
+	stuff->dest = win->info[j].id;
+	result = (*PanoramiXSaveXFixesVector[X_XFixesSetWindowShapeRegion]) (client);
+        if(result != Success) break;
+    }
+
+    return (result);
+}
+
+int
+PanoramiXFixesSetPictureClipRegion (ClientPtr client)
+{
+    REQUEST(xXFixesSetPictureClipRegionReq);
+    int		    result = Success, j;
+    PanoramiXRes    *pict;
+
+    REQUEST_SIZE_MATCH (xXFixesSetPictureClipRegionReq);
+
+    VERIFY_XIN_PICTURE(pict, stuff->picture, client, DixWriteAccess,
+		       RenderErrBase + BadPicture);
+
+    FOR_NSCREENS_BACKWARD(j) {
+        stuff->picture = pict->info[j].id;
+	result = (*PanoramiXSaveXFixesVector[X_XFixesSetPictureClipRegion]) (client);
+        if(result != Success) break;
+    }
+
+    return (result);
+}
+
+#endif

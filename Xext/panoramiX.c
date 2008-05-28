@@ -56,6 +56,9 @@ Equipment Corporation.
 #ifdef RENDER
 #include "picturestr.h"
 #endif
+#ifdef XFIXES
+#include "xfixesint.h"
+#endif
 #include "modinit.h"
 
 
@@ -582,6 +585,9 @@ void PanoramiXExtensionInit(int argc, char *argv[])
 #ifdef RENDER
     PanoramiXRenderInit ();
 #endif
+#ifdef XFIXES
+    PanoramiXFixesInit ();
+#endif
 }
 
 extern Bool CreateConnectionBlock(void);
@@ -883,6 +889,9 @@ static void PanoramiXResetProc(ExtensionEntry* extEntry)
 
 #ifdef RENDER
     PanoramiXRenderReset ();
+#endif
+#ifdef XFIXES
+    PanoramiXFixesReset ();
 #endif
     screenInfo.numScreens = PanoramiXNumScreens;
     for (i = 256; i--; )
