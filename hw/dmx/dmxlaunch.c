@@ -246,7 +246,7 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
     pid_t	 pid;
     char	 *name;
     char	 *auth[] = { "-auth", xbeAuthBuf };
-    char	 *defs[] = { "-nolisten", "tcp", "-screen",
+    char	 *defs[] = { "-terminate", "-nolisten", "tcp", "-screen",
                              "800/212x600/159x24" };
     char	 *endArg = NULL;
     int		 authFd;
