@@ -60,7 +60,7 @@ static char *dmxXkbOptions;
 
 /** Stores lists of configuration information. */
 typedef struct DMXConfigListStruct {
-    const char                 *name;
+    const char                 *name, *name1;
     struct DMXConfigListStruct *next;
 } DMXConfigList, *DMXConfigListPtr;
 
@@ -82,10 +82,12 @@ static int dmxNumDetached = 4;
 /** Make a note that \a display is the name of an X11 display that
  * should be initialized as a backend (output) display.  Called from
  * #ddxProcessArgument. */
-void dmxConfigStoreDisplay(const char *display)
+void dmxConfigStoreDisplay(const char *display,
+			   const char *authFile)
 {
     DMXConfigListPtr entry = malloc(sizeof(*entry));
     entry->name = strdup(display);
+    entry->name1 = authFile ? strdup (authFile) : NULL;
     entry->next = NULL;
     if (!dmxConfigCmd.displays) dmxConfigCmd.displays = entry;
     else {
@@ -180,6 +182,7 @@ static const char *dmxConfigMatch(const char *target, DMXConfigEntryPtr entry)
 }
 
 static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
+					  const char *authFile,
                                           int scrnWidth,   int scrnHeight,
                                           int scrnX,       int scrnY,
                                           int scrnXSign,   int scrnYSign,
@@ -210,6 +213,7 @@ static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
     dmxScreen->rootX      = rootX;
     dmxScreen->rootY      = rootY;
     dmxScreen->stat       = dmxStatAlloc();
+    dmxScreen->authFile   = authFile;
     ++dmxNumScreens;
     return dmxScreen;
 }
@@ -240,6 +244,7 @@ static void dmxConfigCopyFromDisplay(DMXConfigDisplayPtr d)
     DMXScreenInfo *dmxScreen;
 
     dmxScreen         = dmxConfigAddDisplay(d->name,
+					    NULL,
                                             d->scrnWidth, d->scrnHeight,
                                             d->scrnX,     d->scrnY,
                                             d->scrnXSign, d->scrnYSign,
@@ -265,7 +270,7 @@ static void dmxConfigCopyFromWall(DMXConfigWallPtr w)
     }
 
     for (pt = w->nameList; pt; pt = pt->next) {
-        dmxScreen = dmxConfigAddDisplay(pt->string, w->width, w->height,
+        dmxScreen = dmxConfigAddDisplay(pt->string, NULL, w->width, w->height,
                                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         if (pt == w->nameList) { /* Upper left */
             dmxScreen->where  = PosAbsolute;
@@ -370,7 +375,7 @@ static void dmxConfigFromCommandLine(void)
 
     dmxLog(dmxInfo, "Using configuration from command line\n");
     for (pt = dmxConfigCmd.displays; pt; pt = pt->next) {
-	DMXScreenInfo *dmxScreen = dmxConfigAddDisplay(pt->name,
+	DMXScreenInfo *dmxScreen = dmxConfigAddDisplay(pt->name, pt->name1,
 						       0, 0, 0, 0, 0, 0,
 						       0, 0, 0, 0, 0, 0);
 	if (dmxNumScreens == 1) {
@@ -396,7 +401,7 @@ static void dmxConfigFromCommandLine(void)
 
 	while (dmxNumDetached--)
 	{
-	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("",
+	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("", NULL,
 							    0, 0, 0, 0, 0, 0,
 							    0, 0, 0, 0, 0, 0);
 	    dmxScreen->where  = PosAbsolute;

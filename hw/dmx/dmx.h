@@ -131,6 +131,8 @@ typedef struct _DMXScreenInfo {
     int           beRandrEventBase;
 #endif
 
+    char          *authFile;
+
     /*---------- Screen window information ----------*/
 
     Window        scrnWin;        /**< "Screen" window on backend display */

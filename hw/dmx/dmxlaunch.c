@@ -26,6 +26,7 @@
 
 #include "dmx.h"
 #include "dmxlaunch.h"
+#include "config/dmxconfig.h"
 
 #include <X11/Xauth.h>
 
@@ -239,7 +240,7 @@ dmxSetupAuth (char *name, int authFd)
     return TRUE;
 }
 
-char *
+Bool
 dmxLaunchDisplay (int argc, char *argv[], int index)
 {
     sighandler_t oldSigUsr1;
@@ -253,7 +254,7 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
     int		 mask;
 
     if (xbePid)
-	return xbeDisplay;
+	return TRUE;
 
     strcpy (xbeAuthBuf, xbeAuthTempl);
     mask = umask (0077);
@@ -287,10 +288,10 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
     }
 
     if (!dmxAddXbeArguments (&xbeProg, 1))
-	return 0;
+	return FALSE;
 
     if (!dmxAddXbeArguments (auth, sizeof (auth) / sizeof (char *)))
-	return 0;
+	return FALSE;
 
     if (index)
     {
@@ -307,23 +308,23 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
 
 	if (i >= argc)
 	    if (!dmxAddXbeArguments (&xbeDisplay, 1))
-		return 0;
+		return FALSE;
 
         if (argc > index)
             if (!dmxAddXbeArguments (&argv[index + 1], argc - index))
-                return 0;
+                return FALSE;
     }
     else
     {
 	if (!dmxAddXbeArguments (&xbeDisplay, 1))
-	    return 0;
+	    return FALSE;
 
         if (!dmxAddXbeArguments (defs, sizeof (defs) / sizeof (char *)))
-            return 0;
+            return FALSE;
     }
 
     if (!dmxAddXbeArguments (&endArg, 1))
-	return 0;
+	return FALSE;
 
     name = basename (xbeProg);
 
@@ -378,7 +379,7 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
 
     signal (SIGUSR1, oldSigUsr1);
 
-    setenv ("XAUTHORITY", xbeAuth, 1);
+    dmxConfigStoreDisplay (xbeDisplay, xbeAuth);
 
-    return xbeDisplay;
+    return TRUE;
 }

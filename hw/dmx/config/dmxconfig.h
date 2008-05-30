@@ -42,7 +42,8 @@
 #define DMX_DEFAULT_XKB_VARIANT NULL
 #define DMX_DEFAULT_XKB_OPTIONS NULL
 
-extern void dmxConfigStoreDisplay(const char *display);
+extern void dmxConfigStoreDisplay(const char *display,
+				  const char *authFile);
 extern void dmxConfigStoreNumDetached(const char *num);
 extern void dmxConfigStoreInput(const char *input); /* Core devices */
 extern void dmxConfigStoreXInput(const char *input); /* Non-core devices */

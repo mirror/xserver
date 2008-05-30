@@ -252,6 +252,27 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     if (!dmxScreen->name || !*dmxScreen->name)
 	return FALSE;
 
+    if (dmxScreen->authFile)
+    {
+	setenv ("XAUTHORITY", dmxScreen->authFile, 1);
+    }
+    else
+    {
+	char *home = getenv ("HOME");
+
+	if (home && strlen (home) < 1000)
+	{
+	    char auth[1024];
+
+	    sprintf (auth, "%s/.Xauthority", home);
+	    setenv ("XAUTHORITY", auth, 1);
+	}
+	else
+	{
+	    setenv ("XAUTHORITY", ".Xauthority", 1);
+	}
+    }
+
     if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->name)))
 	return FALSE;
 
@@ -732,13 +753,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     }
 
     if (!dmxConfigDisplaysFromCommandLine ())
-    {
-        char *displayName;
-
-        displayName = dmxLaunchDisplay (argc, argv, dmxLaunchIndex);
-        if (displayName)
-            dmxConfigStoreDisplay (displayName);
-    }
+	dmxLaunchDisplay (argc, argv, dmxLaunchIndex);
 
     /* ddxProcessArgument has been called at this point, but any data
      * from the configuration file has not been applied.  Do so, and be
@@ -995,7 +1010,7 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     }
     
     if (!strcmp(argv[i], "-display")) {
-	if (++i < argc) dmxConfigStoreDisplay(argv[i]);
+	if (++i < argc) dmxConfigStoreDisplay(argv[i], NULL);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);
