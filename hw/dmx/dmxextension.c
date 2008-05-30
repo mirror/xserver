@@ -1977,6 +1977,8 @@ int dmxDetachScreen(int idx)
     /* Adjust the cursor boundaries (paints detached console window) */
     dmxAdjustCursorBoundaries();
 
+    dmxScreen->name = "";
+
 #ifdef RANDR
     RRTellChanged (screenInfo.screens[0]);
 #endif
