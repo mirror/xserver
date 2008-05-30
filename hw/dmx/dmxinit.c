@@ -557,7 +557,7 @@ static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 {
     if (!dmxOpenDisplay(dmxScreen))
     {
-	if (dmxScreen->name)
+	if (dmxScreen->name && *dmxScreen->name)
 	    dmxLog(dmxWarning,
 		   "dmxOpenDisplay: Unable to open display %s\n",
 		   dmxScreen->name);
