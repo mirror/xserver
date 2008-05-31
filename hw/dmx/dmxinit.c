@@ -126,6 +126,11 @@ int             dmxLaunchIndex = 0;
 Bool            dmxVnc = FALSE;
 #endif
 
+#ifdef RANDR
+int xRROutputsPerScreen = 2;
+int xRRCrtcsPerScreen = 2;
+#endif
+
 #include <execinfo.h>
 
 static void
@@ -1091,6 +1096,14 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	dmxVnc = FALSE;
         retval = 1;
 #endif
+#ifdef RANDR
+    } else if (!strcmp(argv[i], "-outputs")) {
+	if (++i < argc) xRROutputsPerScreen = atoi(argv[i]);
+        retval = 2;
+    } else if (!strcmp(argv[i], "-crtcs")) {
+	if (++i < argc) xRRCrtcsPerScreen = atoi(argv[i]);
+        retval = 2;
+#endif
     } else if (!strcmp(argv[i], "-param")) {
         if ((i += 2) < argc) {
             if (!strcasecmp(argv[i-1], "xkbrules"))
@@ -1153,6 +1166,10 @@ void ddxUseMsg(void)
     ErrorF("-noaddremovescreens  Disable dynamic screen addition/removal\n");
 #ifdef DMXVNC
     ErrorF("-vnc                 Enable VNC\n");
+#endif
+#ifdef RANDR
+    ErrorF("-outputs num         RANDR outputs for each back-end display\n");
+    ErrorF("-crtcs num           RANDR crtcs for each back-end display\n");
 #endif
     ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
     ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");

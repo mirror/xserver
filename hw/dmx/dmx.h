@@ -330,6 +330,10 @@ extern Bool             dmxIgnoreBadFontPaths;  /**< True if bad font
 extern Bool             dmxAddRemoveScreens;    /**< True if add and
 						 * remove screens support
 						 * is enabled */
+#ifdef RANDR
+extern int             xRROutputsPerScreen;
+extern int             xRRCrtcsPerScreen;
+#endif
 
 /** Wrap screen or GC function pointer */
 #define DMX_WRAP(_entry, _newfunc, _saved, _actual)			\

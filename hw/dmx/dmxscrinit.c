@@ -94,8 +94,6 @@ DevPrivateKey dmxGlyphSetPrivateKey = &dmxGlyphSetPrivateKeyIndex; /**< Private 
 #ifdef RANDR
 static int xRROutputsForFirstScreen = 1;
 static int xRRCrtcsForFirstScreen = 1;
-static int xRROutputsPerScreen = 2;
-static int xRRCrtcsPerScreen = 2;
 
 static DMXScreenInfo *
 dmxRRGetScreenForCrtc (ScreenPtr pScreen,
