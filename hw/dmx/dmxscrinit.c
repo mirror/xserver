@@ -1200,8 +1200,6 @@ dmxRRWakeupHandler (pointer blockData,
 static Bool
 dmxRRInit (ScreenPtr pScreen)
 {
-    RROutputPtr  output;
-    RRCrtcPtr    crtc;
     rrScrPrivPtr pScrPriv;
 
     if (!RRScreenInit (pScreen))
@@ -1229,30 +1227,64 @@ dmxRRInit (ScreenPtr pScreen)
 		     "dmx%d",
 		     (pScreen->myNum - 1) * xRROutputsPerScreen + i);
 
-	    output = RROutputCreate (screenInfo.screens[0],
-				     name,
-				     strlen (name),
-				     NULL);
-	    if (!output)
+	    if (!RROutputCreate (screenInfo.screens[0],
+				 name,
+				 strlen (name),
+				 NULL))
 		return FALSE;
 	}
 
 	for (i = 0; i < xRRCrtcsPerScreen; i++)
-	{
-	    crtc = RRCrtcCreate (screenInfo.screens[0], NULL);
-	    if (!crtc)
+	    if (!RRCrtcCreate (screenInfo.screens[0], NULL))
 		return FALSE;
-	}
     }
     else
     {
-	output = RROutputCreate (screenInfo.screens[0], "default", 7, NULL);
-	if (!output)
-	    return FALSE;
+	XRRScreenResources *r = NULL;
 
-	crtc = RRCrtcCreate (screenInfo.screens[0], NULL);
-	if (!crtc)
-	    return FALSE;
+	if (dmxScreens->beDisplay && dmxScreens->beRandr)
+	{
+	    XLIB_PROLOGUE (dmxScreens);
+	    r = XRRGetScreenResources (dmxScreens->beDisplay,
+				       DefaultRootWindow (dmxScreens->beDisplay));
+	    XLIB_EPILOGUE (dmxScreens);
+	}
+
+	if (r)
+	{
+	    int i;
+
+	    xRROutputsForFirstScreen = r->noutput;
+	    xRRCrtcsForFirstScreen   = r->ncrtc;
+
+	    for (i = 0; i < r->noutput; i++)
+	    {
+		XRROutputInfo *o;
+
+		o = XRRGetOutputInfo (dmxScreens->beDisplay, r, r->outputs[i]);
+		if (!o)
+		    return FALSE;
+
+		if (!RROutputCreate (screenInfo.screens[0],
+				     o->name, strlen (o->name),
+				     NULL))
+		    return FALSE;
+	    }
+
+	    for (i = 0; i < r->ncrtc; i++)
+		if (!RRCrtcCreate (screenInfo.screens[0], NULL))
+		    return FALSE;
+
+	    XRRFreeScreenResources (r);
+	}
+	else
+	{
+	    if (!RROutputCreate (screenInfo.screens[0], "default", 7, NULL))
+		return FALSE;
+
+	    if (!RRCrtcCreate (screenInfo.screens[0], NULL))
+		return FALSE;
+	}
     }
 
     RegisterBlockAndWakeupHandlers (dmxRRBlockHandler,
