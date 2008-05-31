@@ -92,7 +92,53 @@ DevPrivateKey dmxGlyphSetPrivateKey = &dmxGlyphSetPrivateKeyIndex; /**< Private 
 #endif
 
 #ifdef RANDR
+static int xRROutputsForFirstScreen = 1;
+static int xRRCrtcsForFirstScreen = 1;
 static int xRROutputsPerScreen = 2;
+static int xRRCrtcsPerScreen = 2;
+
+static DMXScreenInfo *
+dmxRRGetScreenForCrtc (ScreenPtr pScreen,
+		       RRCrtcPtr crtc)
+{
+    int i;
+
+    rrScrPriv (pScreen);
+
+    for (i = 0; i < pScrPriv->numCrtcs; i++)
+	if (pScrPriv->crtcs[i] == crtc)
+	    break;
+
+    if (i == pScrPriv->numCrtcs)
+	return NULL;
+
+    if (i < xRRCrtcsForFirstScreen)
+	return dmxScreens;
+
+    return &dmxScreens[((i - xRRCrtcsForFirstScreen) / xRRCrtcsPerScreen) + 1];
+}
+
+static DMXScreenInfo *
+dmxRRGetScreenForOutput (ScreenPtr   pScreen,
+			 RROutputPtr output)
+{
+    int i;
+
+    rrScrPriv (pScreen);
+
+    for (i = 0; i < pScrPriv->numOutputs; i++)
+	if (pScrPriv->outputs[i] == output)
+	    break;
+
+    if (i == pScrPriv->numOutputs)
+	return NULL;
+
+    if (i < xRROutputsForFirstScreen)
+	return dmxScreens;
+
+    return &dmxScreens[((i - xRROutputsForFirstScreen) / xRROutputsPerScreen) +
+		       1];
+}
 
 static RRModePtr
 dmxRRGetMode (XRRScreenResources *r,
@@ -128,75 +174,64 @@ dmxRRGetMode (XRRScreenResources *r,
 }
 
 static RRCrtcPtr
-dmxRRGetCrtc (unsigned long crtc,
-	      DMXScreenInfo **screen)
+dmxRRGetCrtc (ScreenPtr     pScreen,
+	      DMXScreenInfo *dmxScreen,
+	      unsigned long crtc)
 {
-    DMXScreenInfo *dmxScreen;
-    int		  i;
+    int baseCrtc = 0;
+    int numCrtc = xRRCrtcsForFirstScreen;
+    int i;
 
-    rrScrPriv (screenInfo.screens[0]);
+    rrScrPriv (pScreen);
 
     if (!crtc)
 	return NULL;
 
-    for (i = 0; i < pScrPriv->numCrtcs; i++)
+    if (dmxScreen != dmxScreens)
     {
-	if (pScrPriv->crtcs[i]->devPrivate == (void *) crtc)
-	{
-	    if (i)
-		dmxScreen = &dmxScreens[((i - 1) / xRROutputsPerScreen) + 1];
-	    else
-		dmxScreen = dmxScreens;
-
-	    if (!dmxScreen->beDisplay)
-		return NULL;
-
-	    if (screen)
-		*screen = dmxScreen;
-
-	    return pScrPriv->crtcs[i];
-	}
+	baseCrtc = xRRCrtcsForFirstScreen +
+	    ((dmxScreen - dmxScreens) - 1) * xRRCrtcsPerScreen;
+	numCrtc  = xRRCrtcsPerScreen;
     }
+
+    for (i = 0; i < numCrtc; i++)
+	if (pScrPriv->crtcs[baseCrtc + i]->devPrivate == (void *) crtc)
+	    return pScrPriv->crtcs[baseCrtc + i];
 
     return NULL;
 }
 
 static RROutputPtr
-dmxRRGetOutput (unsigned long output,
-		DMXScreenInfo **screen)
+dmxRRGetOutput (ScreenPtr     pScreen,
+		DMXScreenInfo *dmxScreen,
+		unsigned long output)
 {
-    DMXScreenInfo *dmxScreen;
-    int		  i;
+    int baseOutput = 0;
+    int numOutput = xRROutputsForFirstScreen;
+    int i;
 
-    rrScrPriv (screenInfo.screens[0]);
+    rrScrPriv (pScreen);
 
     if (!output)
 	return NULL;
 
-    for (i = 0; i < pScrPriv->numOutputs; i++)
+    if (dmxScreen != dmxScreens)
     {
-	if (pScrPriv->outputs[i]->devPrivate == (void *) output)
-	{
-	    if (i)
-		dmxScreen = &dmxScreens[((i - 1) / xRROutputsPerScreen) + 1];
-	    else
-		dmxScreen = dmxScreens;
-
-	    if (!dmxScreen->beDisplay)
-		return NULL;
-
-	    if (screen)
-		*screen = dmxScreen;
-
-	    return pScrPriv->outputs[i];
-	}
+	baseOutput = xRROutputsForFirstScreen +
+	    ((dmxScreen - dmxScreens) - 1) * xRROutputsPerScreen;
+	numOutput  = xRROutputsPerScreen;
     }
+
+    for (i = 0; i < numOutput; i++)
+	if (pScrPriv->outputs[baseOutput + i]->devPrivate == (void *) output)
+	    return pScrPriv->outputs[baseOutput + i];
 
     return NULL;
 }
 
 static Bool
 dmxRRUpdateCrtc (ScreenPtr	    pScreen,
+		 DMXScreenInfo      *dmxScreen,
 		 XRRScreenResources *r,
 		 unsigned long	    xcrtc)
 {
@@ -206,9 +241,8 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
     RROutputPtr	  *outputs = NULL;
     XRRCrtcGamma  *gamma = NULL;
     int		  i;
-    DMXScreenInfo *dmxScreen;
 
-    crtc = dmxRRGetCrtc (xcrtc, &dmxScreen);
+    crtc = dmxRRGetCrtc (pScreen, dmxScreen, xcrtc);
     if (!crtc)
 	return FALSE;
 
@@ -230,13 +264,9 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 	mode = dmxRRGetMode (r, c->mode);
 
     for (i = 0; i < c->noutput; i++)
-    {
-	DMXScreenInfo *s;
-
-	outputs[i] = dmxRRGetOutput (c->outputs[i], &s);
-	if (!outputs[i] || s != dmxScreen)
+	outputs[i] = dmxRRGetOutput (pScreen, dmxScreen, c->outputs[i]);
+	if (!outputs[i])
 	    return FALSE;
-    }
 
     XLIB_PROLOGUE (dmxScreen);
     gamma = XRRGetCrtcGamma (dmxScreen->beDisplay, xcrtc);
@@ -261,6 +291,7 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 
 static Bool
 dmxRRUpdateOutput (ScreenPtr	      pScreen,
+		   DMXScreenInfo      *dmxScreen,
 		   XRRScreenResources *r,
 		   unsigned long      xoutput)
 {
@@ -269,9 +300,8 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
     RRModePtr	  *modes = NULL;
     RRCrtcPtr	  *crtcs = NULL;
     int		  i;
-    DMXScreenInfo *dmxScreen;
 
-    output = dmxRRGetOutput (xoutput, &dmxScreen);
+    output = dmxRRGetOutput (pScreen, dmxScreen, xoutput);
     if (!output)
 	return FALSE;
 
@@ -305,19 +335,15 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
 
     for (i = 0; i < o->nclone; i++)
     {
-	DMXScreenInfo *s;
-
-	clones[i] = dmxRRGetOutput (o->clones[i], &s);
-	if (!clones[i] || s != dmxScreen)
+	clones[i] = dmxRRGetOutput (pScreen, dmxScreen, o->clones[i]);
+	if (!clones[i])
 	    return FALSE;
     }
 
     for (i = 0; i < o->ncrtc; i++)
     {
-	DMXScreenInfo *s;
-
-	crtcs[i] = dmxRRGetCrtc (o->crtcs[i], &s);
-	if (!crtcs[i] || s != dmxScreen)
+	crtcs[i] = dmxRRGetCrtc (pScreen, dmxScreen, o->crtcs[i]);
+	if (!crtcs[i])
 	    return FALSE;
     }
 
@@ -362,6 +388,7 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
 
 static Bool
 dmxRRUpdateOutputProperty (ScreenPtr	      pScreen,
+			   DMXScreenInfo      *dmxScreen,
 			   XRRScreenResources *r,
 			   unsigned long      xoutput,
 			   unsigned long      xproperty)
@@ -374,9 +401,8 @@ dmxRRUpdateOutputProperty (ScreenPtr	      pScreen,
     Atom	    type, atom;
     char	    *name = NULL;
     INT32           *values = NULL;
-    DMXScreenInfo   *dmxScreen;
 
-    output = dmxRRGetOutput (xoutput, &dmxScreen);
+    output = dmxRRGetOutput (pScreen, dmxScreen, xoutput);
     if (!output)
 	return FALSE;
 
@@ -495,17 +521,24 @@ dmxRRGetInfo (ScreenPtr pScreen,
     {
 	DMXScreenInfo      *dmxScreen = &dmxScreens[i];
 	XRRScreenResources *r = NULL;
-	int		   outputsPerScreen = 1;
+	int		   outputsPerScreen = xRROutputsForFirstScreen;
 	int		   baseOutput = 0;
+	int		   crtcsPerScreen = xRRCrtcsForFirstScreen;
+	int		   baseCrtc = 0;
 	int		   j;
 
 	if (i)
 	{
 	    outputsPerScreen = xRROutputsPerScreen;
-	    baseOutput       = 1 + (i - 1) * outputsPerScreen;
+	    baseOutput       = xRROutputsForFirstScreen +
+		(i - 1) * xRROutputsPerScreen;
+	    crtcsPerScreen   = xRRCrtcsPerScreen;
+	    baseCrtc         = xRRCrtcsForFirstScreen +
+		(i - 1) * xRRCrtcsPerScreen;
 	}
 
 	assert (baseOutput + outputsPerScreen <= pScrPriv->numOutputs);
+	assert (baseCrtc + crtcsPerScreen <= pScrPriv->numCrtcs);
 
 	dmxScreen->beRandrPending = TRUE;
 
@@ -518,39 +551,43 @@ dmxRRGetInfo (ScreenPtr pScreen,
 
 	    if (r)
 	    {
-		if (r->noutput > xRROutputsPerScreen)
+		if (r->noutput > outputsPerScreen)
 		    dmxLog (dmxWarning,
 			    "dmxRRGetInfo: ignoring %d BE server outputs\n",
 			    r->noutput - outputsPerScreen);
 
-		if (r->ncrtc > xRROutputsPerScreen)
+		if (r->ncrtc > crtcsPerScreen)
 		    dmxLog (dmxWarning,
 			    "dmxRRGetInfo: ignoring %d BE server crtcs\n",
-			    r->ncrtc - outputsPerScreen);
+			    r->ncrtc - crtcsPerScreen);
 	    }
 	}
 
 	for (j = 0; j < outputsPerScreen; j++)
 	{
 	    RROutputPtr output = pScrPriv->outputs[baseOutput + j];
-	    RRCrtcPtr   crtc = pScrPriv->crtcs[baseOutput + j];
 
-	    output->devPrivate = NULL;
-	    crtc->devPrivate   = NULL;
+	    if (r && j < r->noutput)
+		output->devPrivate = (void *) r->outputs[j];
+	    else
+		output->devPrivate = NULL;
+	}
 
-	    if (r)
-	    {
-		if (j < r->noutput)
-		    output->devPrivate = (void *) r->outputs[j];
-		if (j < r->ncrtc)
-		    crtc->devPrivate = (void *) r->crtcs[j];
-	    }
+	for (j = 0; j < crtcsPerScreen; j++)
+	{
+	    RRCrtcPtr crtc = pScrPriv->crtcs[baseCrtc + j];
+
+	    crtc->devPrivate = NULL;
+
+	    if (r && j < r->ncrtc)
+		crtc->devPrivate = (void *) r->crtcs[j];
+	    else
+		crtc->devPrivate = NULL;
 	}
 
 	for (j = 0; j < outputsPerScreen; j++)
 	{
 	    RROutputPtr output = pScrPriv->outputs[baseOutput + j];
-	    RRCrtcPtr   crtc = pScrPriv->crtcs[baseOutput + j];
 
 	    if (r)
 	    {
@@ -564,7 +601,10 @@ dmxRRGetInfo (ScreenPtr pScreen,
 
 		    int    nProp = 0, k;
 
-		    if (!dmxRRUpdateOutput (pScreen, r, r->outputs[j]))
+		    if (!dmxRRUpdateOutput (pScreen,
+					    dmxScreen,
+					    r,
+					    r->outputs[j]))
 			return (dmxScreen->beRandrPending = FALSE);
 
 		    XLIB_PROLOGUE (dmxScreen);
@@ -577,6 +617,7 @@ dmxRRGetInfo (ScreenPtr pScreen,
 		    {
 			for (k = 0; k < nProp; k++)
 			    if (!dmxRRUpdateOutputProperty (pScreen,
+							    dmxScreen,
 							    r,
 							    r->outputs[j],
 							    props[k]))
@@ -596,10 +637,57 @@ dmxRRGetInfo (ScreenPtr pScreen,
 		    if (!RROutputSetConnection (output, RR_Disconnected))
 			return (dmxScreen->beRandrPending = FALSE);
 		}
+	    }
+	    else if (dmxScreen->beDisplay)
+	    {
+		RRModePtr   mode;
+		xRRModeInfo modeInfo;
+		char	    name[64];
 
+		sprintf (name,
+			 "%dx%d",
+			 dmxScreen->scrnWidth, dmxScreen->scrnHeight);
+
+		memset (&modeInfo, '\0', sizeof (modeInfo));
+		modeInfo.width = dmxScreen->scrnWidth;
+		modeInfo.height = dmxScreen->scrnHeight;
+		modeInfo.nameLength = strlen (name);
+
+		mode = RRModeGet (&modeInfo, name);
+		if (!mode)
+		    return (dmxScreen->beRandrPending = FALSE);
+
+		if (!RROutputSetModes (output, &mode, 1, 0))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetClones (output, NULL, 0))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetCrtcs (output, &pScrPriv->crtcs[baseCrtc], 1))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetConnection (output, RR_Connected))
+		    return (dmxScreen->beRandrPending = FALSE);
+	    }
+	    else
+	    {
+		if (!RROutputSetModes (output, NULL, 0, 0))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetClones (output, NULL, 0))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetCrtcs (output, NULL, 0))
+		    return (dmxScreen->beRandrPending = FALSE);
+		if (!RROutputSetConnection (output, RR_Disconnected))
+		    return FALSE;
+	    }
+	}
+
+	for (j = 0; j < crtcsPerScreen; j++)
+	{
+	    RRCrtcPtr crtc = pScrPriv->crtcs[baseCrtc + j];
+
+	    if (r)
+	    {
 		if (j < r->ncrtc)
 		{
-		    if (!dmxRRUpdateCrtc (pScreen, r, r->crtcs[j]))
+		    if (!dmxRRUpdateCrtc (pScreen, dmxScreen, r, r->crtcs[j]))
 			return (dmxScreen->beRandrPending = FALSE);
 		}
 		else
@@ -626,28 +714,11 @@ dmxRRGetInfo (ScreenPtr pScreen,
 		if (!mode)
 		    return (dmxScreen->beRandrPending = FALSE);
 
-		if (!RROutputSetModes (output, &mode, 1, 0))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetClones (output, NULL, 0))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetCrtcs (output, &crtc, 1))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetConnection (output, RR_Connected))
-		    return (dmxScreen->beRandrPending = FALSE);
-
-		RRCrtcNotify (crtc, mode, 0, 0, RR_Rotate_0, 1, &output);
+		RRCrtcNotify (crtc, mode, 0, 0, RR_Rotate_0, 1,
+			      &pScrPriv->outputs[baseOutput]);
 	    }
 	    else
 	    {
-		if (!RROutputSetModes (output, NULL, 0, 0))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetClones (output, NULL, 0))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetCrtcs (output, NULL, 0))
-		    return (dmxScreen->beRandrPending = FALSE);
-		if (!RROutputSetConnection (output, RR_Disconnected))
-		    return FALSE;
-
 		RRCrtcNotify (crtc, NULL, 0, 0, RR_Rotate_0, 0, NULL);
 	    }
 	}
@@ -655,13 +726,13 @@ dmxRRGetInfo (ScreenPtr pScreen,
 	if (r)
 	    XRRFreeScreenResources (r);
 
-	*rotations = RR_Rotate_0;
-
-	for (j = 0; j < pScrPriv->numCrtcs; j++)
-	    *rotations |= pScrPriv->crtcs[j]->rotations;
-
 	dmxScreen->beRandrPending = FALSE;
     }
+
+    *rotations = RR_Rotate_0;
+
+    for (i = 0; i < pScrPriv->numCrtcs; i++)
+	*rotations |= pScrPriv->crtcs[i]->rotations;
 
     return TRUE;
 }
@@ -747,22 +818,18 @@ dmxRRCrtcSet (ScreenPtr   pScreen,
     int		       i;
     DMXScreenInfo      *dmxScreen;
 
-    if (!dmxRRGetCrtc ((unsigned long) crtc->devPrivate, &dmxScreen))
+    dmxScreen = dmxRRGetScreenForCrtc (pScreen, crtc);
+    if (!dmxScreen)
 	return FALSE;
 
     if (dmxScreen->beRandrPending)
 	return RRCrtcNotify (crtc, mode, x, y, rotation, numOutputs, outputs);
 
     for (i = 0; i < numOutputs; i++)
-    {
-	DMXScreenInfo *s;
-
-	if (!dmxRRGetOutput ((unsigned long) outputs[i]->devPrivate, &s))
+	if (!dmxRRGetOutput (pScreen,
+			     dmxScreen,
+			     (unsigned long) outputs[i]->devPrivate))
 	    return FALSE;
-
-	if (s != dmxScreen)
-	    return FALSE;
-    }
 
     if (numOutputs)
     {
@@ -823,7 +890,8 @@ dmxRRCrtcSetGamma (ScreenPtr pScreen,
     XRRCrtcGamma  *gamma;
     DMXScreenInfo *dmxScreen;
 
-    if (!dmxRRGetCrtc ((unsigned long) crtc->devPrivate, &dmxScreen))
+    dmxScreen = dmxRRGetScreenForCrtc (pScreen, crtc);
+    if (!dmxScreen)
 	return FALSE;
 
     if (dmxScreen->beRandrPending)
@@ -866,7 +934,8 @@ dmxRROutputSetProperty (ScreenPtr	   pScreen,
     int		  i;
     DMXScreenInfo *dmxScreen;
 
-    if (!dmxRRGetOutput ((unsigned long) output->devPrivate, &dmxScreen))
+    dmxScreen = dmxRRGetScreenForOutput (pScreen, output);
+    if (!dmxScreen)
 	return FALSE;
 
     if (dmxScreen->beRandrPending)
@@ -990,7 +1059,8 @@ dmxRROutputValidateMode (ScreenPtr   pScreen,
 
     DMXScreenInfo *dmxScreen;
 
-    if (!dmxRRGetOutput ((unsigned long) output->devPrivate, &dmxScreen))
+    dmxScreen = dmxRRGetScreenForOutput (pScreen, output);
+    if (!dmxScreen)
 	return FALSE;
 
     if (dmxScreen->beRandrPending)
@@ -1165,7 +1235,10 @@ dmxRRInit (ScreenPtr pScreen)
 				     NULL);
 	    if (!output)
 		return FALSE;
+	}
 
+	for (i = 0; i < xRRCrtcsPerScreen; i++)
+	{
 	    crtc = RRCrtcCreate (screenInfo.screens[0], NULL);
 	    if (!crtc)
 		return FALSE;
