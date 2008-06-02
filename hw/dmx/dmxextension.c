@@ -1116,6 +1116,7 @@ static void dmxBECreateWindowTree(int idx)
     dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pRoot);
 
     XLIB_PROLOGUE (dmxScreen);
+    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
     XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
     XLIB_EPILOGUE (dmxScreen);
 

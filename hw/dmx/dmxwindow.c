@@ -46,6 +46,7 @@
 #include "dmxvisual.h"
 #include "dmxinput.h"
 #include "dmxextension.h"
+#include "dmxscrinit.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -173,6 +174,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	    if (dmxScreen->beDisplay)
 	    {
 		XLIB_PROLOGUE (dmxScreen);
+		dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 		XUnmapWindow(dmxScreen->beDisplay, pWinPriv->window);
 		XLIB_EPILOGUE (dmxScreen);
 	    }
@@ -182,6 +184,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	if (dmxScreen->beDisplay)
 	{
 	    XLIB_PROLOGUE (dmxScreen);
+	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	    XLIB_EPILOGUE (dmxScreen);
 	}
@@ -319,6 +322,7 @@ void dmxCreateAndRealizeWindow(WindowPtr pWindow, Bool doSync)
     if (pWinPriv->mapped && MapUnmapEventsEnabled (pWindow))
     {
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	XLIB_EPILOGUE (dmxScreen);
     }
@@ -680,6 +684,7 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
 		    pPixPriv->pixmap = None;
 		}
 
+		dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 		XMapWindow (dmxScreen->beDisplay, pWinPriv->window);
 
 		pPixPriv->pixmap =
@@ -691,6 +696,7 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
 	else
 	{
 	    XLIB_PROLOGUE (dmxScreen);
+	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	    XLIB_EPILOGUE (dmxScreen);
 	}
@@ -724,6 +730,7 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
     if (pWinPriv->window) {
 	/* Unrealize window on back-end server */
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XUnmapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
