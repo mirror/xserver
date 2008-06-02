@@ -1474,6 +1474,9 @@ dmxScreenExpose (ScreenPtr pScreen)
 	    if (!status)
 		break;
 
+	    if (dmxShouldIgnore (dmxScreen, X.xexpose.serial))
+		continue;
+
 	    pChild0 = WindowTable[0];
 	    pChildN = WindowTable[pScreen->myNum];
 
@@ -1513,9 +1516,6 @@ dmxScreenExpose (ScreenPtr pScreen)
 		box.y1 = pChild0->drawable.y + X.xexpose.y;
 		box.x2 = box.x1 + X.xexpose.width;
 		box.y2 = box.y1 + X.xexpose.height;
-
-		ErrorF ("EXPOSE: %d %d %dx%d\n", box.x1, box.y1,
-			X.xexpose.width, X.xexpose.height);
 
 		REGION_INIT (screenInfo.screens[0], &region, &box, 1);
 		(*pScreen->WindowExposures) (pChild0, &region, NullRegion);
@@ -1562,6 +1562,9 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 	dmxGeneration = serverGeneration;
     }
+
+    dmxScreen->ignoreHead = NULL;
+    dmxScreen->ignoreTail = &dmxScreen->ignoreHead;
 
 #ifdef RANDR
     dmxScreen->beRandr = FALSE;
@@ -1932,4 +1935,54 @@ static Bool dmxSaveScreen(ScreenPtr pScreen, int what)
     }
 
     return TRUE;
+}
+
+void
+dmxDiscardIgnore (DMXScreenInfo *dmxScreen,
+		  unsigned long sequence)
+{
+    while (dmxScreen->ignoreHead)
+    {
+	if ((long) (sequence - dmxScreen->ignoreHead->sequence) > 0)
+	{
+	    DMXIgnore *next = dmxScreen->ignoreHead->next;
+
+	    free (dmxScreen->ignoreHead);
+
+	    dmxScreen->ignoreHead = next;
+	    if (!dmxScreen->ignoreHead)
+		dmxScreen->ignoreTail = &dmxScreen->ignoreHead;
+	}
+	else
+	    break;
+    }
+}
+
+void
+dmxSetIgnore (DMXScreenInfo *dmxScreen,
+	      unsigned long sequence)
+{
+    DMXIgnore *i;
+
+    i = malloc (sizeof (DMXIgnore));
+    if (!i)
+	return;
+
+    i->sequence = sequence;
+    i->next     = 0;
+
+    *(dmxScreen->ignoreTail) = i;
+    dmxScreen->ignoreTail = &i->next;
+}
+
+Bool
+dmxShouldIgnore (DMXScreenInfo *dmxScreen,
+		 unsigned long sequence)
+{
+    dmxDiscardIgnore (dmxScreen, sequence);
+
+    if (!dmxScreen->ignoreHead)
+	return FALSE;
+
+    return dmxScreen->ignoreHead->sequence == sequence;
 }
