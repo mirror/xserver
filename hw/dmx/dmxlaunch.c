@@ -27,6 +27,7 @@
 #include "dmx.h"
 #include "dmxlaunch.h"
 #include "config/dmxconfig.h"
+#include "opaque.h"
 
 #include <X11/Xauth.h>
 
@@ -56,7 +57,9 @@ static char *xbeAuth      = NULL;
 static char *xbeProgs[] = { "/usr/bin/Xfake", "/usr/X11R6/bin/Xfake" };
 static char *xbeProg    = NULL;
 
-static char *xbeDisplay  = ":73";
+static char xbeDisplayBuf[256];
+static char *xbeDisplay      = NULL;
+static int  xbeDisplayOffset = 53;
 
 static pid_t   xbePid = 0;
 static int     receivedUsr1 = 0;
@@ -292,6 +295,9 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
 
     if (!dmxAddXbeArguments (auth, sizeof (auth) / sizeof (char *)))
 	return FALSE;
+
+    xbeDisplay = xbeDisplayBuf;
+    sprintf (xbeDisplay, ":%d", xbeDisplayOffset + atoi (display));
 
     if (index)
     {
