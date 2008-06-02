@@ -1984,5 +1984,7 @@ int dmxDetachScreen(int idx)
     RRTellChanged (screenInfo.screens[0]);
 #endif
 
+    dmxDiscardIgnore (dmxScreen, ~0);
+
     return 0; /* Success */
 }
