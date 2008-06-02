@@ -1021,6 +1021,7 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	    pRect++;
 	}
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XShapeCombineRectangles(dmxScreen->beDisplay, pWinPriv->window,
 				ShapeBounding, 0, 0,
 				pRectFirst, nRect,
@@ -1029,6 +1030,7 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	xfree(pRectFirst);
     } else {
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XShapeCombineMask(dmxScreen->beDisplay, pWinPriv->window,
 			  ShapeBounding, 0, 0, None, ShapeSet);
 	XLIB_EPILOGUE (dmxScreen);
@@ -1048,6 +1050,7 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	    pRect++;
 	}
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XShapeCombineRectangles(dmxScreen->beDisplay, pWinPriv->window,
 				ShapeClip, 0, 0,
 				pRectFirst, nRect,
@@ -1056,6 +1059,7 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	xfree(pRectFirst);
     } else {
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XShapeCombineMask(dmxScreen->beDisplay, pWinPriv->window,
 			  ShapeClip, 0, 0, None, ShapeSet);
 	XLIB_EPILOGUE (dmxScreen);
