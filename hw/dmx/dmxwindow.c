@@ -165,6 +165,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	c.height = (h > 0) ? h : 1;
 
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
     }
@@ -500,6 +501,7 @@ Bool dmxPositionWindow(WindowPtr pWindow, int x, int y)
 	}
 
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
@@ -767,6 +769,7 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 	c.sibling = (Window)0;
 	c.stack_mode = Below;
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
     } else {
@@ -788,6 +791,7 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 		c.sibling = (Window)0;
 		c.stack_mode = Below;
 		XLIB_PROLOGUE (dmxScreen);
+		dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 		XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 		XLIB_EPILOGUE (dmxScreen);
 		return;
@@ -799,6 +803,7 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 	c.sibling = pNextSibPriv->window;
 	c.stack_mode = Above;
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
     }
@@ -867,6 +872,7 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 	c.height = pWindow->drawable.height;
 
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
@@ -915,6 +921,7 @@ void dmxResizeWindow(WindowPtr pWindow, int x, int y,
 	c.height = pWindow->drawable.height;
 
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
@@ -980,6 +987,7 @@ void dmxChangeBorderWidth(WindowPtr pWindow, unsigned int width)
 	c.border_width = width;
 
 	XLIB_PROLOGUE (dmxScreen);
+	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
