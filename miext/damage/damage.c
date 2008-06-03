@@ -1530,11 +1530,17 @@ damageText (DrawablePtr	    pDrawable,
 	damageDamageChars (pDrawable, pGC->font, x + pDrawable->x, y + pDrawable->y, n,
 			   charinfo, imageblt, pGC->subWindowMode);
 	if (imageblt)
-	    (*pGC->ops->ImageGlyphBlt)(pDrawable, pGC, x, y, n, charinfo,
-				       FONTGLYPHS(pGC->font));
+	{
+	    if (pGC->ops->ImageGlyphBlt)
+		(*pGC->ops->ImageGlyphBlt)(pDrawable, pGC, x, y, n, charinfo,
+					   FONTGLYPHS(pGC->font));
+	}
 	else
-	    (*pGC->ops->PolyGlyphBlt)(pDrawable, pGC, x, y, n, charinfo,
-				      FONTGLYPHS(pGC->font));
+	{
+	    if (pGC->ops->PolyGlyphBlt)
+		(*pGC->ops->PolyGlyphBlt)(pDrawable, pGC, x, y, n, charinfo,
+					  FONTGLYPHS(pGC->font));
+	}
     }
     xfree(charinfo);
     return x + w;
@@ -1551,8 +1557,12 @@ damagePolyText8(DrawablePtr pDrawable,
     DAMAGE_GC_OP_PROLOGUE(pGC, pDrawable);
 
     if (checkGCDamage (pDrawable, pGC))
+    {
 	x = damageText (pDrawable, pGC, x, y, (unsigned long) count, chars,
 		    Linear8Bit, TT_POLY8);
+	if (!pGC->ops->PolyGlyphBlt)
+	    (*pGC->ops->PolyText8)(pDrawable, pGC, x, y, count, chars);
+    }
     else
 	x = (*pGC->ops->PolyText8)(pDrawable, pGC, x, y, count, chars);
     damageRegionProcessPending (pDrawable);
@@ -1571,9 +1581,13 @@ damagePolyText16(DrawablePtr	pDrawable,
     DAMAGE_GC_OP_PROLOGUE(pGC, pDrawable);
 
     if (checkGCDamage (pDrawable, pGC))
+    {
 	x = damageText (pDrawable, pGC, x, y, (unsigned long) count, (char *) chars,
 		    FONTLASTROW(pGC->font) == 0 ? Linear16Bit : TwoD16Bit,
 		    TT_POLY16);
+	if (!pGC->ops->PolyGlyphBlt)
+	    (*pGC->ops->PolyText16)(pDrawable, pGC, x, y, count, chars);
+    }
     else
 	x = (*pGC->ops->PolyText16)(pDrawable, pGC, x, y, count, chars);
     damageRegionProcessPending (pDrawable);
@@ -1592,8 +1606,12 @@ damageImageText8(DrawablePtr	pDrawable,
     DAMAGE_GC_OP_PROLOGUE(pGC, pDrawable);
 
     if (checkGCDamage (pDrawable, pGC))
+    {
 	damageText (pDrawable, pGC, x, y, (unsigned long) count, chars,
 		    Linear8Bit, TT_IMAGE8);
+	if (!pGC->ops->ImageGlyphBlt)
+	    (*pGC->ops->ImageText8)(pDrawable, pGC, x, y, count, chars);
+    }
     else
 	(*pGC->ops->ImageText8)(pDrawable, pGC, x, y, count, chars);
     damageRegionProcessPending (pDrawable);
@@ -1611,9 +1629,13 @@ damageImageText16(DrawablePtr	pDrawable,
     DAMAGE_GC_OP_PROLOGUE(pGC, pDrawable);
 
     if (checkGCDamage (pDrawable, pGC))
+    {
 	damageText (pDrawable, pGC, x, y, (unsigned long) count, (char *) chars,
 		    FONTLASTROW(pGC->font) == 0 ? Linear16Bit : TwoD16Bit,
 		    TT_IMAGE16);
+	if (!pGC->ops->ImageGlyphBlt)
+	    (*pGC->ops->ImageText16)(pDrawable, pGC, x, y, count, chars);
+    }
     else
 	(*pGC->ops->ImageText16)(pDrawable, pGC, x, y, count, chars);
     damageRegionProcessPending (pDrawable);
