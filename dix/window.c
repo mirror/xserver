@@ -2640,7 +2640,7 @@ EnableMapUnmapEvents(WindowPtr pWin)
     windowDisableMapUnmapEvents = NULL;
 }
 
-static Bool
+Bool
 MapUnmapEventsEnabled(WindowPtr pWin)
 {
     return pWin != windowDisableMapUnmapEvents;

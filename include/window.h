@@ -268,5 +268,7 @@ extern void DisableMapUnmapEvents(
     WindowPtr /* pWin */ );
 extern void EnableMapUnmapEvents(
     WindowPtr /* pWin */ );
+extern Bool MapUnmapEventsEnabled(
+    WindowPtr /* pWin */ );
 
 #endif /* WINDOW_H */
