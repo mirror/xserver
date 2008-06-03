@@ -47,6 +47,13 @@
 #include "compint.h"
 #include "xace.h"
 
+#ifdef PANORAMIX
+#include "panoramiX.h"
+extern unsigned long XRT_PIXMAP;
+extern unsigned long XRT_WINDOW;
+extern int           PanoramiXNumScreens;
+#endif
+
 #define SERVER_COMPOSITE_MAJOR	0
 #define SERVER_COMPOSITE_MINOR	4
 
@@ -144,6 +151,36 @@ ProcCompositeRedirectWindow (ClientPtr client)
     REQUEST(xCompositeRedirectWindowReq);
 
     REQUEST_SIZE_MATCH(xCompositeRedirectWindowReq);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int         result = 0, j;
+
+	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	    return BadWindow;
+
+	FOR_NSCREENS_FORWARD(j) {
+	    rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
+				    RT_WINDOW, client,
+				    DixSetAttrAccess | DixManageAccess |
+				    DixBlendAccess);
+	    if (rc != Success)
+	    {
+		client->errorValue = stuff->window;
+		return (rc == BadValue) ? BadWindow : rc;
+	    }
+
+	    result = compRedirectWindow (client, pWin, stuff->update);
+	    if(result != Success) break;
+	}
+
+	return (result);
+    }
+#endif
+
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixSetAttrAccess|DixManageAccess|DixBlendAccess);
     if (rc != Success)
@@ -162,6 +199,36 @@ ProcCompositeRedirectSubwindows (ClientPtr client)
     REQUEST(xCompositeRedirectSubwindowsReq);
 
     REQUEST_SIZE_MATCH(xCompositeRedirectSubwindowsReq);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int         result = 0, j;
+
+	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	    return BadWindow;
+
+	FOR_NSCREENS_FORWARD(j) {
+	    rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
+				    RT_WINDOW, client,
+				    DixSetAttrAccess | DixManageAccess |
+				    DixBlendAccess);
+	    if (rc != Success)
+	    {
+		client->errorValue = stuff->window;
+		return (rc == BadValue) ? BadWindow : rc;
+	    }
+
+	    result = compRedirectSubwindows (client, pWin, stuff->update);
+	    if(result != Success) break;
+	}
+
+	return (result);
+    }
+#endif
+
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixSetAttrAccess|DixManageAccess|DixBlendAccess);
     if (rc != Success)
@@ -179,6 +246,33 @@ ProcCompositeUnredirectWindow (ClientPtr client)
     REQUEST(xCompositeUnredirectWindowReq);
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectWindowReq);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int         result = 0, j;
+
+	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	    return BadWindow;
+
+	FOR_NSCREENS_FORWARD(j) {
+	    pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
+	    if (!pWin)
+	    {
+		client->errorValue = stuff->window;
+		return BadWindow;
+	    }
+
+	    result = compUnredirectWindow (client, pWin, stuff->update);
+	    if(result != Success) break;
+	}
+
+	return (result);
+    }
+#endif
+
     pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
     if (!pWin)
     {
@@ -195,6 +289,33 @@ ProcCompositeUnredirectSubwindows (ClientPtr client)
     REQUEST(xCompositeUnredirectSubwindowsReq);
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectSubwindowsReq);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int         result = 0, j;
+
+	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	    return BadWindow;
+
+	FOR_NSCREENS_FORWARD(j) {
+	    pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
+	    if (!pWin)
+	    {
+		client->errorValue = stuff->window;
+		return BadWindow;
+	    }
+
+	    result = compUnredirectSubwindows (client, pWin, stuff->update);
+	    if(result != Success) break;
+	}
+
+	return (result);
+    }
+#endif
+
     pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
     if (!pWin)
     {
@@ -250,6 +371,77 @@ ProcCompositeNameWindowPixmap (ClientPtr client)
     REQUEST(xCompositeNameWindowPixmapReq);
 
     REQUEST_SIZE_MATCH(xCompositeNameWindowPixmapReq);
+
+    #ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win, *newPix;
+	int i;
+
+	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	{
+	    client->errorValue = stuff->window;
+	    return BadWindow;
+	}
+
+	if(!(newPix = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
+	    return BadAlloc;
+
+	LEGAL_NEW_RESOURCE (stuff->pixmap, client);
+
+	newPix->type = XRT_PIXMAP;
+	newPix->u.pix.shared = FALSE;
+	newPix->info[0].id = stuff->pixmap;
+
+	for (i = 1; i < PanoramiXNumScreens; i++)
+	    newPix->info[i].id = FakeClientID (client->index);
+
+	FOR_NSCREENS(i) {
+	    rc = dixLookupResource ((pointer *) &pWin,
+				    win->info[i].id, RT_WINDOW, client,
+				    DixGetAttrAccess);
+	    if (rc != Success)
+	    {
+		client->errorValue = stuff->window;
+		xfree (newPix);
+		return (rc == BadValue) ? BadWindow : rc;
+	    }
+
+	    if (!pWin->viewable)
+	    {
+		xfree (newPix);
+		return BadMatch;
+	    }
+
+	    cw = GetCompWindow (pWin);
+	    if (!cw)
+	    {
+		xfree (newPix);
+		return BadMatch;
+	    }
+
+	    pPixmap = (*pWin->drawable.pScreen->GetWindowPixmap) (pWin);
+	    if (!pPixmap)
+	    {
+		xfree (newPix);
+		return BadMatch;
+	    }
+
+	    if (!AddResource (newPix->info[i].id, RT_PIXMAP,
+			      (pointer) pPixmap))
+		return BadAlloc;
+
+	    ++pPixmap->refcnt;
+	}
+
+	if (!AddResource (stuff->pixmap, XRT_PIXMAP, (pointer) newPix))
+	    return BadAlloc;
+
+	return (client->noClientException);
+    }
+#endif
+
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixGetAttrAccess);
     if (rc != Success)
@@ -566,13 +758,6 @@ CompositeExtensionInit (void)
 	if (GetPictureScreenIfSet(pScreen) == NULL)
 	    return;
     }
-#ifdef PANORAMIX
-    /* Xinerama's rewriting of window drawing before Composite gets to it
-     * breaks Composite.
-     */
-    if (!noPanoramiXExtension)
-	return;
-#endif
 
     CompositeClientWindowType = CreateNewResourceType (FreeCompositeClientWindow);
     if (!CompositeClientWindowType)
