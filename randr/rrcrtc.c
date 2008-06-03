@@ -24,6 +24,10 @@
 #include "swaprep.h"
 #include "registry.h"
 
+#ifdef PANORAMIX
+#include "panoramiXsrv.h"
+#endif
+
 RESTYPE	RRCrtcType;
 
 /*
@@ -795,13 +799,23 @@ ProcRRSetCrtcConfig (ClientPtr client)
 	{
 	    int source_width = mode->mode.width;
 	    int	source_height = mode->mode.height;
+	    int w = pScreen->width;
+	    int h = pScreen->height;
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		w = PanoramiXPixWidth;
+		h = PanoramiXPixHeight;
+	    }
+#endif
 
 	    if ((rotation & 0xf) == RR_Rotate_90 || (rotation & 0xf) == RR_Rotate_270)
 	    {
 		source_width = mode->mode.height;
 		source_height = mode->mode.width;
 	    }
-	    if (stuff->x + source_width > pScreen->width)
+	    if (stuff->x + source_width > w)
 	    {
 		client->errorValue = stuff->x;
 		if (outputs)
@@ -809,7 +823,7 @@ ProcRRSetCrtcConfig (ClientPtr client)
 		return BadValue;
 	    }
 	    
-	    if (stuff->y + source_height > pScreen->height)
+	    if (stuff->y + source_height > h)
 	    {
 		client->errorValue = stuff->y;
 		if (outputs)
