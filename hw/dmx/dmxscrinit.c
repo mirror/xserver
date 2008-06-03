@@ -1551,7 +1551,7 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 	/* Wrap Image functions */
 	DMX_WRAP(GetImage, dmxGetImage, dmxScreen, pScreen);
-	DMX_WRAP(GetSpans, dmxGetSpans, dmxScreen, pScreen);
+	DMX_WRAP(GetSpans, NULL, dmxScreen, pScreen);
 
 	/* Wrap Pixmap functions */
 	DMX_WRAP(CreatePixmap, dmxCreatePixmap, dmxScreen, pScreen);

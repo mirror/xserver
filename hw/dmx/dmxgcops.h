@@ -37,12 +37,6 @@
 #ifndef DMXGCOPS_H
 #define DMXGCOPS_H
 
-extern void dmxFillSpans(DrawablePtr pDrawable, GCPtr pGC,
-			 int nInit, DDXPointPtr pptInit, int *pwidthInit,
-			 int fSorted);
-extern void dmxSetSpans(DrawablePtr pDrawable, GCPtr pGC,
-			char *psrc, DDXPointPtr ppt, int *pwidth, int nspans,
-			int fSorted);
 extern void dmxPutImage(DrawablePtr pDrawable, GCPtr pGC,
 			int depth, int x, int y, int w, int h,
 			int leftPad, int format, char *pBits);
@@ -76,20 +70,9 @@ extern void dmxImageText8(DrawablePtr pDrawable, GCPtr pGC,
 			  int x, int y, int count, char *chars);
 extern void dmxImageText16(DrawablePtr pDrawable, GCPtr pGC,
 			   int x, int y, int count, unsigned short *chars);
-extern void dmxImageGlyphBlt(DrawablePtr pDrawable, GCPtr pGC,
-			     int x, int y, unsigned int nglyph,
-			     CharInfoPtr *ppci, pointer pglyphBase);
-extern void dmxPolyGlyphBlt(DrawablePtr pDrawable, GCPtr pGC,
-			    int x, int y, unsigned int nglyph,
-			    CharInfoPtr *ppci, pointer pglyphBase);
-extern void dmxPushPixels(GCPtr pGC, PixmapPtr pBitMap, DrawablePtr pDst,
-			  int w, int h, int x, int y);
 
 extern void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 			unsigned int format, unsigned long planeMask,
 			char *pdstLine);
-extern void dmxGetSpans(DrawablePtr pDrawable, int wMax,
-			DDXPointPtr ppt, int *pwidth, int nspans,
-			char *pdstStart);
 
 #endif /* DMXGCOPS_H */

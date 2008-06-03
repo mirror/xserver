@@ -72,22 +72,6 @@ do {									\
       (DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->offscreen ||		\
        !DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->window)))
 
-/** Fill spans -- this function should never be called. */
-void dmxFillSpans(DrawablePtr pDrawable, GCPtr pGC,
-		  int nInit, DDXPointPtr pptInit, int *pwidthInit,
-		  int fSorted)
-{
-    /* Error -- this should never happen! */
-}
-
-/** Set spans -- this function should never be called. */
-void dmxSetSpans(DrawablePtr pDrawable, GCPtr pGC,
-		 char *psrc, DDXPointPtr ppt, int *pwidth, int nspans,
-		 int fSorted)
-{
-    /* Error -- this should never happen! */
-}
-
 /** Transfer \a pBits image to back-end server associated with \a
  *  pDrawable's screen.  If primitive subdivision optimization is
  *  enabled, then only transfer the sections of \a pBits that are
@@ -165,6 +149,7 @@ void dmxPutImage(DrawablePtr pDrawable, GCPtr pGC,
 	dmxSync(dmxScreen, FALSE);
     } else {
 	/* Error -- this should not happen! */
+	FatalError ("XCreateImage failed\n");
     }
 }
 
@@ -515,29 +500,6 @@ void dmxImageText16(DrawablePtr pDrawable, GCPtr pGC,
     dmxSync(dmxScreen, FALSE);
 }
 
-/** Image Glyph Blt -- this function should never be called. */
-void dmxImageGlyphBlt(DrawablePtr pDrawable, GCPtr pGC,
-		      int x, int y, unsigned int nglyph,
-		      CharInfoPtr *ppci, pointer pglyphBase)
-{
-    /* Error -- this should never happen! */
-}
-
-/** Poly Glyph Blt -- this function should never be called. */
-void dmxPolyGlyphBlt(DrawablePtr pDrawable, GCPtr pGC,
-		     int x, int y, unsigned int nglyph,
-		     CharInfoPtr *ppci, pointer pglyphBase)
-{
-    /* Error -- this should never happen! */
-}
-
-/** Push Pixels -- this function should never be called. */
-void dmxPushPixels(GCPtr pGC, PixmapPtr pBitMap, DrawablePtr pDst,
-		   int w, int h, int x, int y)
-{
-    /* Error -- this should never happen! */
-}
-
 /**********************************************************************
  * Miscellaneous drawing commands
  */
@@ -626,12 +588,4 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
     }
 
     dmxSync(dmxScreen, FALSE);
-}
-
-/** Get Spans -- this function should never be called. */
-void dmxGetSpans(DrawablePtr pDrawable, int wMax,
-		 DDXPointPtr ppt, int *pwidth, int nspans,
-		 char *pdstStart)
-{
-    /* Error -- this should never happen! */
 }

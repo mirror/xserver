@@ -60,8 +60,8 @@ static GCFuncs dmxGCFuncs = {
 };
 
 static GCOps dmxGCOps = {
-    dmxFillSpans,
-    dmxSetSpans,
+    NULL, /* dmxFillSpans */
+    NULL, /* dmxSetSpans */
     dmxPutImage,
     dmxCopyArea,
     dmxCopyPlane,
@@ -77,9 +77,9 @@ static GCOps dmxGCOps = {
     dmxPolyText16,
     dmxImageText8,
     dmxImageText16,
-    dmxImageGlyphBlt,
-    dmxPolyGlyphBlt,
-    dmxPushPixels
+    NULL, /* dmxImageGlyphBlt */
+    NULL, /* dmxPolyGlyphBlt */
+    NULL, /* dmxPushPixels */
 };
 
 /** Initialize the GC on \a pScreen */
