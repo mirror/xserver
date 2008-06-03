@@ -1146,53 +1146,26 @@ dmxRRModeDestroy (ScreenPtr pScreen,
 }
 
 static void
-dmxRRCheckScreens (void)
+dmxRRCheckScreen (ScreenPtr pScreen)
 {
-    int	i;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    for (i = 0; i < dmxNumScreens; i++)
+    if (dmxScreen->beDisplay && dmxScreen->beRandr)
     {
-	DMXScreenInfo *dmxScreen = &dmxScreens[i];
+	XEvent event;
 
-	if (dmxScreen->beDisplay && dmxScreen->beRandr)
-	{
-	    XEvent event;
-
-	    XLIB_PROLOGUE (dmxScreen);
-	    while (XCheckTypedEvent (dmxScreen->beDisplay,
-				     dmxScreen->beRandrEventBase +
-				     RRScreenChangeNotify,
-				     &event))
-	    {
-		dmxScreen->beRandrPending = TRUE;
-		RRTellChanged (screenInfo.screens[0]);
-	    }
-	    while (XCheckTypedEvent (dmxScreen->beDisplay,
-				     dmxScreen->beRandrEventBase + RRNotify,
-				     &event))
-	    {
-		dmxScreen->beRandrPending = TRUE;
-		RRTellChanged (screenInfo.screens[0]);
-	    }
-	    XLIB_EPILOGUE (dmxScreen);
-	}
+	XLIB_PROLOGUE (dmxScreen);
+	while (XCheckTypedEvent (dmxScreen->beDisplay,
+				 dmxScreen->beRandrEventBase +
+				 RRScreenChangeNotify,
+				 &event))
+	    RRTellChanged (screenInfo.screens[0]);
+	while (XCheckTypedEvent (dmxScreen->beDisplay,
+				 dmxScreen->beRandrEventBase + RRNotify,
+				 &event))
+	    RRTellChanged (screenInfo.screens[0]);
+	XLIB_EPILOGUE (dmxScreen);
     }
-}
-
-static void
-dmxRRBlockHandler (pointer   blockData,
-		   OSTimePtr pTimeout,
-		   pointer   pReadMask)
-{
-    dmxRRCheckScreens ();
-}
-
-static void
-dmxRRWakeupHandler (pointer blockData,
-		    int     result,
-		    pointer pReadMask)
-{
-    dmxRRCheckScreens ();
 }
 
 static Bool
@@ -1284,10 +1257,6 @@ dmxRRInit (ScreenPtr pScreen)
 		return FALSE;
 	}
     }
-
-    RegisterBlockAndWakeupHandlers (dmxRRBlockHandler,
-				    dmxRRWakeupHandler,
-				    NULL);
 
     return TRUE;
 }
@@ -1482,6 +1451,103 @@ dmxSetWindowPixmap (WindowPtr pWin, PixmapPtr pPixmap)
     DMX_WRAP(SetWindowPixmap, dmxSetWindowPixmap, dmxScreen, pScreen);
 }
 
+static void
+dmxScreenExpose (ScreenPtr pScreen)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxScreen->beDisplay)
+    {
+	WindowPtr pChild0, pChildN;
+	XEvent    X;
+
+	for (;;)
+	{
+	    Bool status = FALSE;
+
+	    XLIB_PROLOGUE (dmxScreen);
+
+	    status = XCheckTypedEvent (dmxScreen->beDisplay, Expose, &X);
+
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    if (!status)
+		break;
+
+	    pChild0 = WindowTable[0];
+	    pChildN = WindowTable[pScreen->myNum];
+
+	    for (;;)
+	    {
+		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChildN);
+
+		if (pWinPriv->window == X.xexpose.window)
+		    break;
+
+		if (pChild0->firstChild)
+		{
+		    pChild0 = pChild0->firstChild;
+		    pChildN = pChildN->firstChild;
+		    continue;
+		}
+
+		while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
+		{
+		    pChild0 = pChild0->parent;
+		    pChildN = pChildN->parent;
+		}
+
+		if (pChild0 == WindowTable[0])
+		    break;
+
+		pChild0 = pChild0->nextSib;
+		pChildN = pChildN->nextSib;
+	    }
+
+	    if (pChild0)
+	    {
+		RegionRec region;
+		BoxRec    box;
+
+		box.x1 = pChild0->drawable.x + X.xexpose.x;
+		box.y1 = pChild0->drawable.y + X.xexpose.y;
+		box.x2 = box.x1 + X.xexpose.width;
+		box.y2 = box.y1 + X.xexpose.height;
+
+		ErrorF ("EXPOSE: %d %d %dx%d\n", box.x1, box.y1,
+			X.xexpose.width, X.xexpose.height);
+
+		REGION_INIT (screenInfo.screens[0], &region, &box, 1);
+		(*pScreen->WindowExposures) (pChild0, &region, NullRegion);
+		REGION_UNINIT (screenInfo.screens[0], &region);
+	    }
+	}
+    }
+}
+
+static void
+dmxScreenBlockHandler (pointer   blockData,
+		       OSTimePtr pTimeout,
+		       pointer   pReadMask)
+{
+    ScreenPtr pScreen = (ScreenPtr) blockData;
+
+    dmxScreenExpose (pScreen);
+}
+
+static void
+dmxScreenWakeupHandler (pointer blockData,
+			int     result,
+			pointer pReadMask)
+{
+    ScreenPtr pScreen = (ScreenPtr) blockData;
+
+#ifdef RANDR
+    dmxRRCheckScreen (pScreen);
+#endif
+
+}
+
 /** Initialize screen number \a idx. */
 Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 {
@@ -1642,7 +1708,6 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 	DMX_WRAP(RealizeWindow, dmxRealizeWindow, dmxScreen, pScreen);
 	DMX_WRAP(UnrealizeWindow, dmxUnrealizeWindow, dmxScreen, pScreen);
 	DMX_WRAP(RestackWindow, dmxRestackWindow, dmxScreen, pScreen);
-	DMX_WRAP(WindowExposures, dmxWindowExposures, dmxScreen, pScreen);
 	DMX_WRAP(CopyWindow, dmxCopyWindow, dmxScreen, pScreen);
 
 	DMX_WRAP(ResizeWindow, dmxResizeWindow, dmxScreen, pScreen);
@@ -1677,6 +1742,10 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
     if (!dmxCreateDefColormap(pScreen))
 	return FALSE;
+
+    RegisterBlockAndWakeupHandlers (dmxScreenBlockHandler,
+				    dmxScreenWakeupHandler,
+				    pScreen);
 
     return TRUE;
 }
@@ -1790,7 +1859,6 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	DMX_UNWRAP(RealizeWindow, dmxScreen, pScreen);
 	DMX_UNWRAP(UnrealizeWindow, dmxScreen, pScreen);
 	DMX_UNWRAP(RestackWindow, dmxScreen, pScreen);
-	DMX_UNWRAP(WindowExposures, dmxScreen, pScreen);
 	DMX_UNWRAP(CopyWindow, dmxScreen, pScreen);
 
 	DMX_UNWRAP(ResizeWindow, dmxScreen, pScreen);
