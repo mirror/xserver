@@ -83,6 +83,11 @@ typedef enum {
     PosRelative
 } PositionType;
 
+typedef struct _DMXIgnore {
+    struct _DMXIgnore *next;
+    unsigned long     sequence;
+} DMXIgnore;
+
 /** Provide the typedef globally, but keep the contents opaque outside
  * of the input routines.  \see dmxinput.h */
 typedef struct _DMXInputInfo DMXInputInfo;
@@ -194,6 +199,9 @@ typedef struct _DMXScreenInfo {
 
     DMXStatInfo  *stat;             /**< Statistics about XSync  */
     Bool          needsSync;        /**< True if an XSync is pending  */
+
+    DMXIgnore     *ignoreHead;
+    DMXIgnore     **ignoreTail;
 
 #ifdef GLXEXT
                                   /** Visual information for glxProxy */
