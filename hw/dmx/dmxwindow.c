@@ -80,6 +80,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     XSetWindowAttributes  attribs;
     ColormapPtr           pCmap;
     dmxColormapPrivPtr    pCmapPriv;
+    Window                win = None;
 
     /* Create root window */
 
@@ -90,7 +91,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     pCmapPriv = DMX_GET_COLORMAP_PRIV(pCmap);
 
     mask = CWEventMask | CWBackingStore | CWColormap | CWBorderPixel;
-    attribs.event_mask    = ExposureMask;
+    attribs.event_mask    = ExposureMask | FocusChangeMask;
     attribs.backing_store = NotUseful;
     attribs.colormap      = pCmapPriv->cmap;
     attribs.border_pixel  = 0;
@@ -101,18 +102,22 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
 	mask |= pWinPriv->attribMask;
     }
 
-    return XCreateWindow(dmxScreen->beDisplay,
-			 parent,
-			 pWindow->origin.x - wBorderWidth(pWindow),
-			 pWindow->origin.y - wBorderWidth(pWindow),
-			 pWindow->drawable.width,
-			 pWindow->drawable.height,
-			 pWindow->borderWidth,
-			 pWindow->drawable.depth,
-			 pWindow->drawable.class,
-			 visual,
-			 mask,
-			 &attribs);
+    XLIB_PROLOGUE (dmxScreen);
+    win = XCreateWindow(dmxScreen->beDisplay,
+			parent,
+			pWindow->origin.x - wBorderWidth(pWindow),
+			pWindow->origin.y - wBorderWidth(pWindow),
+			pWindow->drawable.width,
+			pWindow->drawable.height,
+			pWindow->borderWidth,
+			pWindow->drawable.depth,
+			pWindow->drawable.class,
+			visual,
+			mask,
+			&attribs);
+    XLIB_EPILOGUE (dmxScreen);
+
+    return win;
 }
 
 /** Change the location and size of the "screen" window.  Called from
@@ -134,7 +139,9 @@ void dmxResizeScreenWindow(ScreenPtr pScreen,
     c.width = w;
     c.height = h;
 
+    XLIB_PROLOGUE (dmxScreen);
     XConfigureWindow(dmxScreen->beDisplay, dmxScreen->scrnWin, m, &c);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, False);
 }
 
@@ -156,18 +163,28 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	c.width = (w > 0) ? w : 1;
 	c.height = (h > 0) ? h : 1;
 
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
     }
 
     if (w == 0 || h == 0) {
 	if (pWinPriv->mapped) {
 	    if (dmxScreen->beDisplay)
+	    {
+		XLIB_PROLOGUE (dmxScreen);
 		XUnmapWindow(dmxScreen->beDisplay, pWinPriv->window);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
 	    pWinPriv->mapped = FALSE;
 	}
     } else if (!pWinPriv->mapped) {
 	if (dmxScreen->beDisplay)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
 	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
 	pWinPriv->mapped = TRUE;
     }
 
@@ -215,6 +232,7 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     unsigned long         mask = 0L;
     XSetWindowAttributes  attribs;
     dmxWinPrivPtr         pParentPriv = DMX_GET_WINDOW_PRIV(pWindow->parent);
+    Window                win = None;
 
     /* Create window on back-end server */
 
@@ -227,6 +245,9 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
 	dmxCreateAndRealizeWindow(pWindow->parent, FALSE);
 	parent = pParentPriv->window;
     }
+
+    mask |= CWEventMask;
+    attribs.event_mask = FocusChangeMask;
 
     /* Incorporate new attributes, if needed */
     if (pWinPriv->attribMask) {
@@ -254,18 +275,22 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
        be created on top of the stack, so we must restack the windows */
     pWinPriv->restacked = (pWindow->prevSib != NullWindow);
 
-    return XCreateWindow(dmxScreen->beDisplay,
-			 parent,
-			 pWindow->origin.x - wBorderWidth(pWindow),
-			 pWindow->origin.y - wBorderWidth(pWindow),
-			 pWindow->drawable.width,
-			 pWindow->drawable.height,
-			 pWindow->borderWidth,
-			 pWindow->drawable.depth,
-			 pWindow->drawable.class,
-			 pWinPriv->visual,
-			 mask,
-			 &attribs);
+    XLIB_PROLOGUE (dmxScreen);
+    win = XCreateWindow(dmxScreen->beDisplay,
+			parent,
+			pWindow->origin.x - wBorderWidth(pWindow),
+			pWindow->origin.y - wBorderWidth(pWindow),
+			pWindow->drawable.width,
+			pWindow->drawable.height,
+			pWindow->borderWidth,
+			pWindow->drawable.depth,
+			pWindow->drawable.class,
+			pWinPriv->visual,
+			mask,
+			&attribs);
+    XLIB_EPILOGUE (dmxScreen);
+
+    return win;
 }
 
 /** This function handles lazy window creation and realization.  Window
@@ -291,8 +316,12 @@ void dmxCreateAndRealizeWindow(WindowPtr pWindow, Bool doSync)
 #ifdef RENDER
     if (pWinPriv->hasPict) dmxCreatePictureList(pWindow);
 #endif
-    if (pWinPriv->mapped) XMapWindow(dmxScreen->beDisplay,
-				      pWinPriv->window);
+    if (pWinPriv->mapped && MapUnmapEventsEnabled (pWindow))
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	XLIB_EPILOGUE (dmxScreen);
+    }
     if (doSync) dmxSync(dmxScreen, False);
 }
 
@@ -318,6 +347,7 @@ Bool dmxCreateWindow(WindowPtr pWindow)
     pWinPriv->offscreen  = TRUE;
     pWinPriv->mapped     = FALSE;
     pWinPriv->restacked  = FALSE;
+    pWinPriv->redirected = FALSE;
     pWinPriv->attribMask = 0;
     pWinPriv->isShaped   = FALSE;
 #ifdef RENDER
@@ -383,7 +413,9 @@ Bool dmxBEDestroyWindow(WindowPtr pWindow)
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     if (pWinPriv->window) {
+	XLIB_PROLOGUE (dmxScreen);
 	XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
+	XLIB_EPILOGUE (dmxScreen);
 	pWinPriv->window = (Window)0;
 	return TRUE;
     }
@@ -464,7 +496,9 @@ Bool dmxPositionWindow(WindowPtr pWindow, int x, int y)
 	    c.border_width = pWindow->borderWidth;
 	}
 
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -585,8 +619,10 @@ Bool dmxChangeWindowAttributes(WindowPtr pWindow, unsigned long mask)
     pWinPriv->attribMask |= mask;
 
     if (mask && pWinPriv->window) {
+	XLIB_PROLOGUE (dmxScreen);
 	XChangeWindowAttributes(dmxScreen->beDisplay, pWinPriv->window,
 				mask, &attribs);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -624,8 +660,43 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
 
     if (pWinPriv->window) {
 	/* Realize window on back-end server */
+
+	XLIB_PROLOGUE (dmxScreen);
 	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
+
+	if (pWinPriv->redirected)
+	{
+	    PixmapPtr pPixmap;
+
+	    pPixmap = (*pScreen->GetWindowPixmap) (pWindow);
+	    if (pPixmap)
+	    {
+		dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+
+		XLIB_PROLOGUE (dmxScreen);
+		XCompositeRedirectWindow (dmxScreen->beDisplay,
+					  pWinPriv->window,
+					  CompositeRedirectManual);
+		XLIB_EPILOGUE (dmxScreen);
+
+		if (pPixPriv->pixmap)
+		{
+		    XLIB_PROLOGUE (dmxScreen);
+		    XFreePixmap (dmxScreen->beDisplay, pPixPriv->pixmap);
+		    XLIB_EPILOGUE (dmxScreen);
+
+		    pPixPriv->pixmap = None;
+		}
+
+		XLIB_PROLOGUE (dmxScreen);
+		pPixPriv->pixmap =
+		    XCompositeNameWindowPixmap (dmxScreen->beDisplay,
+						pWinPriv->window);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
+	}
     }
 
     /* Let the other functions know that the window is now mapped */
@@ -653,7 +724,9 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
 
     if (pWinPriv->window) {
 	/* Unrealize window on back-end server */
+	XLIB_PROLOGUE (dmxScreen);
 	XUnmapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -687,7 +760,9 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 	m = CWStackMode;
 	c.sibling = (Window)0;
 	c.stack_mode = Below;
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
     } else {
 	/* Window is not at the bottom of the stack */
 	dmxWinPrivPtr  pNextSibPriv = DMX_GET_WINDOW_PRIV(pNextSib);
@@ -706,7 +781,9 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 		m = CWStackMode;
 		c.sibling = (Window)0;
 		c.stack_mode = Below;
+		XLIB_PROLOGUE (dmxScreen);
 		XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+		XLIB_EPILOGUE (dmxScreen);
 		return;
 	    }
 	    pNextSibPriv = DMX_GET_WINDOW_PRIV(pNextSib);
@@ -715,7 +792,9 @@ static void dmxDoRestackWindow(WindowPtr pWindow)
 	m = CWStackMode | CWSibling;
 	c.sibling = pNextSibPriv->window;
 	c.stack_mode = Above;
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
     }
 }
 
@@ -768,7 +847,9 @@ void dmxWindowExposures(WindowPtr pWindow, RegionPtr prgn,
 
     dmxSync(dmxScreen, False);
 
-    if (pWinPriv->window) {
+    if (pWinPriv->window && dmxScreen->beDisplay) {
+
+	XLIB_PROLOGUE (dmxScreen);
 	while (XCheckIfEvent(dmxScreen->beDisplay, &ev,
 			     dmxWindowExposurePredicate,
 			     (XPointer)&pWinPriv->window)) {
@@ -780,6 +861,7 @@ void dmxWindowExposures(WindowPtr pWindow, RegionPtr prgn,
 	       collect these events and send them to the client later
 	       (e.g., during the block handler as Xnest does). */
 	}
+	XLIB_EPILOGUE (dmxScreen);
     }
 
 #if 1
@@ -822,7 +904,9 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 	c.width = pWindow->drawable.width;
 	c.height = pWindow->drawable.height;
 
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -868,7 +952,9 @@ void dmxResizeWindow(WindowPtr pWindow, int x, int y,
 	c.width = pWindow->drawable.width;
 	c.height = pWindow->drawable.height;
 
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -896,10 +982,12 @@ void dmxReparentWindow(WindowPtr pWindow, WindowPtr pPriorParent)
 	}
 
 	/* Handle reparenting on back-end server */
+	XLIB_PROLOGUE (dmxScreen);
 	XReparentWindow(dmxScreen->beDisplay, pWinPriv->window,
 			pParentPriv->window,
 			pWindow->origin.x - wBorderWidth(pWindow),
 			pWindow->origin.x - wBorderWidth(pWindow));
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -929,7 +1017,9 @@ void dmxChangeBorderWidth(WindowPtr pWindow, unsigned int width)
 	m = CWBorderWidth;
 	c.border_width = width;
 
+	XLIB_PROLOGUE (dmxScreen);
 	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
     }
 
@@ -960,14 +1050,18 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	    pBox++;
 	    pRect++;
 	}
+	XLIB_PROLOGUE (dmxScreen);
 	XShapeCombineRectangles(dmxScreen->beDisplay, pWinPriv->window,
 				ShapeBounding, 0, 0,
 				pRectFirst, nRect,
 				ShapeSet, YXBanded);
+	XLIB_EPILOGUE (dmxScreen);
 	xfree(pRectFirst);
     } else {
+	XLIB_PROLOGUE (dmxScreen);
 	XShapeCombineMask(dmxScreen->beDisplay, pWinPriv->window,
 			  ShapeBounding, 0, 0, None, ShapeSet);
+	XLIB_EPILOGUE (dmxScreen);
     }
 
     /* Next, set the clip shape */
@@ -983,20 +1077,26 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	    pBox++;
 	    pRect++;
 	}
+	XLIB_PROLOGUE (dmxScreen);
 	XShapeCombineRectangles(dmxScreen->beDisplay, pWinPriv->window,
 				ShapeClip, 0, 0,
 				pRectFirst, nRect,
 				ShapeSet, YXBanded);
+	XLIB_EPILOGUE (dmxScreen);
 	xfree(pRectFirst);
     } else {
+	XLIB_PROLOGUE (dmxScreen);
 	XShapeCombineMask(dmxScreen->beDisplay, pWinPriv->window,
 			  ShapeClip, 0, 0, None, ShapeSet);
+	XLIB_EPILOGUE (dmxScreen);
     }
 
+    XLIB_PROLOGUE (dmxScreen);
     if (XShapeInputSelected(dmxScreen->beDisplay, pWinPriv->window)) {
 	ErrorF("Input selected for window %x on Screen %d\n",
 	       (unsigned int)pWinPriv->window, pScreen->myNum);
     }
+    XLIB_EPILOGUE (dmxScreen);
 }
 
 /** Set shape of \a pWindow on the back-end server. */

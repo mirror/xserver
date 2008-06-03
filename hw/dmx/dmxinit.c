@@ -53,15 +53,18 @@
 #include "dmxcb.h"
 #include "dmxprop.h"
 #include "dmxstat.h"
+#include "dmxlaunch.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
+#include "dmxextension.h"
 
 #include <X11/Xos.h>                /* For gettimeofday */
 #include "dixstruct.h"
 #include "panoramiXsrv.h"
 
 #include <signal.h>             /* For SIGQUIT */
+#include <execinfo.h>
 
 #ifdef GLXEXT
 #include <GL/glx.h>
@@ -81,7 +84,7 @@ extern void GlxSetVisualConfigs(
 int             dmxNumScreens;
 DMXScreenInfo  *dmxScreens;
 
-int             dmxNumInputs;
+int             dmxNumInputs = 0;
 DMXInputInfo   *dmxInputs;
 
 int             dmxShadowFB = FALSE;
@@ -116,6 +119,34 @@ Bool            dmxGLXFinishSwap = FALSE;
 Bool            dmxIgnoreBadFontPaths = FALSE;
 
 Bool            dmxAddRemoveScreens = FALSE;
+
+int             dmxLaunchIndex = 0;
+
+#ifdef DMXVNC
+Bool            dmxVnc = TRUE;
+#endif
+
+#include <execinfo.h>
+
+static void
+dmxSigHandler (int signo)
+{
+    void   *array[64];
+    size_t size, i;
+    char   **strings;
+
+    ErrorF ("\nBacktrace:\n");
+
+    size    = backtrace (array, 64);
+    strings = backtrace_symbols (array, size);
+
+    for (i = 0; i < size; i++)
+	ErrorF ("%d: %s\n", i, strings[i]);
+
+    free (strings);
+
+    FatalError ("Caught signal %d.  Server aborting\n", signo);
+}
 
 /* dmxErrorHandler catches errors that occur when calling one of the
  * back-end servers.  Some of this code is based on _XPrintDefaultError
@@ -180,6 +211,30 @@ static int dmxErrorHandler(Display *dpy, XErrorEvent *ev)
            ev->serial);
     dmxLog(dmxWarning, "                 Current serial number: %d\n",
            dpy->request);
+
+//    abort ();
+
+    return 0;
+}
+
+int     _dmx_jumpbuf_set = 0;
+int     _dmx_io_error = 0;
+jmp_buf _dmx_jumpbuf;
+
+static int dmxIOErrorHandler (Display *dpy)
+{
+    _dmx_io_error++;
+
+    if (!_dmx_jumpbuf_set)
+    {
+	ErrorF ("_dmx_jumpbuf not set\n");
+	abort ();
+    }
+    else
+    {
+	longjmp (_dmx_jumpbuf, 1);
+    }
+
     return 0;
 }
 
@@ -192,8 +247,18 @@ static int dmxNOPErrorHandler(Display *dpy, XErrorEvent *ev)
 
 Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 {
+    dmxScreen->beDisplay = NULL;
+
+    if (!dmxScreen->name || !*dmxScreen->name)
+	return FALSE;
+
     if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->name)))
 	return FALSE;
+
+    /* XSynchronize (dmxScreen->beDisplay, TRUE); */
+
+    dmxScreen->alive = 1;
+    dmxScreen->fd = XConnectionNumber (dmxScreen->beDisplay);
 
     dmxPropertyDisplay(dmxScreen);
     return TRUE;
@@ -202,6 +267,7 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 void dmxSetErrorHandler(DMXScreenInfo *dmxScreen)
 {
     XSetErrorHandler(dmxErrorHandler);
+    XSetIOErrorHandler(dmxIOErrorHandler);
 }
 
 static void dmxPrintScreenInfo(DMXScreenInfo *dmxScreen)
@@ -325,8 +391,8 @@ void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen)
         dmxScreen->rootHeight = dmxScreen->scrnHeight - dmxScreen->rootY;
 
     /* FIXME: Get these from the back-end server */
-    dmxScreen->beXDPI = 75;
-    dmxScreen->beYDPI = 75;
+    dmxScreen->beXDPI = 96;
+    dmxScreen->beYDPI = 96;
 
     dmxScreen->beDepth  = attribs.depth; /* FIXME: verify that this
 					  * works always.  In
@@ -487,22 +553,54 @@ void dmxCheckForWM(DMXScreenInfo *dmxScreen)
 
 /** Initialize the display and collect relevant information about the
  *  display properties */
-static void dmxDisplayInit(DMXScreenInfo *dmxScreen)
+static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 {
     if (!dmxOpenDisplay(dmxScreen))
-	dmxLog(dmxFatal,
-               "dmxOpenDisplay: Unable to open display %s\n",
-               dmxScreen->name);
+    {
+	if (dmxScreen->name)
+	    dmxLog(dmxWarning,
+		   "dmxOpenDisplay: Unable to open display %s\n",
+		   dmxScreen->name);
 
-    dmxSetErrorHandler(dmxScreen);
-    dmxCheckForWM(dmxScreen);
-    dmxGetScreenAttribs(dmxScreen);
+	dmxScreen->scrnWidth  = 1;
+	dmxScreen->scrnHeight = 1;
+	dmxScreen->scrnX      = 0;
+	dmxScreen->scrnY      = 0;
+	dmxScreen->beWidth    = 1;
+	dmxScreen->beHeight   = 1;
+	dmxScreen->beXDPI     = 96;
+	dmxScreen->beYDPI     = 96;
+	dmxScreen->beDepth    = 24;
+	dmxScreen->beBPP      = 32;
 
-    if (!dmxGetVisualInfo(dmxScreen))
-	dmxLog(dmxFatal, "dmxGetVisualInfo: No matching visuals found\n");
+	return FALSE;
+    }
+    else
+    {
+	dmxSetErrorHandler(dmxScreen);
+	dmxCheckForWM(dmxScreen);
+	dmxGetScreenAttribs(dmxScreen);
 
-    dmxGetColormaps(dmxScreen);
-    dmxGetPixmapFormats(dmxScreen);
+	if (!dmxGetVisualInfo(dmxScreen))
+	{
+	    dmxLog(dmxWarning,
+		   "dmxGetVisualInfo: No matching visuals found\n");
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    XCloseDisplay(dmxScreen->beDisplay);
+	    XLIB_EPILOGUE (dmxScreen);
+	    dmxScreen->beDisplay = NULL;
+
+	    return FALSE;
+	}
+	else
+	{
+	    dmxGetColormaps(dmxScreen);
+	    dmxGetPixmapFormats(dmxScreen);
+	}
+    }
+
+    return TRUE;
 }
 
 /* If this doesn't compile, just add || defined(yoursystem) to the line
@@ -633,6 +731,15 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 	       "Dynamic screen addition/removal error (see above).\n");
     }
 
+    if (!dmxConfigDisplaysFromCommandLine ())
+    {
+        char *displayName;
+
+        displayName = dmxLaunchDisplay (argc, argv, dmxLaunchIndex);
+        if (displayName)
+            dmxConfigStoreDisplay (displayName);
+    }
+
     /* ddxProcessArgument has been called at this point, but any data
      * from the configuration file has not been applied.  Do so, and be
      * sure we have at least one back-end display. */
@@ -656,7 +763,10 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 
     /* Open each display and gather information about it. */
     for (i = 0; i < dmxNumScreens; i++)
-        dmxDisplayInit(&dmxScreens[i]);
+	if (!dmxDisplayInit(&dmxScreens[i]) && i == 0)
+	    dmxLog(dmxFatal,
+		   "dmxOpenDisplay: Unable to open display %s\n",
+		   dmxScreens[i].name);
 
 #if PANORAMIX
     /* Register a Xinerama callback which will run from within
@@ -682,7 +792,11 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
      * same as the behavior of SIGINT.  However, leaving the modifier
      * map of the input devices empty is even more unexpected.) --RF
      */
-    OsSignal(SIGQUIT, GiveUp);
+    OsSignal (SIGQUIT, GiveUp);
+    OsSignal (SIGSEGV, dmxSigHandler);
+    OsSignal (SIGILL,  dmxSigHandler);
+    OsSignal (SIGFPE,  dmxSigHandler);
+    OsSignal (SIGABRT, dmxSigHandler);
 
 #ifdef GLXEXT
     /* Check if GLX extension exists on all back-end servers */
@@ -874,6 +988,9 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     if (!strcmp(argv[i], "-display")) {
 	if (++i < argc) dmxConfigStoreDisplay(argv[i]);
         retval = 2;
+    } else if (!strcmp(argv[i], "-numDetached")) {
+	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);
+        retval = 2;
     } else if (!strcmp(argv[i], "-inputfrom") || !strcmp(argv[i], "-input")) {
 	if (++i < argc) dmxConfigStoreInput(argv[i]);
         retval = 2;
@@ -945,6 +1062,11 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-addremovescreens")) {
 	dmxAddRemoveScreens = TRUE;
         retval = 1;
+#ifdef DMXVNC
+    } else if (!strcmp(argv[i], "-novnc")) {
+	dmxVnc = FALSE;
+        retval = 1;
+#endif
     } else if (!strcmp(argv[i], "-param")) {
         if ((i += 2) < argc) {
             if (!strcasecmp(argv[i-1], "xkbrules"))
@@ -964,6 +1086,11 @@ int ddxProcessArgument(int argc, char *argv[], int i)
         }
         retval = 3;
     }
+    else if (!strcmp(argv[i], "--")) {
+        dmxLaunchIndex = i + 1;
+        retval = argc - i;
+    }
+
     if (!serverGeneration) dmxConfigSetMaxScreens();
     return retval;
 }
@@ -973,6 +1100,7 @@ void ddxUseMsg(void)
 {
     ErrorF("\n\nDevice Dependent Usage:\n");
     ErrorF("-display string      Specify the back-end display(s)\n");
+    ErrorF("-numDetached num     Specify detached back-end display(s)\n");
     ErrorF("-input string        Specify input source for core device\n");
     ErrorF("-xinput string       Specify input source for XInput device\n");
     ErrorF("-shadowfb            Enable shadow frame buffer\n");
@@ -999,6 +1127,9 @@ void ddxUseMsg(void)
 #endif
     ErrorF("-ignorebadfontpaths  Ignore bad font paths during initialization\n");
     ErrorF("-addremovescreens    Enable dynamic screen addition/removal\n");
+#ifdef DMXVNC
+    ErrorF("-novnc               Disable VNC\n");
+#endif
     ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
     ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");
     ErrorF("\n");
@@ -1029,5 +1160,7 @@ void ddxUseMsg(void)
     ErrorF("        Ctrl-Alt-g    Server grab/ungrab (console only)\n");
     ErrorF("        Ctrl-Alt-f    Fine (1-pixel) mouse mode (console only)\n");
     ErrorF("        Ctrl-Alt-q    Quit (core devices only)\n");
-    ErrorF("        Ctrl-Alt-F*   Switch to VC (local only)\n");
+    ErrorF("        Ctrl-Alt-F*   Switch to VC (local only)\n\n");
+
+    ErrorF("--  [ server ] [ display ] [ options ]\n");
 }

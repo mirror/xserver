@@ -63,6 +63,7 @@ static void _dmxDPMSInit(DMXScreenInfo *dmxScreen)
     CARD16     level, standby, suspend, off;
     BOOL       state;
     const char *monitor;
+    int        status = 1;
 
     if (dpmsGeneration != serverGeneration) {
         dpmsSupported  = TRUE;  /* On unless a backend doesn't support it */
@@ -74,37 +75,46 @@ static void _dmxDPMSInit(DMXScreenInfo *dmxScreen)
 #endif
 
     dmxScreen->dpmsCapable = 0;
+
+    dpmsSupported = FALSE;
     
     if (!dmxScreen->beDisplay) {
         dmxLogOutput(dmxScreen,
 		     "Cannot determine if DPMS supported (detached screen)\n");
-        dpmsSupported = FALSE;
         return;
     }
 
-    if (!DPMSQueryExtension(dmxScreen->beDisplay,
-                            &event_base, &error_base)) {
-        dmxLogOutput(dmxScreen, "DPMS not supported\n");
-        dpmsSupported = FALSE;
-        return;
-    }
-    if (!DPMSGetVersion(dmxScreen->beDisplay, &major, &minor)) {
-        dmxLogOutput(dmxScreen, "DPMS not supported\n");
-        dpmsSupported = FALSE;
-        return;
-    }
-    if (!DPMSCapable(dmxScreen->beDisplay)) {
-        dmxLogOutput(dmxScreen, "DPMS %d.%d (not DPMS capable)\n",
-                     major, minor);
-        dpmsSupported = FALSE;
-        return;
+    XLIB_PROLOGUE (dmxScreen);
+
+    if (!(status = DPMSQueryExtension(dmxScreen->beDisplay,
+				      &event_base, &error_base)))
+	dmxLogOutput(dmxScreen, "DPMS not supported\n");
+
+    if (status)
+	if (!(status = DPMSGetVersion(dmxScreen->beDisplay, &major, &minor)))
+	    dmxLogOutput(dmxScreen, "DPMS not supported\n");
+
+    if (status)
+	if (!(status = DPMSCapable(dmxScreen->beDisplay)))
+	    dmxLogOutput(dmxScreen, "DPMS %d.%d (not DPMS capable)\n",
+			 major, minor);
+
+    if (status)
+    {
+	DPMSInfo(dmxScreen->beDisplay, &level, &state);
+	DPMSGetTimeouts(dmxScreen->beDisplay, &standby, &suspend, &off);
+	DPMSSetTimeouts(dmxScreen->beDisplay, 0, 0, 0);
+	DPMSEnable(dmxScreen->beDisplay);
+	DPMSForceLevel(dmxScreen->beDisplay, DPMSModeOn);
+
+	dpmsSupported = TRUE;
     }
 
-    DPMSInfo(dmxScreen->beDisplay, &level, &state);
-    DPMSGetTimeouts(dmxScreen->beDisplay, &standby, &suspend, &off);
-    DPMSSetTimeouts(dmxScreen->beDisplay, 0, 0, 0);
-    DPMSEnable(dmxScreen->beDisplay);
-    DPMSForceLevel(dmxScreen->beDisplay, DPMSModeOn);
+    XLIB_EPILOGUE (dmxScreen);
+
+    if (!dpmsSupported)
+	return;
+
     dmxScreen->dpmsCapable = 1;
     dmxScreen->dpmsEnabled = !!state;
     dmxScreen->dpmsStandby = standby;
@@ -138,11 +148,13 @@ void dmxDPMSInit(DMXScreenInfo *dmxScreen)
 	return;
 
                                 /* Turn off screen saver */
+    XLIB_PROLOGUE (dmxScreen);
     XGetScreenSaver(dmxScreen->beDisplay, &dmxScreen->savedTimeout, &interval,
 		    &preferBlanking, &allowExposures);
     XSetScreenSaver(dmxScreen->beDisplay, 0, interval,
 		    preferBlanking, allowExposures);
     XResetScreenSaver(dmxScreen->beDisplay);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -155,6 +167,7 @@ void dmxDPMSTerm(DMXScreenInfo *dmxScreen)
     if (!dmxScreen->beDisplay)
 	return;
 
+    XLIB_PROLOGUE (dmxScreen);
     XGetScreenSaver(dmxScreen->beDisplay, &timeout, &interval,
 		    &preferBlanking, &allowExposures);
     XSetScreenSaver(dmxScreen->beDisplay, dmxScreen->savedTimeout, interval,
@@ -167,6 +180,7 @@ void dmxDPMSTerm(DMXScreenInfo *dmxScreen)
         if (dmxScreen->dpmsEnabled) DPMSEnable(dmxScreen->beDisplay);
         else                        DPMSDisable(dmxScreen->beDisplay);
     }
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -204,7 +218,9 @@ int DPMSSet(ClientPtr client, int level)
     for (i = 0; i < dmxNumScreens; i++) {
         DMXScreenInfo *dmxScreen = &dmxScreens[i];
 	if (dmxScreen->beDisplay) {
+	    XLIB_PROLOGUE (dmxScreen);
 	    DPMSForceLevel(dmxScreen->beDisplay, level);
+	    XLIB_EPILOGUE (dmxScreen);
 	    dmxSync(dmxScreen, FALSE);
 	}
     }

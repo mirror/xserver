@@ -76,7 +76,8 @@ typedef struct DMXConfigCmdStruct {
 DMXConfigEntryPtr    dmxConfigEntry;
 static DMXConfigCmd  dmxConfigCmd;
 
-static int dmxDisplaysFromCommandLine;
+static int dmxDisplaysFromCommandLine = 0;
+static int dmxNumDetached = 0;
 
 /** Make a note that \a display is the name of an X11 display that
  * should be initialized as a backend (output) display.  Called from
@@ -95,6 +96,11 @@ void dmxConfigStoreDisplay(const char *display)
         pt->next = entry;
     }
     ++dmxDisplaysFromCommandLine;
+}
+
+void dmxConfigStoreNumDetached(const char *num)
+{
+    dmxNumDetached = strtol (num, NULL, 0);
 }
 
 /** Make a note that \a input is the name of an X11 display that should
@@ -361,27 +367,42 @@ static void dmxConfigCopyData(DMXConfigVirtualPtr v)
 static void dmxConfigFromCommandLine(void)
 {
     DMXConfigListPtr pt;
-    
+
     dmxLog(dmxInfo, "Using configuration from command line\n");
     for (pt = dmxConfigCmd.displays; pt; pt = pt->next) {
-        DMXScreenInfo *dmxScreen = dmxConfigAddDisplay(pt->name,
-                                                       0, 0, 0, 0, 0, 0,
-                                                       0, 0, 0, 0, 0, 0);
-        if (dmxNumScreens == 1) {
-            dmxScreen->where  = PosAbsolute;
-            dmxScreen->whereX = 0;
-            dmxScreen->whereY = 0;
-            dmxLog(dmxInfo, "Added %s at %d %d\n",
-                   dmxScreen->name, dmxScreen->whereX, dmxScreen->whereY);
-        } else {
-            dmxScreen->where          = PosRightOf;
-            dmxScreen->whereRefScreen = dmxNumScreens - 2;
-            if (dmxScreen->whereRefScreen < 0) dmxScreen->whereRefScreen = 0;
-            dmxLog(dmxInfo, "Added %s %s %s\n",
-                   dmxScreen->name,
-                   dmxScreen->where == PosBelow ? "below" : "right of",
-                   dmxScreens[dmxScreen->whereRefScreen].name);
-        }
+	DMXScreenInfo *dmxScreen = dmxConfigAddDisplay(pt->name,
+						       0, 0, 0, 0, 0, 0,
+						       0, 0, 0, 0, 0, 0);
+	if (dmxNumScreens == 1) {
+	    dmxScreen->where  = PosAbsolute;
+	    dmxScreen->whereX = 0;
+	    dmxScreen->whereY = 0;
+	    dmxLog(dmxInfo, "Added %s at %d %d\n",
+		   dmxScreen->name, dmxScreen->whereX, dmxScreen->whereY);
+	} else {
+	    dmxScreen->where          = PosRightOf;
+	    dmxScreen->whereRefScreen = dmxNumScreens - 2;
+	    if (dmxScreen->whereRefScreen < 0) dmxScreen->whereRefScreen = 0;
+	    dmxLog(dmxInfo, "Added %s %s %s\n",
+		   dmxScreen->name,
+		   dmxScreen->where == PosBelow ? "below" : "right of",
+		   dmxScreens[dmxScreen->whereRefScreen].name);
+	}
+    }
+
+    if (dmxNumDetached)
+    {
+	dmxLog (dmxInfo, "Adding %d detached displays\n", dmxNumDetached);
+
+	while (dmxNumDetached--)
+	{
+	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("",
+							    0, 0, 0, 0, 0, 0,
+							    0, 0, 0, 0, 0, 0);
+	    dmxScreen->where  = PosAbsolute;
+	    dmxScreen->whereX = 0;
+	    dmxScreen->whereY = 0;
+	}
     }
 }
 
@@ -448,6 +469,11 @@ void dmxConfigConfigure(void)
         dmxConfigFromCommandLine();
     }
     dmxConfigConfigInputs();
+}
+
+int dmxConfigDisplaysFromCommandLine(void)
+{
+  return dmxDisplaysFromCommandLine;
 }
 
 /** This function determines the number of displays we WILL have and

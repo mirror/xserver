@@ -573,6 +573,14 @@ void dmxInitOverlap(void)
     }
 }
 
+#ifdef ARGB_CURSOR
+
+static Cursor
+dmxCreateARGBCursor (ScreenPtr pScreen,
+		     CursorPtr pCursor);
+
+#endif
+
 /** Create \a pCursor on the back-end associated with \a pScreen. */
 void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
 {
@@ -590,6 +598,17 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     if (!pCursorPriv)
 	return;
 
+    pCursorPriv->cursor = None;
+
+#ifdef ARGB_CURSOR
+    if (pCursor->bits->argb)
+    {
+	pCursorPriv->cursor = dmxCreateARGBCursor (pScreen, pCursor);
+	if (pCursorPriv->cursor)
+	    return;
+    }
+#endif
+
     m = GCFunction | GCPlaneMask | GCForeground | GCBackground | GCClipMask;
     v.function = GXcopy;
     v.plane_mask = AllPlanes;
@@ -600,13 +619,17 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     for (i = 0; i < dmxScreen->beNumPixmapFormats; i++) {
 	if (dmxScreen->bePixmapFormats[i].depth == 1) {
 	    /* Create GC in the back-end servers */
+	    XLIB_PROLOGUE (dmxScreen);
 	    gc = XCreateGC(dmxScreen->beDisplay, dmxScreen->scrnDefDrawables[i],
 			   m, &v);
+	    XLIB_EPILOGUE (dmxScreen);
 	    break;
 	}
     }
     if (!gc)
         dmxLog(dmxFatal, "dmxRealizeCursor: gc not initialized\n");
+
+    XLIB_PROLOGUE (dmxScreen);
 
     src = XCreatePixmap(dmxScreen->beDisplay, dmxScreen->scrnWin,
 			pBits->width, pBits->height, 1);
@@ -652,6 +675,8 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     XFreePixmap(dmxScreen->beDisplay, msk);
     XFreeGC(dmxScreen->beDisplay, gc);
 
+    XLIB_EPILOGUE (dmxScreen);
+
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -683,8 +708,10 @@ Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
 
     if (pCursorPriv) {
+	XLIB_PROLOGUE (dmxScreen);
 	XFreeCursor(dmxScreen->beDisplay, pCursorPriv->cursor);
-	pCursorPriv->cursor = (Cursor)0;
+	XLIB_EPILOGUE (dmxScreen);
+	pCursorPriv->cursor = (Cursor) 0;
 	return TRUE;
     }
 
@@ -719,8 +746,10 @@ static void _dmxMoveCursor(ScreenPtr pScreen, int x, int y)
     DMXDBG5("_dmxMoveCursor(%d,%d,%d) -> %d,%d\n",
             pScreen->myNum, x, y, newX, newY);
     if (dmxScreen->beDisplay) {
+	XLIB_PROLOGUE (dmxScreen);
 	XWarpPointer(dmxScreen->beDisplay, None, dmxScreen->scrnWin,
 		     0, 0, 0, 0, newX, newY);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, TRUE);
     }
 }
@@ -735,8 +764,12 @@ static void _dmxSetCursor(ScreenPtr pScreen, CursorPtr pCursor, int x, int y)
 	dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
 	if (pCursorPriv && dmxScreen->curCursor != pCursorPriv->cursor) {
 	    if (dmxScreen->beDisplay)
+	    {
+		XLIB_PROLOGUE (dmxScreen);
 		XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
 			      pCursorPriv->cursor);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
             dmxScreen->cursor        = pCursor;
 	    dmxScreen->curCursor     = pCursorPriv->cursor;
             dmxScreen->cursorVisible = 1;
@@ -744,8 +777,12 @@ static void _dmxSetCursor(ScreenPtr pScreen, CursorPtr pCursor, int x, int y)
 	_dmxMoveCursor(pScreen, x, y);
     } else {
 	if (dmxScreen->beDisplay)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
 	    XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
 			  dmxScreen->noCursor);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
         dmxScreen->cursor        = NULL;
 	dmxScreen->curCursor     = (Cursor)0;
         dmxScreen->cursorVisible = 0;
@@ -982,3 +1019,62 @@ miPointerSpriteFuncRec dmxPointerSpriteFuncs =
     dmxDeviceCursorInitialize,
     dmxDeviceCursorCleanup
 };
+
+#ifdef ARGB_CURSOR
+
+#include <X11/extensions/Xrender.h>
+
+static Cursor
+dmxCreateARGBCursor (ScreenPtr pScreen,
+		     CursorPtr pCursor)
+{
+    Pixmap	      xpixmap;
+    XlibGC	      xgc;
+    XImage	      *ximage;
+    XRenderPictFormat *xformat;
+    Picture	      xpicture;
+    Cursor	      cursor = None;
+    DMXScreenInfo     *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    XLIB_PROLOGUE (dmxScreen);
+
+    xpixmap = XCreatePixmap (dmxScreen->beDisplay,
+			     dmxScreen->scrnWin,
+			     pCursor->bits->width,
+			     pCursor->bits->height,
+			     32);
+
+    xgc = XCreateGC (dmxScreen->beDisplay, xpixmap, 0, NULL);
+
+    ximage = XCreateImage (dmxScreen->beDisplay,
+			   DefaultVisual (dmxScreen->beDisplay, 0),
+			   32, ZPixmap, 0,
+			   (char *) pCursor->bits->argb,
+			   pCursor->bits->width,
+			   pCursor->bits->height,
+			   32, pCursor->bits->width * 4);
+
+    XPutImage (dmxScreen->beDisplay, xpixmap, xgc, ximage,
+	       0, 0, 0, 0, pCursor->bits->width, pCursor->bits->height);
+
+    XFree (ximage);
+    XFreeGC (dmxScreen->beDisplay, xgc);
+
+    xformat = XRenderFindStandardFormat (dmxScreen->beDisplay,
+					 PictStandardARGB32);
+    xpicture = XRenderCreatePicture (dmxScreen->beDisplay, xpixmap,
+				     xformat, 0, 0);
+
+    cursor = XRenderCreateCursor (dmxScreen->beDisplay, xpicture,
+				  pCursor->bits->xhot,
+				  pCursor->bits->yhot);
+
+    XRenderFreePicture (dmxScreen->beDisplay, xpicture);
+    XFreePixmap (dmxScreen->beDisplay, xpixmap);
+
+    XLIB_EPILOGUE (dmxScreen);
+
+    return cursor;
+}
+
+#endif

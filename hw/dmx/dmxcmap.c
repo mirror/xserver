@@ -70,12 +70,15 @@ Bool dmxBECreateColormap(ColormapPtr pColormap)
     Visual             *visual    = dmxLookupVisual(pScreen, pVisual);
 
     if (visual) {
-       pCmapPriv->cmap = XCreateColormap(dmxScreen->beDisplay,
-                                         dmxScreen->scrnWin,
-                                         visual,
-                                         (pVisual->class & DynamicClass ?
-                                          AllocAll : AllocNone));
-       return (pCmapPriv->cmap != 0);
+	pCmapPriv->cmap = 0;
+	XLIB_PROLOGUE (dmxScreen);
+	pCmapPriv->cmap = XCreateColormap(dmxScreen->beDisplay,
+					  dmxScreen->scrnWin,
+					  visual,
+					  (pVisual->class & DynamicClass ?
+					   AllocAll : AllocNone));
+	XLIB_EPILOGUE (dmxScreen);
+	return (pCmapPriv->cmap != 0);
     }
     else {
        dmxLog(dmxWarning, "dmxBECreateColormap: No visual found\n");
@@ -115,7 +118,9 @@ Bool dmxBEFreeColormap(ColormapPtr pColormap)
     dmxColormapPrivPtr  pCmapPriv = DMX_GET_COLORMAP_PRIV(pColormap);
 
     if (pCmapPriv->cmap) {
+	XLIB_PROLOGUE (dmxScreen);
 	XFreeColormap(dmxScreen->beDisplay, pCmapPriv->cmap);
+	XLIB_EPILOGUE (dmxScreen);
 	pCmapPriv->cmap = (Colormap)0;
 	return TRUE;
     }
@@ -156,7 +161,9 @@ void dmxInstallColormap(ColormapPtr pColormap)
     DMX_WRAP(InstallColormap, dmxInstallColormap, dmxScreen, pScreen);
 
     if (dmxScreen->beDisplay) {
+	XLIB_PROLOGUE (dmxScreen);
 	XInstallColormap(dmxScreen->beDisplay, pCmapPriv->cmap);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
     }
 }
@@ -182,7 +189,9 @@ void dmxStoreColors(ColormapPtr pColormap, int ndef, xColorItem *pdef)
                 color[i].flags = pdef[i].flags;
                 color[i].pad   = pdef[i].pad;
             }
+	    XLIB_PROLOGUE (dmxScreen);
             XStoreColors(dmxScreen->beDisplay, pCmapPriv->cmap, color, ndef);
+	    XLIB_EPILOGUE (dmxScreen);
             xfree(color);
         } else {                /* xalloc failed, so fallback */
             XColor c;
@@ -193,7 +202,9 @@ void dmxStoreColors(ColormapPtr pColormap, int ndef, xColorItem *pdef)
                 c.green = pdef[i].green;
                 c.flags = pdef[i].flags;
                 c.pad   = pdef[i].pad;
+		XLIB_PROLOGUE (dmxScreen);
                 XStoreColor(dmxScreen->beDisplay, pCmapPriv->cmap, &c);
+		XLIB_EPILOGUE (dmxScreen);
             }
         }
 	dmxSync(dmxScreen, FALSE);

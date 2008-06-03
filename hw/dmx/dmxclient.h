@@ -72,6 +72,11 @@ typedef XID           KeySym64;
 #define Colormap      Colormap64
 #define GContext      GContext64
 #define KeySym        KeySym64
+#ifdef RANDR
+#define RRMode        RRMode64
+#define RROutput      RROutput64
+#define RRCrtc        RRCrtc64
+#endif
 #endif
 
 #include <X11/Xlib.h>
@@ -91,6 +96,10 @@ typedef XID           KeySym64;
 #undef PictFormatType
 #endif
 
+#ifdef RANDR
+#include <X11/extensions/Xrandr.h>
+#endif
+
 #ifdef XKB
 #include <X11/extensions/XKB.h>
 #include <X11/extensions/XKBstr.h>
@@ -101,6 +110,7 @@ typedef XID           KeySym64;
 /* Always include these, since we query them even if we don't export XINPUT. */
 #include <X11/extensions/XInput.h> /* For XDevice */
 #include <X11/extensions/Xext.h>
+#include <X11/extensions/Xcomposite.h>
 
 #undef GC
 
@@ -119,6 +129,11 @@ typedef XID           KeySym64;
 #undef Colormap
 #undef GContext
 #undef KeySym
+#ifdef RANDR
+#undef RRMode
+#undef RROutput
+#undef RRCrtc
+#endif
 #endif
 
 /* These are in exglobals.h, but that conflicts with xkbsrv.h */

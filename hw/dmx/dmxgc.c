@@ -106,9 +106,13 @@ void dmxBECreateGC(ScreenPtr pScreen, GCPtr pGC)
 	    gcvals.graphics_exposures = FALSE;
 
 	    /* Create GC in the back-end servers */
+	    pGCPriv->gc = None;
+
+	    XLIB_PROLOGUE (dmxScreen);
 	    pGCPriv->gc = XCreateGC(dmxScreen->beDisplay,
 				    dmxScreen->scrnDefDrawables[i],
 				    mask, &gcvals);
+	    XLIB_EPILOGUE (dmxScreen);
 	    break;
 	}
     }
@@ -275,14 +279,20 @@ void dmxChangeGC(GCPtr pGC, unsigned long mask)
     if (mask & GCDashList) {
 	mask &= ~GCDashList;
 	if (dmxScreen->beDisplay)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
 	    XSetDashes(dmxScreen->beDisplay, pGCPriv->gc,
 		       pGC->dashOffset, (char *)pGC->dash,
 		       pGC->numInDashList);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
     }
     if (mask & GCArcMode)           v.arc_mode = pGC->arcMode;
 
     if (mask && dmxScreen->beDisplay) {
+	XLIB_PROLOGUE (dmxScreen);
 	XChangeGC(dmxScreen->beDisplay, pGCPriv->gc, mask, &v);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
     }
 
@@ -303,7 +313,11 @@ void dmxCopyGC(GCPtr pGCSrc, unsigned long changes, GCPtr pGCDst)
 
     /* Copy the GC on the back-end server */
     if (dmxScreen->beDisplay)
+    {
+	XLIB_PROLOGUE (dmxScreen);
 	XCopyGC(dmxScreen->beDisplay, pGCSrcPriv->gc, changes, pGCDstPriv->gc);
+	XLIB_EPILOGUE (dmxScreen);
+    }
 
     DMX_GC_FUNC_EPILOGUE(pGCDst);
 }
@@ -316,7 +330,9 @@ Bool dmxBEFreeGC(GCPtr pGC)
     dmxGCPrivPtr   pGCPriv   = DMX_GET_GC_PRIV(pGC);
 
     if (pGCPriv->gc) {
+	XLIB_PROLOGUE (dmxScreen);
 	XFreeGC(dmxScreen->beDisplay, pGCPriv->gc);
+	XLIB_EPILOGUE (dmxScreen);
 	pGCPriv->gc = NULL;
 	return TRUE;
     }
@@ -358,7 +374,11 @@ void dmxChangeClip(GCPtr pGC, int type, pointer pvalue, int nrects)
     switch (pGC->clientClipType) {
     case CT_NONE:
 	if (dmxScreen->beDisplay)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
 	    XSetClipMask(dmxScreen->beDisplay, pGCPriv->gc, None);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
 	break;
 
     case CT_REGION:
@@ -374,9 +394,11 @@ void dmxChangeClip(GCPtr pGC, int type, pointer pvalue, int nrects)
 		pRects[i].height = pBox[i].y2 - pBox[i].y1;
 	    }
 
+	    XLIB_PROLOGUE (dmxScreen);
 	    XSetClipRectangles(dmxScreen->beDisplay, pGCPriv->gc,
 			       pGC->clipOrg.x, pGC->clipOrg.y,
 			       pRects, nRects, Unsorted);
+	    XLIB_EPILOGUE (dmxScreen);
 
 	    xfree(pRects);
 	}
@@ -407,7 +429,11 @@ void dmxDestroyClip(GCPtr pGC)
 
     /* Set the client clip on the back-end server to None */
     if (dmxScreen->beDisplay)
+    {
+	XLIB_PROLOGUE (dmxScreen);
 	XSetClipMask(dmxScreen->beDisplay, pGCPriv->gc, None);
+	XLIB_EPILOGUE (dmxScreen);
+    }
 
     DMX_GC_FUNC_EPILOGUE(pGC);
 }

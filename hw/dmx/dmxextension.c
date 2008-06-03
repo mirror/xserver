@@ -54,6 +54,9 @@
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
+#ifdef RANDR
+#include "randrstr.h"
+#endif
 #include "dmxinput.h"
 #include "dmxsync.h"
 #include "dmxscrinit.h"
@@ -152,6 +155,76 @@ Bool dmxGetWindowAttributes(WindowPtr pWindow, DMXWindowAttributesPtr attr)
                                 /* Convert to window-relative coordinates */
     attr->vis.x -= attr->pos.x;
     attr->vis.y -= attr->pos.y;
+
+    return TRUE;
+}
+
+/** This routine provides information to the DMX protocol extension
+ * about a particular window. */
+Bool dmxGetDrawableAttributes(DrawablePtr pDraw, DMXWindowAttributesPtr attr)
+{
+    if ((pDraw->type == UNDRAWABLE_WINDOW) || (pDraw->type == DRAWABLE_WINDOW))
+    {
+	WindowPtr pWindow = (WindowPtr) pDraw;
+	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWindow);
+
+	attr->screen         = pWindow->drawable.pScreen->myNum;
+	attr->window         = pWinPriv->window;
+
+	attr->pos.x          = pWindow->drawable.x;
+	attr->pos.y          = pWindow->drawable.y;
+	attr->pos.width      = pWindow->drawable.width;
+	attr->pos.height     = pWindow->drawable.height;
+
+	if (!pWinPriv->window || pWinPriv->offscreen) {
+	    attr->vis.x      = 0;
+	    attr->vis.y      = 0;
+	    attr->vis.height = 0;
+	    attr->vis.width  = 0;
+	    return pWinPriv->window ? TRUE : FALSE;
+	}
+
+	/* Compute display-relative coordinates */
+	attr->vis.x          = pWindow->drawable.x;
+	attr->vis.y          = pWindow->drawable.y;
+	attr->vis.width      = pWindow->drawable.width;
+	attr->vis.height     = pWindow->drawable.height;
+
+	if (attr->pos.x < 0) {
+	    attr->vis.x     -= attr->pos.x;
+	    attr->vis.width  = attr->pos.x + attr->pos.width - attr->vis.x;
+	}
+	if (attr->pos.x + attr->pos.width > pWindow->drawable.pScreen->width) {
+	    if (attr->pos.x < 0)
+		attr->vis.width  = pWindow->drawable.pScreen->width;
+	    else
+		attr->vis.width  = pWindow->drawable.pScreen->width - attr->pos.x;
+	}
+	if (attr->pos.y < 0) {
+	    attr->vis.y     -= attr->pos.y;
+	    attr->vis.height = attr->pos.y + attr->pos.height - attr->vis.y;
+	}
+	if (attr->pos.y + attr->pos.height > pWindow->drawable.pScreen->height) {
+	    if (attr->pos.y < 0)
+		attr->vis.height = pWindow->drawable.pScreen->height;
+	    else
+		attr->vis.height = pWindow->drawable.pScreen->height - attr->pos.y;
+	}
+
+	/* Convert to window-relative coordinates */
+	attr->vis.x -= attr->pos.x;
+	attr->vis.y -= attr->pos.y;
+    }
+    else
+    {
+	PixmapPtr pPixmap = (PixmapPtr) pDraw;
+	dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+	xRectangle empty = { 0, 0, 0, 0 };
+
+	attr->screen = pDraw->pScreen->myNum;
+	attr->window = pPixPriv->pixmap;
+	attr->pos = attr->vis = empty;
+    }
 
     return TRUE;
 }
@@ -502,7 +575,12 @@ int dmxConfigureScreenWindows(int nscreens,
 	/* The "screen" and "root" windows must have valid sizes */
 	if (attr->screenWindowWidth <= 0 || attr->screenWindowHeight <= 0 ||
 	    attr->rootWindowWidth   <  0 || attr->rootWindowHeight   <  0)
+	{
+	    dmxLog(dmxWarning,
+		   "The \"screen\" and \"root\" windows must have valid "
+		   "sizes\n");
 	    return DMX_BAD_VALUE;
+	}
 
 	/* The "screen" window must fit entirely within the BE display */
 	if (attr->screenWindowXoffset < 0 ||
@@ -511,7 +589,12 @@ int dmxConfigureScreenWindows(int nscreens,
 	    + attr->screenWindowWidth  > (unsigned)dmxScreen->beWidth ||
 	    attr->screenWindowYoffset
 	    + attr->screenWindowHeight > (unsigned)dmxScreen->beHeight)
+	{
+	    dmxLog(dmxWarning,
+		   "The \"screen\" window must fit entirely within the "
+		   "BE display\n");
 	    return DMX_BAD_VALUE;
+	}
 
 	/* The "root" window must fit entirely within the "screen" window */
 	if (attr->rootWindowXoffset < 0 ||
@@ -520,21 +603,24 @@ int dmxConfigureScreenWindows(int nscreens,
 	    + attr->rootWindowWidth  > attr->screenWindowWidth ||
 	    attr->rootWindowYoffset
 	    + attr->rootWindowHeight > attr->screenWindowHeight)
+	{
+	    dmxLog(dmxWarning,
+		   "The \"root\" window must fit entirely within the "
+		   "\"screen\" window\n");
 	    return DMX_BAD_VALUE;
+	}
 
 	/* The "root" window must not expose unaddressable coordinates */
 	if (attr->rootWindowXorigin < 0 ||
 	    attr->rootWindowYorigin < 0 ||
 	    attr->rootWindowXorigin + attr->rootWindowWidth  > 32767 ||
 	    attr->rootWindowYorigin + attr->rootWindowHeight > 32767)
+	{
+	    dmxLog(dmxWarning,
+		   "The \"root\" window must not expose unaddressable "
+		   "coordinates\n");
 	    return DMX_BAD_VALUE;
-
-	/* The "root" window must fit within the global bounding box */
-	if (attr->rootWindowXorigin
-	    + attr->rootWindowWidth > (unsigned)dmxGlobalWidth ||
-	    attr->rootWindowYorigin
-	    + attr->rootWindowHeight > (unsigned)dmxGlobalHeight)
-	    return DMX_BAD_VALUE;
+	}
 
 	/* FIXME: Handle the rest of the illegal value checking */
     }
@@ -685,6 +771,8 @@ static void dmxBECreateScratchGCs(int scrnNum)
 #ifdef PANORAMIX
 static Bool FoundPixImage;
 
+extern unsigned long	XRT_PICTURE;
+
 /** Search the Xinerama XRT_PIXMAP resources for the pixmap that needs
  *  to have its image restored.  When it is found, see if there is
  *  another screen with the same image.  If so, copy the pixmap image
@@ -692,46 +780,128 @@ static Bool FoundPixImage;
 static void dmxBERestorePixmapImage(pointer value, XID id, RESTYPE type,
 				    pointer p)
 {
+    PixmapPtr pSrc = NULL;
+    PixmapPtr pDst = (PixmapPtr) p;
+    int       idx      = pDst->drawable.pScreen->myNum;
+    int       i;
+
     if ((type & TypeMask) == (XRT_PIXMAP & TypeMask)) {
-	PixmapPtr      pDst     = (PixmapPtr)p;
 	int            idx      = pDst->drawable.pScreen->myNum;
 	PanoramiXRes  *pXinPix  = (PanoramiXRes *)value;
 	PixmapPtr      pPix;
-	int            i;
 
 	pPix = (PixmapPtr)LookupIDByType(pXinPix->info[idx].id, RT_PIXMAP);
 	if (pPix != pDst) return; /* Not a match.... Next! */
 
-	for (i = 0; i < PanoramiXNumScreens; i++) {
-	    PixmapPtr      pSrc;
-	    dmxPixPrivPtr  pSrcPriv = NULL;
-
+	for (i = 0; i < PanoramiXNumScreens; i++)
+	{
 	    if (i == idx) continue; /* Self replication is bad */
 
 	    pSrc =
 		(PixmapPtr)LookupIDByType(pXinPix->info[i].id, RT_PIXMAP);
-	    pSrcPriv = DMX_GET_PIXMAP_PRIV(pSrc);
-	    if (pSrcPriv->pixmap) {
-		DMXScreenInfo *dmxSrcScreen = &dmxScreens[i];
-		DMXScreenInfo *dmxDstScreen = &dmxScreens[idx];
-		dmxPixPrivPtr  pDstPriv = DMX_GET_PIXMAP_PRIV(pDst);
-		XImage        *img;
-		int            j;
-		XlibGC         gc = NULL;
+	    break;
+	}
+    }
 
-		/* This should never happen, but just in case.... */
-		if (pSrc->drawable.width  != pDst->drawable.width ||
-		    pSrc->drawable.height != pDst->drawable.height)
-		    return;
+#ifdef RENDER
+    else if ((type & TypeMask) == (XRT_PICTURE & TypeMask))
+    {
+	int           idx      = pDst->drawable.pScreen->myNum;
+	PanoramiXRes  *pXinPic  = (PanoramiXRes *) value;
+	PicturePtr    pPic;
 
-		/* Copy from src pixmap to dst pixmap */
-		img = XGetImage(dmxSrcScreen->beDisplay,
-				pSrcPriv->pixmap,
-				0, 0,
-				pSrc->drawable.width, pSrc->drawable.height,
-				-1,
-				ZPixmap);
+	pPic = (PicturePtr) LookupIDByType (pXinPic->info[idx].id,
+					    PictureType);
 
+	/* Not a match.... Next! */
+	if (!pPic || !pPic->pDrawable) return;
+	if (pPic->pDrawable->type != DRAWABLE_PIXMAP) return;
+	if (pPic->pDrawable != (DrawablePtr) pDst) return;
+
+	for (i = 0; i < PanoramiXNumScreens; i++)
+	{
+	    if (i == idx) continue; /* Self replication is bad */
+
+	    pPic = (PicturePtr) LookupIDByType (pXinPic->info[i].id,
+						PictureType);
+	    pSrc = (PixmapPtr) pPic->pDrawable;
+	    break;
+	}
+    }
+#endif
+
+    else if ((type & TypeMask) == (XRT_WINDOW & TypeMask))
+    {
+	PixmapPtr      pDst     = (PixmapPtr)p;
+	int            idx      = pDst->drawable.pScreen->myNum;
+	PanoramiXRes  *pXinWin  = (PanoramiXRes *) value;
+	Bool	      border;
+	WindowPtr     pWin;
+
+	pWin = (WindowPtr) LookupIDByType (pXinWin->info[idx].id, RT_WINDOW);
+
+	if (!pWin) return;
+	if (!pWin->borderIsPixel && pWin->border.pixmap == pDst)
+	{
+	    border = TRUE;
+	}
+	else if (pWin->backgroundState == BackgroundPixmap &&
+		 pWin->background.pixmap == pDst)
+	{
+	    border = FALSE;
+	}
+	else
+	{
+	    return;
+	}
+
+	for (i = 0; i < PanoramiXNumScreens; i++)
+	{
+	    if (i == idx) continue; /* Self replication is bad */
+
+	    pWin = (WindowPtr) LookupIDByType (pXinWin->info[i].id, RT_WINDOW);
+
+	    if (border)
+		pSrc = pWin->border.pixmap;
+	    else
+		pSrc = pWin->background.pixmap;
+
+	    break;
+	}
+    }
+
+    if (pSrc)
+    {
+	dmxPixPrivPtr pSrcPriv = DMX_GET_PIXMAP_PRIV (pSrc);
+
+	if (pSrcPriv->pixmap)
+	{
+	    DMXScreenInfo *dmxSrcScreen = &dmxScreens[i];
+	    DMXScreenInfo *dmxDstScreen = &dmxScreens[idx];
+	    dmxPixPrivPtr  pDstPriv = DMX_GET_PIXMAP_PRIV(pDst);
+	    XImage        *img = NULL;
+	    int            j;
+	    XlibGC         gc = NULL;
+
+	    /* This should never happen, but just in case.... */
+	    if (pSrc->drawable.width  != pDst->drawable.width ||
+		pSrc->drawable.height != pDst->drawable.height)
+		return;
+
+	    XLIB_PROLOGUE (dmxSrcScreen);
+
+	    /* Copy from src pixmap to dst pixmap */
+	    img = XGetImage(dmxSrcScreen->beDisplay,
+			    pSrcPriv->pixmap,
+			    0, 0,
+			    pSrc->drawable.width, pSrc->drawable.height,
+			    -1,
+			    ZPixmap);
+
+	    XLIB_EPILOGUE (dmxSrcScreen);
+
+	    if (img)
+	    {
 		for (j = 0; j < dmxDstScreen->beNumPixmapFormats; j++) {
 		    if (dmxDstScreen->bePixmapFormats[j].depth == img->depth) {
 			unsigned long  m;
@@ -742,26 +912,31 @@ static void dmxBERestorePixmapImage(pointer value, XID id, RESTYPE type,
 			v.plane_mask = AllPlanes;
 			v.clip_mask = None;
 
+			XLIB_PROLOGUE (dmxDstScreen);
 			gc = XCreateGC(dmxDstScreen->beDisplay,
 				       dmxDstScreen->scrnDefDrawables[j],
 				       m, &v);
+			XLIB_EPILOGUE (dmxDstScreen);
 			break;
 		    }
 		}
 
 		if (gc) {
+		    XLIB_PROLOGUE (dmxDstScreen);
 		    XPutImage(dmxDstScreen->beDisplay,
 			      pDstPriv->pixmap,
 			      gc, img, 0, 0, 0, 0,
 			      pDst->drawable.width, pDst->drawable.height);
 		    XFreeGC(dmxDstScreen->beDisplay, gc);
+		    XLIB_EPILOGUE (dmxDstScreen);
 		    FoundPixImage = True;
 		} else {
 		    dmxLog(dmxWarning, "Could not create GC\n");
 		}
 
 		XDestroyImage(img);
-		return;
+	    } else {
+		dmxLog(dmxWarning, "Could not create image\n");
 	    }
 	}
     }
@@ -810,14 +985,17 @@ static void dmxBERestorePixmap(PixmapPtr pPixmap)
 		    v.plane_mask = AllPlanes;
 		    v.clip_mask = None;
 
+		    XLIB_PROLOGUE (dmxScreen);
 		    gc = XCreateGC(dmxScreen->beDisplay,
 				   dmxScreen->scrnDefDrawables[i],
 				   m, &v);
+		    XLIB_EPILOGUE (dmxScreen);
 		    break;
 		}
 	    }
 
 	    if (gc) {
+		XLIB_PROLOGUE (dmxScreen);
 		XPutImage(dmxScreen->beDisplay,
 			  pPixPriv->pixmap,
 			  gc,
@@ -825,6 +1003,7 @@ static void dmxBERestorePixmap(PixmapPtr pPixmap)
 			  0, 0, 0, 0,
 		      pPixmap->drawable.width, pPixmap->drawable.height);
 		XFreeGC(dmxScreen->beDisplay, gc);
+		XLIB_EPILOGUE (dmxScreen);
 	    } else {
 		dmxLog(dmxWarning, "Cannot restore pixmap image\n");
 	    }
@@ -832,7 +1011,10 @@ static void dmxBERestorePixmap(PixmapPtr pPixmap)
 	    XDestroyImage(pPixPriv->detachedImage);
 	    pPixPriv->detachedImage = NULL;
 	} else {
-	    dmxLog(dmxWarning, "Cannot restore pixmap image\n");
+	    dmxLog(dmxWarning, "Cannot restore pixmap image: %dx%d - %d\n",
+		   pPixmap->drawable.width,
+		   pPixmap->drawable.height,
+		   pPixmap->drawable.depth);
 	}
     }
 #else
@@ -888,7 +1070,7 @@ static void dmxBECreateResources(pointer value, XID id, RESTYPE type,
     } else if ((type & TypeMask) == (RT_FONT & TypeMask)) {
 	(void)dmxBELoadFont(pScreen, (FontPtr)value);
     } else if ((type & TypeMask) == (RT_CURSOR & TypeMask)) {
-	dmxBECreateCursor(pScreen, (CursorPtr)value);
+	AnimForEachCursorElt (pScreen, (CursorPtr) value, dmxBECreateCursor);
     } else if ((type & TypeMask) == (RT_COLORMAP & TypeMask)) {
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
@@ -932,7 +1114,10 @@ static void dmxBECreateWindowTree(int idx)
 
     /* Create root window first */
     dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pRoot);
+
+    XLIB_PROLOGUE (dmxScreen);
     XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
+    XLIB_EPILOGUE (dmxScreen);
 
     pWin = pRoot->lastChild;
     while (pWin) {
@@ -956,8 +1141,7 @@ static void dmxBECreateWindowTree(int idx)
 				      &pWinPriv->visual);
 
 	/* Create the window */
-	if (pWinPriv->mapped && !pWinPriv->offscreen)
-	    dmxCreateAndRealizeWindow(pWin, TRUE);
+	dmxCreateAndRealizeWindow(pWin, TRUE);
 
 	/* Next, create the bottom-most child */
 	if (pWin->lastChild) {
@@ -1008,6 +1192,9 @@ static void dmxForceExposures(int idx)
 static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 {
     int i;
+
+    /* hack */
+    return TRUE;
 
     if (new->beWidth != old->beWidth) return FALSE;
     if (new->beHeight != old->beHeight) return FALSE;
@@ -1153,9 +1340,11 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
     }
     
     /* Now restore the glyph data */
+    XLIB_PROLOGUE (dmxScreen);
     XRenderAddGlyphs(dmxScreen->beDisplay, glyphPriv->glyphSets[scrnNum],
 		     gids,glyphs, glyphSet->hash.tableEntries, images,
 		     len_images);
+    XLIB_EPILOGUE (dmxScreen);
 
     /* Clean up */
     xfree(len_images);
@@ -1222,10 +1411,43 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
     dmxCheckForWM(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
 
+#ifdef RANDR
+    dmxScreen->beRandr = FALSE;
+#endif
+
+    if (attr->screenWindowWidth  == 0 || attr->screenWindowHeight == 0)
+    {
+
+#ifdef RANDR
+	int ignore;
+
+	XLIB_PROLOGUE (dmxScreen);
+	dmxScreen->beRandr = XRRQueryExtension (dmxScreen->beDisplay,
+						&dmxScreen->beRandrEventBase,
+						&ignore);
+	XLIB_EPILOGUE (dmxScreen);
+#endif
+
+	attr->screenWindowWidth   = dmxScreen->beWidth;
+	attr->screenWindowHeight  = dmxScreen->beHeight;
+	attr->screenWindowXoffset = 0;
+	attr->screenWindowYoffset = 0;
+
+	attr->rootWindowWidth     = dmxScreen->beWidth;
+	attr->rootWindowHeight    = dmxScreen->beHeight;
+	attr->rootWindowXoffset   = 0;
+	attr->rootWindowYoffset   = 0;
+
+	attr->rootWindowXorigin   = 0;
+	attr->rootWindowYorigin   = 0;
+    }
+
     if (!dmxGetVisualInfo(dmxScreen)) {
 	dmxLog(dmxWarning, "dmxGetVisualInfo: No matching visuals found\n");
 	XFree(dmxScreen->beVisuals);
+	XLIB_PROLOGUE (dmxScreen);
 	XCloseDisplay(dmxScreen->beDisplay);
+	XLIB_EPILOGUE (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1250,7 +1472,24 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
 	XFree(dmxScreen->beVisuals);
 	XFree(dmxScreen->beDepths);
 	XFree(dmxScreen->bePixmapFormats);
+	XLIB_PROLOGUE (dmxScreen);
 	XCloseDisplay(dmxScreen->beDisplay);
+	XLIB_EPILOGUE (dmxScreen);
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
+    /* Create the default font */
+    if (!dmxBELoadFont(pScreen, defaultFont))
+    {
+	XFree(dmxScreen->beVisuals);
+	XFree(dmxScreen->beDepths);
+	XFree(dmxScreen->bePixmapFormats);
+	XLIB_PROLOGUE (dmxScreen);
+	XCloseDisplay(dmxScreen->beDisplay);
+	XLIB_EPILOGUE (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1269,9 +1508,6 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
 
     /* Create the scratch GCs */
     dmxBECreateScratchGCs(idx);
-
-    /* Create the default font */
-    (void)dmxBELoadFont(pScreen, defaultFont);
 
     /* Create all resources that don't depend on windows */
     for (i = currentMaxClients; --i >= 0; )
@@ -1311,10 +1547,15 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
 
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
-	return dmxConfigureScreenWindows(1, &scrnNum, attr, NULL);
-    else
+	if (dmxConfigureScreenWindows(1, &scrnNum, attr, NULL))
+	    return 1;
 #endif
-	return 0; /* Success */
+
+#ifdef RANDR
+    RRTellChanged (screenInfo.screens[0]);
+#endif
+
+    return 0; /* Success */
 }
 
 /*
@@ -1372,6 +1613,7 @@ static void dmxBEFindPixmapImage(pointer value, XID id, RESTYPE type,
 	int            i;
 
 	pPix = (PixmapPtr)LookupIDByType(pXinPix->info[idx].id, RT_PIXMAP);
+
 	if (pPix != pDst) return; /* Not a match.... Next! */
 
 	for (i = 0; i < PanoramiXNumScreens; i++) {
@@ -1382,8 +1624,90 @@ static void dmxBEFindPixmapImage(pointer value, XID id, RESTYPE type,
 
 	    pSrc =
 		(PixmapPtr)LookupIDByType(pXinPix->info[i].id, RT_PIXMAP);
+
 	    pSrcPriv = DMX_GET_PIXMAP_PRIV(pSrc);
 	    if (pSrcPriv->pixmap) {
+		FoundPixImage = True;
+		return;
+	    }
+	}
+    }
+
+#ifdef RENDER
+    else if ((type & TypeMask) == (XRT_PICTURE & TypeMask))
+    {
+	PixmapPtr     pDst     = (PixmapPtr) p;
+	int           idx      = pDst->drawable.pScreen->myNum;
+	PanoramiXRes  *pXinPic  = (PanoramiXRes *) value;
+	PicturePtr    pPic;
+	int           i;
+
+	pPic = (PicturePtr) LookupIDByType (pXinPic->info[idx].id,
+					    PictureType);
+
+	/* Not a match.... Next! */
+	if (!pPic || !pPic->pDrawable) return;
+	if (pPic->pDrawable->type != DRAWABLE_PIXMAP) return;
+	if (pPic->pDrawable != (DrawablePtr) pDst) return;
+
+	for (i = 0; i < PanoramiXNumScreens; i++) {
+	    dmxPixPrivPtr  pSrcPriv = NULL;
+
+	    if (i == idx) continue; /* Self replication is bad */
+
+	    pPic = (PicturePtr) LookupIDByType (pXinPic->info[i].id,
+						PictureType);
+
+	    pSrcPriv = DMX_GET_PIXMAP_PRIV ((PixmapPtr) pPic->pDrawable);
+	    if (pSrcPriv->pixmap)
+	    {
+		FoundPixImage = True;
+		return;
+	    }
+	}
+    }
+#endif
+
+    else if ((type & TypeMask) == (XRT_WINDOW & TypeMask))
+    {
+	PixmapPtr      pDst     = (PixmapPtr)p;
+	int            idx      = pDst->drawable.pScreen->myNum;
+	PanoramiXRes  *pXinWin  = (PanoramiXRes *) value;
+	Bool	      border;
+	WindowPtr     pWin;
+	int           i;
+
+	pWin = (WindowPtr) LookupIDByType (pXinWin->info[idx].id, RT_WINDOW);
+
+	if (!pWin) return;
+	if (!pWin->borderIsPixel && pWin->border.pixmap == pDst)
+	{
+	    border = TRUE;
+	}
+	else if (pWin->backgroundState == BackgroundPixmap &&
+		 pWin->background.pixmap == pDst)
+	{
+	    border = FALSE;
+	}
+	else
+	{
+	    return;
+	}
+
+	for (i = 0; i < PanoramiXNumScreens; i++) {
+	    dmxPixPrivPtr pSrcPriv = NULL;
+
+	    if (i == idx) continue; /* Self replication is bad */
+
+	    pWin = (WindowPtr) LookupIDByType (pXinWin->info[i].id, RT_WINDOW);
+
+	    if (border)
+		pSrcPriv = DMX_GET_PIXMAP_PRIV (pWin->border.pixmap);
+	    else
+		pSrcPriv = DMX_GET_PIXMAP_PRIV (pWin->background.pixmap);
+
+	    if (pSrcPriv->pixmap)
+	    {
 		FoundPixImage = True;
 		return;
 	    }
@@ -1425,6 +1749,7 @@ static void dmxBESavePixmap(PixmapPtr pPixmap)
 	    ScreenPtr      pScreen   = pPixmap->drawable.pScreen;
 	    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
+	    XLIB_PROLOGUE (dmxScreen);
 	    pPixPriv->detachedImage = XGetImage(dmxScreen->beDisplay,
 						pPixPriv->pixmap,
 						0, 0,
@@ -1432,8 +1757,15 @@ static void dmxBESavePixmap(PixmapPtr pPixmap)
 						pPixmap->drawable.height,
 						-1,
 						ZPixmap);
+	    XLIB_EPILOGUE (dmxScreen);
+
 	    if (!pPixPriv->detachedImage)
-		dmxLog(dmxWarning, "Cannot save pixmap image\n");
+	    {
+		dmxLog(dmxWarning, "Cannot save pixmap image: %p - %dx%d %d\n",
+		       pPixmap, pPixmap->drawable.width,
+		       pPixmap->drawable.height,
+		       pPixmap->drawable.depth);
+	    }
 	}
     }
 #else
@@ -1475,7 +1807,8 @@ static void dmxBEDestroyResources(pointer value, XID id, RESTYPE type,
     } else if ((type & TypeMask) == (RT_FONT & TypeMask)) {
 	dmxBEFreeFont(pScreen, (FontPtr)value);
     } else if ((type & TypeMask) == (RT_CURSOR & TypeMask)) {
-	dmxBEFreeCursor(pScreen, (CursorPtr)value);
+	AnimForEachCursorElt (pScreen, (CursorPtr) value,
+			      (void *) dmxBEFreeCursor);
     } else if ((type & TypeMask) == (RT_COLORMAP & TypeMask)) {
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
@@ -1583,6 +1916,13 @@ int dmxDetachScreen(int idx)
     /* Cannot remove a screen that does not exist */
     if (idx < 0 || idx >= dmxNumScreens) return 1;
 
+    if (idx == 0) {
+	dmxLog(dmxWarning,
+	       "Attempting to remove screen #%d\n",
+	       idx);
+	return 1;
+    }
+
     /* Cannot detach from a screen that is not opened */
     if (!dmxScreen->beDisplay) {
 	dmxLog(dmxWarning,
@@ -1595,6 +1935,23 @@ int dmxDetachScreen(int idx)
 
     /* Detach input */
     dmxInputDetachAll(dmxScreen);
+
+    dmxScreen->scrnWidth   = 1;
+    dmxScreen->scrnHeight  = 1;
+    dmxScreen->scrnX       = 0;
+    dmxScreen->scrnY       = 0;
+    dmxScreen->rootWidth   = 0;
+    dmxScreen->rootHeight  = 0;
+    dmxScreen->rootX       = 0;
+    dmxScreen->rootY       = 0;
+    dmxScreen->rootXOrigin = 0;
+    dmxScreen->rootYOrigin = 0;
+    dmxScreen->beWidth     = 1;
+    dmxScreen->beHeight    = 1;
+    dmxScreen->beXDPI      = 75;
+    dmxScreen->beYDPI      = 75;
+    dmxScreen->beDepth     = 24;
+    dmxScreen->beBPP       = 32;
 
     /* Save all relevant state (TODO) */
 
@@ -1619,6 +1976,10 @@ int dmxDetachScreen(int idx)
 
     /* Adjust the cursor boundaries (paints detached console window) */
     dmxAdjustCursorBoundaries();
+
+#ifdef RANDR
+    RRTellChanged (screenInfo.screens[0]);
+#endif
 
     return 0; /* Success */
 }

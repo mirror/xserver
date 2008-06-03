@@ -237,7 +237,6 @@ void dmxCommonKbdGetMap(DevicePtr pDev, KeySymsPtr pKeySyms, CARD8 *pModMap)
     pKeySyms->mapWidth   = map_width;
     pKeySyms->map        = keyboard_mapping;
 
-
                                 /* Compute pModMap  */
     modifier_mapping     = XGetModifierMapping(priv->display);
     for (i = 0; i < MAP_LENGTH; i++)
@@ -293,10 +292,10 @@ int dmxCommonKbdOn(DevicePtr pDev)
     GETPRIVFROMPDEV;
     if (priv->be) dmxCommonSaveState(priv);
     priv->eventMask |= DMX_KEYBOARD_EVENT_MASK;
-    XSelectInput(priv->display, priv->window, priv->eventMask);
-    if (priv->be)
-        XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
-                       CurrentTime);
+    //XSelectInput(priv->display, priv->window, priv->eventMask);
+//    if (priv->be)
+//        XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
+//                       CurrentTime);
     return -1;
 }
 
@@ -305,7 +304,7 @@ void dmxCommonKbdOff(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
     priv->eventMask &= ~DMX_KEYBOARD_EVENT_MASK;
-    XSelectInput(priv->display, priv->window, priv->eventMask);
+    //XSelectInput(priv->display, priv->window, priv->eventMask);
     dmxCommonRestoreState(priv);
 }
 
@@ -348,6 +347,7 @@ int dmxCommonOthOn(DevicePtr pDev)
     ADD(DeviceStateNotify);
     ADD(DeviceMappingNotify);
     ADD(ChangeDeviceNotify);
+
     XSelectExtensionEvent(priv->display, priv->window, event_list, count);
     
     return -1;
@@ -460,8 +460,10 @@ void dmxCommonMouGetMap(DevicePtr pDev, unsigned char *map, int *nButtons)
 
 static void *dmxCommonXSelect(DMXScreenInfo *dmxScreen, void *closure)
 {
-    myPrivate *priv = closure;
+    /* myPrivate *priv = closure;
+    XLIB_PROLOGUE (dmxScreen);
     XSelectInput(dmxScreen->beDisplay, dmxScreen->scrnWin, priv->eventMask);
+    XLIB_EPILOGUE (dmxScreen);*/
     return NULL;
 }
 
@@ -486,14 +488,18 @@ int dmxCommonMouOn(DevicePtr pDev)
 
     priv->eventMask |= DMX_POINTER_EVENT_MASK;
     if (dmxShadowFB) {
+	XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
         XWarpPointer(priv->display, priv->window, priv->window,
                      0, 0, 0, 0,
                      priv->initPointerX,
                      priv->initPointerY);
+	XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
         dmxSync(&dmxScreens[dmxInput->scrnIdx], TRUE);
     }
     if (!priv->be) {
+	XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
         XSelectInput(priv->display, priv->window, priv->eventMask);
+	XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
         AddEnabledDevice(XConnectionNumber(priv->display));
     } else {
         dmxPropertyIterate(priv->be, dmxCommonXSelect, priv);
@@ -512,7 +518,9 @@ void dmxCommonMouOff(DevicePtr pDev)
     priv->eventMask &= ~DMX_POINTER_EVENT_MASK;
     if (!priv->be) {
         RemoveEnabledDevice(XConnectionNumber(priv->display));
+	XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
         XSelectInput(priv->display, priv->window, priv->eventMask);
+	XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
     } else {
         dmxPropertyIterate(priv->be, dmxCommonRemoveEnabledDevice, dmxInput);
         dmxPropertyIterate(priv->be, dmxCommonXSelect, priv);
@@ -574,6 +582,8 @@ void dmxCommonSaveState(pointer private)
     unsigned long    i;
     XModifierKeymap  *modmap;
 
+    return;
+
     if (dmxInput->console) priv = dmxInput->devs[0]->private;
     if (!priv->display || priv->stateSaved) return;
     DMXDBG0("dmxCommonSaveState\n");
@@ -628,6 +638,8 @@ void dmxCommonRestoreState(pointer private)
     GETPRIVFROMPRIVATE;
     int retcode = -1;
     CARD32 start;
+
+    return;
 
     if (dmxInput->console)
         priv = dmxInput->devs[0]->private;

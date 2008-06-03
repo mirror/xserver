@@ -80,9 +80,5 @@
 #undef XFreeXDGA
 #undef XF86DRI
 #undef SCREENSAVER
-#undef RANDR
-#undef XFIXES
-#undef DAMAGE
-#undef COMPOSITE
 
 #endif /* DMX_CONFIG_H */

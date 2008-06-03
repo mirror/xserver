@@ -101,6 +101,8 @@ static int dmxCheckFunctionKeys(DMXLocalInputInfoPtr dmxLocal,
     DMXInputInfo   *dmxInput = &dmxInputs[dmxLocal->inputIdx];
     unsigned short state = 0;
 
+    return 0;
+
 #if 1 /* hack to detect ctrl-alt-q, etc */
     static int ctrl = 0, alt = 0;
     /* keep track of ctrl/alt key status */
@@ -643,7 +645,7 @@ static KeyCode dmxKeySymToKeyCode(DMXLocalInputInfoPtr dmxLocal, KeySym keySym,
     return 0;
 }
 
-static int dmxFixup(DevicePtr pDev, int detail, KeySym keySym)
+static Bool dmxFixup(DevicePtr pDev, int detail, KeySym keySym, int *keycode)
 {
     GETDMXLOCALFROMPDEV;
     int keyCode;
@@ -651,15 +653,19 @@ static int dmxFixup(DevicePtr pDev, int detail, KeySym keySym)
     if (!dmxLocal->pDevice->key) {
         dmxLog(dmxWarning, "dmxFixup: not a keyboard device (%s)\n",
                dmxLocal->pDevice->name);
-        return NoSymbol;
+        return FALSE;
     }
     if (!keySym)
         keySym = dmxKeyCodeToKeySym(dmxLocal, detail);
     if (keySym == NoSymbol)
-        return detail;
-    keyCode = dmxKeySymToKeyCode(dmxLocalCoreKeyboard, keySym, detail);
+        return FALSE;
 
-    return keyCode ? keyCode : detail;
+    keyCode = dmxKeySymToKeyCode(dmxLocalCoreKeyboard, keySym, detail);
+    if (!keyCode)
+	return FALSE;
+
+    *keycode = keyCode;
+    return TRUE;
 }
 
 /** Enqueue an event from the \a pDev device with the
@@ -685,10 +691,23 @@ void dmxEnqueue(DevicePtr pDev, int type, int detail, KeySym keySym,
     case KeyRelease:
         if (!keySym)
             keySym = dmxKeyCodeToKeySym(dmxLocal, detail);
+#if 0
         if (dmxCheckFunctionKeys(dmxLocal, type, keySym))
             return;
-        if (dmxLocal->sendsCore && dmxLocal != dmxLocalCoreKeyboard)
-            xE.u.u.detail = dmxFixup(pDev, detail, keySym);
+#endif
+
+	/* translate keycodes from keyboard devices that send core
+	   events but is not the core keyboard */
+	if (dmxLocal->sendsCore && dmxLocal != dmxLocalCoreKeyboard)
+	{
+	    int keyCode;
+
+	    if (dmxFixup (pDev, detail, keySym, &keyCode))
+		detail = keyCode;
+	}
+
+	if (dmxCheckSpecialKeys (pDev, keySym))
+	    return;
 
         GetEventList(&events);
         /*ErrorF("KEY %d  sym %d\n", detail, (int) keySym);*/
@@ -804,8 +823,10 @@ int dmxCheckSpecialKeys(DevicePtr pDev, KeySym keySym)
     case XK_BackSpace:
     case XK_Delete:
     case XK_KP_Delete:
+#if 0
         dmxLog(dmxInfo, "User request for termination\n");
         dispatchException |= DE_TERMINATE;
+#endif
         return -1;              /* Terminate */
     }
 

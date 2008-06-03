@@ -45,6 +45,7 @@ typedef struct _dmxWinPriv {
     Bool           offscreen;
     Bool           mapped;
     Bool           restacked;
+    Bool           redirected;
     unsigned long  attribMask;
     Colormap       cmap;
     Visual        *visual;

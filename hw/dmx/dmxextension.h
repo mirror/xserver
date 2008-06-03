@@ -95,6 +95,8 @@ extern Bool          dmxGetScreenAttributes(int physical,
                                             DMXScreenAttributesPtr attr);
 extern Bool          dmxGetWindowAttributes(WindowPtr pWindow,
                                             DMXWindowAttributesPtr attr);
+extern Bool          dmxGetDrawableAttributes(DrawablePtr pDraw,
+					      DMXWindowAttributesPtr attr);
 extern void          dmxGetDesktopAttributes(DMXDesktopAttributesPtr attr);
 extern int           dmxGetInputCount(void);
 extern int           dmxGetInputAttributes(int deviceId,

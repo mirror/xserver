@@ -220,6 +220,85 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
     { NULL }                    /* Must be last */
 };
 
+static void
+dmxSyncKeys (DeviceIntPtr pDevice)
+{
+    DevicePtr    pDev = &pDevice->public;
+    DeviceIntPtr keyDev = inputInfo.keyboard;
+    KeyClassPtr  keyc = keyDev->key;
+    xEvent	 ke;
+    int		 i, x, y;
+
+    GETDMXINPUTFROMPDEV;
+
+    miPointerGetPosition (inputInfo.pointer, &x, &y);
+
+    ke.u.keyButtonPointer.time  = GetTimeInMillis ();
+    ke.u.keyButtonPointer.rootX = x;
+    ke.u.keyButtonPointer.rootY = y;
+
+    for (i = keyc->curKeySyms.minKeyCode; i < keyc->curKeySyms.maxKeyCode; i++)
+    {
+	ke.u.u.detail = i;
+
+	if (dmxInput->validHistory && BitIsOn (dmxInput->history, i))
+	{
+	    if (!BitIsOn (keyc->down, i))
+	    {
+		ke.u.u.type = KeyPress;
+		(*keyDev->public.processInputProc) (&ke, keyDev, 1);
+	    }
+	}
+	else
+	{
+	    if (BitIsOn (keyc->down, i))
+	    {
+		ke.u.u.type = KeyRelease;
+		(*keyDev->public.processInputProc) (&ke, keyDev, 1);
+	    }
+	}
+    }
+}
+
+static void
+dmxSyncButtons (DeviceIntPtr pDevice)
+{
+    DevicePtr      pDev = &pDevice->public;
+    DeviceIntPtr   buttonDev = inputInfo.pointer;
+    ButtonClassPtr buttonc = buttonDev->button;
+    xEvent	   be;
+    int		   i, x, y;
+
+    GETDMXINPUTFROMPDEV;
+
+    miPointerGetPosition (inputInfo.pointer, &x, &y);
+
+    be.u.keyButtonPointer.time  = GetTimeInMillis ();
+    be.u.keyButtonPointer.rootX = x;
+    be.u.keyButtonPointer.rootY = y;
+
+    for (i = 1; i < DOWN_LENGTH; i++)
+    {
+	be.u.u.detail = i;
+
+	if (dmxInput->validHistory && BitIsOn (dmxInput->history, i))
+	{
+	    if (!BitIsOn (buttonc->down, i))
+	    {
+		be.u.u.type = ButtonPress;
+		(*buttonDev->public.processInputProc) (&be, buttonDev, 1);
+	    }
+	}
+	else
+	{
+	    if (BitIsOn (buttonc->down, i))
+	    {
+		be.u.u.type = ButtonRelease;
+		(*buttonDev->public.processInputProc) (&be, buttonDev, 1);
+	    }
+	}
+    }
+}
 
 #if 11 /*BP*/
 void
@@ -620,6 +699,7 @@ static void dmxCollectAll(DMXInputInfo *dmxInput)
 
     if (dmxInput->detached)
         return;
+
     for (i = 0; i < dmxInput->numDevs; i += dmxInput->devs[i]->binding)
         if (dmxInput->devs[i]->collect_events)
             dmxInput->devs[i]->collect_events(&dmxInput->devs[i]
@@ -657,6 +737,11 @@ static void dmxSwitchReturn(pointer p)
     dmxInput->vt_switched = 0;
 }
 
+#include <setjmp.h>
+
+extern jmp_buf dmx_jumpbuf;
+extern int dmx_jumpbuf_set;
+
 static void dmxWakeupHandler(pointer blockData, int result, pointer pReadMask)
 {
     DMXInputInfo *dmxInput = &dmxInputs[(int)blockData];
@@ -681,6 +766,7 @@ static void dmxWakeupHandler(pointer blockData, int result, pointer pReadMask)
             }
         }
     }
+
     dmxCollectAll(dmxInput);
 }
 
@@ -1032,7 +1118,8 @@ void dmxInputInit(DMXInputInfo *dmxInput)
         int found;
 
         for (found = 0, i = 0; i < dmxNumScreens; i++) {
-            if (dmxPropertySameDisplay(&dmxScreens[i], name)) {
+            if ((dmxInput->scrnIdx != -1 && dmxInput->scrnIdx == i) ||
+		dmxPropertySameDisplay(&dmxScreens[i], name)) {
                 if (dmxScreens[i].shared)
                     dmxLog(dmxFatal,
                            "Cannot take input from shared backend (%s)\n",
@@ -1049,7 +1136,7 @@ void dmxInputInit(DMXInputInfo *dmxInput)
                     dmxInputCopyLocal(dmxInput, &DMXBackendKbd);
                     dmxInput->scrnIdx = i;
                     dmxLogInput(dmxInput,
-                                "Using backend input from %s\n", name);
+                                "Using backend input from %s at %d\n", name, i);
                 }
                 ++found;
                 break;
@@ -1096,6 +1183,8 @@ void dmxInputInit(DMXInputInfo *dmxInput)
 
     dmxInput->processInputEvents    = dmxProcessInputEvents;
     dmxInput->detached              = False;
+
+    dmxInput->validHistory = FALSE;
     
     RegisterBlockAndWakeupHandlers(dmxBlockHandler,
                                    dmxWakeupHandler,
@@ -1212,6 +1301,8 @@ int dmxInputDetach(DMXInputInfo *dmxInput)
                     : (dmxLocal->sendsCore
                        ? " [sends core events]"
                        : ""));
+	dmxSyncKeys (dmxLocal->pDevice);
+	dmxSyncButtons (dmxLocal->pDevice);
         DisableDevice(dmxLocal->pDevice);
     }
     dmxInput->detached = True;
@@ -1226,6 +1317,11 @@ void dmxInputDetachAll(DMXScreenInfo *dmxScreen)
 
     for (i = 0; i < dmxNumInputs; i++) {
         DMXInputInfo *dmxInput = &dmxInputs[i];
+
+        dmxLogInput(dmxInput, "Detaching input: %d - %d -- %d %d\n",
+		    i, dmxInput->numDevs, dmxInput->scrnIdx,
+		    dmxInput->detached);
+
         if (dmxInput->scrnIdx == dmxScreen->index) dmxInputDetach(dmxInput);
     }
 }
@@ -1280,7 +1376,8 @@ static int dmxInputAttachOld(DMXInputInfo *dmxInput, int *id)
                     : (dmxLocal->sendsCore
                        ? " [sends core events]"
                        : ""));
-        EnableDevice(dmxLocal->pDevice);
+        /* EnableDevice(dmxLocal->pDevice); call InitAndStartDevices instead */
+        InitAndStartDevices();
     }
     dmxInputLogDevices();
     return 0;
@@ -1331,6 +1428,91 @@ int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
     dmxScreen = &dmxScreens[physicalScreen];
     if (!dmxScreen->beDisplay) return BadAccess; /* Screen detached */
     dmxInput = dmxConfigAddInput(dmxScreen->name, isCore);
+    dmxInput->scrnIdx = physicalScreen;
     dmxLogInput(dmxInput, "Attaching new backend input\n");
     return dmxInputAttachNew(dmxInput, id);
+}
+
+void
+dmxPauseCoreInput (void)
+{
+    int i, j;
+
+    for (i = 0; i < dmxNumInputs; i++)
+    {
+	DMXInputInfo *dmxInput = &dmxInputs[i];
+
+	for (j = 0; j < dmxInput->numDevs; j++)
+	{
+	    DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[j];
+	    DeviceIntPtr         pDevice = (DeviceIntPtr) dmxLocal->pDevice;
+
+	    if (!dmxInput->devs[j]->sendsCore)
+		continue;
+
+	    if (pDevice->button)
+	    {
+		if (inputInfo.pointer->enabled)
+		{
+		    memcpy (dmxInput->history,
+			    inputInfo.pointer->button->down,
+			    sizeof (CARD8) * DOWN_LENGTH);
+		    dmxInput->validHistory = TRUE;
+		}
+	    }
+	    else if (pDevice->key)
+	    {
+		if (inputInfo.keyboard->enabled)
+		{
+		    memcpy (dmxInput->history,
+			    inputInfo.keyboard->key->down,
+			    sizeof (CARD8) * DOWN_LENGTH);
+		    dmxInput->validHistory = TRUE;
+		}
+	    }
+	}
+    }
+
+    if (inputInfo.pointer->enabled)
+	DisableDevice (inputInfo.pointer);
+
+    if (inputInfo.keyboard->enabled)
+	DisableDevice (inputInfo.keyboard);
+}
+
+void
+dmxUnpauseCoreInput (void)
+{
+    int i, j;
+
+    for (i = 0; i < dmxNumInputs; i++)
+    {
+	DMXInputInfo *dmxInput = &dmxInputs[i];
+
+	for (j = 0; j < dmxInput->numDevs; j++)
+	{
+	    DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[j];
+	    DeviceIntPtr         pDevice = (DeviceIntPtr) dmxLocal->pDevice;
+
+	    if (!dmxInput->devs[j]->sendsCore)
+		continue;
+
+	    if (pDevice->button)
+	    {
+		if (!inputInfo.pointer->enabled)
+		    EnableDevice (inputInfo.pointer);
+	    }
+	    else if (pDevice->key)
+	    {
+		if (!inputInfo.keyboard->enabled)
+		    dmxSyncKeys (pDevice);
+	    }
+	}
+    }
+
+    if (!inputInfo.pointer->enabled)
+	EnableDevice (inputInfo.pointer);
+
+    if (!inputInfo.keyboard->enabled)
+	EnableDevice (inputInfo.keyboard);
 }

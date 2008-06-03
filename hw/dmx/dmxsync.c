@@ -54,6 +54,7 @@
 #include "dmxsync.h"
 #include "dmxstat.h"
 #include "dmxlog.h"
+#include "dmxextension.h"
 #include <sys/time.h>
 
 static int        dmxSyncInterval = 100; /* Default interval in milliseconds */
@@ -68,12 +69,16 @@ static void dmxDoSync(DMXScreenInfo *dmxScreen)
 	return; /* FIXME: Is this correct behavior for sync stats? */
 
     if (!dmxStatInterval) {
-        XSync(dmxScreen->beDisplay, False);
+	XLIB_PROLOGUE (dmxScreen);
+	XSync (dmxScreen->beDisplay, False);
+	XLIB_EPILOGUE (dmxScreen);
     } else {
         struct timeval start, stop;
         
         gettimeofday(&start, 0);
+	XLIB_PROLOGUE (dmxScreen);
         XSync(dmxScreen->beDisplay, False);
+	XLIB_EPILOGUE (dmxScreen);
         gettimeofday(&stop, 0);
         dmxStatSync(dmxScreen, &stop, &start, dmxSyncPending);
     }
@@ -81,7 +86,7 @@ static void dmxDoSync(DMXScreenInfo *dmxScreen)
 
 static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 {
-    int           i;
+    int i;
 
     if (dmxSyncPending) {
         for (i = 0; i < dmxNumScreens; i++) {
@@ -93,15 +98,38 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
     return 0;                   /* Do not place on queue again */
 }
 
+static void dmxCheckScreens (void)
+{
+    int i;
+
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	if (dmxScreens[i].beDisplay && !dmxScreens[i].alive)
+	{
+	    if (i)
+	    {
+		dmxLog (dmxInfo, "display dead, lets detach it\n");
+		dmxDetachScreen (i);
+	    }
+	    else
+	    {
+		dmxLog (dmxFatal, "Default display dead, giving up...\n");
+	    }
+	}
+    }
+}
+
 static void dmxSyncBlockHandler(pointer blockData, OSTimePtr pTimeout,
                                 pointer pReadMask)
 {
-    TimerForce(dmxSyncTimer);
+    if (dmxSyncInterval)
+	TimerForce(dmxSyncTimer);
 }
 
 static void dmxSyncWakeupHandler(pointer blockData, int result,
                                  pointer pReadMask)
 {
+    dmxCheckScreens ();
 }
 
 /** Request the XSync() batching optimization with the specified \a
@@ -123,10 +151,11 @@ void dmxSyncActivate(const char *interval)
  * #dmxSyncActivate was last called with a non-negative value. */
 void dmxSyncInit(void)
 {
+    RegisterBlockAndWakeupHandlers (dmxSyncBlockHandler,
+				    dmxSyncWakeupHandler,
+				    NULL);
+
     if (dmxSyncInterval) {
-        RegisterBlockAndWakeupHandlers(dmxSyncBlockHandler,
-                                       dmxSyncWakeupHandler,
-                                       NULL);
         dmxLog(dmxInfo, "XSync batching with %d ms interval\n",
                dmxSyncInterval);
     } else {

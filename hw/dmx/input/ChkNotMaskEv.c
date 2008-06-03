@@ -74,6 +74,9 @@ Bool XCheckNotMaskEvent (Display *dpy, long mask, XEvent *event)
 	unsigned long qe_serial = 0;
 	int n;			/* time through count */
 
+	if (dpy->flags & XlibDisplayIOError)
+	    return False;
+
         LockDisplay(dpy);
 	prev = NULL;
 	for (n = 3; --n >= 0;) {
@@ -90,6 +93,9 @@ Bool XCheckNotMaskEvent (Display *dpy, long mask, XEvent *event)
 	    }
 	    if (prev)
 		qe_serial = prev->qserial_num;
+
+	    if (!(dpy->flags & XlibDisplayIOError))
+	    {
 	    switch (n) {
 	      case 2:
 		_XEventsQueued(dpy, QueuedAfterReading);
@@ -97,6 +103,7 @@ Bool XCheckNotMaskEvent (Display *dpy, long mask, XEvent *event)
 	      case 1:
 		_XFlush(dpy);
 		break;
+	    }
 	    }
 	    if (prev && prev->qserial_num != qe_serial)
 		/* another thread has snatched this event */

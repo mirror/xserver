@@ -98,16 +98,18 @@ void dmxPutImage(DrawablePtr pDrawable, GCPtr pGC,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
     dmxGCPrivPtr   pGCPriv = DMX_GET_GC_PRIV(pGC);
-    XImage        *img;
+    XImage        *img = NULL;
 
     if (DMX_GCOPS_OFFSCREEN(pDrawable)) return;
 
+    XLIB_PROLOGUE (dmxScreen);
     img = XCreateImage(dmxScreen->beDisplay,
 		       dmxScreen->beVisuals[dmxScreen->beDefVisualIndex].visual,
 		       depth, format, leftPad, pBits, w, h,
 		       BitmapPad(dmxScreen->beDisplay),
 		       (format == ZPixmap) ?
 		       PixmapBytePad(w, depth) : BitmapBytePad(w+leftPad));
+    XLIB_EPILOGUE (dmxScreen);
 
     if (img) {
 	Drawable draw;
@@ -136,6 +138,7 @@ void dmxPutImage(DrawablePtr pDrawable, GCPtr pGC,
 	    nBox = REGION_NUM_RECTS(pSubImages);
 	    pBox = REGION_RECTS(pSubImages);
 
+	    XLIB_PROLOGUE (dmxScreen);
 	    while (nBox--) {
 		XPutImage(dmxScreen->beDisplay, draw, pGCPriv->gc, img,
 			  pBox->x1 - box.x1,
@@ -146,11 +149,14 @@ void dmxPutImage(DrawablePtr pDrawable, GCPtr pGC,
 			  pBox->y2 - pBox->y1);
 		pBox++;
 	    }
+	    XLIB_EPILOGUE (dmxScreen);
             REGION_DESTROY(pGC->pScreen, pClip);
             REGION_DESTROY(pGC->pScreen, pSubImages);
 	} else {
+	    XLIB_PROLOGUE (dmxScreen);
 	    XPutImage(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		      img, 0, 0, x, y, w, h);
+	    XLIB_EPILOGUE (dmxScreen);
 	}
 	XFree(img);             /* Use XFree instead of XDestroyImage
                                  * because pBits is passed in from the
@@ -180,8 +186,10 @@ RegionPtr dmxCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
     DMX_GCOPS_SET_DRAWABLE(pSrc, srcDraw);
     DMX_GCOPS_SET_DRAWABLE(pDst, dstDraw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XCopyArea(dmxScreen->beDisplay, srcDraw, dstDraw, pGCPriv->gc,
 	      srcx, srcy, w, h, dstx, dsty);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 
     return miHandleExposures(pSrc, pDst, pGC, srcx, srcy, w, h,
@@ -207,8 +215,10 @@ RegionPtr dmxCopyPlane(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
     DMX_GCOPS_SET_DRAWABLE(pSrc, srcDraw);
     DMX_GCOPS_SET_DRAWABLE(pDst, dstDraw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XCopyPlane(dmxScreen->beDisplay, srcDraw, dstDraw, pGCPriv->gc,
 	       srcx, srcy, width, height, dstx, dsty, bitPlane);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 
     return miHandleExposures(pSrc, pDst, pGC, srcx, srcy, width, height,
@@ -230,8 +240,10 @@ void dmxPolyPoint(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawPoints(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		(XPoint *)pptInit, npt, mode);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -250,8 +262,10 @@ void dmxPolylines(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawLines(dmxScreen->beDisplay, draw, pGCPriv->gc,
 	       (XPoint *)pptInit, npt, mode);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -270,8 +284,10 @@ void dmxPolySegment(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawSegments(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		  (XSegment *)pSegs, nseg);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -290,8 +306,10 @@ void dmxPolyRectangle(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawRectangles(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		    (XRectangle *)pRects, nrects);
+    XLIB_EPILOGUE (dmxScreen);
 
     dmxSync(dmxScreen, FALSE);
 }
@@ -311,8 +329,10 @@ void dmxPolyArc(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawArcs(dmxScreen->beDisplay, draw, pGCPriv->gc,
 	      (XArc *)parcs, narcs);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -331,8 +351,10 @@ void dmxFillPolygon(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XFillPolygon(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		 (XPoint *)pPts, count, shape, mode);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -351,8 +373,10 @@ void dmxPolyFillRect(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XFillRectangles(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		    (XRectangle *)prectInit, nrectFill);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -371,8 +395,10 @@ void dmxPolyFillArc(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XFillArcs(dmxScreen->beDisplay, draw, pGCPriv->gc,
 	      (XArc *)parcs, narcs);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -400,8 +426,10 @@ int dmxPolyText8(DrawablePtr pDrawable, GCPtr pGC,
     if (n != 0 && !DMX_GCOPS_OFFSCREEN(pDrawable)) {
 	DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+	XLIB_PROLOGUE (dmxScreen);
 	XDrawString(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		    x, y, chars, count);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
     }
 
@@ -433,8 +461,10 @@ int dmxPolyText16(DrawablePtr pDrawable, GCPtr pGC,
     if (n != 0 && !DMX_GCOPS_OFFSCREEN(pDrawable)) {
 	DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+	XLIB_PROLOGUE (dmxScreen);
 	XDrawString16(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		      x, y, (XChar2b *)chars, count);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
     }
 
@@ -456,8 +486,10 @@ void dmxImageText8(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawImageString(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		     x, y, chars, count);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -476,8 +508,10 @@ void dmxImageText16(DrawablePtr pDrawable, GCPtr pGC,
 
     DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 
+    XLIB_PROLOGUE (dmxScreen);
     XDrawImageString16(dmxScreen->beDisplay, draw, pGCPriv->gc,
 		       x, y, (XChar2b *)chars, count);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
 }
 
@@ -553,7 +587,7 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 		 unsigned int format, unsigned long planeMask, char *pdstLine)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
-    XImage        *img;
+    XImage        *img = NULL;
     Drawable       draw;
 
     /* Cannot get image from unviewable window */
@@ -581,8 +615,10 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
         }
     }
 
+    XLIB_PROLOGUE (dmxScreen);
     img = XGetImage(dmxScreen->beDisplay, draw,
 		    sx, sy, w, h, planeMask, format);
+    XLIB_EPILOGUE (dmxScreen);
     if (img) {
 	int len = img->bytes_per_line * img->height;
 	memmove(pdstLine, img->data, len);

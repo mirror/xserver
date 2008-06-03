@@ -43,11 +43,13 @@
 #define DMX_DEFAULT_XKB_OPTIONS NULL
 
 extern void dmxConfigStoreDisplay(const char *display);
+extern void dmxConfigStoreNumDetached(const char *num);
 extern void dmxConfigStoreInput(const char *input); /* Core devices */
 extern void dmxConfigStoreXInput(const char *input); /* Non-core devices */
 extern void dmxConfigStoreFile(const char *file);
 extern void dmxConfigStoreConfig(const char *config);
 extern void dmxConfigConfigure(void);
+extern int  dmxConfigDisplaysFromCommandLine(void);
 extern void dmxConfigSetMaxScreens(void);
 
 extern void dmxConfigSetXkbRules(const char *rules);

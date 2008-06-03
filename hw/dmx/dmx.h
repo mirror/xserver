@@ -71,6 +71,8 @@
 #include <GL/glxint.h>
 #endif
 
+#include "dmxxlibio.h"
+
 typedef enum {
     PosNone = -1,
     PosAbsolute = 0,
@@ -96,6 +98,8 @@ typedef struct _DMXScreenInfo {
 
     /*---------- Back-end X server information ----------*/
 
+    int fd;
+
     Display      *beDisplay;      /**< Back-end X server's display */
     int           beWidth;        /**< Width of BE display */
     int           beHeight;       /**< Height of BE display */
@@ -106,6 +110,7 @@ typedef struct _DMXScreenInfo {
 
     int           beNumDepths;    /**< Number of depths on BE server */
     int          *beDepths;       /**< Depths from BE server */
+    int           alive;
 
     int           beNumPixmapFormats; /**< Number of pixmap formats on BE */
     XPixmapFormatValues *bePixmapFormats; /**< Pixmap formats on BE */
@@ -119,6 +124,12 @@ typedef struct _DMXScreenInfo {
 
     Pixel         beBlackPixel;   /**< Default black pixel for BE */
     Pixel         beWhitePixel;   /**< Default white pixel for BE */
+
+#ifdef RANDR
+    Bool          beRandr;        /**< Use RANDR support on BE server */
+    Bool          beRandrPending;
+    int           beRandrEventBase;
+#endif
 
     /*---------- Screen window information ----------*/
 
@@ -215,6 +226,8 @@ typedef struct _DMXScreenInfo {
     ReparentWindowProcPtr          ReparentWindow;
 
     ChangeBorderWidthProcPtr       ChangeBorderWidth;
+
+    SetWindowPixmapProcPtr         SetWindowPixmap;
 
     GetImageProcPtr                GetImage;
     GetSpansProcPtr                GetSpans;

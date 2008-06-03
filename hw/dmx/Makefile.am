@@ -72,6 +72,8 @@ Xdmx_SOURCES = dmx.c \
                dmxvisual.h \
                dmxwindow.c \
                dmxwindow.h \
+               dmxlaunch.c \
+               dmxlaunch.h \
                $(top_srcdir)/mi/miinitext.c \
                $(top_srcdir)/fb/fbcmap_mi.c \
                $(GLX_SRCS) 
@@ -84,6 +86,9 @@ Xdmx_SOURCES = dmx.c \
 XDMX_LIBS = \
 	@XDMX_LIBS@ \
 	$(GLX_LIBS) \
+	$(top_srcdir)/composite/libcomposite.la \
+	$(top_srcdir)/xfixes/libxfixes.la \
+	$(top_srcdir)/damageext/libdamageext.la \
         input/libdmxinput.a \
         config/libdmxconfig.a \
 	$(XSERVER_LIBS)

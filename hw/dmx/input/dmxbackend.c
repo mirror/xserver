@@ -49,6 +49,7 @@
 #include "dmxcursor.h"
 #include "dmxprop.h"
 #include "dmxsync.h"
+#include "dmxxlibio.h"
 #include "dmxcb.h"              /* For dmxGlobalWidth and dmxGlobalHeight */
 #include "dmxevents.h"          /* For dmxGetGlobalPosition */
 #include "ChkNotMaskEv.h"
@@ -159,19 +160,23 @@ static int dmxBackendSameDisplay(myPrivate *priv, long screen)
 static void *dmxBackendTestEvents(DMXScreenInfo *dmxScreen, void *closure)
 {
     XEvent *X = (XEvent *)closure;
+    int result = 0;
     
-    if (XCheckNotMaskEvent(dmxScreen->beDisplay, ExposureMask, X))
-        return dmxScreen;
-    return NULL;
+    XLIB_PROLOGUE (dmxScreen);
+    result = XCheckNotMaskEvent(dmxScreen->beDisplay, ExposureMask, X);
+    XLIB_EPILOGUE (dmxScreen);
+    return (result) ? dmxScreen : NULL;
 }
 
 static void *dmxBackendTestMotionEvent(DMXScreenInfo *dmxScreen, void *closure)
 {
     XEvent *X = (XEvent *)closure;
+    int result = 0;
 
-    if (XCheckTypedEvent(dmxScreen->beDisplay, MotionNotify, X))
-        return dmxScreen;
-    return NULL;
+    XLIB_PROLOGUE (dmxScreen);
+    result = XCheckTypedEvent(dmxScreen->beDisplay, MotionNotify, X);
+    XLIB_EPILOGUE (dmxScreen);
+    return (result) ? dmxScreen : NULL;
 }
 
 static DMXScreenInfo *dmxBackendGetEvent(myPrivate *priv, XEvent *X)
@@ -190,7 +195,11 @@ static DMXScreenInfo *dmxBackendPendingMotionEvent(myPrivate *priv, int save)
 
     if ((dmxScreen = dmxPropertyIterate(priv->be,
                                         dmxBackendTestMotionEvent, &N))) {
-        if (save) XPutBackEvent(dmxScreen->beDisplay, &N);
+        if (save) {
+	    XLIB_PROLOGUE (dmxScreen);
+	    XPutBackEvent(dmxScreen->beDisplay, &N);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
         return dmxScreen;
     }
     return NULL;
@@ -303,7 +312,9 @@ void dmxBackendUpdatePosition(pointer private, int x, int y)
                 DMXDBG2("   *** force ungrab on %s, display=%p\n",
                         priv->grabbedScreen->name,
                         priv->grabbedScreen->beDisplay);
+		XLIB_PROLOGUE (dmxScreen);
                 XUngrabPointer(priv->grabbedScreen->beDisplay, CurrentTime);
+		XLIB_EPILOGUE (dmxScreen);
                 dmxSync(priv->grabbedScreen, TRUE);
                 priv->grabbedScreen = NULL;
             }
@@ -319,8 +330,10 @@ void dmxBackendUpdatePosition(pointer private, int x, int y)
                 dmxHideCursor(dmxScreen);
                 priv->lastX   = priv->centerX;
                 priv->lastY   = priv->centerY;
+		XLIB_PROLOGUE (dmxScreen);
                 XWarpPointer(priv->display, None, priv->window,
                              0, 0, 0, 0, priv->lastX, priv->lastY);
+		XLIB_EPILOGUE (dmxScreen);
                 dmxSync(dmxScreen, TRUE);
             } else {
                 DMXDBG0("   Check cursor\n");
@@ -346,117 +359,159 @@ void dmxBackendCollectEvents(DevicePtr pDev,
     int                  entered     = priv->entered;
     int                  ignoreLeave = 0;
     int                  v[2];
-    int                  retcode;
+    Window               window = None;
+    int                  x = 0, y = 0;
 
     while ((dmxScreen = dmxBackendGetEvent(priv, &X))) {
 	switch (X.type) {
-        case EnterNotify:
-            dmxCommonSaveState(priv);
-            if (entered++)
-                continue;
-            priv->entered = 1;
-            ignoreLeave   = 1;
-            DMXDBG5("dmxBackendCollectEvents: Enter %lu %d,%d; GRAB %s %p\n",
-                    X.xcrossing.root, X.xcrossing.x, X.xcrossing.y,
-                    dmxScreen->name, dmxScreen->beDisplay);
-            XRaiseWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
-            priv->grabbedScreen = dmxScreen;
-            if ((retcode = XGrabPointer(dmxScreen->beDisplay,
-					dmxScreen->scrnWin,
-                                        True, 0, GrabModeAsync,
-                                        GrabModeAsync, None, None,
-                                        CurrentTime))) {
-                dmxLog(dmxError,
-                       "XGrabPointer failed during backend enter (%d)\n",
-                       retcode);
-            }
-            break;
-        case LeaveNotify:
-            if (ignoreLeave) {
-                ignoreLeave = 0;
-                continue;
-            }
-            dmxCommonRestoreState(priv);
-            if (left++)
-                continue;
-            DMXDBG7("dmxBackendCollectEvents: Leave %lu %d,%d %d %d %s %s\n",
-                    X.xcrossing.root, X.xcrossing.x, X.xcrossing.y,
-                    X.xcrossing.detail, X.xcrossing.focus,
-                    priv->grabbedScreen ? "UNGRAB" : "",
-                    dmxScreen->name);
-            if (priv->grabbedScreen) {
-                XUngrabPointer(priv->grabbedScreen->beDisplay, CurrentTime);
-                dmxSync(priv->grabbedScreen, TRUE);
-                priv->grabbedScreen = NULL;
-            }
-            break;
-	case MotionNotify:
-            DMXDBG9("dmxBackendCollectEvents: MotionNotify %d/%d (mi %d)"
-                    " newscreen=%d: %d %d (e=%d; last=%d,%d)\n",
-                    dmxScreen->index, priv->myScreen,
-                    miPointerCurrentScreen()->myNum,
-                    priv->newscreen,
-                    X.xmotion.x, X.xmotion.y,
-                    entered, priv->lastX, priv->lastY);
-            if (dmxBackendPendingMotionEvent(priv, TRUE))
-                continue;
-            if (!(dmxScreen = dmxBackendFindWindow(priv, X.xmotion.window)))
-                dmxLog(dmxFatal,
-                       "   Event on non-existant window %lu\n",
-                       X.xmotion.window);
-            if (!priv->relative || dmxInput->console) {
-                int newX = X.xmotion.x - dmxScreen->rootX;
-                int newY = X.xmotion.y - dmxScreen->rootY;
-
-                if (!priv->newscreen) {
-                    int width  = dmxScreen->rootWidth;
-                    int height = dmxScreen->rootHeight;
-                    if (!newX)              newX = -1;
-                    if (newX == width - 1)  newX = width;
-                    if (!newY)              newY = -1;
-                    if (newY == height - 1) newY = height;
-                }
-                priv->newscreen = 0;
-                v[0] = dmxScreen->rootXOrigin + newX;
-                v[1] = dmxScreen->rootYOrigin + newY;
-                DMXDBG8("   Absolute move: %d,%d (r=%dx%d+%d+%d s=%dx%d)\n",
-                        v[0], v[1],
-                        priv->be->rootWidth, priv->be->rootHeight,
-                        priv->be->rootX, priv->be->rootY,
-                        priv->be->scrnWidth, priv->be->scrnHeight);
-                motion(priv->mou, v, 0, 2, DMX_ABSOLUTE, block);
-                priv->entered = 0;
-            } else {
-                int newX = priv->lastX - X.xmotion.x;
-                int newY = priv->lastY - X.xmotion.y;
-                priv->lastX = X.xmotion.x;
-                priv->lastY = X.xmotion.y;
-                v[0]        = newX;
-                v[1]        = newY;
-                DMXDBG2("   Relative move: %d, %d\n", v[0], v[1]);
-                motion(priv->mou, v, 0, 2, DMX_RELATIVE, block);
-            }
-            if (entered && priv->relative) {
-                DMXDBG4("   **** Relative %d %d instead of absolute %d %d\n",
-                        v[0], v[1],
-                        (dmxScreen->rootXOrigin + X.xmotion.x
-                         - dmxScreen->rootX),
-                        (dmxScreen->rootYOrigin + X.xmotion.y
-                         - dmxScreen->rootY));
-            }
+	case FocusIn:
+	    dmxUnpauseCoreInput ();
 	    break;
+	case FocusOut:
+	    dmxPauseCoreInput ();
+	    break;
+	case LeaveNotify:
+	    if (ignoreLeave) {
+		ignoreLeave = 0;
+		continue;
+	    }
+	    if (left++)
+		continue;
+	    if (priv->grabbedScreen) {
+		priv->grabbedScreen = NULL;
+	    }
+	    break;
+	case EnterNotify:
+	    priv->entered = 1;
+	    ignoreLeave   = 1;
+	    priv->grabbedScreen = dmxScreen;
 
-        case KeyPress:
-        case KeyRelease:
-            enqueue(priv->kbd, X.type, X.xkey.keycode, 0, NULL, block);
-            break;
-        case ButtonPress:
-        case ButtonRelease:
-            /* fall-through */
+	    if (X.xcrossing.mode != NotifyUngrab)
+		break;
+
+	    window = X.xcrossing.window;
+	    x = X.xcrossing.x;
+	    y = X.xcrossing.y;
+	    /* fall through */
+	case MotionNotify:
+	    if (X.type == MotionNotify)
+	    {
+		DMXDBG9("dmxBackendCollectEvents: MotionNotify %d/%d (mi %d)"
+			" newscreen=%d: %d %d (e=%d; last=%d,%d)\n",
+			dmxScreen->index, priv->myScreen,
+			miPointerCurrentScreen()->myNum,
+			priv->newscreen,
+			X.xmotion.x, X.xmotion.y,
+			entered, priv->lastX, priv->lastY);
+		if (dmxBackendPendingMotionEvent(priv, TRUE))
+		    continue;
+
+		window = X.xmotion.window;
+		x = X.xmotion.x;
+		y = X.xmotion.y;
+	    }
+
+	    if (!(dmxScreen = dmxBackendFindWindow(priv, window)))
+		dmxLog(dmxFatal,
+		       "   Event on non-existant window %lu\n",
+		       X.xmotion.window);
+	    if (!priv->relative || dmxInput->console) {
+		int newX = x - dmxScreen->rootX;
+		int newY = y - dmxScreen->rootY;
+
+		if (!priv->newscreen) {
+		    int width  = dmxScreen->rootWidth;
+		    int height = dmxScreen->rootHeight;
+		    if (!newX)              newX = -1;
+		    if (newX == width - 1)  newX = width;
+		    if (!newY)              newY = -1;
+		    if (newY == height - 1) newY = height;
+		}
+		priv->newscreen = 0;
+		v[0] = dmxScreen->rootXOrigin + newX;
+		v[1] = dmxScreen->rootYOrigin + newY;
+		DMXDBG8("   Absolute move: %d,%d (r=%dx%d+%d+%d s=%dx%d)\n",
+			v[0], v[1],
+			priv->be->rootWidth, priv->be->rootHeight,
+			priv->be->rootX, priv->be->rootY,
+			priv->be->scrnWidth, priv->be->scrnHeight);
+		motion (priv->mou, v, 0, 2, DMX_ABSOLUTE, block);
+		priv->entered = 0;
+	    } else {
+		int newX = priv->lastX - x;
+		int newY = priv->lastY - y;
+		priv->lastX = x;
+		priv->lastY = y;
+		v[0]        = newX;
+		v[1]        = newY;
+		DMXDBG2("   Relative move: %d, %d\n", v[0], v[1]);
+		motion (priv->mou, v, 0, 2, DMX_RELATIVE, block);
+	    }
+	    if (entered && priv->relative) {
+		DMXDBG4("   **** Relative %d %d instead of absolute %d %d\n",
+			v[0], v[1],
+			(dmxScreen->rootXOrigin + x
+			 - dmxScreen->rootX),
+			(dmxScreen->rootYOrigin + y
+			 - dmxScreen->rootY));
+	    }
+	    break;
+	case KeyPress:
+	case KeyRelease:
+	    if (X.xany.send_event)
+	    {
+		BYTE *kptr = &dmxInput->history[X.xkey.keycode >> 3];
+		int  bit = 1 << (X.xkey.keycode & 7);
+
+		switch (X.type) {
+		case KeyPress: *kptr |= bit; break;
+		case KeyRelease: *kptr &= ~bit; break;
+		}
+	    }
+	    else
+	    {
+		dmxInput->validHistory = FALSE;
+		enqueue (priv->kbd, X.type, X.xkey.keycode, 0, NULL, block);
+	    }
+	    break;
+	case ButtonPress:
+	    if (!X.xany.send_event)
+	    {
+		XLIB_PROLOGUE (dmxScreen);
+		XUngrabPointer (dmxScreen->beDisplay, CurrentTime);
+		XUngrabKeyboard (dmxScreen->beDisplay, CurrentTime);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
+	    /* fall-through */
+	case ButtonRelease:
+	    if (X.xany.send_event)
+	    {
+		BYTE *bptr = &dmxInput->history[X.xbutton.button >> 3];
+		int  bit = 1 << (X.xbutton.button & 7);
+
+		switch (X.type) {
+		case ButtonPress: *bptr |= bit; break;
+		case ButtonRelease:*bptr &= ~bit; break;
+		}
+	    }
+	    else
+	    {
+		dmxInput->validHistory = FALSE;
+		enqueue (priv->mou, X.type, X.xbutton.button, 0, &X, block);
+	    }
+	    break;
+	case MappingNotify:
+	    if (dmxLocal && dmxLocal->pDevice && dmxLocal->pDevice->key)
+	    {
+		DMXLocalInitInfo info;
+
+		memset (&info, 0, sizeof (info));
+
+		dmxCommonKbdGetMap (pDev, &info.keySyms, info.modMap);
+		SetKeySymsMap (&dmxLocal->pDevice->key->curKeySyms,
+			       &info.keySyms);
+	    }
 	default:
-                                /* Pass the whole event here, because
-                                 * this may be an extension event. */
-            enqueue(priv->mou, X.type, X.xbutton.button, 0, &X, block);
 	    break;
 	}
     }
@@ -482,8 +537,10 @@ void dmxBackendProcessInput(pointer private)
                 priv->lastX, priv->lastY, priv->centerX, priv->centerY);
 	priv->lastX   = priv->centerX;
 	priv->lastY   = priv->centerY;
+	XLIB_PROLOGUE (&dmxScreens[priv->myScreen]);
         XWarpPointer(priv->display, None, priv->window,
                      0, 0, 0, 0, priv->lastX, priv->lastY);
+	XLIB_EPILOGUE (&dmxScreens[priv->myScreen]);
         dmxSync(&dmxScreens[priv->myScreen], TRUE);
     }
 }
@@ -514,7 +571,8 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
 
     /* Fill in myPrivate */
     for (i = 0,dmxScreen = &dmxScreens[0]; i<dmxNumScreens; i++,dmxScreen++) {
-        if (dmxPropertySameDisplay(dmxScreen, dmxInput->name)) {
+        if ((dmxInput->scrnIdx != -1 && dmxInput->scrnIdx == i) ||
+	    dmxPropertySameDisplay(dmxScreen, dmxInput->name)) {
             priv->display  = dmxScreen->beDisplay;
             priv->window   = dmxScreen->scrnWin;
             priv->be       = dmxScreen;
@@ -564,7 +622,15 @@ void dmxBackendInit(DevicePtr pDev)
 
     /* Finish initialization using computed values or constants. */
     dmxBackendComputeCenter(priv);
-    priv->eventMask          = (EnterWindowMask|LeaveWindowMask);
+    priv->eventMask          = (KeyPressMask
+				| KeyReleaseMask
+				| ButtonPressMask
+				| ButtonReleaseMask
+				| EnterWindowMask
+				| LeaveWindowMask
+				| PointerMotionMask
+				| KeymapStateMask
+				| FocusChangeMask);
     priv->myScreen           = dmxScreen->index;
     priv->lastX              = priv->centerX;
     priv->lastY              = priv->centerY;

@@ -93,7 +93,7 @@ Visual *dmxLookupVisual(ScreenPtr pScreen, VisualPtr pVisual)
     for (i = 0; i < dmxScreen->beNumVisuals; i++) {
 	if (pVisual->class == dmxScreen->beVisuals[i].class &&
 	    pVisual->bitsPerRGBValue == dmxScreen->beVisuals[i].bits_per_rgb &&
-	    pVisual->ColormapEntries == dmxScreen->beVisuals[i].colormap_size &&
+//	    pVisual->ColormapEntries == dmxScreen->beVisuals[i].colormap_size &&
 	    pVisual->nplanes == dmxScreen->beVisuals[i].depth &&
 	    pVisual->redMask == dmxScreen->beVisuals[i].red_mask &&
 	    pVisual->greenMask == dmxScreen->beVisuals[i].green_mask &&

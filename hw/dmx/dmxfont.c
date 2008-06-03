@@ -103,10 +103,15 @@ static Bool dmxCheckFontPathElement(DMXScreenInfo *dmxScreen, char *fp)
 	return TRUE;
 
     dmxFontLastError = 0;
+
+#if 0
     oldErrorHandler = XSetErrorHandler(dmxFontErrorHandler);
+    XLIB_PROLOGUE (dmxScreen);
     XSetFontPath(dmxScreen->beDisplay, &fp, 1);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, TRUE);   /* Must complete before removing handler */
     XSetErrorHandler(oldErrorHandler);
+#endif
 
     return (dmxFontLastError == 0);
 }
@@ -121,12 +126,15 @@ static int dmxSetFontPath(DMXScreenInfo *dmxScreen)
     if (!dmxScreen->beDisplay)
 	return result;
 
+#if 0
     fp = dmxGetFontPath(&npaths);
     if (!fp) return BadAlloc;
 
     dmxFontLastError = 0;
     oldErrorHandler = XSetErrorHandler(dmxFontErrorHandler);
+    XLIB_PROLOGUE (dmxScreen);
     XSetFontPath(dmxScreen->beDisplay, fp, npaths);
+    XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, TRUE);   /* Must complete before removing handler */
     XSetErrorHandler(oldErrorHandler);
 
@@ -140,28 +148,35 @@ static int dmxSetFontPath(DMXScreenInfo *dmxScreen)
     }
 
     dmxFreeFontPath(fp);
+#endif
 
     return result;
 }
 
 static int dmxCheckFontPath(DMXScreenInfo *dmxScreen, int *error)
 {
-    char **oldFontPath;
-    int    nOldPaths;
+    char **oldFontPath = NULL;
+    int    nOldPaths = 0;
     int    result = Success;
 
     if (!dmxScreen->beDisplay)
 	return result;
 
+#if 0
     /* Save old font path */
+    XLIB_PROLOGUE (dmxScreen);
     oldFontPath = XGetFontPath(dmxScreen->beDisplay, &nOldPaths);
+    XLIB_EPILOGUE (dmxScreen);
 
     result = dmxSetFontPath(dmxScreen);
 
     /* Restore old font path */
+    XLIB_PROLOGUE (dmxScreen);
     XSetFontPath(dmxScreen->beDisplay, oldFontPath, nOldPaths);
+    XLIB_EPILOGUE (dmxScreen);
     XFreeFontPath(oldFontPath);
     dmxSync(dmxScreen, FALSE);
+#endif
 
     return result;
 }
@@ -255,7 +270,7 @@ Bool dmxBELoadFont(ScreenPtr pScreen, FontPtr pFont)
     dmxFontPrivPtr  pFontPriv = FontGetPrivate(pFont, dmxFontPrivateIndex);
     char           *name;
     char          **oldFontPath = NULL;
-    int             nOldPaths;
+    int             nOldPaths = 0;
     Atom            name_atom, value_atom;
     int             i;
 
@@ -268,8 +283,11 @@ Bool dmxBELoadFont(ScreenPtr pScreen, FontPtr pFont)
 	return TRUE; /* Already loaded font */
     }
 
+#if 0
     /* Save old font path */
+    XLIB_PROLOGUE (dmxScreen);
     oldFontPath = XGetFontPath(dmxScreen->beDisplay, &nOldPaths);
+    XLIB_EPILOGUE (dmxScreen);
 
     /* Set the font path for the font about to be loaded on the back-end */
     if (dmxSetFontPath(dmxScreen)) {
@@ -402,6 +420,7 @@ Bool dmxBELoadFont(ScreenPtr pScreen, FontPtr pFont)
 	    return FALSE;
 	}
     }
+#endif
 
     /* Find requested font on back-end server */
     name_atom = MakeAtom("FONT", 4, TRUE);
@@ -418,12 +437,17 @@ Bool dmxBELoadFont(ScreenPtr pScreen, FontPtr pFont)
     name = (char *)NameForAtom(value_atom);
     if (!name) return FALSE;
 
-    pFontPriv->font[pScreen->myNum] = 
-	XLoadQueryFont(dmxScreen->beDisplay, name);
+    pFontPriv->font[pScreen->myNum] = None;
 
-    /* Restore old font path */
+    XLIB_PROLOGUE (dmxScreen);
+    pFontPriv->font[pScreen->myNum] =
+	XLoadQueryFont(dmxScreen->beDisplay, name);
+    XLIB_EPILOGUE (dmxScreen);
+
+    /* Restore old font path
     XSetFontPath(dmxScreen->beDisplay, oldFontPath, nOldPaths);
-    XFreeFontPath(oldFontPath);
+
+    XFreeFontPath(oldFontPath);*/
     dmxSync(dmxScreen, FALSE);
 
     if (!pFontPriv->font[pScreen->myNum]) return FALSE;
@@ -472,7 +496,9 @@ Bool dmxBEFreeFont(ScreenPtr pScreen, FontPtr pFont)
     dmxFontPrivPtr  pFontPriv = FontGetPrivate(pFont, dmxFontPrivateIndex);
 
     if (pFontPriv && pFontPriv->font[pScreen->myNum]) {
+	XLIB_PROLOGUE (dmxScreen);
 	XFreeFont(dmxScreen->beDisplay, pFontPriv->font[pScreen->myNum]);
+	XLIB_EPILOGUE (dmxScreen);
 	pFontPriv->font[pScreen->myNum] = NULL;
 	return TRUE;
     }

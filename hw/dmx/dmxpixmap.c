@@ -70,11 +70,14 @@ void dmxBECreatePixmap(PixmapPtr pPixmap)
 	return;
 
     if (pPixmap->drawable.width && pPixmap->drawable.height) {
+	pPixPriv->pixmap = None;
+	XLIB_PROLOGUE (dmxScreen);
 	pPixPriv->pixmap = XCreatePixmap(dmxScreen->beDisplay,
 					 dmxScreen->scrnWin,
 					 pPixmap->drawable.width,
 					 pPixmap->drawable.height,
 					 pPixmap->drawable.depth);
+	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
     }
 }
@@ -142,12 +145,23 @@ Bool dmxBEFreePixmap(PixmapPtr pPixmap)
     dmxPixPrivPtr  pPixPriv = DMX_GET_PIXMAP_PRIV(pPixmap);
 
     if (pPixPriv->pixmap) {
+	XLIB_PROLOGUE (dmxScreen);
 	XFreePixmap(dmxScreen->beDisplay, pPixPriv->pixmap);
+	XLIB_EPILOGUE (dmxScreen);
 	pPixPriv->pixmap = (Pixmap)0;
 	return TRUE;
     }
 
     return FALSE;
+}
+
+static Bool FoundPix = False;
+
+static void findPixmap (pointer value, XID id, RESTYPE type, pointer p)
+{
+    if ((type & TypeMask) == (RT_PIXMAP & TypeMask))
+	if ((PixmapPtr) p == (PixmapPtr) value)
+	    FoundPix = True;
 }
 
 /** Destroy the pixmap pointed to by \a pPixmap. */
@@ -162,7 +176,44 @@ Bool dmxDestroyPixmap(PixmapPtr pPixmap)
 #endif
 
     if (--pPixmap->refcnt)
+    {
+	int i;
+
 	return TRUE;
+
+	FoundPix = False;
+	for (i = currentMaxClients; --i >= 0; )
+	    if (clients[i])
+		FindAllClientResources (clients[i], findPixmap,
+					(pointer) pPixmap);
+
+	if (!FoundPix)
+	{
+	    dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+
+	    if (!pPixPriv->detachedImage)
+	    {
+		ScreenPtr      pScreen   = pPixmap->drawable.pScreen;
+		DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+		pPixPriv->detachedImage = NULL;
+
+		XLIB_PROLOGUE (dmxScreen);
+		pPixPriv->detachedImage = XGetImage(dmxScreen->beDisplay,
+						    pPixPriv->pixmap,
+						    0, 0,
+						    pPixmap->drawable.width,
+						    pPixmap->drawable.height,
+						    -1,
+						    ZPixmap);
+		XLIB_EPILOGUE (dmxScreen);
+		if (!pPixPriv->detachedImage)
+		    ErrorF ("Cannot save pixmap image\n");
+	    }
+	}
+
+	return TRUE;
+    }
 
     /* Destroy pixmap on back-end server */
     if (dmxScreen->beDisplay) {
@@ -193,7 +244,7 @@ RegionPtr dmxBitmapToRegion(PixmapPtr pPixmap)
     ScreenPtr      pScreen = pPixmap->drawable.pScreen;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxPixPrivPtr  pPixPriv = DMX_GET_PIXMAP_PRIV(pPixmap);
-    XImage        *ximage;
+    XImage        *ximage = NULL;
     RegionPtr      pReg, pTmpReg;
     int            x, y;
     unsigned long  previousPixel, currentPixel;
@@ -205,9 +256,13 @@ RegionPtr dmxBitmapToRegion(PixmapPtr pPixmap)
 	return pReg;
     }
 
+    XLIB_PROLOGUE (dmxScreen);
     ximage = XGetImage(dmxScreen->beDisplay, pPixPriv->pixmap, 0, 0,
 		       pPixmap->drawable.width, pPixmap->drawable.height,
 		       1, XYPixmap);
+    XLIB_EPILOGUE (dmxScreen);
+    if (!ximage)
+	return NullRegion;
 
     pReg = REGION_CREATE(pScreen, NullBox, 1);
     pTmpReg = REGION_CREATE(pScreen, NullBox, 1);

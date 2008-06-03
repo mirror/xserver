@@ -290,4 +290,7 @@ extern int          dmxInputAttachConsole(const char *name, int isCore,
 extern int          dmxInputAttachBackend(int physicalScreen, int isCore,
                                           int *id);
 
+extern void dmxPauseCoreInput (void);
+extern void dmxUnpauseCoreInput (void);
+
 #endif

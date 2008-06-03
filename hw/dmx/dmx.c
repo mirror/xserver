@@ -63,8 +63,13 @@
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
+extern unsigned long XRC_DRAWABLE;
 extern unsigned long XRT_WINDOW;
 extern int           PanoramiXNumScreens;
+#endif
+
+#ifdef RANDR
+#include "randrstr.h"
 #endif
 
 extern void DMXExtensionInit(void);
@@ -481,7 +486,7 @@ static int ProcDMXAddScreen(ClientPtr client)
         return BadLength;
 
     memset(&attr, 0, sizeof(attr));
-    dmxGetScreenAttributes(stuff->physicalScreen, &attr);
+    /*dmxGetScreenAttributes(stuff->physicalScreen, &attr); */
     value_list = (CARD32 *)(stuff + 1);
     count      = dmxFetchScreenAttributes(stuff->valueMask, &attr, value_list);
     
@@ -544,28 +549,32 @@ static int dmxPopulatePanoramiX(ClientPtr client, Window window,
                                 CARD32 *screens, CARD32 *windows,
                                 xRectangle *pos, xRectangle *vis)
 {
-    WindowPtr              pWin;
-    PanoramiXRes           *win;
+    DrawablePtr            pDraw;
+    PanoramiXRes           *res;
     int                    i;
     int                    count = 0;
     DMXWindowAttributesRec attr;
     
-    if (!(win = SecurityLookupIDByType(client, window, XRT_WINDOW,
-                                       DixReadAccess)))
-        return -1;               /* BadWindow */
+
+    if(!(res = (PanoramiXRes *) SecurityLookupIDByClass(
+	     client, window, XRC_DRAWABLE, DixReadAccess)))
+	return -1;               /* BadDrawable */
     
     FOR_NSCREENS(i) {
-        if (Success != dixLookupWindow(&pWin, win->info[i].id, client,
-				       DixReadAccess))
-            return -1;          /* BadWindow */
-        if (dmxGetWindowAttributes(pWin, &attr)) {
-            screens[count] = attr.screen;
-            windows[count] = attr.window;
-            pos[count]     = attr.pos;
-            vis[count]     = attr.vis;
-            ++count;            /* Only count existing windows */
-        }
+	if (Success == dixLookupDrawable (&pDraw, res->info[i].id, client,
+					  M_ANY, DixUnknownAccess))
+	{
+	    if (dmxGetDrawableAttributes (pDraw, &attr))
+	    {
+		screens[count] = attr.screen;
+		windows[count] = attr.window;
+		pos[count]     = attr.pos;
+		vis[count]     = attr.vis;
+		++count;            /* Only count existing windows */
+	    }
+	}
     }
+
     return count;
 }
 #endif
@@ -573,7 +582,7 @@ static int dmxPopulatePanoramiX(ClientPtr client, Window window,
 static int dmxPopulate(ClientPtr client, Window window, CARD32 *screens,
                        CARD32 *windows, xRectangle *pos, xRectangle *vis)
 {
-    WindowPtr              pWin;
+    DrawablePtr            pDraw;
     DMXWindowAttributesRec attr;
 
 #ifdef PANORAMIX
@@ -582,14 +591,21 @@ static int dmxPopulate(ClientPtr client, Window window, CARD32 *screens,
                                     pos, vis);
 #endif
     
-    if (Success != dixLookupWindow(&pWin, window, client, DixReadAccess))
-        return -1;               /* BadWindow */
+    if (Success != dixLookupDrawable (&pDraw, window, client, 0,
+				      DixReadAccess))
+	return -1;
 
-    dmxGetWindowAttributes(pWin, &attr);
+    if (!dmxGetDrawableAttributes (pDraw, &attr))
+	return -1;
+
     *screens = attr.screen;
     *windows = attr.window;
     *pos     = attr.pos;
     *vis     = attr.vis;
+
+    if (!attr.window)
+	abort ();
+
     return 1;
 }
 
@@ -739,6 +755,10 @@ static int ProcDMXChangeDesktopAttributes(ClientPtr client)
     status = dmxConfigureDesktop(&attr);
 #endif
     if (status == BadValue) return status;
+
+#ifdef RANDR
+    RRScreenSizeNotify (screenInfo.screens[0]);
+#endif
 
   noxinerama:
     rep.type           = X_Reply;

@@ -54,6 +54,7 @@ void dmxShadowUpdateProc(ScreenPtr pScreen, shadowBufPtr pBuf)
     if (!dmxScreen->beDisplay)
 	return;
 
+    XLIB_PROLOGUE (dmxScreen);
     while (nbox--) {
 	XPutImage(dmxScreen->beDisplay,
 		  dmxScreen->scrnWin,
@@ -66,6 +67,7 @@ void dmxShadowUpdateProc(ScreenPtr pScreen, shadowBufPtr pBuf)
 
 	pbox++;
     }
+    XLIB_EPILOGUE (dmxScreen);
 
     dmxSync(dmxScreen, FALSE);
 }
