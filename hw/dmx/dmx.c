@@ -122,15 +122,16 @@ static int _DMXXineramaActive(void)
 void DMXExtensionInit(void)
 {
     ExtensionEntry *extEntry;
-    
+
     if ((extEntry = AddExtension(DMX_EXTENSION_NAME, 0, 0,
                                  ProcDMXDispatch, SProcDMXDispatch,
                                  NULL, StandardMinorOpcode)))
+greater than screen count.:hw/dmx/dmx.c
 	DMXCode = extEntry->base;
 }
 
 static void dmxSetScreenAttribute(int bit, DMXScreenAttributesPtr attr,
-                                  CARD32 value)
+				  CARD32 value)
 {
     switch (1 << bit) {
     case DMXScreenWindowWidth:   attr->screenWindowWidth   = value; break;
@@ -147,25 +148,25 @@ static void dmxSetScreenAttribute(int bit, DMXScreenAttributesPtr attr,
 }
 
 static int dmxFetchScreenAttributes(unsigned int mask,
-                                    DMXScreenAttributesPtr attr,
-                                    CARD32 *value_list)
+				    DMXScreenAttributesPtr attr,
+				    CARD32 *value_list)
 {
     int    i;
     CARD32 *value = value_list;
     int    count  = 0;
-        
+
     for (i = 0; i < 32; i++) {
-        if (mask & (1 << i)) {
-            dmxSetScreenAttribute(i, attr, *value);
-            ++value;
-            ++count;
-        }
+	if (mask & (1 << i)) {
+	    dmxSetScreenAttribute(i, attr, *value);
+	    ++value;
+	    ++count;
+	}
     }
     return count;
 }
 
 static void dmxSetDesktopAttribute(int bit, DMXDesktopAttributesPtr attr,
-                                   CARD32 value)
+				   CARD32 value)
 {
     switch (1 << bit) {
     case DMXDesktopWidth:  attr->width  = value; break;
@@ -176,25 +177,25 @@ static void dmxSetDesktopAttribute(int bit, DMXDesktopAttributesPtr attr,
 }
 
 static int dmxFetchDesktopAttributes(unsigned int mask,
-                                     DMXDesktopAttributesPtr attr,
-                                     CARD32 *value_list)
+				     DMXDesktopAttributesPtr attr,
+				     CARD32 *value_list)
 {
     int    i;
     CARD32 *value = value_list;
     int    count  = 0;
-        
+
     for (i = 0; i < 32; i++) {
-        if (mask & (1 << i)) {
-            dmxSetDesktopAttribute(i, attr, *value);
+	if (mask & (1 << i)) {
+	    dmxSetDesktopAttribute(i, attr, *value);
 	    ++value;
-            ++count;
-        }
+	    ++count;
+	}
     }
     return count;
 }
 
 static void dmxSetInputAttribute(int bit, DMXInputAttributesPtr attr,
-                                 CARD32 value)
+				 CARD32 value)
 {
     switch (1 << bit) {
     case DMXInputType:           attr->inputType      = value;   break;
@@ -204,19 +205,19 @@ static void dmxSetInputAttribute(int bit, DMXInputAttributesPtr attr,
 }
 
 static int dmxFetchInputAttributes(unsigned int mask,
-                                   DMXInputAttributesPtr attr,
-                                   CARD32 *value_list)
+				   DMXInputAttributesPtr attr,
+				   CARD32 *value_list)
 {
     int    i;
     CARD32 *value = value_list;
     int    count  = 0;
 
     for (i = 0; i < 32; i++) {
-        if (mask & (1 << i)) {
-            dmxSetInputAttribute(i, attr, *value);
-            ++value;
-            ++count;
-        }
+	if (mask & (1 << i)) {
+	    dmxSetInputAttribute(i, attr, *value);
+	    ++value;
+	    ++count;
+	}
     }
     return count;
 }
@@ -236,7 +237,7 @@ static int ProcDMXQueryVersion(ClientPtr client)
     rep.patchVersion   = DMX_EXTENSION_PATCH;
     if (client->swapped) {
     	swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
+	swapl(&rep.length, n);
 	swapl(&rep.majorVersion, n);
 	swapl(&rep.minorVersion, n);
 	swapl(&rep.patchVersion, n);
@@ -259,9 +260,9 @@ static int ProcDMXSync(ClientPtr client)
     rep.length         = 0;
     rep.status         = 0;
     if (client->swapped) {
-        swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
-        swapl(&rep.status, n);
+	swaps(&rep.sequenceNumber, n);
+	swapl(&rep.length, n);
+	swapl(&rep.status, n);
     }
     WriteToClient(client, sizeof(xDMXSyncReply), (char *)&rep);
     return client->noClientException;
@@ -278,27 +279,27 @@ static int ProcDMXForceWindowCreation(ClientPtr client)
 
 #ifdef PANORAMIX
     if (!noPanoramiXExtension) {
-        PanoramiXRes *win;
-        int          i;
+	PanoramiXRes *win;
+	int          i;
 
-        if (!(win = SecurityLookupIDByType(client, stuff->window, XRT_WINDOW,
-                                           DixReadAccess)))
-            return -1;           /* BadWindow */
+	if (!(win = SecurityLookupIDByType(client, stuff->window, XRT_WINDOW,
+					   DixReadAccess)))
+	    return -1;           /* BadWindow */
 
-        FOR_NSCREENS(i) {
-            if (Success != dixLookupWindow(&pWin, win->info[i].id, client,
+	FOR_NSCREENS(i) {
+	    if (Success != dixLookupWindow(&pWin, win->info[i].id, client,
 					   DixReadAccess))
-                return -1;       /* BadWindow */
+		return -1;       /* BadWindow */
 
-            dmxForceWindowCreation(pWin);
-        }
-        goto doreply;
+	    dmxForceWindowCreation(pWin);
+	}
+	goto doreply;
     }
 #endif
 
     if (Success != dixLookupWindow(&pWin, stuff->window, client,
 				   DixReadAccess))
-        return -1;               /* BadWindow */
+	return -1;               /* BadWindow */
 
     dmxForceWindowCreation(pWin);
   doreply:
@@ -308,9 +309,9 @@ static int ProcDMXForceWindowCreation(ClientPtr client)
     rep.length         = 0;
     rep.status         = 0;
     if (client->swapped) {
-        swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
-        swapl(&rep.status, n);
+	swaps(&rep.sequenceNumber, n);
+	swapl(&rep.length, n);
+	swapl(&rep.status, n);
     }
     WriteToClient(client, sizeof(xDMXForceWindowCreationReply), (char *)&rep);
     return Success;
@@ -329,8 +330,8 @@ static int ProcDMXGetScreenCount(ClientPtr client)
     rep.screenCount    = dmxGetNumScreens();
     if (client->swapped) {
     	swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
-        swapl(&rep.screenCount, n);
+	swapl(&rep.length, n);
+	swapl(&rep.screenCount, n);
     }
     WriteToClient(client, sizeof(xDMXGetScreenCountReply), (char *)&rep);
     return client->noClientException;
@@ -348,10 +349,10 @@ static int ProcDMXGetScreenAttributes(ClientPtr client)
     REQUEST_SIZE_MATCH(xDMXGetScreenAttributesReq);
 
     if (stuff->physicalScreen < 0
-        || stuff->physicalScreen >= dmxGetNumScreens()) return BadValue;
+	|| stuff->physicalScreen >= dmxGetNumScreens()) return BadValue;
 
     if (!dmxGetScreenAttributes(stuff->physicalScreen, &attr))
-        return BadValue;
+	return BadValue;
 
     rep.logicalScreen       = attr.logicalScreen;
     rep.screenWindowWidth   = attr.screenWindowWidth;
@@ -364,7 +365,7 @@ static int ProcDMXGetScreenAttributes(ClientPtr client)
     rep.rootWindowYoffset   = attr.rootWindowYoffset;
     rep.rootWindowXorigin   = attr.rootWindowXorigin;
     rep.rootWindowYorigin   = attr.rootWindowYorigin;
-                                 
+
     length                  = attr.displayName ? strlen(attr.displayName) : 0;
     paddedLength            = (length + 3) & ~3;
     rep.type                = X_Reply;
@@ -374,19 +375,19 @@ static int ProcDMXGetScreenAttributes(ClientPtr client)
 
     if (client->swapped) {
     	swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
-        swapl(&rep.displayNameLength, n);
-        swapl(&rep.logicalScreen, n);
-        swaps(&rep.screenWindowWidth, n);
-        swaps(&rep.screenWindowHeight, n);
-        swaps(&rep.screenWindowXoffset, n);
-        swaps(&rep.screenWindowYoffset, n);
-        swaps(&rep.rootWindowWidth, n);
-        swaps(&rep.rootWindowHeight, n);
-        swaps(&rep.rootWindowXoffset, n);
-        swaps(&rep.rootWindowYoffset, n);
-        swaps(&rep.rootWindowXorigin, n);
-        swaps(&rep.rootWindowYorigin, n);
+	swapl(&rep.length, n);
+	swapl(&rep.displayNameLength, n);
+	swapl(&rep.logicalScreen, n);
+	swaps(&rep.screenWindowWidth, n);
+	swaps(&rep.screenWindowHeight, n);
+	swaps(&rep.screenWindowXoffset, n);
+	swaps(&rep.screenWindowYoffset, n);
+	swaps(&rep.rootWindowWidth, n);
+	swaps(&rep.rootWindowHeight, n);
+	swaps(&rep.rootWindowXoffset, n);
+	swaps(&rep.rootWindowYoffset, n);
+	swaps(&rep.rootWindowXorigin, n);
+	swaps(&rep.rootWindowYorigin, n);
     }
     WriteToClient(client, sizeof(xDMXGetScreenAttributesReply), (char *)&rep);
     if (length) WriteToClient(client, length, (char *)attr.displayName);
@@ -408,12 +409,12 @@ static int ProcDMXChangeScreensAttributes(ClientPtr client)
     int                              errorScreen = 0;
     unsigned int                     len;
     int                              ones = 0;
-    
+
 
     REQUEST_AT_LEAST_SIZE(xDMXChangeScreensAttributesReq);
     len = client->req_len - (sizeof(xDMXChangeScreensAttributesReq) >> 2);
     if (len < stuff->screenCount + stuff->maskCount)
-        return BadLength;
+	return BadLength;
 
     screen_list = (CARD32 *)(stuff + 1);
     mask_list   = &screen_list[stuff->screenCount];
@@ -421,20 +422,20 @@ static int ProcDMXChangeScreensAttributes(ClientPtr client)
 
     for (i = 0; i < stuff->maskCount; i++) ones += Ones(mask_list[i]);
     if (len != stuff->screenCount + stuff->maskCount + ones)
-        return BadLength;
-    
+	return BadLength;
+
     if (!_DMXXineramaActive()) goto noxinerama;
 
     if (!(attribs = xalloc(stuff->screenCount * sizeof(*attribs))))
-        return BadAlloc;
+	return BadAlloc;
 
     for (i = 0; i < stuff->screenCount; i++) {
-        int count;
-        
-        if (i < stuff->maskCount) mask = mask_list[i];
-        dmxGetScreenAttributes(screen_list[i], &attribs[i]);
-        count = dmxFetchScreenAttributes(mask, &attribs[i], value_list);
-        value_list += count;
+	int count;
+
+	if (i < stuff->maskCount) mask = mask_list[i];
+	dmxGetScreenAttributes(screen_list[i], &attribs[i]);
+	count = dmxFetchScreenAttributes(mask, &attribs[i], value_list);
+	value_list += count;
     }
 
 #if PANORAMIX
@@ -455,14 +456,14 @@ static int ProcDMXChangeScreensAttributes(ClientPtr client)
     rep.status         = status;
     rep.errorScreen    = errorScreen;
     if (client->swapped) {
-        swaps(&rep.sequenceNumber, n);
-        swapl(&rep.length, n);
-        swapl(&rep.status, n);
-        swapl(&rep.errorScreen, n);
+	swaps(&rep.sequenceNumber, n);
+	swapl(&rep.length, n);
+	swapl(&rep.status, n);
+	swapl(&rep.errorScreen, n);
     }
     WriteToClient(client,
-                  sizeof(xDMXChangeScreensAttributesReply),
-                  (char *)&rep);
+		  sizeof(xDMXChangeScreensAttributesReply),
+		  (char *)&rep);
     return client->noClientException;
 }
 
@@ -478,25 +479,42 @@ static int ProcDMXAddScreen(ClientPtr client)
     char                   *name;
     int                    len;
     int                    paddedLength;
+    int                    physicalScreen;
 
     REQUEST_AT_LEAST_SIZE(xDMXAddScreenReq);
     paddedLength = (stuff->displayNameLength + 3) & ~3;
     len          = client->req_len - (sizeof(xDMXAddScreenReq) >> 2);
     if (len != Ones(stuff->valueMask) + paddedLength/4)
-        return BadLength;
+	return BadLength;
 
     memset(&attr, 0, sizeof(attr));
     /*dmxGetScreenAttributes(stuff->physicalScreen, &attr); */
     value_list = (CARD32 *)(stuff + 1);
     count      = dmxFetchScreenAttributes(stuff->valueMask, &attr, value_list);
-    
+
     if (!(name = xalloc(stuff->displayNameLength + 1 + 4)))
-        return BadAlloc;
+	return BadAlloc;
     memcpy(name, &value_list[count], stuff->displayNameLength);
     name[stuff->displayNameLength] = '\0';
     attr.displayName = name;
 
-    status = dmxAttachScreen(stuff->physicalScreen, &attr);
+    physicalScreen = stuff->physicalScreen;
+    if (physicalScreen >= dmxGetNumScreens ())
+    {
+	DMXScreenAttributesRec attribs;
+
+	for (physicalScreen = 0;
+	     physicalScreen < dmxGetNumScreens ();
+	     physicalScreen++)
+	{
+	    dmxGetScreenAttributes (physicalScreen, &attribs);
+
+	    if (!attribs.displayName || !*attribs.displayName)
+		break;
+	}
+    }
+
+    status = dmxAttachScreen(physicalScreen, &attr);
 
     xfree(name);
 
@@ -504,7 +522,7 @@ static int ProcDMXAddScreen(ClientPtr client)
     rep.sequenceNumber = client->sequence;
     rep.length         = 0;
     rep.status         = status;
-    rep.physicalScreen = stuff->physicalScreen;
+    rep.physicalScreen = physicalScreen;
     if (client->swapped) {
         swaps(&rep.sequenceNumber, n);
         swapl(&rep.length, n);
