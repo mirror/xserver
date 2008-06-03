@@ -163,7 +163,13 @@ static void *dmxBackendTestEvents(DMXScreenInfo *dmxScreen, void *closure)
     int result = 0;
     
     XLIB_PROLOGUE (dmxScreen);
-    result = XCheckNotMaskEvent(dmxScreen->beDisplay, ExposureMask, X);
+    result = XCheckMaskEvent(dmxScreen->beDisplay,
+			     KeyPressMask | KeyReleaseMask |
+			     ButtonPressMask | ButtonReleaseMask |
+			     EnterWindowMask | LeaveWindowMask |
+			     PointerMotionMask | KeymapStateMask |
+			     FocusChangeMask,
+			     X);
     XLIB_EPILOGUE (dmxScreen);
     return (result) ? dmxScreen : NULL;
 }

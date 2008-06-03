@@ -685,30 +685,60 @@ int dmxConfigureDesktop(DMXDesktopAttributesPtr attribs)
 	attribs->height <= 0 || attribs->height >= 32767)
 	return DMX_BAD_VALUE;
 
-    /* If the desktop is shrinking, adjust the "root" windows on each
+    /* If the desktop is changing size, adjust the "root" windows on each
      * "screen" window to only show the visible desktop.  Also, handle
      * the special case where the desktop shrinks such that the it no
      * longer overlaps an portion of a "screen" window. */
-    if (attribs->width < dmxGlobalWidth || attribs->height < dmxGlobalHeight) {
+    if (attribs->width != dmxGlobalWidth || attribs->height != dmxGlobalHeight) {
 	int   i;
 	for (i = 0; i < dmxNumScreens; i++) {
 	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
-	    if (dmxScreen->rootXOrigin
-		+ dmxScreen->rootWidth  > attribs->width ||
-		dmxScreen->rootYOrigin
-		+ dmxScreen->rootHeight > attribs->height) {
-		int  w, h;
-		if ((w = attribs->width  - dmxScreen->rootXOrigin) < 0) w = 0;
-		if ((h = attribs->height - dmxScreen->rootYOrigin) < 0) h = 0;
+	    int  w, h;
+
+	    w = attribs->width;
+	    h = attribs->height;
+
+#ifdef RANDR
+	    if (dmxScreen->beRandr)
+	    {
+		if (w > dmxScreen->beWidth)  w = dmxScreen->beWidth;
+		if (h > dmxScreen->beHeight) h = dmxScreen->beHeight;
+	    }
+	    else
+#endif
+
+	    {
 		if (w > dmxScreen->scrnWidth)  w = dmxScreen->scrnWidth;
 		if (h > dmxScreen->scrnHeight) h = dmxScreen->scrnHeight;
+	    }
+
+	    dmxConfigureScreenWindow (i,
+				      dmxScreen->scrnX,
+				      dmxScreen->scrnY,
+				      w,
+				      h);
+
+	    if ((w = attribs->width  - dmxScreen->rootXOrigin) < 0) w = 0;
+	    if ((h = attribs->height - dmxScreen->rootYOrigin) < 0) h = 0;
+
+#ifdef RANDR
+	    if (dmxScreen->beRandr)
+	    {
+		if (w > dmxScreen->beWidth)  w = dmxScreen->beWidth;
+		if (h > dmxScreen->beHeight) h = dmxScreen->beHeight;
+	    }
+	    else
+#endif
+
+	    {
 		if (w > dmxScreen->rootWidth)  w = dmxScreen->rootWidth;
 		if (h > dmxScreen->rootHeight) h = dmxScreen->rootHeight;
-		dmxConfigureRootWindow(i,
-				       dmxScreen->rootX,
-				       dmxScreen->rootY,
-				       w, h);
 	    }
+
+	    dmxConfigureRootWindow (i,
+				    dmxScreen->rootX,
+				    dmxScreen->rootY,
+				    w, h);
 	}
     }
 
@@ -1420,22 +1450,53 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
     {
 
 #ifdef RANDR
-	int ignore;
-
-	XLIB_PROLOGUE (dmxScreen);
-	dmxScreen->beRandr = XRRQueryExtension (dmxScreen->beDisplay,
-						&dmxScreen->beRandrEventBase,
-						&ignore);
-	XLIB_EPILOGUE (dmxScreen);
+	int major, minor, status = 0;
 #endif
 
-	attr->screenWindowWidth   = dmxScreen->beWidth;
-	attr->screenWindowHeight  = dmxScreen->beHeight;
+	attr->screenWindowWidth  = dmxScreen->beWidth;
+	attr->screenWindowHeight = dmxScreen->beHeight;
+
+#ifdef RANDR
+	XLIB_PROLOGUE (dmxScreen);
+	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
+	XLIB_EPILOGUE (dmxScreen);
+
+	if (status)
+	{
+	    if (major > 1 || (major == 1 && minor >= 2))
+	    {
+		int ignore;
+
+		XLIB_PROLOGUE (dmxScreen);
+		dmxScreen->beRandr =
+		    XRRQueryExtension (dmxScreen->beDisplay,
+				       &dmxScreen->beRandrEventBase,
+				       &ignore);
+		XLIB_EPILOGUE (dmxScreen);
+
+		if (attr->screenWindowWidth > dmxGlobalWidth)
+		    attr->screenWindowWidth = dmxGlobalWidth;
+		if (attr->screenWindowHeight > dmxGlobalHeight)
+		    attr->screenWindowHeight = dmxGlobalHeight;
+
+		dmxLog (dmxInfo, "RandR 1.2 is present\n");
+	    }
+	    else
+	    {
+		dmxLog (dmxInfo, "RandR 1.2 is not present\n");
+	    }
+	}
+	else
+	{
+	    dmxLog (dmxInfo, "RandR extension missing\n");
+	}
+#endif
+
 	attr->screenWindowXoffset = 0;
 	attr->screenWindowYoffset = 0;
 
-	attr->rootWindowWidth     = dmxScreen->beWidth;
-	attr->rootWindowHeight    = dmxScreen->beHeight;
+	attr->rootWindowWidth     = attr->screenWindowWidth;
+	attr->rootWindowHeight    = attr->screenWindowHeight;
 	attr->rootWindowXoffset   = 0;
 	attr->rootWindowYoffset   = 0;
 

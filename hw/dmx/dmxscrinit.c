@@ -54,6 +54,7 @@
 #include "dmxprop.h"
 #include "dmxdpms.h"
 #include "dmxlog.h"
+#include "dmxcb.h"
 
 #ifdef RENDER
 #include "dmxpict.h"
@@ -262,9 +263,11 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 	mode = dmxRRGetMode (r, c->mode);
 
     for (i = 0; i < c->noutput; i++)
+    {
 	outputs[i] = dmxRRGetOutput (pScreen, dmxScreen, c->outputs[i]);
 	if (!outputs[i])
 	    return FALSE;
+    }
 
     XLIB_PROLOGUE (dmxScreen);
     gamma = XRRGetCrtcGamma (dmxScreen->beDisplay, xcrtc);
@@ -636,7 +639,7 @@ dmxRRGetInfo (ScreenPtr pScreen,
 			return (dmxScreen->beRandrPending = FALSE);
 		}
 	    }
-	    else if (dmxScreen->beDisplay)
+	    else if (dmxScreen->beDisplay && j == 0)
 	    {
 		RRModePtr   mode;
 		xRRModeInfo modeInfo;
@@ -644,11 +647,11 @@ dmxRRGetInfo (ScreenPtr pScreen,
 
 		sprintf (name,
 			 "%dx%d",
-			 dmxScreen->scrnWidth, dmxScreen->scrnHeight);
+			 dmxScreen->beWidth, dmxScreen->beHeight);
 
 		memset (&modeInfo, '\0', sizeof (modeInfo));
-		modeInfo.width = dmxScreen->scrnWidth;
-		modeInfo.height = dmxScreen->scrnHeight;
+		modeInfo.width = dmxScreen->beWidth;
+		modeInfo.height = dmxScreen->beHeight;
 		modeInfo.nameLength = strlen (name);
 
 		mode = RRModeGet (&modeInfo, name);
@@ -693,7 +696,7 @@ dmxRRGetInfo (ScreenPtr pScreen,
 		    RRCrtcNotify (crtc, NULL, 0, 0, RR_Rotate_0, 0, NULL);
 		}
 	    }
-	    else if (dmxScreen->beDisplay)
+	    else if (dmxScreen->beDisplay && j == 0)
 	    {
 		RRModePtr   mode;
 		xRRModeInfo modeInfo;
@@ -701,11 +704,11 @@ dmxRRGetInfo (ScreenPtr pScreen,
 
 		sprintf (name,
 			 "%dx%d",
-			 dmxScreen->scrnWidth, dmxScreen->scrnHeight);
+			 dmxScreen->beWidth, dmxScreen->beHeight);
 
 		memset (&modeInfo, '\0', sizeof (modeInfo));
-		modeInfo.width = dmxScreen->scrnWidth;
-		modeInfo.height = dmxScreen->scrnHeight;
+		modeInfo.width = dmxScreen->beWidth;
+		modeInfo.height = dmxScreen->beHeight;
 		modeInfo.nameLength = strlen (name);
 
 		mode = RRModeGet (&modeInfo, name);
@@ -1150,21 +1153,91 @@ dmxRRCheckScreen (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (dmxScreen->beDisplay && dmxScreen->beRandr)
+    if (dmxScreen->beDisplay)
     {
-	XEvent event;
+	XEvent X;
 
-	XLIB_PROLOGUE (dmxScreen);
-	while (XCheckTypedEvent (dmxScreen->beDisplay,
-				 dmxScreen->beRandrEventBase +
-				 RRScreenChangeNotify,
-				 &event))
+	for (;;)
+	{
+	    Bool status = FALSE;
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    status = XCheckTypedEvent (dmxScreen->beDisplay, ConfigureNotify, &X);
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    if (!status)
+		break;
+
+	    XRRUpdateConfiguration (&X);
+
+	    dmxScreen->beWidth =
+		DisplayWidth (dmxScreen->beDisplay,
+			      DefaultScreen (dmxScreen->beDisplay));
+	    dmxScreen->beHeight =
+		DisplayHeight (dmxScreen->beDisplay,
+			       DefaultScreen (dmxScreen->beDisplay));
+
+	    if (dmxScreen->beRandr)
+	    {
+		DMXScreenAttributesRec attr;
+		CARD32		       scrnNum = dmxScreen->index;
+
+		memset (&attr, 0, sizeof (attr));
+
+		attr.screenWindowWidth  = dmxGlobalWidth;
+		attr.screenWindowHeight = dmxGlobalHeight;
+
+		if (attr.screenWindowWidth > dmxScreen->beWidth)
+		    attr.screenWindowWidth = dmxScreen->beWidth;
+		if (attr.screenWindowHeight > dmxScreen->beHeight)
+		    attr.screenWindowHeight = dmxScreen->beHeight;
+
+		attr.rootWindowWidth  = attr.screenWindowWidth;
+		attr.rootWindowHeight = attr.screenWindowHeight;
+
+		dmxConfigureScreenWindows (1, &scrnNum, &attr, NULL);
+	    }
+
 	    RRTellChanged (screenInfo.screens[0]);
-	while (XCheckTypedEvent (dmxScreen->beDisplay,
-				 dmxScreen->beRandrEventBase + RRNotify,
-				 &event))
-	    RRTellChanged (screenInfo.screens[0]);
-	XLIB_EPILOGUE (dmxScreen);
+	}
+
+	if (dmxScreen->beRandr)
+	{
+	    for (;;)
+	    {
+		Bool status = FALSE;
+
+		XLIB_PROLOGUE (dmxScreen);
+		status = XCheckTypedEvent (dmxScreen->beDisplay,
+					   dmxScreen->beRandrEventBase +
+					   RRScreenChangeNotify,
+					   &X);
+		XLIB_EPILOGUE (dmxScreen);
+
+		if (!status)
+		    break;
+
+		XRRUpdateConfiguration (&X);
+		RRTellChanged (screenInfo.screens[0]);
+	    }
+
+	    for (;;)
+	    {
+		Bool status = FALSE;
+
+		XLIB_PROLOGUE (dmxScreen);
+		status = XCheckTypedEvent (dmxScreen->beDisplay,
+					   dmxScreen->beRandrEventBase + RRNotify,
+					   &X);
+		XLIB_EPILOGUE (dmxScreen);
+
+		if (!status)
+		    break;
+
+		XRRUpdateConfiguration (&X);
+		RRTellChanged (screenInfo.screens[0]);
+	    }
+	}
     }
 }
 
@@ -1348,6 +1421,10 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     }
 
 #ifdef RANDR
+    XSelectInput (dmxScreen->beDisplay,
+		  DefaultRootWindow (dmxScreen->beDisplay),
+		  StructureNotifyMask);
+
     if (dmxScreen->beRandr)
 	XRRSelectInput (dmxScreen->beDisplay,
 			DefaultRootWindow (dmxScreen->beDisplay),

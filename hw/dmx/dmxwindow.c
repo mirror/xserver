@@ -92,7 +92,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     pCmapPriv = DMX_GET_COLORMAP_PRIV(pCmap);
 
     mask = CWEventMask | CWBackingStore | CWColormap | CWBorderPixel;
-    attribs.event_mask    = ExposureMask | FocusChangeMask;
+    attribs.event_mask    = ExposureMask;
     attribs.backing_store = NotUseful;
     attribs.colormap      = pCmapPriv->cmap;
     attribs.border_pixel  = 0;
@@ -251,7 +251,7 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     }
 
     mask |= CWEventMask;
-    attribs.event_mask = ExposureMask | FocusChangeMask;
+    attribs.event_mask = ExposureMask;
 
     /* Incorporate new attributes, if needed */
     if (pWinPriv->attribMask) {
