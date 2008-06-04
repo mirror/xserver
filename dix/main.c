@@ -103,9 +103,6 @@ Equipment Corporation.
 #include "extnsionst.h"
 #include "privates.h"
 #include "registry.h"
-#ifdef XPRINT
-#include "DiPrint.h"
-#endif
 #ifdef PANORAMIX
 #include "panoramiXsrv.h"
 #else
@@ -243,17 +240,13 @@ int dix_main(int argc, char *argv[], char *envp[])
 int main(int argc, char *argv[], char *envp[])
 #endif
 {
-    int		i, j, k, error;
+    int		i, j, k;
     char	*xauthfile;
     HWEventQueueType	alwaysCheckForInput[2];
 
     display = "0";
 
-    InitGlobals();
     InitRegions();
-#ifdef XPRINT
-    PrinterInitGlobals();
-#endif
 
     CheckUserParameters(argc, argv, envp);
 
@@ -265,11 +258,6 @@ int main(int argc, char *argv[], char *envp[])
 
     InitConnectionLimits();
 
-    /* These are needed by some routines which are called from interrupt
-     * handlers, thus have no direct calling path back to main and thus
-     * can't be passed argc, argv as parameters */
-    argcGlobal = argc;
-    argvGlobal = argv;
     /* prep X authority file from environment; this can be overriden by a
      * command line option */
     xauthfile = getenv("XAUTHORITY");
@@ -348,9 +336,6 @@ int main(int argc, char *argv[], char *envp[])
 	InitCallbackManager();
 	InitVisualWrap();
 	InitOutput(&screenInfo, argc, argv);
-#ifdef XPRINT
-	PrinterInitOutput(&screenInfo, argc, argv);
-#endif
 
 	if (screenInfo.numScreens < 1)
 	    FatalError("no screens found");
@@ -372,19 +357,10 @@ int main(int argc, char *argv[], char *envp[])
 	    if (!CreateRootWindow(pScreen))
 		FatalError("failed to create root window");
 	}
-        InitCoreDevices();
-	InitInput(argc, argv);
-	if (InitAndStartDevices() != Success)
-	    FatalError("failed to initialize core devices");
 
 	InitFonts();
-	if (loadableFonts)
-	    SetFontPath(serverClient, 0, (unsigned char *)defaultFontPath,
-			&error);
-        else {
-	    if (SetDefaultFontPath(defaultFontPath) != Success)
-		ErrorF("failed to set default font path '%s'",
-			defaultFontPath);
+	if (SetDefaultFontPath(defaultFontPath) != Success) {
+	    ErrorF("[dix] failed to set default font path '%s'", defaultFontPath);
 	}
 	if (!SetDefaultFont(defaultTextFont)) {
 	    FatalError("could not open default font '%s'", defaultTextFont);
@@ -413,6 +389,12 @@ int main(int argc, char *argv[], char *envp[])
 	for (i = 0; i < screenInfo.numScreens; i++)
 	    InitRootWindow(WindowTable[i]);
 	DefineInitialRootWindow(WindowTable[0]);
+
+        InitCoreDevices();
+	InitInput(argc, argv);
+	if (InitAndStartDevices() != Success)
+	    FatalError("failed to initialize core devices");
+
 	dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 
 #ifdef PANORAMIX
@@ -431,6 +413,8 @@ int main(int argc, char *argv[], char *envp[])
 	NotifyParentProcess();
 
 	Dispatch();
+
+        UndisplayDevices();
 
 	/* Now free up whatever must be freed */
 	if (screenIsSaved == SCREEN_SAVER_ON)
@@ -464,7 +448,6 @@ int main(int argc, char *argv[], char *envp[])
 	    xfree(screenInfo.screens[i]);
 	    screenInfo.numScreens = i;
 	}
-  	CloseDownEvents();
 	xfree(WindowTable);
 	WindowTable = NULL;
 	FreeFonts();

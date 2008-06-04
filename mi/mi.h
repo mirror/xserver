@@ -126,6 +126,7 @@ extern void miPutImage(
 /* micursor.c */
 
 extern void miRecolorCursor(
+    DeviceIntPtr /* pDev */,
     ScreenPtr /*pScr*/,
     CursorPtr /*pCurs*/,
     Bool /*displayed*/
@@ -152,12 +153,17 @@ extern Bool mieqInit(
     void
 );
 
+extern void mieqResizeEvents(
+    int /* min_size */
+);
+
 extern void mieqEnqueue(
     DeviceIntPtr /*pDev*/,
     xEventPtr /*e*/
 );
 
 extern void mieqSwitchScreen(
+    DeviceIntPtr /* pDev */,
     ScreenPtr /*pScreen*/,
     Bool /*fromDIX*/
 );

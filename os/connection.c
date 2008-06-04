@@ -1297,3 +1297,44 @@ MakeClientGrabPervious(ClientPtr client)
     }
 }
 
+#ifdef XQUARTZ
+/* Add a fd (from launchd) to our listeners */
+_X_EXPORT void ListenOnOpenFD(int fd) {
+    char port[20];
+    XtransConnInfo ciptr;
+    
+    /* Sigh for inconsistencies. */  
+    sprintf (port, ":%d", atoi(display));
+
+    /* Make our XtransConnInfo
+     * TRANS_SOCKET_LOCAL_INDEX = 5 from Xtrans.c
+     */
+    ciptr = _XSERVTransReopenCOTSServer(5, fd, port);
+    if(ciptr == NULL) {
+        ErrorF("Got NULL while trying to Reopen launchd port.\n");
+        return;
+    }
+    
+    /* Allocate space to store it */
+    ListenTransFds = (int *) xrealloc(ListenTransFds, (ListenTransCount + 1) * sizeof (int));
+    ListenTransConns = (XtransConnInfo *) xrealloc(ListenTransConns, (ListenTransCount + 1) * sizeof (XtransConnInfo));
+    
+    /* Store it */
+    ListenTransConns[ListenTransCount] = ciptr;
+    ListenTransFds[ListenTransCount] = fd;
+
+    FD_SET(fd, &WellKnownConnections);
+    FD_SET(fd, &AllSockets);
+    
+    /* Increment the count */
+    ListenTransCount++;
+
+    /* This *might* be needed, but it seems to be working fine without it... */
+    //ResetAuthorization();
+    //ResetHosts(display);
+#ifdef XDMCP
+    //XdmcpReset();
+#endif
+}
+
+#endif

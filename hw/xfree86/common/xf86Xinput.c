@@ -52,17 +52,13 @@
 
 #include <X11/Xfuncproto.h>
 #include <X11/Xmd.h>
-#ifdef XINPUT
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
-#endif
 #include "xf86.h"
 #include "xf86Priv.h"
 #include "xf86Xinput.h"
-#ifdef XINPUT
 #include "XIstubs.h"
 #include "xf86Optrec.h"
-#endif
 #include "mipointer.h"
 #include "xf86InPriv.h"
 
@@ -90,7 +86,7 @@
 #include "dgaproc.h"
 #endif
 
-xEvent *xf86Events = NULL;
+EventListPtr xf86Events = NULL;
 
 static Bool
 xf86SendDragEvents(DeviceIntPtr	device)
@@ -154,7 +150,7 @@ xf86ActivateDevice(LocalDevicePtr local)
     DeviceIntPtr	dev;
 
     if (local->flags & XI86_CONFIGURED) {
-        dev = AddInputDevice(local->device_control, TRUE);
+        dev = AddInputDevice(serverClient, local->device_control, TRUE);
 
         if (dev == NULL)
             FatalError("Too many input devices");
@@ -166,9 +162,21 @@ xf86ActivateDevice(LocalDevicePtr local)
         dev->public.devicePrivate = (pointer) local;
         local->dev = dev;      
         
-        dev->coreEvents = local->flags & XI86_ALWAYS_CORE;
-        RegisterOtherDevice(dev);
+        dev->coreEvents = local->flags & XI86_ALWAYS_CORE; 
+        dev->isMaster = FALSE;
+        dev->spriteInfo->spriteOwner = FALSE;
 
+        if (DeviceIsPointerType(dev))
+        {
+            dev->deviceGrab.ActivateGrab = ActivatePointerGrab;
+            dev->deviceGrab.DeactivateGrab = DeactivatePointerGrab;
+        } else 
+        {
+            dev->deviceGrab.ActivateGrab = ActivateKeyboardGrab;
+            dev->deviceGrab.DeactivateGrab = DeactivateKeyboardGrab;
+        }
+
+        RegisterOtherDevice(dev);
 #ifdef XKB
         if (!noXkbExtension)
             XkbSetExtension(dev, ProcessKeyboardEvent);
@@ -181,7 +189,6 @@ xf86ActivateDevice(LocalDevicePtr local)
 }
 
 
-#ifdef XINPUT
 /***********************************************************************
  *
  * Caller:	ProcXOpenDevice
@@ -310,7 +317,6 @@ void
 AddOtherInputDevices()
 {
 }
-#endif
 
 int
 NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
@@ -382,6 +388,16 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
         goto unwind;
     }
 
+    if (!drv) {
+        xf86Msg(X_ERROR, "No input driver specified (ignoring)\n");
+        return BadMatch;
+    }
+
+    if (!idev->identifier) {
+        xf86Msg(X_ERROR, "No device identifier specified (ignoring)\n");
+        return BadMatch;
+    }
+
     if (!drv->PreInit) {
         xf86Msg(X_ERROR,
                 "Input driver `%s' has no PreInit function (ignoring)\n",
@@ -423,6 +439,9 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
         (!is_auto || xf86Info.autoEnableDevices))
         EnableDevice(dev);
 
+    /* send enter/leave event, update sprite window */
+    CheckMotion(NULL, dev);
+
     *pdev = dev;
     return Success;
 
@@ -456,35 +475,36 @@ DeleteInputDeviceRequest(DeviceIntPtr pDev)
         drv = pInfo->drv;
         idev = pInfo->conf_idev;
     }
+
+    OsBlockSignals();
     RemoveDevice(pDev);
 
-    if (!pInfo) /* VCP and VCK */
-        return;
-
-    if(drv->UnInit)
-        drv->UnInit(drv, pInfo, 0);
-    else
-        xf86DeleteInput(pInfo, 0);
-
-    /* devices added through HAL aren't in the config layout */
-    it = xf86ConfigLayout.inputs;
-    while(*it && *it != idev)
-        it++;
-
-    if (!(*it)) /* end of list, not in the layout */
+    if (!pDev->isMaster)
     {
-        xfree(idev->driver);
-        xfree(idev->identifier);
-        xf86optionListFree(idev->commonOptions);
-        xfree(idev);
+        if(drv->UnInit)
+            drv->UnInit(drv, pInfo, 0);
+        else
+            xf86DeleteInput(pInfo, 0);
+
+        /* devices added through HAL aren't in the config layout */
+        it = xf86ConfigLayout.inputs;
+        while(*it && *it != idev)
+            it++;
+
+        if (!(*it)) /* end of list, not in the layout */
+        {
+            xfree(idev->driver);
+            xfree(idev->identifier);
+            xf86optionListFree(idev->commonOptions);
+            xfree(idev);
+        }
     }
+    OsReleaseSignals();
 }
 
 /* 
  * convenient functions to post events
  */
-
-#define MAX_VALUATORS 36 /* XXX from comment in dix/getevents.c */
 
 _X_EXPORT void
 xf86PostMotionEvent(DeviceIntPtr	device,
@@ -519,7 +539,7 @@ xf86PostMotionEventP(DeviceIntPtr	device,
                     int			*valuators)
 {
     int i = 0, nevents = 0;
-    int dx, dy;
+    int dx = 0, dy = 0;
     Bool drag = xf86SendDragEvents(device);
     xEvent *xE = NULL;
     int index;
@@ -537,36 +557,41 @@ xf86PostMotionEventP(DeviceIntPtr	device,
         flags = POINTER_RELATIVE | POINTER_ACCELERATE;
 
 #if XFreeXDGA
-    if (first_valuator == 0 && num_valuators >= 2) {
-        if (miPointerGetScreen(inputInfo.pointer)) {
-            index = miPointerGetScreen(inputInfo.pointer)->myNum;
-            if (is_absolute) {
-                dx = valuators[0] - device->valuator->lastx;
-                dy = valuators[1] - device->valuator->lasty;
-            }
-            else {
+    /* The evdev driver may not always send all axes across. */
+    if (num_valuators >= 1 && first_valuator <= 1) {
+        if (miPointerGetScreen(device)) {
+            index = miPointerGetScreen(device)->myNum;
+            if (first_valuator == 0)
+            {
                 dx = valuators[0];
-                dy = valuators[1];
+                if (is_absolute)
+                    dx -= device->last.valuators[0];
             }
-            if (DGAStealMotionEvent(index, dx, dy))
+
+            if (first_valuator == 1 || num_valuators >= 2)
+            {
+                dy = valuators[1 - first_valuator];
+                if (is_absolute)
+                    dy -= device->last.valuators[1];
+            }
+
+            if (DGAStealMotionEvent(device, index, dx, dy))
                 return;
         }
     }
 #endif
 
-    if (!xf86Events)
-        FatalError("Didn't allocate event store\n");
-
+    GetEventList(&xf86Events);
     nevents = GetPointerEvents(xf86Events, device, MotionNotify, 0,
                                flags, first_valuator, num_valuators,
                                valuators);
 
     for (i = 0; i < nevents; i++) {
-        xE = xf86Events + i;
+        xE = (xf86Events + i)->event;
         /* Don't post core motion events for devices not registered to send
          * drag events. */
         if (xE->u.u.type != MotionNotify || drag) {
-            mieqEnqueue(device, xf86Events + i);
+            mieqEnqueue(device, (xf86Events + i)->event);
         }
     }
 }
@@ -594,14 +619,12 @@ xf86PostProximityEvent(DeviceIntPtr	device,
         valuators[i] = va_arg(var, int);
     va_end(var);
 
-    if (!xf86Events)
-        FatalError("Didn't allocate event store\n");
-
+    GetEventList(&xf86Events);
     nevents = GetProximityEvents(xf86Events, device,
                                  is_in ? ProximityIn : ProximityOut, 
                                  first_valuator, num_valuators, valuators);
     for (i = 0; i < nevents; i++)
-        mieqEnqueue(device, xf86Events + i);
+        mieqEnqueue(device, (xf86Events + i)->event);
 
 }
 
@@ -620,9 +643,9 @@ xf86PostButtonEvent(DeviceIntPtr	device,
     int index;
 
 #if XFreeXDGA
-    if (miPointerGetScreen(inputInfo.pointer)) {
-        index = miPointerGetScreen(inputInfo.pointer)->myNum;
-        if (DGAStealButtonEvent(index, button, is_down))
+    if (miPointerGetScreen(device)) {
+        index = miPointerGetScreen(device)->myNum;
+        if (DGAStealButtonEvent(device, index, button, is_down))
             return;
     }
 #endif
@@ -631,23 +654,21 @@ xf86PostButtonEvent(DeviceIntPtr	device,
 	    " is greater than MAX_VALUATORS\n", num_valuators);
 	return;
     }
-    
+
     va_start(var, num_valuators);
     for (i = 0; i < num_valuators; i++)
         valuators[i] = va_arg(var, int);
     va_end(var);
 
-    if (!xf86Events)
-        FatalError("Didn't allocate event store\n");
-
+    GetEventList(&xf86Events);
     nevents = GetPointerEvents(xf86Events, device,
                                is_down ? ButtonPress : ButtonRelease, button,
-                               is_absolute ? POINTER_ABSOLUTE :
-                                             POINTER_RELATIVE,
+                               (is_absolute) ? POINTER_ABSOLUTE : POINTER_RELATIVE,
                                first_valuator, num_valuators, valuators);
 
     for (i = 0; i < nevents; i++)
-        mieqEnqueue(device, xf86Events + i);
+        mieqEnqueue(device, (xf86Events + i)->event);
+
 }
 
 _X_EXPORT void
@@ -674,15 +695,13 @@ xf86PostKeyEvent(DeviceIntPtr	device,
 	return;
     }
 
-    if (!xf86Events)
-        FatalError("Didn't allocate event store\n");
-
     if (is_absolute) {
         va_start(var, num_valuators);
         for (i = 0; i < num_valuators; i++)
             valuators[i] = va_arg(var, int);
         va_end(var);
 
+        GetEventList(&xf86Events);
         nevents = GetKeyboardValuatorEvents(xf86Events, device,
                                             is_down ? KeyPress : KeyRelease,
                                             key_code, first_valuator,
@@ -695,7 +714,7 @@ xf86PostKeyEvent(DeviceIntPtr	device,
     }
 
     for (i = 0; i < nevents; i++)
-        mieqEnqueue(device, xf86Events + i);
+        mieqEnqueue(device, (xf86Events + i)->event);
 }
 
 _X_EXPORT void
@@ -707,21 +726,24 @@ xf86PostKeyboardEvent(DeviceIntPtr      device,
     int index;
 
 #if XFreeXDGA
-    if (miPointerGetScreen(inputInfo.pointer)) {
-        index = miPointerGetScreen(inputInfo.pointer)->myNum;
-        if (DGAStealKeyEvent(index, key_code, is_down))
+    DeviceIntPtr pointer;
+
+    /* Some pointers send key events, paired device is wrong then. */
+    pointer = IsPointerDevice(device) ? device : GetPairedDevice(device);
+
+    if (miPointerGetScreen(pointer)) {
+        index = miPointerGetScreen(pointer)->myNum;
+        if (DGAStealKeyEvent(device, index, key_code, is_down))
             return;
     }
 #endif
 
-    if (!xf86Events)
-        FatalError("Didn't allocate event store\n");
-
+    GetEventList(&xf86Events);
     nevents = GetKeyboardEvents(xf86Events, device,
                                 is_down ? KeyPress : KeyRelease, key_code);
 
     for (i = 0; i < nevents; i++)
-        mieqEnqueue(device, xf86Events + i);
+        mieqEnqueue(device, (xf86Events + i)->event);
 }
 
 _X_EXPORT LocalDevicePtr
@@ -810,11 +832,11 @@ xf86InitValuatorDefaults(DeviceIntPtr dev, int axnum)
 {
     if (axnum == 0) {
 	dev->valuator->axisVal[0] = screenInfo.screens[0]->width / 2;
-        dev->valuator->lastx = dev->valuator->axisVal[0];
+        dev->last.valuators[0] = dev->valuator->axisVal[0];
     }
     else if (axnum == 1) {
 	dev->valuator->axisVal[1] = screenInfo.screens[0]->height / 2;
-        dev->valuator->lasty = dev->valuator->axisVal[1];
+        dev->last.valuators[1] = dev->valuator->axisVal[1];
     }
 }
 

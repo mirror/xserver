@@ -25,6 +25,7 @@ is" without express or implied warranty.
 #include "scrnintstr.h"
 #include "windowstr.h"
 #include "servermd.h"
+#include "inputstr.h"
 
 #include "mi.h"
 
@@ -48,7 +49,6 @@ void
 ProcessInputEvents()
 {
   mieqProcessInputEvents();
-  miPointerUpdate();
 }
 
 int
@@ -183,7 +183,7 @@ xnestCollectEvents(void)
       if (X.xcrossing.detail != NotifyInferior) {
 	pScreen = xnestScreen(X.xcrossing.window);
 	if (pScreen) {
-	  NewCurrentScreen(pScreen, X.xcrossing.x, X.xcrossing.y);
+	  NewCurrentScreen(inputInfo.pointer, pScreen, X.xcrossing.x, X.xcrossing.y);
           valuators[0] = X.xcrossing.x;
           valuators[1] = X.xcrossing.y;
           lastEventTime = GetTimeInMillis();

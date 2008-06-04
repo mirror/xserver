@@ -17,7 +17,6 @@ extern Bool screenSaverSuspended;
 
 extern char *defaultFontPath;
 extern int monitorResolution;
-extern Bool loadableFonts;
 extern int defaultColorVisualClass;
 
 extern Bool Must_have_memory;
@@ -151,9 +150,7 @@ extern Bool noXkbExtension;
 extern Bool noPanoramiXExtension;
 #endif
 
-#ifdef XINPUT
 extern Bool noXInputExtension;
-#endif
 
 #ifdef XIDLE
 extern Bool noXIdleExtension;

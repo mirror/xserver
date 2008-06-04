@@ -1,16 +1,11 @@
-standard_dix_libs = libdix.la libxpstubs.la
-
-if XPRINT
-noinst_LTLIBRARIES = $(standard_dix_libs) libXpdix.la
-else
-noinst_LTLIBRARIES = $(standard_dix_libs)
-endif
+noinst_LTLIBRARIES = libdix.la
 
 AM_CFLAGS = $(DIX_CFLAGS) \
 	-DVENDOR_NAME=\""@VENDOR_NAME@"\" \
 	-DVENDOR_RELEASE="@VENDOR_RELEASE@"
 
 libdix_la_SOURCES = 	\
+        access.c        \
 	atom.c		\
 	colormap.c	\
 	cursor.c	\
@@ -41,15 +36,6 @@ libdix_la_SOURCES = 	\
 	tables.c	\
 	window.c	\
 	strcasecmp.c
-
-libxpstubs_la_SOURCES =	\
-	xpstubs.c
-
-if XPRINT
-libXpdix_la_SOURCES = $(libdix_la_SOURCES)
-libXpdix_la_CPPFLAGS = -I$(top_srcdir)/hw/xprint
-libXpdix_la_CFLAGS = $(AM_CFLAGS) $(XPRINT_CFLAGS)
-endif
 
 EXTRA_DIST = buildatoms BuiltInAtoms CHANGES Xserver.d Xserver-dtrace.h.in
 

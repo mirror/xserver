@@ -120,7 +120,8 @@ typedef struct _CursorScreen {
 #define Unwrap(as,s,elt)	((s)->elt = (as)->elt)
 
 static Bool
-CursorDisplayCursor (ScreenPtr pScreen,
+CursorDisplayCursor (DeviceIntPtr pDev,
+                     ScreenPtr pScreen,
 		     CursorPtr pCursor)
 {
     CursorScreenPtr	cs = GetCursorScreen(pScreen);
@@ -129,9 +130,9 @@ CursorDisplayCursor (ScreenPtr pScreen,
     Unwrap (cs, pScreen, DisplayCursor);
 
     if (cs->pCursorHideCounts != NULL) {
-	ret = (*pScreen->DisplayCursor) (pScreen, pInvisibleCursor);
+	ret = (*pScreen->DisplayCursor) (pDev, pScreen, pInvisibleCursor);
     } else {
-	ret = (*pScreen->DisplayCursor) (pScreen, pCursor);
+	ret = (*pScreen->DisplayCursor) (pDev, pScreen, pCursor);
     }
 
     if (pCursor != CursorCurrent)
@@ -354,7 +355,7 @@ ProcXFixesGetCursorImage (ClientPtr client)
 		  pCursor, RT_NONE, NULL, DixReadAccess);
     if (rc != Success)
 	return rc;
-    GetSpritePosition (&x, &y);
+    GetSpritePosition (PickPointer(client), &x, &y);
     width = pCursor->bits->width;
     height = pCursor->bits->height;
     npixels = width * height;
@@ -506,7 +507,7 @@ ProcXFixesGetCursorImageAndName (ClientPtr client)
 		  pCursor, RT_NONE, NULL, DixReadAccess|DixGetAttrAccess);
     if (rc != Success)
 	return rc;
-    GetSpritePosition (&x, &y);
+    GetSpritePosition (PickPointer(client), &x, &y);
     width = pCursor->bits->width;
     height = pCursor->bits->height;
     npixels = width * height;
@@ -879,7 +880,7 @@ ProcXFixesHideCursor (ClientPtr client)
     ret = createCursorHideCount(client, pWin->drawable.pScreen);
 
     if (ret == Success) {
-        (void) CursorDisplayCursor(pWin->drawable.pScreen, CursorCurrent);
+        (void) CursorDisplayCursor(PickPointer(client), pWin->drawable.pScreen, CursorCurrent);
     }
 
     return ret;
@@ -973,7 +974,7 @@ CursorFreeHideCount (pointer data, XID id)
     ScreenPtr pScreen = pChc->pScreen;
 
     deleteCursorHideCount(pChc, pChc->pScreen);
-    (void) CursorDisplayCursor(pScreen, CursorCurrent);
+    (void) CursorDisplayCursor(inputInfo.pointer, pScreen, CursorCurrent);
 
     return 1;
 }

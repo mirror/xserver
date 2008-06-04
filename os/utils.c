@@ -128,10 +128,6 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #include "picture.h"
 #endif
 
-#ifdef XPRINT
-#include "DiPrint.h"
-#endif
-
 _X_EXPORT Bool noTestExtensions;
 #ifdef BIGREQS
 _X_EXPORT Bool noBigReqExtension = FALSE;
@@ -214,9 +210,7 @@ _X_EXPORT Bool noXFixesExtension = FALSE;
 /* Xinerama is disabled by default unless enabled via +xinerama */
 _X_EXPORT Bool noPanoramiXExtension = TRUE;
 #endif
-#ifdef XINPUT
 _X_EXPORT Bool noXInputExtension = FALSE;
-#endif
 #ifdef XIDLE
 _X_EXPORT Bool noXIdleExtension = FALSE;
 #endif
@@ -230,6 +224,8 @@ _X_EXPORT Bool noXvExtension = FALSE;
 #ifdef DRI2
 _X_EXPORT Bool noDRI2Extension = FALSE;
 #endif
+
+_X_EXPORT Bool noGEExtension = FALSE;
 
 #define X_INCLUDE_NETDB_H
 #include <X11/Xos_r.h>
@@ -613,9 +609,6 @@ void UseMsg(void)
     ErrorF("-render [default|mono|gray|color] set render color alloc policy\n");
 #endif
     ErrorF("-s #                   screen-saver timeout (minutes)\n");
-#ifdef XPRINT
-    PrinterUseMsg();
-#endif
     ErrorF("-su                    disable any save under support\n");
     ErrorF("-t #                   mouse threshold (pixels)\n");
     ErrorF("-terminate             terminate at server reset\n");
@@ -665,17 +658,6 @@ VerifyDisplayName(const char *d)
     if ( strchr(d, '/') != (char *)0 ) return( 0 );  /*  very important!!!  */
     return( 1 );
 }
-
-/*
- * This function is responsible for doing initalisation of any global
- * variables at an very early point of server startup (even before
- * |ProcessCommandLine()|. 
- */
-void InitGlobals(void)
-{
-    ddxInitGlobals();
-}
-
 
 /*
  * This function parses the command line. Handles device-independent fields
@@ -1023,12 +1005,6 @@ ProcessCommandLine(int argc, char *argv[])
 	}
 #ifdef XDMCP
 	else if ((skip = XdmcpOptions(argc, argv, i)) != i)
-	{
-	    i = skip - 1;
-	}
-#endif
-#ifdef XPRINT
-	else if ((skip = PrinterOptions(argc, argv, i)) != i)
 	{
 	    i = skip - 1;
 	}

@@ -399,9 +399,6 @@ Dispatch(void)
 	    }
 	    isItTimeToYield = FALSE;
  
-#ifdef XPRINT
-            requestingClient = client;
-#endif
 #ifdef SMART_SCHEDULE
 	    start_tick = SmartScheduleTime;
 #endif
@@ -472,9 +469,6 @@ Dispatch(void)
 	    client = clients[clientReady[nready]];
 	    if (client)
 		client->smart_stop_tick = SmartScheduleTime;
-#endif
-#ifdef XPRINT
-	    requestingClient = NULL;
 #endif
 	}
 	dispatchException &= ~DE_PRIORITYCHANGE;
@@ -3400,6 +3394,7 @@ CloseDownClient(ClientPtr client)
 	DeleteClientFromAnySelections(client);
 	ReleaseActiveGrabs(client);
 	DeleteClientFontStuff(client);
+        ACUnregisterClient(client);
 	if (!really_close_down)
 	{
 	    /*  This frees resources that should never be retained
@@ -3520,6 +3515,8 @@ void InitClient(ClientPtr client, int i, pointer ospriv)
     client->smart_stop_tick = SmartScheduleTime;
     client->smart_check_tick = SmartScheduleTime;
 #endif
+
+    client->clientPtr = NULL;
 }
 
 /************************

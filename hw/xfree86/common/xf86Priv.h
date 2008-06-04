@@ -39,6 +39,7 @@
 
 #include "xf86Privstr.h"
 #include "propertyst.h"
+#include "input.h"
 
 /*
  * Parameters set ONLY from the command line options
@@ -192,7 +193,7 @@ void xf86UnlockServer(void);
 void xf86InitXkb(void);
 
 /* xf86Xinput.c */
-extern xEvent *xf86Events;
+extern EventList *xf86Events;
 
 #endif /* _NO_XF86_PROTOTYPES */
 

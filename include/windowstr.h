@@ -59,6 +59,7 @@ SOFTWARE.
 #include "miscstruct.h"
 #include <X11/Xprotostr.h>
 #include "opaque.h"
+#include "inputstr.h"
 
 #define GuaranteeNothing	0
 #define GuaranteeVisBack	1
@@ -70,6 +71,31 @@ SOFTWARE.
 
 #define SameBorder(as, a, bs, b)				\
     EqualPixUnion(as, a, bs, b)
+
+/* used as NULL-terminated list */
+typedef struct _DevCursorNode {
+    CursorPtr                   cursor;
+    DeviceIntPtr                dev;
+    struct _DevCursorNode*      next;
+} DevCursNodeRec, *DevCursNodePtr, *DevCursorList;
+
+/* Mask structure for GE extension as stored on the window.
+ * Allows one mask per extension.
+ *   .eventMask - Summary mask for all clients, used for quick checking.
+ *   .geClients - list of clients with their specific mask.
+ */
+typedef struct _GenericClientMasks {
+    Mask                eventMasks[MAXEXTENSIONS];
+    GenericMaskPtr      geClients;
+} GenericClientMasksRec, *GenericClientMasksPtr;
+
+typedef struct _WindowAccessRec {
+    int                  defaultRule;      /* WindowAccessDenyAll */
+    DeviceIntPtr*        perm;
+    int                  nperm;
+    DeviceIntPtr*        deny;
+    int                  ndeny;
+} WindowAccessRec, *WindowAccessPtr;
 
 typedef struct _WindowOpt {
     VisualID		visual;		   /* default: same as parent */
@@ -87,9 +113,10 @@ typedef struct _WindowOpt {
     RegionPtr		clipShape;	   /* default: NULL */
     RegionPtr		inputShape;	   /* default: NULL */
 #endif
-#ifdef XINPUT
     struct _OtherInputMasks *inputMasks;   /* default: NULL */
-#endif
+    DevCursorList       deviceCursors;     /* default: NULL */
+    struct _GenericClientMasks *geMasks;/* default: NULL */
+    WindowAccessRec     access;
 } WindowOptRec, *WindowOptPtr;
 
 #define BackgroundPixel	    2L
@@ -185,11 +212,7 @@ extern Mask	    DontPropagateMasks[];
 #define wDontPropagateMask(w)	wUseDefault(w, dontPropagateMask, DontPropagateMasks[(w)->dontPropagate])
 #define wOtherEventMasks(w)	wUseDefault(w, otherEventMasks, 0)
 #define wOtherClients(w)	wUseDefault(w, otherClients, NULL)
-#ifdef XINPUT
 #define wOtherInputMasks(w)	wUseDefault(w, inputMasks, NULL)
-#else
-#define wOtherInputMasks(w)	NULL
-#endif
 #define wPassiveGrabs(w)	wUseDefault(w, passiveGrabs, NULL)
 #define wUserProps(w)		wUseDefault(w, userProps, NULL)
 #define wBackingBitPlanes(w)	wUseDefault(w, backingBitPlanes, ~0L)
@@ -229,6 +252,18 @@ typedef struct _ScreenSaverStuff {
 
 extern int screenIsSaved;
 extern ScreenSaverStuffRec savedScreenInfo[MAXSCREENS];
+extern DevPrivateKey FocusPrivatesKey;
+
+/* Used to maintain semantics of core protocol for Enter/LeaveNotifies and
+ * FocusIn/Out events for multiple pointers/keyboards.
+ *
+ * Each device ID corresponds to one bit. If set, the device is in the
+ * window/has focus.
+ */
+typedef struct _FocusSemaphores {
+    char                enterleave[(MAX_DEVICES + 7)/8];
+    char                focusinout[(MAX_DEVICES + 7)/8];
+} FocusSemaphoresRec, *FocusSemaphoresPtr;
 
 /*
  * this is the configuration parameter "NO_BACK_SAVE"

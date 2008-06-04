@@ -15,7 +15,7 @@ INCLUDES = -I$(top_srcdir)/hw/xfree86/dixmods/extmod
 AM_CFLAGS = $(DIX_CFLAGS)
 
 if XORG
-sdk_HEADERS = xvdix.h xvmcext.h
+sdk_HEADERS = xvdix.h xvmcext.h geext.h geint.h
 endif
 
 # Sources always included in libXextbuiltin.la & libXext.la
@@ -23,7 +23,8 @@ BUILTIN_SRCS =			\
 	shape.c			\
 	sleepuntil.c		\
 	sleepuntil.h		\
-	xtest.c
+	xtest.c                 \
+        geext.c
 
 # Sources always included in libXextmodule.la & libXext.la
 MODULE_SRCS =			\
@@ -98,12 +99,6 @@ if XEVIE
 BUILTIN_SRCS += $(XEVIE_SRCS)
 endif
 
-# XPrint: Printing via X Protocol
-XPRINT_SRCS = xprint.c
-if XPRINT
-BUILTIN_SRCS += $(XPRINT_SRCS)
-endif
-
 # Multi-buffering extension
 MULTIBUFFER_SRCS = mbuf.c
 EXTRA_MULTIBUFFER_SRCS = mbufbf.c mbufpx.c
@@ -149,10 +144,10 @@ EXTRA_DIST = \
 	$(XCALIBRATE_SRCS) \
 	$(XINERAMA_SRCS) \
 	$(XEVIE_SRCS) \
-	$(XPRINT_SRCS) \
 	$(MULTIBUFFER_SRCS) \
 	$(EXTRA_MULTIBUFFER_SRCS) \
 	$(FONTCACHE_SRCS) \
 	$(BIGFONT_SRCS) \
-	$(DPMS_SRCS)
+	$(DPMS_SRCS) \
+        $(GE_SRCS)
 

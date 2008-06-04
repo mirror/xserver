@@ -166,6 +166,10 @@ extern void MakeClientGrabImpervious(ClientPtr /*client*/);
 
 extern void MakeClientGrabPervious(ClientPtr /*client*/);
 
+#ifdef XQUARTZ
+extern void ListenOnOpenFD(int /* fd */);
+#endif
+
 extern void AvailableClientInput(ClientPtr /* client */);
 
 extern CARD32 GetTimeInMillis(void);
@@ -207,8 +211,6 @@ extern SIGVAL AutoResetServer(int /*sig*/);
 extern SIGVAL GiveUp(int /*sig*/);
 
 extern void UseMsg(void);
-
-extern void InitGlobals(void);
 
 extern void ProcessCommandLine(int /*argc*/, char* /*argv*/[]);
 
@@ -406,8 +408,6 @@ extern XID GenerateAuthorization(
 #ifdef COMMANDLINE_CHALLENGED_OPERATING_SYSTEMS
 extern void ExpandCommandLine(int * /*pargc*/, char *** /*pargv*/);
 #endif
-
-extern void ddxInitGlobals(void);
 
 extern int ddxProcessArgument(int /*argc*/, char * /*argv*/ [], int /*i*/);
 

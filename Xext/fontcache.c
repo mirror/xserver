@@ -93,10 +93,10 @@ FontCacheResetProc (extEntry)
 
 static int
 ProcFontCacheQueryVersion(client)
-    register ClientPtr client;
+    ClientPtr client;
 {
     xFontCacheQueryVersionReply rep;
-    register int n;
+    int n;
 
     REQUEST_SIZE_MATCH(xFontCacheQueryVersionReq);
     rep.type = X_Reply;
@@ -116,11 +116,11 @@ ProcFontCacheQueryVersion(client)
 
 static int
 ProcFontCacheGetCacheSettings(client)
-    register ClientPtr client;
+    ClientPtr client;
 {
     xFontCacheGetCacheSettingsReply rep;
     FontCacheSettings cinfo;
-    register int n;
+    int n;
 
     REQUEST_SIZE_MATCH(xFontCacheGetCacheSettingsReq);
     rep.type = X_Reply;
@@ -154,11 +154,11 @@ ProcFontCacheGetCacheSettings(client)
 
 static int
 ProcFontCacheGetCacheStatistics(client)
-    register ClientPtr client;
+    ClientPtr client;
 {
     xFontCacheGetCacheStatisticsReply rep;
     FontCacheStatistics cstats;
-    register int n;
+    int n;
 
     REQUEST_SIZE_MATCH(xFontCacheGetCacheStatisticsReq);
     rep.type = X_Reply;
@@ -207,7 +207,7 @@ ProcFontCacheGetCacheStatistics(client)
 
 static int
 ProcFontCacheChangeCacheSettings(client)
-    register ClientPtr client;
+    ClientPtr client;
 {
     FontCacheSettings cs;
 
@@ -236,7 +236,7 @@ ProcFontCacheChangeCacheSettings(client)
 
 static int
 ProcFontCacheDispatch (client)
-    register ClientPtr	client;
+    ClientPtr	client;
 {
     REQUEST(xReq);
     switch (stuff->data)
@@ -256,9 +256,9 @@ ProcFontCacheDispatch (client)
 
 static int
 SProcFontCacheQueryVersion(client)
-    register ClientPtr	client;
+    ClientPtr	client;
 {
-    register int n;
+    int n;
     REQUEST(xFontCacheQueryVersionReq);
     swaps(&stuff->length, n);
     return ProcFontCacheQueryVersion(client);
@@ -268,7 +268,7 @@ static int
 SProcFontCacheGetCacheSettings(client)
     ClientPtr client;
 {
-    register int n;
+    int n;
     REQUEST(xFontCacheGetCacheSettingsReq);
     swaps(&stuff->length, n);
     REQUEST_SIZE_MATCH(xFontCacheGetCacheSettingsReq);
@@ -279,7 +279,7 @@ static int
 SProcFontCacheGetCacheStatistics(client)
     ClientPtr client;
 {
-    register int n;
+    int n;
     REQUEST(xFontCacheGetCacheStatisticsReq);
     swaps(&stuff->length, n);
     REQUEST_SIZE_MATCH(xFontCacheGetCacheStatisticsReq);
@@ -290,7 +290,7 @@ static int
 SProcFontCacheChangeCacheSettings(client)
     ClientPtr client;
 {
-    register int n;
+    int n;
     REQUEST(xFontCacheChangeCacheSettingsReq);
     swaps(&stuff->length, n);
     REQUEST_SIZE_MATCH(xFontCacheChangeCacheSettingsReq);
@@ -304,7 +304,7 @@ SProcFontCacheChangeCacheSettings(client)
 
 static int
 SProcFontCacheDispatch (client)
-    register ClientPtr	client;
+    ClientPtr	client;
 {
     REQUEST(xReq);
     switch (stuff->data)

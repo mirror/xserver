@@ -110,6 +110,7 @@ Equipment Corporation.
 #include "validate.h"
 #include "windowstr.h"
 #include "input.h"
+#include "inputstr.h"
 #include "resource.h"
 #include "colormapst.h"
 #include "cursorstr.h"
@@ -122,6 +123,7 @@ Equipment Corporation.
 #endif
 #include "dixevents.h"
 #include "globals.h"
+#include "mi.h" /* miPaintWindow */
 
 #include "privates.h"
 #include "xace.h"
@@ -133,15 +135,26 @@ Equipment Corporation.
  *    GetWindowAttributes, DeleteWindow, DestroySubWindows,
  *    HandleSaveSet, ReparentWindow, MapWindow, MapSubWindows,
  *    UnmapWindow, UnmapSubWindows, ConfigureWindow, CirculateWindow,
- *
+ *    ChangeWindowDeviceCursor
  ******/
 
 static unsigned char _back_lsb[4] = {0x88, 0x22, 0x44, 0x11};
 static unsigned char _back_msb[4] = {0x11, 0x44, 0x22, 0x88};
 
+static Bool WindowParentHasDeviceCursor(WindowPtr pWin, 
+                                        DeviceIntPtr pDev, 
+                                        CursorPtr pCurs);
+static Bool 
+WindowSeekDeviceCursor(WindowPtr pWin, 
+                       DeviceIntPtr pDev, 
+                       DevCursNodePtr* pNode, 
+                       DevCursNodePtr* pPrev);
+
 _X_EXPORT int screenIsSaved = SCREEN_SAVER_OFF;
 
 _X_EXPORT ScreenSaverStuffRec savedScreenInfo[MAXSCREENS];
+
+_X_EXPORT DevPrivateKey FocusPrivatesKey = &FocusPrivatesKey;
 
 static Bool TileScreenSaver(int i, int kind);
 
@@ -184,8 +197,9 @@ PrintChildren(WindowPtr p1, int indent)
     while (p1)
     {
 	p2 = p1->firstChild;
-	for (i=0; i<indent; i++) ErrorF( " ");
-	ErrorF( "%lx\n", p1->drawable.id);
+        ErrorF("[dix] ");
+	for (i=0; i<indent; i++) ErrorF(" ");
+	ErrorF("%lx\n", p1->drawable.id);
 	miPrintRegion(&p1->clipList);
 	PrintChildren(p2, indent+4);
 	p1 = p1->nextSib;
@@ -200,7 +214,7 @@ PrintWindowTree(void)
 
     for (i=0; i<screenInfo.numScreens; i++)
     {
-	ErrorF( "WINDOW %d\n", i);
+	ErrorF("[dix] WINDOW %d\n", i);
 	pWin = WindowTable[i];
 	miPrintRegion(&pWin->clipList);
 	p1 = pWin->firstChild;
@@ -261,6 +275,8 @@ Bool	disableSaveUnders = FALSE;
 static void
 SetWindowToDefaults(WindowPtr pWin)
 {
+    FocusSemaphoresPtr sem;
+
     pWin->prevSib = NullWindow;
     pWin->firstChild = NullWindow;
     pWin->lastChild = NullWindow;
@@ -289,6 +305,10 @@ SetWindowToDefaults(WindowPtr pWin)
     pWin->forcedBS = FALSE;
     pWin->redirectDraw = RedirectDrawNone;
     pWin->forcedBG = FALSE;
+
+    sem = xcalloc(1, sizeof(FocusSemaphoresRec));
+    dixSetPrivate(&pWin->devPrivates, FocusPrivatesKey, sem);
+
 #ifdef ROOTLESS
     pWin->rootlessUnhittable = FALSE;
 #endif
@@ -392,9 +412,21 @@ CreateRootWindow(ScreenPtr pScreen)
     pWin->optional->clipShape = NULL;
     pWin->optional->inputShape = NULL;
 #endif
-#ifdef XINPUT
     pWin->optional->inputMasks = NULL;
-#endif
+    pWin->optional->deviceCursors = NULL;
+    pWin->optional->geMasks = (GenericClientMasksPtr)xcalloc(1, sizeof(GenericClientMasksRec));
+    if (!pWin->optional->geMasks)
+    {
+        xfree(pWin->optional);
+        return FALSE;
+    }
+
+    pWin->optional->access.perm = NULL;
+    pWin->optional->access.deny = NULL;
+    pWin->optional->access.nperm = 0;
+    pWin->optional->access.ndeny = 0;
+    pWin->optional->access.defaultRule = 0;
+
     pWin->optional->colormap = pScreen->defColormap;
     pWin->optional->visual = pScreen->rootVisual;
 
@@ -471,6 +503,7 @@ InitRootWindow(WindowPtr pWin)
     pWin->cursorIsNone = FALSE;
     pWin->optional->cursor = rootCursor;
     rootCursor->refcnt++;
+
 
     if (!blackRoot && !whiteRoot) {
         MakeRootTile(pWin);
@@ -802,6 +835,26 @@ DisposeWindowOptional (WindowPtr pWin)
     }
     else
 	pWin->cursorIsNone = TRUE;
+
+    if (pWin->optional->deviceCursors)
+    {
+        DevCursorList pList;
+        DevCursorList pPrev;
+        pList = pWin->optional->deviceCursors;
+        while(pList)
+        {
+            if (pList->cursor)
+                FreeCursor(pList->cursor, (XID)0);
+            pPrev = pList;
+            pList = pList->next;
+            xfree(pPrev);
+        }
+        pWin->optional->deviceCursors = NULL;
+    }
+
+    xfree(pWin->optional->access.perm);
+    xfree(pWin->optional->access.deny);
+
     xfree (pWin->optional);
     pWin->optional = NULL;
 }
@@ -3557,10 +3610,25 @@ CheckWindowOptionalNeed (WindowPtr w)
     if (optional->inputShape != NULL)
 	return;
 #endif
-#ifdef XINPUT
     if (optional->inputMasks != NULL)
 	return;
-#endif
+    if (optional->deviceCursors != NULL)
+    {
+        DevCursNodePtr pNode = optional->deviceCursors;
+        while(pNode)
+        {
+            if (pNode->cursor != None)
+                return;
+            pNode = pNode->next;
+        }
+    }
+    if (optional->access.nperm != 0 ||
+            optional->access.ndeny != 0)
+        return;
+
+    if (optional->geMasks != NULL)
+        return;
+
     parentOptional = FindWindowWithOptional(w)->optional;
     if (optional->visual != parentOptional->visual)
 	return;
@@ -3603,9 +3671,27 @@ MakeWindowOptional (WindowPtr pWin)
     optional->clipShape = NULL;
     optional->inputShape = NULL;
 #endif
-#ifdef XINPUT
     optional->inputMasks = NULL;
-#endif
+    optional->deviceCursors = NULL;
+
+    optional->geMasks = 
+        (GenericClientMasksPtr)xalloc(sizeof(GenericClientMasksRec));
+    if (!optional->geMasks)
+    {
+        xfree(optional);
+        return FALSE;
+    } else {
+        int i;
+        optional->geMasks->geClients = 0;
+        for (i = 0; i < MAXEXTENSIONS; i++)
+            optional->geMasks->eventMasks[i] = 0;
+    }
+
+    optional->access.nperm = 0;
+    optional->access.ndeny = 0;
+    optional->access.perm = NULL;
+    optional->access.deny = NULL;
+    optional->access.defaultRule = 0;
     parentOptional = FindWindowWithOptional(pWin)->optional;
     optional->visual = parentOptional->visual;
     if (!pWin->cursorIsNone)
@@ -3620,6 +3706,222 @@ MakeWindowOptional (WindowPtr pWin)
     optional->colormap = parentOptional->colormap;
     pWin->optional = optional;
     return TRUE;
+}
+
+/*
+ * Changes the cursor struct for the given device and the given window.
+ * A cursor that does not have a device cursor set will use whatever the
+ * standard cursor is for the window. If all devices have a cursor set,
+ * changing the window cursor (e.g. using XDefineCursor()) will not have any
+ * visible effect. Only when one of the device cursors is set to None again,
+ * this device's cursor will display the changed standard cursor.
+ * 
+ * CursorIsNone of the window struct is NOT modified if you set a device
+ * cursor. 
+ *
+ * Assumption: If there is a node for a device in the list, the device has a
+ * cursor. If the cursor is set to None, it is inherited by the parent.
+ */
+_X_EXPORT int
+ChangeWindowDeviceCursor(WindowPtr pWin, 
+                         DeviceIntPtr pDev, 
+                         CursorPtr pCursor) 
+{
+    DevCursNodePtr pNode, pPrev;
+    CursorPtr pOldCursor = NULL;
+    ScreenPtr pScreen;
+    WindowPtr pChild;
+
+    if (!pWin->optional && !MakeWindowOptional(pWin))
+        return BadAlloc;
+
+    /* 1) Check if window has device cursor set
+     *  Yes: 1.1) swap cursor with given cursor if parent does not have same
+     *            cursor, free old cursor
+     *       1.2) free old cursor, use parent cursor
+     *  No: 1.1) add node to beginning of list.
+     *      1.2) add cursor to node if parent does not have same cursor
+     *      1.3) use parent cursor if parent does not have same cursor
+     *  2) Patch up children if child has a devcursor
+     *  2.1) if child has cursor None, it inherited from parent, set to old
+     *  cursor
+     *  2.2) if child has same cursor as new cursor, remove and set to None
+     */
+
+    pScreen = pWin->drawable.pScreen;
+
+    if (WindowSeekDeviceCursor(pWin, pDev, &pNode, &pPrev))
+    {
+        /* has device cursor */
+
+        if (pNode->cursor == pCursor)
+            return Success;
+
+        pOldCursor = pNode->cursor;
+
+        if (!pCursor) /* remove from list */
+        {
+                if(pPrev)
+                    pPrev->next = pNode->next;
+                else
+                    /* first item in list */
+                    pWin->optional->deviceCursors = pNode->next;
+
+            xfree(pNode);
+            return Success;
+        }
+
+    } else
+    {
+        /* no device cursor yet */
+        DevCursNodePtr pNewNode;
+
+        if (!pCursor)
+            return Success;
+
+        pNewNode = (DevCursNodePtr)xalloc(sizeof(DevCursNodeRec));
+        pNewNode->dev = pDev;
+        pNewNode->next = pWin->optional->deviceCursors;
+        pWin->optional->deviceCursors = pNewNode;
+        pNode = pNewNode;
+
+    }
+
+    if (pCursor && WindowParentHasDeviceCursor(pWin, pDev, pCursor))
+        pNode->cursor = None;
+    else
+    {
+        pNode->cursor = pCursor;
+        pCursor->refcnt++;
+    }
+
+    pNode = pPrev = NULL;
+    /* fix up children */
+    for (pChild = pWin->firstChild; pChild; pChild = pChild->nextSib)
+    {
+        if (WindowSeekDeviceCursor(pChild, pDev, &pNode, &pPrev))
+        {
+            if (pNode->cursor == None) /* inherited from parent */
+            {
+                pNode->cursor = pOldCursor;
+                pOldCursor->refcnt++;
+            } else if (pNode->cursor == pCursor)
+            {
+                pNode->cursor = None;
+                FreeCursor(pCursor, (Cursor)0); /* fix up refcnt */
+            }
+        }
+    }
+
+    if (pWin->realized)
+        WindowHasNewCursor(pWin);
+
+    if (pOldCursor)
+        FreeCursor(pOldCursor, (Cursor)0);
+
+    /* FIXME: We SHOULD check for an error value here XXX  
+       (comment taken from ChangeWindowAttributes) */
+    (*pScreen->ChangeWindowAttributes)(pWin, CWCursor);
+
+    return Success;
+}
+
+/* Get device cursor for given device or None if none is set */
+_X_EXPORT CursorPtr 
+WindowGetDeviceCursor(WindowPtr pWin, DeviceIntPtr pDev)
+{
+    DevCursorList pList;
+
+    if (!pWin->optional || !pWin->optional->deviceCursors)
+        return NULL;
+
+    pList = pWin->optional->deviceCursors;
+
+    while(pList)
+    {
+        if (pList->dev == pDev)
+        {
+            if (pList->cursor == None) /* inherited from parent */
+                return WindowGetDeviceCursor(pWin->parent, pDev);
+            else
+                return pList->cursor;
+        }
+        pList = pList->next;
+    }
+    return NULL;
+}
+
+/* Searches for a DevCursorNode for the given window and device. If one is
+ * found, return True and set pNode and pPrev to the node and to the node
+ * before the node respectively. Otherwise return False.
+ * If the device is the first in list, pPrev is set to NULL.
+ */
+static Bool 
+WindowSeekDeviceCursor(WindowPtr pWin, 
+                       DeviceIntPtr pDev, 
+                       DevCursNodePtr* pNode, 
+                       DevCursNodePtr* pPrev)
+{
+    DevCursorList pList;
+
+    if (!pWin->optional)
+        return FALSE;
+
+    pList = pWin->optional->deviceCursors;
+
+    if (pList && pList->dev == pDev)
+    {
+        *pNode = pList;
+        *pPrev = NULL;
+        return TRUE;
+    }
+
+    while(pList)
+    {
+        if (pList->next)
+        {
+            if (pList->next->dev == pDev)
+            {
+                *pNode = pList->next;
+                *pPrev = pList;
+                return TRUE;
+            }
+        }
+        pList = pList->next;
+    }
+    return FALSE;
+}
+
+/* Return True if a parent has the same device cursor set or False if
+ * otherwise 
+ */ 
+static Bool 
+WindowParentHasDeviceCursor(WindowPtr pWin, 
+                            DeviceIntPtr pDev, 
+                            CursorPtr pCursor)
+{
+    WindowPtr pParent;
+    DevCursNodePtr pParentNode, pParentPrev;
+
+    pParent = pWin->parent;
+    while(pParent)
+    {
+        if (WindowSeekDeviceCursor(pParent, pDev, 
+                    &pParentNode, &pParentPrev))
+        {
+            /* if there is a node in the list, the win has a dev cursor */
+            if (!pParentNode->cursor) /* inherited. loop needs to cont. */
+            {
+            } else if (pParentNode->cursor == pCursor) /* inherit */
+                return TRUE;
+            else  /* different cursor */
+                return FALSE;
+        } 
+        else 
+            /* parent does not have a device cursor for our device */
+            return FALSE;
+    }
+    return FALSE;
 }
 
 #ifndef NOLOGOHACK

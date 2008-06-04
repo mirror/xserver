@@ -71,12 +71,8 @@
 #include "xf86Date.h"
 #include "xf86Build.h"
 #include "mipointer.h"
-#ifdef XINPUT
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
-#else
-#include "inputstr.h"
-#endif
 #include "xf86DDC.h"
 #include "xf86Xinput.h"
 #include "xf86InPriv.h"
@@ -632,10 +628,10 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
     /*
      * Locate bus slot that had register IO enabled at server startup
      */
-
-    xf86AccessInit();
-    xf86FindPrimaryDevice();
-
+    if (xorgHWAccess) {
+        xf86AccessInit();
+        xf86FindPrimaryDevice();
+    }
     /*
      * Now call each of the Probe functions.  Each successful probe will
      * result in an extra entry added to the xf86Screens[] list for each
@@ -1184,9 +1180,6 @@ OsVendorInit()
   signal(SIGCHLD, SIG_DFL);	/* Need to wait for child processes */
 #endif
   OsDelayInitColors = TRUE;
-#ifndef BUILTIN_FONTS
-  loadableFonts = TRUE;
-#endif
 
   if (!beenHere)
     xf86LogInit();
@@ -1697,11 +1690,6 @@ ddxProcessArgument(int argc, char **argv, int i)
   }
   /* OS-specific processing */
   return xf86ProcessArgument(argc, argv, i);
-}
-
-/* ddxInitGlobals - called by |InitGlobals| from os/util.c */
-void ddxInitGlobals(void)
-{
 }
 
 /*

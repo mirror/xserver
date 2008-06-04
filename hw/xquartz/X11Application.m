@@ -38,12 +38,13 @@
 
 #import "X11Application.h"
 
-# include "darwin.h"
-# include "darwinEvents.h"
-# include "quartz.h"
-# define _APPLEWM_SERVER_
-# include "X11/extensions/applewm.h"
-# include "micmap.h"
+#include "darwin.h"
+#include "darwinEvents.h"
+#include "quartz.h"
+#define _APPLEWM_SERVER_
+#include "X11/extensions/applewm.h"
+#include "micmap.h"
+
 #include <mach/mach.h>
 #include <unistd.h>
 
@@ -59,10 +60,8 @@
 int X11EnableKeyEquivalents = TRUE;
 int quartzHasRoot = FALSE, quartzEnableRootless = TRUE;
 
-extern int darwinFakeButtons, input_check_flag;
+extern int darwinFakeButtons;
 extern Bool enable_stereo;
-
-extern xEvent *darwinEvents;
 
 X11Application *X11App;
 
@@ -143,18 +142,21 @@ static void message_kit_thread (SEL selector, NSObject *arg) {
     NSMutableDictionary *dict;
     NSDictionary *infoDict;
     NSString *tem;
-	
-    dict = [NSMutableDictionary dictionaryWithCapacity:2];
+    
+    dict = [NSMutableDictionary dictionaryWithCapacity:3];
     infoDict = [[NSBundle mainBundle] infoDictionary];
-	
+    
     [dict setObject: NSLocalizedString (@"The X Window System", @"About panel")
-			 forKey:@"ApplicationName"];
-	
+          forKey:@"ApplicationName"];
+    
     tem = [infoDict objectForKey:@"CFBundleShortVersionString"];
-	
-    [dict setObject:[NSString stringWithFormat:@"XQuartz %@ - (xorg-server %s)", tem, XSERVER_VERSION]
-	  forKey:@"ApplicationVersion"];
-	
+    
+    [dict setObject:[NSString stringWithFormat:@"XQuartz %@", tem]
+          forKey:@"ApplicationVersion"];
+
+    [dict setObject:[NSString stringWithFormat:@"xorg-server %s", XSERVER_VERSION]
+          forKey:@"Version"];
+    
     [self orderFrontStandardAboutPanelWithOptions: dict];
 }
 
@@ -809,7 +811,7 @@ void X11ApplicationMain (int argc, char **argv, char **envp) {
 
     /* Tell the server thread that it can proceed */
     QuartzInitServer(argc, argv, envp);
-
+    
     [NSApp run];
     /* not reached */
 }

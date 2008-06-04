@@ -179,6 +179,8 @@ AC_CHECK_FUNC([dlopen], [],
 case $host_os in
     linux*|darwin*)
 	AC_DEFINE(HAVE_URANDOM, 1, [Has /dev/urandom]) ;;
+    freebsd*|netbsd*|openbsd*|dragonfly*)
+	AC_DEFINE(HAVE_URANDOM, 1, [Has /dev/urandom]) ;;
     solaris*)
 	# Solaris 8 with patches, or Solaris 9 or later have /dev/urandom
 	if test -r /dev/urandom ; then
@@ -191,7 +193,7 @@ dnl Checks for library functions.
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([geteuid getuid link memmove memset mkstemp strchr strrchr \
 		strtol getopt getopt_long vsnprintf walkcontext backtrace \
-		getisax getzoneid shmctl64])
+		getisax getzoneid shmctl64 strcasestr])
 AC_FUNC_ALLOCA
 dnl Old HAS_* names used in os/*.c.
 AC_CHECK_FUNC([getdtablesize],
@@ -402,6 +404,9 @@ case $host_os in
   *solaris*)
 	PKG_CHECK_EXISTS(libdrm, DRI=yes, DRI=no)
 	;;
+  darwin*)
+	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
+	;;
 esac
 AM_CONDITIONAL(KDRIVE_HW, test "x$KDRIVE_HW" = xyes)
 
@@ -488,7 +493,6 @@ AC_ARG_WITH(apple-applications-dir,AS_HELP_STRING([--with-apple-applications-dir
 				[ APPLE_APPLICATIONS_DIR="${withval}" ],
 				[ APPLE_APPLICATIONS_DIR="/Applications/Utilities" ])
 AC_SUBST([APPLE_APPLICATIONS_DIR])
-AC_ARG_WITH(launchd,          AS_HELP_STRING([--with-launchd], [Build with support for Apple's launchd (default: auto)]), [LAUNCHD=$withval], [LAUNCHD=auto])
 AC_ARG_WITH(launchagents-dir,AS_HELP_STRING([--with-launchagents-dir=PATH], [Path to launchd's LaunchAgents directory (default: /Library/LaunchAgents)]),
 				[ launchagentsdir="${withval}" ],
 				[ launchagentsdir="/Library/LaunchAgents" ])
@@ -562,17 +566,12 @@ AC_ARG_ENABLE(dmx,    	      AS_HELP_STRING([--enable-dmx], [Build DMX server (d
 AC_ARG_ENABLE(xvfb,    	      AS_HELP_STRING([--enable-xvfb], [Build Xvfb server (default: yes)]), [XVFB=$enableval], [XVFB=yes])
 AC_ARG_ENABLE(xnest,   	      AS_HELP_STRING([--enable-xnest], [Build Xnest server (default: auto)]), [XNEST=$enableval], [XNEST=auto])
 AC_ARG_ENABLE(xquartz,        AS_HELP_STRING([--enable-xquartz], [Build Xquartz server for OS-X (default: auto)]), [XQUARTZ=$enableval], [XQUARTZ=auto])
-AC_ARG_ENABLE(x11app,         AS_HELP_STRING([--enable-x11app], [Build Apple's X11.app for Xquartz (default: auto)]), [X11APP=$enableval], [X11APP=auto])
-AC_ARG_WITH(x11app-archs,     AS_HELP_STRING([--with-x11app-archs=ARCHS], [Architectures to build X11.app for, space delimeted (default: "ppc i386")]), [X11APP_ARCHS=$enableval], [X11APP_ARCHS="ppc i386"])
-AC_SUBST([X11APP_ARCHS])
 AC_ARG_ENABLE(xwin,    	      AS_HELP_STRING([--enable-xwin], [Build XWin server (default: auto)]), [XWIN=$enableval], [XWIN=auto])
-AC_ARG_ENABLE(xprint,         AS_HELP_STRING([--enable-xprint], [Build Xprint extension and server (default: no)]), [XPRINT=$enableval], [XPRINT=no])
 AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (default: no)]), [XGL=$enableval], [XGL=no])
 AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
 AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
 dnl legacy fb support
 AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: disable)]), [MFB=$enableval], [MFB=no])
-AC_ARG_ENABLE(afb,            AS_HELP_STRING([--enable-afb], [Build legacy advanced framebuffer support (default: disable)]), [AFB=$enableval], [AFB=no])
 dnl kdrive and its subsystems
 AC_ARG_ENABLE(kdrive,         AS_HELP_STRING([--enable-kdrive], [Build kdrive servers (default: no)]), [KDRIVE=$enableval], [KDRIVE=no])
 AC_ARG_ENABLE(xephyr,         AS_HELP_STRING([--enable-xephyr], [Build the kdrive Xephyr server (default: auto)]), [XEPHYR=$enableval], [XEPHYR=auto])
@@ -580,9 +579,6 @@ AC_ARG_ENABLE(xsdl,           AS_HELP_STRING([--enable-xsdl], [Build the kdrive 
 AC_ARG_ENABLE(xfake,          AS_HELP_STRING([--enable-xfake], [Build the kdrive 'fake' server (default: auto)]), [XFAKE=$enableval], [XFAKE=auto])
 AC_ARG_ENABLE(xfbdev,         AS_HELP_STRING([--enable-xfbdev], [Build the kdrive framebuffer device server (default: auto)]), [XFBDEV=$enableval], [XFBDEV=auto])
 AC_ARG_ENABLE(kdrive-vesa,    AS_HELP_STRING([--enable-kdrive-vesa], [Build the kdrive VESA-based servers (default: auto)]), [KDRIVEVESA=$enableval], [KDRIVEVESA=auto])
-dnl xprint
-AC_ARG_ENABLE(freetype,       AS_HELP_STRING([ --enable-freetype], [Build Xprint FreeType backend (default: yes)]), [XP_USE_FREETYPE=$enableval],[XP_USE_FREETYPE=no])
-AC_ARG_WITH(freetype-config,  AS_HELP_STRING([ --with-freetype-config=PROG], [Use FreeType configuration program PROG (default: auto)]), freetype_config=$withval, freetype_config=auto)
 
 
 dnl chown/chmod to be setuid root as part of build
@@ -693,7 +689,7 @@ else
 	RENDERPROTO="renderproto"
 fi
 
-REQUIRED_MODULES="[randrproto >= 1.2] $RENDERPROTO [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto xextproto [xproto >= 7.0.9] xtrans [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto [inputproto >= 1.4.2] [kbproto >= 1.0.3]"
+REQUIRED_MODULES="[randrproto >= 1.2] $RENDERPROTO [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto [xextproto >= 7.0.3] [xproto >= 7.0.13] xtrans [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto [inputproto >= 1.9.99.1] [kbproto >= 1.0.3]" 
 REQUIRED_LIBS="xfont xau fontenc [pixman-1 >= 0.9.5]"
 
 dnl HAVE_DBUS is true if we actually have the D-Bus library, whereas
@@ -853,22 +849,12 @@ if test "x$RES" = xyes; then
 	REQUIRED_MODULES="$REQUIRED_MODULES resourceproto"
 fi
 
-if test "x$GLX" = xyes && ! test "x$MESA_SOURCE" = x; then
+if test "x$GLX" = xyes; then
 	PKG_CHECK_MODULES([XLIB], [x11])
-	PKG_CHECK_MODULES([GL], [glproto >= 1.4.9])
+	PKG_CHECK_MODULES([GL], [glproto >= 1.4.9 gl >= 7.1.0])
 	AC_SUBST(XLIB_CFLAGS)
 	AC_DEFINE(GLXEXT, 1, [Build GLX extension])
-	GLX_LIBS='$(top_builddir)/GL/glx/libglx.la'
-	test -d GL || mkdir GL
-	case $host_os in
-	  solaris*) 	
-		SYMLINK_MESA="/usr/bin/bash $srcdir/GL/symlink-mesa.sh"	;;
-	  *)	SYMLINK_MESA=$srcdir/GL/symlink-mesa.sh ;;
-	esac
-	$SYMLINK_MESA $MESA_SOURCE GL/
-	if test $? -ne 0; then
-		AC_MSG_ERROR([Failed to link Mesa source tree.  Please specify a proper path to Mesa sources, or disable GLX.])
-	fi
+	GLX_LIBS='$(top_builddir)/glx/libglx.la'
 	GLX_SYS_LIBS="$GLX_SYS_LIBS $DLOPEN_LIBS"
 else
         GLX=no
@@ -894,7 +880,7 @@ if test "x$DRI" = xyes; then
 	AC_DEFINE(XF86DRI, 1, [Build DRI extension])
 	PKG_CHECK_MODULES([DRIPROTO], [xf86driproto])
 	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.0])
-	PKG_CHECK_MODULES([GL], [glproto >= 1.4.1])
+	PKG_CHECK_MODULES([GL], [glproto >= 1.4.1 gl >= 7.1.0])
 	PKG_CHECK_EXISTS(libdrm >= 2.2.0,
 			 [AC_DEFINE([HAVE_LIBDRM_2_2], 1,
 			 [Has version 2.2 (or newer) of the drm library])])
@@ -979,15 +965,6 @@ if test "x$DPMSExtension" = xyes; then
 	AC_DEFINE(DPMSExtension, 1, [Support DPMS extension])
 fi
 
-if test "x$XPRINT" = xauto; then
-	PKG_CHECK_MODULES([XPRINTPROTO], [printproto], [XPRINT=yes], [XPRINT=no])
-fi
-AM_CONDITIONAL(XPRINT, [test "x$XPRINT" = xyes])
-if test "x$XPRINT" = xyes; then
-	AC_DEFINE(XPRINT, 1, [Build Print extension])
-	REQUIRED_MODULES="$REQUIRED_MODULES printproto"
-fi
-
 if test "x$BUILTIN_FONTS" = xyes; then
        AC_DEFINE(BUILTIN_FONTS, 1, [Use only built-in fonts])
        AC_DEFINE(NOFONTSERVERACCESS, 1, [Avoid using a font server])
@@ -1020,7 +997,7 @@ DAMAGE_INC='-I$(top_srcdir)/damageext'
 MIEXT_DAMAGE_LIB='$(top_builddir)/miext/damage/libdamage.la'
 MIEXT_DAMAGE_INC='-I$(top_srcdir)/miext/damage'
 
-AC_DEFINE(XINPUT, 1, [Support X Input extension])
+# XINPUT extension is integral part of the server
 XI_LIB='$(top_builddir)/Xi/libXi.la'
 XI_INC='-I$(top_srcdir)/Xi'
 
@@ -1132,7 +1109,6 @@ FB_LIB='$(top_builddir)/fb/libfb.la'
 FB_INC='-I$(top_srcdir)/fb'
 MIEXT_SHADOW_INC='-I$(top_srcdir)/miext/shadow'
 MIEXT_SHADOW_LIB='$(top_builddir)/miext/shadow/libshadow.la'
-XPSTUBS_LIB='$(top_builddir)/dix/libxpstubs.la'
 CORE_INCS='-I$(top_srcdir)/include -I$(top_builddir)/include'
 
 PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
@@ -1140,15 +1116,25 @@ PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
 # OpenSSL used for SHA1 hashing in render/glyph.c, but we don't need all of
 # the OpenSSL libraries, just libcrypto
-PKG_CHECK_EXISTS([openssl],
- [PKG_CHECK_MODULES([OPENSSL], [openssl],
+# Some systems have matching functionality in the smaller/simpler libmd
+# Builders who want to force a choice can set SHA1_LIB and SHA1_CFLAGS
+if test "x$SHA1_LIB" = "x" ; then
+ AC_CHECK_LIB([md], [SHA1Init], [SHA1_LIB="-lmd"
+	AC_DEFINE([HAVE_SHA1_IN_LIBMD], [1],
+	   [Define to use libmd SHA1 functions instead of OpenSSL libcrypto])])
+fi
+if test "x$SHA1_LIB" = "x" ; then
+ PKG_CHECK_EXISTS([openssl],
+  [PKG_CHECK_MODULES([OPENSSL], [openssl],
    [OPENSSL_LIB_FLAGS=`$PKG_CONFIG --libs-only-L --libs-only-other openssl`])])
-LIBCRYPTO="$OPENSSL_LIB_FLAGS -lcrypto"
+ SHA1_LIB="$OPENSSL_LIB_FLAGS -lcrypto"
+ SHA1_CFLAGS="$OPENSSL_CFLAGS"
+fi
 
 # Autotools has some unfortunate issues with library handling.  In order to
 # get a server to rebuild when a dependency in the tree is changed, it must
 # be listed in SERVERNAME_DEPENDENCIES.  However, no system libraries may be
-# listed there, or some versions of autotols will break (especially if a -L
+# listed there, or some versions of autotools will break (especially if a -L
 # is required to find the library).  So, we keep two sets of libraries
 # detected: NAMESPACE_LIBS for in-tree libraries to be linked against, which
 # will go into the _DEPENDENCIES and _LDADD of the server, and
@@ -1160,9 +1146,9 @@ LIBCRYPTO="$OPENSSL_LIB_FLAGS -lcrypto"
 # XSERVER_SYS_LIBS is the set of out-of-tree libraries which all servers
 # require.
 #
-XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} ${OPENSSL_CFLAGS}"
+XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} ${SHA1_CFLAGS}"
 XSERVER_LIBS="$DIX_LIB $CONFIG_LIB $MI_LIB $OS_LIB"
-XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${LIBCRYPTO}"
+XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${SHA1_LIB}"
 AC_SUBST([XSERVER_LIBS])
 AC_SUBST([XSERVER_SYS_LIBS])
 
@@ -1229,7 +1215,7 @@ AC_MSG_RESULT([$XVFB])
 AM_CONDITIONAL(XVFB, [test "x$XVFB" = xyes])
 
 if test "x$XVFB" = xyes; then
-	XVFB_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB"
+	XVFB_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB"
 	XVFB_SYS_LIBS="$XVFBMODULES_LIBS"
 	AC_SUBST([XVFB_LIBS])
 	AC_SUBST([XVFB_SYS_LIBS])
@@ -1247,7 +1233,7 @@ AC_MSG_RESULT([$XNEST])
 AM_CONDITIONAL(XNEST, [test "x$XNEST" = xyes])
 
 if test "x$XNEST" = xyes; then
-	XNEST_LIBS="$FB_LIB $FIXES_LIB $MI_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RANDR_LIB $RENDER_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $DIX_LIB $OS_LIB $CONFIG_LIB"
+	XNEST_LIBS="$FB_LIB $FIXES_LIB $MI_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $DIX_LIB $OS_LIB $CONFIG_LIB"
 	XNEST_SYS_LIBS="$XNESTMODULES_LIBS"
 	AC_SUBST([XNEST_LIBS])
 	AC_SUBST([XNEST_SYS_LIBS])
@@ -1277,7 +1263,7 @@ AC_MSG_RESULT([$XGL])
 AM_CONDITIONAL(XGL, [test "x$XGL" = xyes])
 
 if test "x$XGL" = xyes; then
-	XGL_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB"
+	XGL_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB"
 	XGL_SYS_LIBS="$XGLMODULES_LIBS $GLX_SYS_LIBS $DLOPEN_LIBS"
 	AC_SUBST([XGL_LIBS])
 	AC_SUBST([XGL_SYS_LIBS])
@@ -1299,7 +1285,7 @@ AC_MSG_RESULT([$XEGL])
 AM_CONDITIONAL(XEGL, [test "x$XEGL" = xyes])
 
 if test "x$XEGL" = xyes; then
-	XEGL_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB"
+	XEGL_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB"
 	XEGL_SYS_LIBS = "$XEGL_SYS_LIBS $XEGLMODULES_LIBS $GLX_SYS_LIBS"
 	AC_SUBST([XEGL_LIBS])
 	AC_SUBST([XEGL_SYS_LIBS])
@@ -1316,7 +1302,7 @@ AC_MSG_RESULT([$XGLX])
 AM_CONDITIONAL(XGLX, [test "x$XGLX" = xyes])
 
 if test "x$XGLX" = xyes; then
-	XGLX_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB"
+	XGLX_LIBS="$FB_LIB $COMPOSITE_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_LAYER_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB"
 	XGLX_SYS_LIBS="$XGLX_SYS_LIBS $XGLXMODULES_LIBS $GLX_SYS_LIBS"
 	AC_SUBST([XGLX_LIBS])
 	AC_SUBST([XGLX_SYS_LIBS])
@@ -1334,7 +1320,7 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	XORG_OSINCS='-I$(top_srcdir)/hw/xfree86/os-support -I$(top_srcdir)/hw/xfree86/os-support/bus -I$(top_srcdir)/os'
 	XORG_INCS="$XORG_DDXINCS $XORG_OSINCS"
 	XORG_CFLAGS="$XORGSERVER_CFLAGS -DHAVE_XORG_CONFIG_H"
-	XORG_LIBS="$COMPOSITE_LIB $FIXES_LIB $XEXTXORG_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XPSTUBS_LIB $SELINUX_LIB"
+	XORG_LIBS="$COMPOSITE_LIB $FIXES_LIB $XEXTXORG_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $SELINUX_LIB"
 
 	PKG_CHECK_MODULES([PCIACCESS], [pciaccess >= 0.8.0])
 	SAVE_LIBS=$LIBS
@@ -1342,6 +1328,7 @@ if test "x$XORG" = xyes -o "x$XGL" = xyes; then
 	CFLAGS=$PCIACCESS_CFLAGS
 	LIBS=$PCIACCESS_LIBS
 	AC_CHECK_FUNCS([pci_system_init_dev_mem])
+	AC_CHECK_FUNCS([pci_device_enable])
 	LIBS=$SAVE_LIBS
 	CFLAGS=$SAVE_CFLAGS
 	XORG_SYS_LIBS="$XORG_SYS_LIBS $PCIACCESS_LIBS $DLOPEN_LIBS $GLX_SYS_LIBS"
@@ -1593,70 +1580,12 @@ AM_CONDITIONAL([XF86VIDMODE], [test "x$XF86VIDMODE" = xyes])
 
 dnl legacy fb support
 test "x$MFB" = xauto && MFB="$XORG"
-test "x$AFB" = xauto && AFB="$XORG"
 AM_CONDITIONAL(MFB, [test "x$MFB" = xyes])
-AM_CONDITIONAL(AFB, [test "x$AFB" = xyes])
-if test "x$MFB" = xyes -o "x$AFB" = xyes; then
+if test "x$MFB" = xyes; then
 	if test "x$XORG" != xyes; then
 		AC_MSG_ERROR([legacy fb support requires the Xorg server])
 	fi
 fi
-
-dnl Xprint DDX
-
-AC_MSG_CHECKING([whether to build Xprint DDX])
-AC_MSG_RESULT([$XPRINT])
-
-if test "x$XPRINT" = xyes; then
-	PKG_CHECK_MODULES([XPRINTMODULES], [printproto x11 xfont $XDMCP_MODULES xau])
-	XPRINT_CFLAGS="$XPRINTMODULES_CFLAGS -DXPRINT"
-	XPRINT_LIBS="$XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $RENDER_LIB $COMPOSITE_LIB $RANDR_LIB $XI_LIB $FIXES_LIB $DAMAGE_LIB $XI_LIB $GLX_LIBS $MIEXT_DAMAGE_LIB $XKB_LIB $XKB_STUB_LIB"
-	XPRINT_SYS_LIBS="$XPRINTMODULES_LIBS"
-
-	xpconfigdir=$libdir/X11/xserver
-	AC_SUBST([xpconfigdir])
-
-	AC_PATH_PROG(MKFONTSCALE, mkfontscale)
-	AC_PATH_PROG(MKFONTDIR, mkfontdir)
-	
-        # freetype support code borrowed from lib/XFont
-        if test x$XP_USE_FREETYPE = xyes; then
-            AC_DEFINE(XP_USE_FREETYPE,1,[Support FreeType rasterizer in Xprint for nearly all font file formats])
-
-            if test "$freetype_config" = "auto" ; then
-                PKG_CHECK_MODULES(FREETYPE, freetype2,
-                        freetype_config=no, freetype_config=yes)
-            fi
-
-            if test "$freetype_config" = "yes"; then
-                AC_PATH_PROG(ft_config,freetype-config,no)
-                if test "$ft_config" = "no"; then
-                        AC_MSG_ERROR([You must have freetype installed; see http://www.freetype.org/])
-                fi
-            else
-                ft_config="$freetype_config"
-            fi
-
-            if test "$freetype_config" != "no"; then
-                FREETYPE_CFLAGS="`$ft_config --cflags`"
-                FREETYPE_LIBS="`$ft_config --libs`"
-            fi
-            FREETYPE_REQUIRES="freetype2"
-        else
-            FREETYPE_CFLAGS=""
-            FREETYPE_LIBS=""
-            FREETYPE_REQUIRES=""
-        fi
-	XPRINT_CFLAGS="$XPRINT_CFLAGS $FREETYPE_CFLAGS"
-	XPRINT_SYS_LIBS="$XPRINT_SYS_LIBS $FREETYPE_LIBS"
-	# end freetype support
-
-	AC_SUBST([XPRINT_CFLAGS])
-	AC_SUBST([XPRINT_LIBS])
-	AC_SUBST([XPRINT_SYS_LIBS])
-fi
-AM_CONDITIONAL(XP_USE_FREETYPE, [test "x$XPRINT" = xyes && test "x$XP_USE_FREETYPE" = xyes])
-
 
 dnl XWin DDX
 
@@ -1732,7 +1661,7 @@ if test "x$XQUARTZ" = xyes; then
 	AC_DEFINE(XQUARTZ,1,[Have Quartz])
 	AC_DEFINE(ROOTLESS,1,[Build Rootless code])
 
-	DARWIN_GLX_LIBS='$(top_builddir)/hw/xquartz/GL/libCGLCore.la $(top_builddir)/GL/glx/libglx.la'
+	DARWIN_GLX_LIBS='$(top_builddir)/hw/xquartz/GL/libCGLCore.la $(top_builddir)/glx/libglx.la'
 	DARWIN_LIBS="$MI_LIB $OS_LIB $DIX_LIB $FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB $DARWIN_GLX_LIBS"
 	AC_SUBST([DARWIN_LIBS])
 
@@ -1755,32 +1684,6 @@ _AM_DEPENDENCIES([OBJC])
 AM_CONDITIONAL(HAVE_XPLUGIN, [test "x$ac_cv_lib_Xplugin_xp_init" = xyes])
 AM_CONDITIONAL(HAVE_AGL_FRAMEWORK, [test "x$xorg_cv_AGL_framework" = xyes])
 AM_CONDITIONAL(XQUARTZ, [test "x$XQUARTZ" = xyes])
-
-if test "x$X11APP" = xauto; then
-	AC_MSG_CHECKING([whether to build X11.app])
-	if test "x$XQUARTZ" = xyes ; then
-		X11APP=yes
-	else
-		X11APP=no
-	fi
-	AC_MSG_RESULT([$X11APP])
-fi
-AM_CONDITIONAL(X11APP,[test "X$X11APP" = Xyes]) 
-
-if test "x$LAUNCHD" = "xauto"; then
-	if test "x$XQUARTZ" = "xyes" ; then
-		LAUNCHD=yes
-	else
-		unset LAUNCHD
-		AC_CHECK_PROG(LAUNCHD, [launchd], [yes], [no])
-	fi
-fi
-
-if test "x$LAUNCHD" = "xyes" ; then
-	AC_DEFINE(HAVE_LAUNCHD, 1, [launchd support available])
-fi
-AM_CONDITIONAL(LAUNCHD, [test "x$LAUNCHD" = "xyes"])
-
 
 dnl DMX DDX
 
@@ -1929,7 +1832,7 @@ if test "$KDRIVE" = yes; then
     
     KDRIVE_CFLAGS="$XSERVER_CFLAGS -DHAVE_KDRIVE_CONFIG_H $TSLIB_CFLAGS"
 
-    KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $XPSTUBS_LIB $OS_LIB"
+    KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $OS_LIB"
     KDRIVE_LIB='$(top_builddir)/hw/kdrive/src/libkdrive.a'
     case $host_os in
 	*linux*)
@@ -2069,10 +1972,8 @@ XORG_MANPAGE_SECTIONS
 
 AC_OUTPUT([
 Makefile
-GL/Makefile
-GL/glx/Makefile
+glx/Makefile
 include/Makefile
-afb/Makefile
 composite/Makefile
 damageext/Makefile
 dbe/Makefile
@@ -2165,63 +2066,16 @@ hw/xwin/Makefile
 hw/xquartz/Makefile
 hw/xquartz/GL/Makefile
 hw/xquartz/bundle/Makefile
+hw/xquartz/doc/Makefile
+hw/xquartz/mach-startup/Makefile
 hw/xquartz/xpr/Makefile
 hw/kdrive/Makefile
-hw/kdrive/ati/Makefile
-hw/kdrive/chips/Makefile
 hw/kdrive/ephyr/Makefile
-hw/kdrive/epson/Makefile
 hw/kdrive/fake/Makefile
 hw/kdrive/fbdev/Makefile
-hw/kdrive/i810/Makefile
 hw/kdrive/linux/Makefile
-hw/kdrive/mach64/Makefile
-hw/kdrive/mga/Makefile
-hw/kdrive/neomagic/Makefile
-hw/kdrive/nvidia/Makefile
-hw/kdrive/pm2/Makefile
-hw/kdrive/r128/Makefile
 hw/kdrive/sdl/Makefile
-hw/kdrive/sis300/Makefile
-hw/kdrive/smi/Makefile
 hw/kdrive/src/Makefile
 hw/kdrive/vesa/Makefile
-hw/kdrive/via/Makefile
-hw/xprint/Makefile
-hw/xprint/doc/Makefile
-hw/xprint/pcl/Makefile
-hw/xprint/pcl-mono/Makefile
-hw/xprint/raster/Makefile
-hw/xprint/ps/Makefile
-hw/xprint/etc/Makefile
-hw/xprint/etc/Xsession.d/Makefile
-hw/xprint/etc/init.d/Makefile
-hw/xprint/etc/profile.d/Makefile
-hw/xprint/config/Makefile
-hw/xprint/config/C/print/attributes/Makefile
-hw/xprint/config/C/print/ddx-config/Makefile
-hw/xprint/config/C/print/ddx-config/raster/Makefile
-hw/xprint/config/C/print/models/CANONBJ10E-GS/Makefile
-hw/xprint/config/C/print/models/PSdefault/fonts/Makefile
-hw/xprint/config/C/print/models/PSdefault/Makefile
-hw/xprint/config/C/print/models/PSspooldir/Makefile
-hw/xprint/config/C/print/models/SPSPARC2/Makefile
-hw/xprint/config/C/print/models/SPSPARC2/fonts/Makefile
-hw/xprint/config/C/print/models/GSdefault/Makefile
-hw/xprint/config/C/print/models/HPLJ4050-PS/Makefile
-hw/xprint/config/C/print/models/HPLJ4050-PS/fonts/Makefile
-hw/xprint/config/C/print/models/Makefile
-hw/xprint/config/C/print/models/PS2PDFspooldir-GS/Makefile
-hw/xprint/config/C/print/models/CANONC3200-PS/Makefile
-hw/xprint/config/C/print/models/CANONC3200-PS/fonts/Makefile
-hw/xprint/config/C/print/models/HPLJ4family/fonts/Makefile
-hw/xprint/config/C/print/models/HPLJ4family/Makefile
-hw/xprint/config/C/print/models/HPDJ1600C/Makefile
-hw/xprint/config/C/print/models/HPDJ1600C/fonts/Makefile
-hw/xprint/config/C/print/Makefile
-hw/xprint/config/C/Makefile
-hw/xprint/config/en_US/print/attributes/Makefile
-hw/xprint/config/en_US/print/Makefile
-hw/xprint/config/en_US/Makefile
 xorg-server.pc
 ])

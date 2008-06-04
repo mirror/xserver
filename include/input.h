@@ -63,6 +63,10 @@ SOFTWARE.
 #define POINTER_ABSOLUTE (1 << 2)
 #define POINTER_ACCELERATE (1 << 3)
 
+#define MAX_VALUATORS 36 /* XXX from comment in dix/getevents.c */
+
+#define NO_AXIS_LIMITS -1
+
 #define MAP_LENGTH	256
 #define DOWN_LENGTH	32	/* 256/8 => number of bytes to hold 256 bits */
 #define NullGrab ((GrabPtr)NULL)
@@ -80,10 +84,56 @@ SOFTWARE.
 #define RevertToFollowKeyboard	3
 #endif
 
+/* Used for enter/leave and focus in/out semaphores */
+#define SEMAPHORE_FIELD_SET(win, dev, field) \
+{ \
+    FocusSemaphoresPtr sem; \
+    sem = (FocusSemaphoresPtr)dixLookupPrivate(&win->devPrivates, FocusPrivatesKey); \
+    sem->field[dev->id/8] |= (1 << (dev->id % 8)); \
+}
+
+#define SEMAPHORE_FIELD_UNSET(win, dev, field) \
+{ \
+    FocusSemaphoresPtr sem; \
+    sem = (FocusSemaphoresPtr)dixLookupPrivate(&win->devPrivates, FocusPrivatesKey); \
+    sem->field[dev->id/8] &= ~(1 << (dev->id % 8)); \
+}
+
+#define ENTER_LEAVE_SEMAPHORE_SET(win, dev) \
+        SEMAPHORE_FIELD_SET(win, dev, enterleave);
+
+#define ENTER_LEAVE_SEMAPHORE_UNSET(win, dev) \
+        SEMAPHORE_FIELD_UNSET(win, dev, enterleave);
+
+#define ENTER_LEAVE_SEMAPHORE_ISSET(win, dev) \
+    ((FocusSemaphoresPtr)dixLookupPrivate(&win->devPrivates, FocusPrivatesKey))->enterleave[dev->id/8] & (1 << (dev->id % 8))
+
+#define FOCUS_SEMAPHORE_SET(win, dev) \
+        SEMAPHORE_FIELD_SET(win, dev, focusinout);
+
+#define FOCUS_SEMAPHORE_UNSET(win, dev) \
+        SEMAPHORE_FIELD_UNSET(win, dev, focusinout);
+
+#define FOCUS_SEMAPHORE_ISSET(win, dev) \
+    ((FocusSemaphoresPtr)dixLookupPrivate(&win->devPrivates, FocusPrivatesKey))->focusinout[dev->id/8] & (1 << (dev->id % 8))
+
 typedef unsigned long Leds;
 typedef struct _OtherClients *OtherClientsPtr;
 typedef struct _InputClients *InputClientsPtr;
 typedef struct _DeviceIntRec *DeviceIntPtr;
+typedef struct _ClassesRec *ClassesPtr;
+
+typedef struct _EventList {
+    xEvent* event;
+    int evlen; /* length of allocated memory for event in bytes.  This is not
+                  the actual length of the event. The event's actual length is
+                  32 for standard events or 32 +
+                  ((xGenericEvent*)event)->length * 4 for GenericEvents */
+} EventList, *EventListPtr;
+
+/* The DIX stores incoming input events in this list */
+extern EventListPtr InputEventList;
+extern int InputEventListLen;
 
 typedef int (*DeviceProc)(
     DeviceIntPtr /*device*/,
@@ -170,6 +220,7 @@ typedef struct _InputOption {
 extern void InitCoreDevices(void);
 
 extern DeviceIntPtr AddInputDevice(
+    ClientPtr /*client*/,
     DeviceProc /*deviceProc*/,
     Bool /*autoStart*/);
 
@@ -185,6 +236,8 @@ extern Bool DisableDevice(
 extern int InitAndStartDevices(void);
 
 extern void CloseDownDevices(void);
+
+extern void UndisplayDevices(void);
 
 extern int RemoveDevice(
     DeviceIntPtr /*dev*/);
@@ -221,17 +274,9 @@ extern Bool InitButtonClassDeviceStruct(
     int /*numButtons*/,
     CARD8* /*map*/);
 
-typedef int (*ValuatorMotionProcPtr)(
-		DeviceIntPtr /*pdevice*/,
-		xTimecoord * /*coords*/,
-		unsigned long /*start*/,
-		unsigned long /*stop*/,
-		ScreenPtr /*pScreen*/);
-
 extern Bool InitValuatorClassDeviceStruct(
     DeviceIntPtr /*device*/,
     int /*numAxes*/,
-    ValuatorMotionProcPtr /* motionProc */,
     int /*numMotionEvents*/,
     int /*mode*/);
 
@@ -305,7 +350,6 @@ extern Bool InitPointerDeviceStruct(
     DevicePtr /*device*/,
     CARD8* /*map*/,
     int /*numButtons*/,
-    ValuatorMotionProcPtr /*motionProc*/,
     PtrCtrlProcPtr /*controlProc*/,
     int /*numMotionEvents*/,
     int /*numAxes*/);
@@ -318,6 +362,7 @@ extern Bool InitKeyboardDeviceStruct(
     KbdCtrlProcPtr /*controlProc*/);
 
 extern void SendMappingNotify(
+    DeviceIntPtr /* pDev */,
     unsigned int /*request*/,
     unsigned int /*firstKeyCode*/,
     unsigned int /*count*/,
@@ -360,12 +405,12 @@ extern void ProcessKeyboardEvent(
 extern void CoreProcessPointerEvent(
     xEventPtr /*xE*/,
     DeviceIntPtr /*mouse*/,
-    int /*count*/);
+    int /*count*/) _X_DEPRECATED;
 
-extern void CoreProcessKeyboardEvent(
+extern _X_DEPRECATED void CoreProcessKeyboardEvent(
     xEventPtr /*xE*/,
     DeviceIntPtr /*keybd*/,
-    int /*count*/);
+    int /*count*/) _X_DEPRECATED;
 #endif
 
 extern Bool LegalModifier(
@@ -380,8 +425,18 @@ extern void InitInput(
 
 extern int GetMaximumEventsNum(void);
 
+extern int GetEventList(EventListPtr* list);
+extern EventListPtr InitEventList(int num_events);
+extern void SetMinimumEventSize(EventListPtr list,
+                                int num_events,
+                                int min_size);
+extern void FreeEventList(EventListPtr list, int num_events);
+
+extern void CreateClassesChangedEvent(EventListPtr event, 
+                                      DeviceIntPtr master,
+                                      DeviceIntPtr slave);
 extern int GetPointerEvents(
-    xEvent *events,
+    EventListPtr events,
     DeviceIntPtr pDev,
     int type,
     int buttons,
@@ -391,13 +446,13 @@ extern int GetPointerEvents(
     int *valuators);
 
 extern int GetKeyboardEvents(
-    xEvent *events,
+    EventListPtr events,
     DeviceIntPtr pDev,
     int type,
     int key_code);
 
 extern int GetKeyboardValuatorEvents(
-    xEvent *events,
+    EventListPtr events,
     DeviceIntPtr pDev,
     int type,
     int key_code,
@@ -406,7 +461,7 @@ extern int GetKeyboardValuatorEvents(
     int *valuators);
 
 extern int GetProximityEvents(
-    xEvent *events,
+    EventListPtr events,
     DeviceIntPtr pDev,
     int type,
     int first_valuator,
@@ -414,6 +469,7 @@ extern int GetProximityEvents(
     int *valuators);
 
 extern void PostSyntheticMotion(
+    DeviceIntPtr pDev,
     int x,
     int y,
     int screen,
@@ -427,13 +483,70 @@ extern void AllocateMotionHistory(
 
 extern int GetMotionHistory(
     DeviceIntPtr pDev,
-    xTimecoord *buff,
+    xTimecoord **buff,
     unsigned long start,
     unsigned long stop,
-    ScreenPtr pScreen);
+    ScreenPtr pScreen,
+    BOOL core);
 
-extern void SwitchCoreKeyboard(DeviceIntPtr pDev);
 extern void SwitchCorePointer(DeviceIntPtr pDev);
+
+/* Pairing input devices */
+extern int PairDevices(ClientPtr client, 
+                       DeviceIntPtr pointer, 
+                       DeviceIntPtr keyboard);
+extern int AttachDevice(ClientPtr client,
+                        DeviceIntPtr slave,
+                        DeviceIntPtr master);
+
+extern DeviceIntPtr GetPairedDevice(DeviceIntPtr kbd);
+
+extern Bool RegisterPairingClient(ClientPtr client);
+
+extern DeviceIntPtr GuessFreePointerDevice(void);
+extern DeviceIntPtr NextFreePointerDevice(void);
+
+extern void CopyGetMasterEvent(DeviceIntPtr mdev,
+			       xEvent* original,
+			       xEvent** master,
+			       int count);
+
+extern int AllocMasterDevice(ClientPtr client,
+                             char* name,
+                             DeviceIntPtr* ptr,
+                             DeviceIntPtr* keybd);
+extern void DeepCopyDeviceClasses(DeviceIntPtr from,
+                                  DeviceIntPtr to);
+
+extern void FreeDeviceClass(int type, pointer* class);
+extern void FreeFeedbackClass(int type, pointer* class);
+extern void FreeAllDeviceClasses(ClassesPtr classes);
+extern int EnterLeaveSemaphoresIsset(WindowPtr win);
+extern int FocusSemaphoresIsset(WindowPtr win);
+
+/* Window/device based access control */
+extern Bool ACRegisterClient(ClientPtr client);
+extern Bool ACUnregisterClient(ClientPtr client);
+extern int ACClearWindowAccess(ClientPtr client,
+                        WindowPtr win,
+                        int what);
+extern int ACChangeWindowAccess(ClientPtr client, 
+                                WindowPtr win, 
+                                int defaultRule,
+                                DeviceIntPtr* perm_devices,
+                                int npermit,
+                                DeviceIntPtr* deny_devices,
+                                int ndeny);
+extern void ACQueryWindowAccess(WindowPtr win, 
+                                int* defaultRule,
+                                DeviceIntPtr** perm,
+                                int* nperm,
+                                DeviceIntPtr** deny,
+                                int* ndeny);
+
+extern Bool ACDeviceAllowed(WindowPtr win, 
+                            DeviceIntPtr dev,
+                            xEvent* xE);
 
 /* Implemented by the DDX. */
 extern int NewInputDeviceRequest(

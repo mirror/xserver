@@ -62,10 +62,8 @@
 #include "extension.h"
 #include "Pci.h"
 
-#ifdef XINPUT
 #include "xf86Xinput.h"
 extern DeviceAssocRec mouse_assoc;
-#endif
 
 #ifdef XKB
 #undef XKB_IN_SERVER
@@ -2581,8 +2579,6 @@ xf86HandleConfigFile(Bool autoconfig)
 #ifdef XF86DRI
     configDRI(xf86configptr->conf_dri);
 #endif
-
-    checkInput(&xf86ConfigLayout);
 
     /*
      * Handle some command line options that can override some of the

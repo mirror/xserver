@@ -46,12 +46,10 @@
 #include "globals.h"
 #include "dix.h"
 
-#ifdef XINPUT
 # include <X11/extensions/XI.h>
 # include <X11/extensions/XIproto.h>
 # include "exevents.h"
 # include "extinit.h"
-#endif
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -153,7 +151,6 @@ DarwinPrintBanner(void)
 { 
   // this should change depending on which specific server we are building
   ErrorF("Xquartz starting:\n");
-  ErrorF("X.org Release 7.2\n"); // This is here to help fink until they fix their packages.
   ErrorF("X.Org X Server %s\nBuild Date: %s\n", XSERVER_VERSION, BUILD_DATE );
 }
 
@@ -675,15 +672,6 @@ void OsVendorInit(void)
         }
         darwinKeymapFile = tempStr;
     }
-}
-
-
-/*
- * ddxInitGlobals
- *  Called by InitGlobals() from os/util.c.
- */
-void ddxInitGlobals(void)
-{
 }
 
 

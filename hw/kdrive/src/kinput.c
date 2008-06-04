@@ -65,7 +65,7 @@ static struct KdConfigDevice *kdConfigPointers    = NULL;
 static KdKeyboardDriver *kdKeyboardDrivers = NULL;
 static KdPointerDriver  *kdPointerDrivers  = NULL;
 
-static xEvent           *kdEvents = NULL;
+static EventListPtr     kdEvents = NULL;
 
 static Bool		kdInputEnabled;
 static Bool		kdOffScreen;
@@ -438,7 +438,6 @@ KdPointerProc(DeviceIntPtr pDevice, int onoff)
         }
 
 	InitPointerDeviceStruct(pDev, pi->map, pi->nButtons,
-	    GetMotionHistory,
 	    (PtrCtrlProcPtr)NoopDDA,
 	    GetMotionHistorySize(), pi->nAxes);
 
@@ -1015,7 +1014,7 @@ KdAddKeyboard (KdKeyboardInfo *ki)
     if (!ki)
         return !Success;
     
-    ki->dixdev = AddInputDevice(KdKeyboardProc, TRUE);
+    ki->dixdev = AddInputDevice(serverClient, KdKeyboardProc, TRUE);
     if (!ki->dixdev) {
         ErrorF("Couldn't register keyboard device %s\n",
                ki->name ? ki->name : "(unnamed)");
@@ -1084,7 +1083,7 @@ KdAddPointer (KdPointerInfo *pi)
     pi->mouseState = start;
     pi->eventHeld = FALSE;
 
-    pi->dixdev = AddInputDevice(KdPointerProc, TRUE);
+    pi->dixdev = AddInputDevice(serverClient, KdPointerProc, TRUE);
     if (!pi->dixdev) {
         ErrorF("Couldn't add pointer device %s\n",
                pi->name ? pi->name : "(unnamed)");
@@ -1390,11 +1389,6 @@ KdInitInput (void)
         if (KdAddKeyboard(ki) != Success)
             ErrorF("Failed to add keyboard!\n");
     }
-
-    if (!kdEvents)
-        kdEvents = (xEvent *)xcalloc(sizeof(xEvent), GetMaximumEventsNum());
-    if (!kdEvents)
-        FatalError("Couldn't allocate event buffer\n");
 
     mieqInit();
 }
@@ -1984,9 +1978,10 @@ KdReleaseAllKeys (void)
              key++) {
             if (IsKeyDown(ki, key)) {
                 KdHandleKeyboardEvent(ki, KeyRelease, key);
+                GetEventList(&kdEvents);
                 nEvents = GetKeyboardEvents(kdEvents, ki->dixdev, KeyRelease, key);
                 for (i = 0; i < nEvents; i++)
-                    KdQueueEvent (ki->dixdev, kdEvents + i);
+                    KdQueueEvent (ki->dixdev, (kdEvents + i)->event);
             }
         }
     }
@@ -2048,9 +2043,10 @@ KdEnqueueKeyboardEvent(KdKeyboardInfo   *ki,
             KdHandleKeyboardEvent(ki, type, key_code);
 	}
 	
+        GetEventList(&kdEvents);
         nEvents = GetKeyboardEvents(kdEvents, ki->dixdev, type, key_code);
         for (i = 0; i < nEvents; i++)
-            KdQueueEvent(ki->dixdev, kdEvents + i);
+            KdQueueEvent(ki->dixdev, (kdEvents + i)->event);
     }
     else {
         ErrorF("driver %s wanted to post scancode %d outside of [%d, %d]!\n",
@@ -2078,7 +2074,7 @@ KdEnqueuePointerEvent(KdPointerInfo *pi, unsigned long flags, int rx, int ry,
     int           (*matrix)[3] = kdPointerMatrix.matrix;
     unsigned long button;
     int           n;
-    int           dixflags;
+    int           dixflags = 0;
 
     if (!pi)
 	return;
@@ -2109,11 +2105,15 @@ KdEnqueuePointerEvent(KdPointerInfo *pi, unsigned long flags, int rx, int ry,
     z = rz;
 
     if (flags & KD_MOUSE_DELTA)
-        dixflags = POINTER_RELATIVE & POINTER_ACCELERATE;
-    else
-        dixflags = POINTER_ABSOLUTE;
+    {
+        if (x || y || z)
+            dixflags = POINTER_RELATIVE & POINTER_ACCELERATE;
+    } else if (x != pi->dixdev->last.valuators[0] ||
+                y != pi->dixdev->last.valuators[1])
+            dixflags = POINTER_ABSOLUTE;
 
-    _KdEnqueuePointerEvent(pi, MotionNotify, x, y, z, 0, dixflags, FALSE);
+    if (dixflags)
+        _KdEnqueuePointerEvent(pi, MotionNotify, x, y, z, 0, dixflags, FALSE);
 
     buttons = flags;
 
@@ -2148,10 +2148,11 @@ _KdEnqueuePointerEvent (KdPointerInfo *pi, int type, int x, int y, int z,
     if (!force && KdHandlePointerEvent(pi, type, x, y, z, b, absrel))
         return;
 
-    nEvents = GetPointerEvents(kdEvents, pi->dixdev, type, b, absrel, 0, 3,
-                               valuators);
+    GetEventList(&kdEvents);
+    nEvents = GetPointerEvents(kdEvents, pi->dixdev, type, b, absrel,
+                               0, 3, valuators);
     for (i = 0; i < nEvents; i++)
-        KdQueueEvent(pi->dixdev, kdEvents + i);
+        KdQueueEvent(pi->dixdev, (kdEvents + i)->event);
 }
 
 void
@@ -2326,11 +2327,11 @@ KdCrossScreen(ScreenPtr pScreen, Bool entering)
 int KdCurScreen;	/* current event screen */
 
 static void
-KdWarpCursor (ScreenPtr pScreen, int x, int y)
+KdWarpCursor (DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
 {
     KdBlockSigio ();
     KdCurScreen = pScreen->myNum;
-    miPointerWarpCursor (pScreen, x, y);
+    miPointerWarpCursor(pDev, pScreen, x, y);
     KdUnblockSigio ();
 }
 
@@ -2345,7 +2346,7 @@ void
 ProcessInputEvents ()
 {
     mieqProcessInputEvents();
-    miPointerUpdate();
+    miPointerUpdateSprite(inputInfo.pointer);
     if (kdSwitchPending)
 	KdProcessSwitch ();
     KdCheckLock ();

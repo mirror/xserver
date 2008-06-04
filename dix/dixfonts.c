@@ -302,8 +302,14 @@ doOpenFont(ClientPtr client, OFclosurePtr c)
 	    c->fontname = newname;
 	    c->fnamelen = newlen;
 	    c->current_fpe = 0;
-	    if (--aliascount <= 0)
+	    if (--aliascount <= 0) {
+		/* We've tried resolving this alias 20 times, we're
+ 		 * probably stuck in an infinite loop of aliases pointing
+ 		 * to each other - time to take emergency exit!
+ 		 */
+ 		err = BadImplementation;
 		break;
+	    }
 	    continue;
 	}
 	if (err == BadFontName) {
@@ -386,7 +392,7 @@ OpenFont(ClientPtr client, XID fid, Mask flags, unsigned lenfname, char *pfontna
     f = (char *)xalloc(lenfname + 1);
     memmove(f, pfontname, lenfname);
     f[lenfname] = '\0';
-    ErrorF("OpenFont: fontname is \"%s\"\n", f);
+    ErrorF("[dix] OpenFont: fontname is \"%s\"\n", f);
     xfree(f);
 #endif
     if (!lenfname || lenfname > XLFDMAXFONTNAMELEN)
@@ -1693,7 +1699,7 @@ SetFontPathElements(int npaths, unsigned char *paths, int *bad, Bool persist)
 	if (len == 0) 
 	{
 	    if (persist)
-		ErrorF ("Removing empty element from the valid list of fontpaths\n");
+		ErrorF("[dix] Removing empty element from the valid list of fontpaths\n");
 	    err = BadValue;
 	}
 	else
@@ -1745,7 +1751,7 @@ SetFontPathElements(int npaths, unsigned char *paths, int *bad, Bool persist)
 		{
 		    if (persist)
 		    {
-			ErrorF("Could not init font path element %s, removing from list!\n",
+			ErrorF("[dix] Could not init font path element %s, removing from list!\n",
 			       fpe->name);
 		    }
 		    xfree (fpe->name);
@@ -1931,37 +1937,27 @@ GetDefaultPointSize ()
 FontResolutionPtr
 GetClientResolutions (int *num)
 {
-#ifdef XPRINT
-    if (requestingClient && requestingClient->fontResFunc != NULL &&
-	!requestingClient->clientGone)
-    {
-	return (*requestingClient->fontResFunc)(requestingClient, num);
-    }
-    else
-#endif
-    {
-	static struct _FontResolution res;
-	ScreenPtr   pScreen;
+    static struct _FontResolution res;
+    ScreenPtr   pScreen;
 
-	pScreen = screenInfo.screens[0];
-	res.x_resolution = (pScreen->width * 25.4) / pScreen->mmWidth;
-	/*
-	 * XXX - we'll want this as long as bitmap instances are prevalent 
-	 so that we can match them from scalable fonts
-	 */
-	if (res.x_resolution < 88)
-	    res.x_resolution = 75;
-	else
-	    res.x_resolution = 100;
-	res.y_resolution = (pScreen->height * 25.4) / pScreen->mmHeight;
-	if (res.y_resolution < 88)
-	    res.y_resolution = 75;
-	else
-	    res.y_resolution = 100;
-	res.point_size = 120;
-	*num = 1;
-	return &res;
-    }
+    pScreen = screenInfo.screens[0];
+    res.x_resolution = (pScreen->width * 25.4) / pScreen->mmWidth;
+    /*
+     * XXX - we'll want this as long as bitmap instances are prevalent 
+     so that we can match them from scalable fonts
+     */
+    if (res.x_resolution < 88)
+	res.x_resolution = 75;
+    else
+	res.x_resolution = 100;
+    res.y_resolution = (pScreen->height * 25.4) / pScreen->mmHeight;
+    if (res.y_resolution < 88)
+	res.y_resolution = 75;
+    else
+	res.y_resolution = 100;
+    res.point_size = 120;
+    *num = 1;
+    return &res;
 }
 
 /*
