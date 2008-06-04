@@ -976,6 +976,8 @@ void AbortDDX(void)
         if (dmxScreen->beDisplay) XCloseDisplay(dmxScreen->beDisplay);
         dmxScreen->beDisplay = NULL;
     }
+
+    dmxAbortDisplay ();
 }
 
 /** This function is called in Xserver/dix/main.c from \a main() when
