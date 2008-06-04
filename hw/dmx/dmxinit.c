@@ -1125,6 +1125,11 @@ int ddxProcessArgument(int argc, char *argv[], int i)
         }
         retval = 3;
     }
+    else if ((argv[i][0] == 'v') && (argv[i][1] == 't'))
+    {
+	/* ignore vtXX arguments */
+        retval = 1;
+    }
     else if (!strcmp(argv[i], "--")) {
         dmxLaunchIndex = i + 1;
         retval = argc - i;
