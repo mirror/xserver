@@ -239,11 +239,11 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
     RRModePtr	  mode = NULL;
     RROutputPtr	  *outputs = NULL;
     XRRCrtcGamma  *gamma = NULL;
-    int		  i;
+    int		  i, noutput = 0;
 
     crtc = dmxRRGetCrtc (pScreen, dmxScreen, xcrtc);
     if (!crtc)
-	return FALSE;
+	return TRUE; /* do nothing if the crtc doesn't exist */
 
     XLIB_PROLOGUE (dmxScreen);
     c = XRRGetCrtcInfo (dmxScreen->beDisplay, r, xcrtc);
@@ -264,9 +264,9 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 
     for (i = 0; i < c->noutput; i++)
     {
-	outputs[i] = dmxRRGetOutput (pScreen, dmxScreen, c->outputs[i]);
-	if (!outputs[i])
-	    return FALSE;
+	outputs[noutput] = dmxRRGetOutput (pScreen, dmxScreen, c->outputs[i]);
+	if (outputs[noutput])
+	    noutput++;
     }
 
     XLIB_PROLOGUE (dmxScreen);
@@ -280,7 +280,7 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 
     XRRFreeGamma (gamma);
 
-    RRCrtcNotify (crtc, mode, c->x, c->y, c->rotation, c->noutput, outputs);
+    RRCrtcNotify (crtc, mode, c->x, c->y, c->rotation, noutput, outputs);
 
     if (outputs)
 	xfree (outputs);
@@ -300,11 +300,11 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
     RROutputPtr	  output, *clones = NULL;
     RRModePtr	  *modes = NULL;
     RRCrtcPtr	  *crtcs = NULL;
-    int		  i;
+    int		  i, nclone = 0, ncrtc = 0;
 
     output = dmxRRGetOutput (pScreen, dmxScreen, xoutput);
     if (!output)
-	return FALSE;
+	return TRUE; /* do nothing if the output doesn't exist */
 
     XLIB_PROLOGUE (dmxScreen);
     o = XRRGetOutputInfo (dmxScreen->beDisplay, r, xoutput);
@@ -336,20 +336,17 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
 
     for (i = 0; i < o->nclone; i++)
     {
-	clones[i] = dmxRRGetOutput (pScreen, dmxScreen, o->clones[i]);
-	if (!clones[i])
-	    return FALSE;
+	clones[nclone] = dmxRRGetOutput (pScreen, dmxScreen, o->clones[i]);
+	if (clones[nclone])
+	    nclone++;
     }
 
     for (i = 0; i < o->ncrtc; i++)
     {
-	crtcs[i] = dmxRRGetCrtc (pScreen, dmxScreen, o->crtcs[i]);
-	if (!crtcs[i])
-	    return FALSE;
+	crtcs[ncrtc] = dmxRRGetCrtc (pScreen, dmxScreen, o->crtcs[i]);
+	if (crtcs[ncrtc])
+	    ncrtc++;
     }
-
-    if (!RROutputSetClones (output, clones, o->nclone))
-	return FALSE;
 
     for (i = 0; i < o->nmode; i++)
     {
@@ -358,10 +355,13 @@ dmxRRUpdateOutput (ScreenPtr	      pScreen,
 	    return FALSE;
     }
 
+    if (!RROutputSetClones (output, clones, nclone))
+	return FALSE;
+
     if (!RROutputSetModes (output, modes, o->nmode, o->npreferred))
 	return FALSE;
 
-    if (!RROutputSetCrtcs (output, crtcs, o->ncrtc))
+    if (!RROutputSetCrtcs (output, crtcs, ncrtc))
 	return FALSE;
 
     if (!RROutputSetConnection (output, o->connection))
@@ -405,7 +405,7 @@ dmxRRUpdateOutputProperty (ScreenPtr	      pScreen,
 
     output = dmxRRGetOutput (pScreen, dmxScreen, xoutput);
     if (!output)
-	return FALSE;
+	return TRUE; /* do nothing if the output doesn't exist */
 
     XLIB_PROLOGUE (dmxScreen);
     name = XGetAtomName (dmxScreen->beDisplay, xproperty);
