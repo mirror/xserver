@@ -74,5 +74,5 @@ int main(int argc, char **argv)
     printf("status = %d\n", status);
 
     XCloseDisplay(display);
-    return 0;
+    return status ? 0 : -1;
 }

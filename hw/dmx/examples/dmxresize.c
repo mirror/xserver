@@ -100,5 +100,5 @@ int main(int argc, char **argv)
     }
     
     XCloseDisplay(display);
-    return 0;
+    return (status == Success) ? 0 : -1;
 }

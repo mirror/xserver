@@ -73,8 +73,12 @@ int main(int argc, char **argv)
            major_version, minor_version, patch_version);
 
     if (!DMXRemoveScreen(display, screenNum))
+    {
         printf("Failed to remove screen #%d\n", screenNum);
-    
+	XCloseDisplay(display);
+	return -1;
+    }
+
     XCloseDisplay(display);
     return 0;
 }

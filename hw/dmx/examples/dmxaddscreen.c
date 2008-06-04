@@ -48,12 +48,12 @@ int main(int argc, char **argv)
     unsigned int         mask = 0;
 
     if (argc != 4 && argc != 14) {
-        printf("Usage: %s display screenNum displayName [scrnx scrny scrnw scrnh rootx rooty rootw rooth originx originy]\n", argv[0]);
+        fprintf(stderr, "Usage: %s display screenNum displayName [scrnx scrny scrnw scrnh rootx rooty rootw rooth originx originy]\n", argv[0]);
         return -1;
     }
 
     if (!(display = XOpenDisplay(argv[1]))) {
-        printf("Cannot open display %s\n", argv[1]);
+        fprintf(stderr, "Cannot open display %s\n", argv[1]);
         return -1;
     }
 
@@ -83,23 +83,25 @@ int main(int argc, char **argv)
     }
 
     if (!DMXQueryExtension(display, &event_base, &error_base)) {
-        printf("DMX extension not present\n");
+        fprintf(stderr, "DMX extension not present\n");
         return -1;
     }
-    printf("DMX extension present: event_base = %d, error_base = %d\n",
-           event_base, error_base);
 
     if (!DMXQueryVersion(display,
                          &major_version, &minor_version, &patch_version)) {
-        printf("Could not get extension version\n");
+        fprintf(stderr, "Could not get extension version\n");
         return -1;
     }
-    printf("Extension version: %d.%d patch %d\n",
-           major_version, minor_version, patch_version);
 
     if (!DMXAddScreen(display, argv[3], mask, &attr, &screenNum))
-	printf("Failed to add %s as screen #%d\n", argv[2], screenNum);
-    
+    {
+	fprintf(stderr, "Failed to add %s as screen #%d\n", argv[3], screenNum);
+	XCloseDisplay(display);
+	return -1;
+    }
+
+    printf ("%d", screenNum);
+
     XCloseDisplay(display);
     return 0;
 }
