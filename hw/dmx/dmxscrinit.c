@@ -1745,6 +1745,30 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 #endif
 
 #ifdef RANDR
+    if (dmxScreen->beDisplay)
+    {
+	int major, minor, status = 0;
+
+	XLIB_PROLOGUE (dmxScreen);
+	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
+	XLIB_EPILOGUE (dmxScreen);
+
+	if (status)
+	{
+	    if (major > 1 || (major == 1 && minor >= 2))
+	    {
+		int ignore;
+
+		XLIB_PROLOGUE (dmxScreen);
+		dmxScreen->beRandr =
+		    XRRQueryExtension (dmxScreen->beDisplay,
+				       &dmxScreen->beRandrEventBase,
+				       &ignore);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
+	}
+    }
+
     if (!dmxRRInit (pScreen))
 	return FALSE;
 #endif
