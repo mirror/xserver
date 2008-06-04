@@ -54,7 +54,7 @@ static char xbeAuthBuf[256];
 static char *xbeAuthTempl = "/tmp/.Xdmx-auth-XXXXXX";
 static char *xbeAuth      = NULL;
 
-static char *xbeProgs[] = { "/usr/bin/Xfake", "/usr/X11R6/bin/Xfake" };
+static char *xbeProgs[] = { "/var/X11R6/bin/Xbackend", "/usr/bin/X" };
 static char *xbeProg    = NULL;
 
 static char xbeDisplayBuf[256];
