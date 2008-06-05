@@ -1224,8 +1224,106 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 {
     int i;
 
-    /* hack */
-    return TRUE;
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	int j;
+
+	old = dmxScreens; /* each new screen must much the first screen */
+
+	if (new->beDepth != old->beDepth)
+	{
+	    dmxLog (dmxWarning,
+		    "New screen depth is not %d\n",
+		    old->beDepth);
+	    return FALSE;
+	}
+
+	if (new->beBPP != old->beBPP)
+	{
+	    dmxLog (dmxWarning,
+		    "New screen BPP is not %d\n",
+		    old->beBPP);
+	    return FALSE;
+	}
+
+	for (i = 0; i < old->beNumDepths; i++)
+	{
+	    for (j = 0; j < new->beNumDepths; j++)
+		if (new->beDepths[j] == old->beDepths[i])
+		    break;
+
+	    if (j == new->beNumDepths)
+	    {
+		dmxLog (dmxWarning,
+			"New screen doesn't support depth %d\n",
+			old->beDepths[i]);
+		return FALSE;
+	    }
+	}
+
+	for (i = 0; i < old->beNumPixmapFormats; i++)
+	{
+	    for (j = 0; j < new->beNumPixmapFormats; j++)
+		if (new->bePixmapFormats[j].depth ==
+		    old->bePixmapFormats[i].depth &&
+		    new->bePixmapFormats[j].bits_per_pixel ==
+		    old->bePixmapFormats[i].bits_per_pixel &&
+		    new->bePixmapFormats[j].scanline_pad ==
+		    old->bePixmapFormats[i].scanline_pad)
+		    break;
+
+	    if (j == new->beNumPixmapFormats)
+	    {
+		dmxLog (dmxWarning,
+			"New screen doesn't support pixmap format "
+			"depth=%d,bits_per_pixel=%d,scanline_pad=%d\n",
+			old->bePixmapFormats[i].depth,
+			old->bePixmapFormats[i].bits_per_pixel,
+			old->bePixmapFormats[i].scanline_pad);
+		return FALSE;
+	    }
+	}
+
+	for (i = 0; i < old->beNumVisuals; i++)
+	{
+	    for (j = 0; j < new->beNumVisuals; j++)
+		if (new->beVisuals[j].depth ==
+		    old->beVisuals[i].depth &&
+		    new->beVisuals[j].class ==
+		    old->beVisuals[i].class &&
+		    new->beVisuals[j].red_mask ==
+		    old->beVisuals[i].red_mask &&
+		    new->beVisuals[j].green_mask ==
+		    old->beVisuals[i].green_mask &&
+		    new->beVisuals[j].blue_mask ==
+		    old->beVisuals[i].blue_mask &&
+		    new->beVisuals[j].colormap_size ==
+		    old->beVisuals[i].colormap_size &&
+		    new->beVisuals[j].bits_per_rgb ==
+		    old->beVisuals[i].bits_per_rgb)
+		    break;
+
+	    if (j == new->beNumVisuals)
+	    {
+		dmxLog (dmxWarning,
+			"New screen doesn't support visual "
+			"depth=%d,class=%d,red_mask=%d,green_mask=%d,"
+			"blue_mask=%d,colormap_size=%d,bits_per_rgb=%d\n",
+			old->beVisuals[i].depth,
+			old->beVisuals[i].class,
+			old->beVisuals[i].red_mask,
+			old->beVisuals[i].green_mask,
+			old->beVisuals[i].blue_mask,
+			old->beVisuals[i].colormap_size,
+			old->beVisuals[i].bits_per_rgb);
+		return FALSE;
+	    }
+	}
+
+	return TRUE;
+    }
+#endif
 
     if (new->beWidth != old->beWidth) return FALSE;
     if (new->beHeight != old->beHeight) return FALSE;
