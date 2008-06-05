@@ -428,6 +428,8 @@ updateMotionHistory(DeviceIntPtr pDev, CARD32 ms, int first_valuator,
 
         for (i = first_valuator; i < first_valuator + num_valuators; i++)
         {
+            if (i >= v->numAxes)
+                break;
             memcpy(buff, &v->axes[i].min_value, sizeof(INT32));
             buff += sizeof(INT32);
             memcpy(buff, &v->axes[i].max_value, sizeof(INT32));
@@ -893,8 +895,7 @@ GetPointerEvents(EventList *events, DeviceIntPtr pDev, int type, int buttons,
         return 0;
     /* FIXME: I guess it should, in theory, be possible to post button events
      *        from devices without valuators. */
-    /* This method require at least valuator 0&1 defined on the InputDevice */
-    if (!pDev->valuator || pDev->valuator->numAxes < 2)
+    if (!pDev->valuator)
         return 0;
     if (type == MotionNotify && num_valuators <= 0)
         return 0;

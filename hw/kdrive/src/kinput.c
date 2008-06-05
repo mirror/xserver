@@ -1981,7 +1981,7 @@ KdReleaseAllKeys (void)
                 GetEventList(&kdEvents);
                 nEvents = GetKeyboardEvents(kdEvents, ki->dixdev, KeyRelease, key);
                 for (i = 0; i < nEvents; i++)
-                    KdQueueEvent (ki->dixdev, kdEvents + i);
+                    KdQueueEvent (ki->dixdev, (kdEvents + i)->event);
             }
         }
     }
@@ -2046,7 +2046,7 @@ KdEnqueueKeyboardEvent(KdKeyboardInfo   *ki,
         GetEventList(&kdEvents);
         nEvents = GetKeyboardEvents(kdEvents, ki->dixdev, type, key_code);
         for (i = 0; i < nEvents; i++)
-            KdQueueEvent(ki->dixdev, kdEvents);
+            KdQueueEvent(ki->dixdev, (kdEvents + i)->event);
     }
     else {
         ErrorF("driver %s wanted to post scancode %d outside of [%d, %d]!\n",
@@ -2074,7 +2074,7 @@ KdEnqueuePointerEvent(KdPointerInfo *pi, unsigned long flags, int rx, int ry,
     int           (*matrix)[3] = kdPointerMatrix.matrix;
     unsigned long button;
     int           n;
-    int           dixflags;
+    int           dixflags = 0;
 
     if (!pi)
 	return;
@@ -2105,11 +2105,15 @@ KdEnqueuePointerEvent(KdPointerInfo *pi, unsigned long flags, int rx, int ry,
     z = rz;
 
     if (flags & KD_MOUSE_DELTA)
-        dixflags = POINTER_RELATIVE & POINTER_ACCELERATE;
-    else
-        dixflags = POINTER_ABSOLUTE;
+    {
+        if (x || y || z)
+            dixflags = POINTER_RELATIVE & POINTER_ACCELERATE;
+    } else if (x != pi->dixdev->last.valuators[0] ||
+                y != pi->dixdev->last.valuators[1])
+            dixflags = POINTER_ABSOLUTE;
 
-    _KdEnqueuePointerEvent(pi, MotionNotify, x, y, z, 0, dixflags, FALSE);
+    if (dixflags)
+        _KdEnqueuePointerEvent(pi, MotionNotify, x, y, z, 0, dixflags, FALSE);
 
     buttons = flags;
 
@@ -2148,7 +2152,7 @@ _KdEnqueuePointerEvent (KdPointerInfo *pi, int type, int x, int y, int z,
     nEvents = GetPointerEvents(kdEvents, pi->dixdev, type, b, absrel,
                                0, 3, valuators);
     for (i = 0; i < nEvents; i++)
-        KdQueueEvent(pi->dixdev, kdEvents + i);
+        KdQueueEvent(pi->dixdev, (kdEvents + i)->event);
 }
 
 void

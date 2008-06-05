@@ -733,7 +733,7 @@ static void _dmxSetCursor(ScreenPtr pScreen, CursorPtr pCursor, int x, int y)
 
     if (pCursor) {
 	dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
-	if (dmxScreen->curCursor != pCursorPriv->cursor) {
+	if (pCursorPriv && dmxScreen->curCursor != pCursorPriv->cursor) {
 	    if (dmxScreen->beDisplay)
 		XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
 			      pCursorPriv->cursor);
@@ -969,10 +969,21 @@ void dmxCheckCursor(void)
     DMXDBG2("   leave dmxCheckCursor %d %d\n", x, y);
 }
 
+static Bool dmxDeviceCursorInitialize(DeviceIntPtr pDev, ScreenPtr pScr)
+{
+    return TRUE;
+}
+
+static void dmxDeviceCursorCleanup(DeviceIntPtr pDev, ScreenPtr pScr)
+{
+}
+
 miPointerSpriteFuncRec dmxPointerSpriteFuncs =
 {
     dmxRealizeCursor,
     dmxUnrealizeCursor,
     dmxSetCursor,
     dmxMoveCursor,
+    dmxDeviceCursorInitialize,
+    dmxDeviceCursorCleanup
 };

@@ -376,7 +376,8 @@ ActivateDevice(DeviceIntPtr dev)
     ev.time = currentTime.milliseconds;
     ev.devchange = DeviceAdded;
     ev.deviceid = dev->id;
-    dummyDev.id = 0;
+
+    memset(&dummyDev, 0, sizeof(DeviceIntRec));
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -846,6 +847,9 @@ CloseDownDevices(void)
     inputInfo.off_devices = NULL;
     inputInfo.keyboard = NULL;
     inputInfo.pointer = NULL;
+#ifdef XKB
+    XkbDeleteRulesDflts();
+#endif
 }
 
 /**
@@ -1042,6 +1046,7 @@ SetKeySymsMap(KeySymsPtr dst, KeySymsPtr src)
         if (!map)
             return FALSE;
         dst->map = map;
+        dst->mapWidth = src->mapWidth;
     }
     memmove((char *)&dst->map[rowDif * dst->mapWidth],
 	    (char *)src->map,
