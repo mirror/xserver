@@ -79,7 +79,7 @@ static GCOps dmxGCOps = {
     dmxImageText16,
     NULL, /* dmxImageGlyphBlt */
     NULL, /* dmxPolyGlyphBlt */
-    NULL, /* dmxPushPixels */
+    dmxPushPixels
 };
 
 /** Initialize the GC on \a pScreen */

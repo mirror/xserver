@@ -70,6 +70,8 @@ extern void dmxImageText8(DrawablePtr pDrawable, GCPtr pGC,
 			  int x, int y, int count, char *chars);
 extern void dmxImageText16(DrawablePtr pDrawable, GCPtr pGC,
 			   int x, int y, int count, unsigned short *chars);
+extern void dmxPushPixels(GCPtr pGC, PixmapPtr pBitmap, DrawablePtr pDrawable,
+			  int width, int height, int x, int y);
 
 extern void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 			unsigned int format, unsigned long planeMask,

@@ -44,6 +44,7 @@
 #include "dmxgcops.h"
 #include "dmxwindow.h"
 #include "dmxpixmap.h"
+#include "dmxlog.h"
 
 #include "mi.h"
 #include "gcstruct.h"
@@ -498,6 +499,38 @@ void dmxImageText16(DrawablePtr pDrawable, GCPtr pGC,
 		       x, y, (XChar2b *)chars, count);
     XLIB_EPILOGUE (dmxScreen);
     dmxSync(dmxScreen, FALSE);
+}
+
+void dmxPushPixels(GCPtr pGC, PixmapPtr pBitmap, DrawablePtr pDst,
+		   int width, int height, int x, int y)
+{
+    /* only works for solid bitmaps */
+    if (pGC->fillStyle == FillSolid)
+    {
+	DMXScreenInfo *dmxScreen = &dmxScreens[pDst->pScreen->myNum];
+	dmxGCPrivPtr  pGCPriv = DMX_GET_GC_PRIV(pGC);
+	dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV(pBitmap);
+	Drawable      draw;
+
+	if (DMX_GCOPS_OFFSCREEN(pDst)) return;
+
+	DMX_GCOPS_SET_DRAWABLE(pDst, draw);
+
+	XLIB_PROLOGUE (dmxScreen);
+	XSetStipple (dmxScreen->beDisplay, pGCPriv->gc, pPixPriv->pixmap);
+	XSetTSOrigin (dmxScreen->beDisplay, pGCPriv->gc, x, y);
+	XSetFillStyle (dmxScreen->beDisplay, pGCPriv->gc, FillStippled);
+	XFillRectangle (dmxScreen->beDisplay, draw,
+			pGCPriv->gc, x, y, width, height);
+	XSetFillStyle (dmxScreen->beDisplay, pGCPriv->gc, FillSolid);
+	XLIB_EPILOGUE (dmxScreen);
+	dmxSync(dmxScreen, FALSE);
+    }
+    else
+    {
+	dmxLog (dmxWarning, "function dmxPushPixels fillStyle != FillSolid "
+		"not implemented\n");
+    }
 }
 
 /**********************************************************************
