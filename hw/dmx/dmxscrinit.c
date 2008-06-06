@@ -1740,6 +1740,16 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		 dmxScreen->beYDPI,
 		 dmxScreen->scrnWidth,
 		 dmxScreen->beBPP);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	for (i = 0; i < pScreen->numVisuals; i++)
+	    if (pScreen->visuals[i].ColormapEntries > 256)
+		pScreen->visuals[i].ColormapEntries = 256;
+    }
+#endif
+
 #ifdef RENDER
     (void)dmxPictureInit(pScreen, 0, 0);
 #endif
