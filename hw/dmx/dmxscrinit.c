@@ -1726,6 +1726,17 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		    }
 		}
 	    }
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		/* avoid additional DirectColor visuals for better
+		   back-end server support */
+		if (preferredClass != DirectColor)
+		    visuals &= ~(1 << DirectColor);
+	    }
+#endif
+
 	    miSetVisualTypesAndMasks(depth, visuals, bitsPerRgb,
 				     preferredClass,
 				     redMask, greenMask, blueMask);
