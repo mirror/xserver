@@ -1490,37 +1490,10 @@ dmxSetWindowPixmap (WindowPtr pWin, PixmapPtr pPixmap)
     {
 	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
 
-	if (pPixmap)
-	{
-	    if ((*pScreen->GetWindowPixmap) (pWin->parent) != pPixmap)
-	    {
-		pWinPriv->redirected = TRUE;
-	    }
-	    else if (pWinPriv->redirected)
-	    {
-		if (dmxScreen->beDisplay)
-		{
-		    XLIB_PROLOGUE (dmxScreen);
-		    XCompositeUnredirectWindow (dmxScreen->beDisplay,
-						pWinPriv->window,
-						CompositeRedirectManual);
-		    XLIB_EPILOGUE (dmxScreen);
-		}
-		pWinPriv->redirected = FALSE;
-	    }
-	}
-	else if (pWinPriv->redirected)
-	{
-	    if (dmxScreen->beDisplay)
-	    {
-		XLIB_PROLOGUE (dmxScreen);
-		XCompositeUnredirectWindow (dmxScreen->beDisplay,
-					    pWinPriv->window,
-					    CompositeRedirectManual);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
+	if (pPixmap && (*pScreen->GetWindowPixmap) (pWin->parent) != pPixmap)
+	    pWinPriv->redirected = TRUE;
+	else
 	    pWinPriv->redirected = FALSE;
-	}
     }
 
     DMX_UNWRAP(SetWindowPixmap, dmxScreen, pScreen);
@@ -1567,6 +1540,7 @@ dmxScreenExpose (ScreenPtr pScreen)
 
 		if (pChild0->firstChild)
 		{
+		    assert (pChildN->firstChild);
 		    pChild0 = pChild0->firstChild;
 		    pChildN = pChildN->firstChild;
 		    continue;
@@ -1574,12 +1548,17 @@ dmxScreenExpose (ScreenPtr pScreen)
 
 		while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
 		{
+		    assert (!pChildN->nextSib &&
+			    (pChildN != WindowTable[pScreen->myNum]));
 		    pChild0 = pChild0->parent;
 		    pChildN = pChildN->parent;
 		}
 
 		if (pChild0 == WindowTable[0])
+		{
+		    assert (pChildN == WindowTable[pScreen->myNum]);
 		    break;
+		}
 
 		pChild0 = pChild0->nextSib;
 		pChildN = pChildN->nextSib;
