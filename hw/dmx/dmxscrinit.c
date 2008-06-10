@@ -67,6 +67,7 @@
 #include "fb.h"
 #include "mipointer.h"
 #include "micmap.h"
+#include "mivalidate.h"
 
 extern Bool dmxCloseScreen(int idx, ScreenPtr pScreen);
 static Bool dmxSaveScreen(ScreenPtr pScreen, int what);
@@ -1625,6 +1626,41 @@ dmxScreenWakeupHandler (pointer blockData,
 
 }
 
+static void
+dmxHandleExposures (WindowPtr pWin)
+{
+    WindowPtr pChild;
+    ValidatePtr val;
+    ScreenPtr pScreen;
+    WindowExposuresProcPtr WindowExposures;
+
+    pScreen = pWin->drawable.pScreen;
+
+    pChild = pWin;
+    WindowExposures = pChild->drawable.pScreen->WindowExposures;
+    while (1)
+    {
+	if ( (val = pChild->valdata) )
+	{
+	    REGION_UNINIT(pScreen, &val->after.borderExposed);
+	    (*WindowExposures)(pChild, &val->after.exposed, NullRegion);
+	    REGION_UNINIT(pScreen, &val->after.exposed);
+	    xfree(val);
+	    pChild->valdata = (ValidatePtr)NULL;
+	    if (pChild->firstChild)
+	    {
+		pChild = pChild->firstChild;
+		continue;
+	    }
+	}
+	while (!pChild->nextSib && (pChild != pWin))
+	    pChild = pChild->parent;
+	if (pChild == pWin)
+	    break;
+	pChild = pChild->nextSib;
+    }
+}
+
 /** Initialize screen number \a idx. */
 Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 {
@@ -1836,6 +1872,7 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 	DMX_WRAP(CopyWindow, dmxCopyWindow, dmxScreen, pScreen);
 
 	DMX_WRAP(ResizeWindow, dmxResizeWindow, dmxScreen, pScreen);
+	DMX_WRAP(HandleExposures, dmxHandleExposures, dmxScreen, pScreen);
 	DMX_WRAP(ReparentWindow, dmxReparentWindow, dmxScreen, pScreen);
 
 	DMX_WRAP(ChangeBorderWidth, dmxChangeBorderWidth, dmxScreen, pScreen);
@@ -1987,6 +2024,7 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	DMX_UNWRAP(CopyWindow, dmxScreen, pScreen);
 
 	DMX_UNWRAP(ResizeWindow, dmxScreen, pScreen);
+	DMX_UNWRAP(HandleExposures, dmxScreen, pScreen);
 	DMX_UNWRAP(ReparentWindow, dmxScreen, pScreen);
 
 	DMX_UNWRAP(ChangeBorderWidth, dmxScreen, pScreen);

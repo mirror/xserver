@@ -233,6 +233,7 @@ typedef struct _DMXScreenInfo {
     CopyWindowProcPtr              CopyWindow;
 
     ResizeWindowProcPtr            ResizeWindow;
+    HandleExposuresProcPtr         HandleExposures;
     ReparentWindowProcPtr          ReparentWindow;
 
     ChangeBorderWidthProcPtr       ChangeBorderWidth;
