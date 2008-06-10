@@ -49,6 +49,10 @@ SOFTWARE.
 #include <dix-config.h>
 #endif
 
+#ifndef XINPUT
+#define XINPUT
+#endif
+
 #ifdef HAVE_XORG_CONFIG_H
 #include <xorg-config.h>
 #endif
