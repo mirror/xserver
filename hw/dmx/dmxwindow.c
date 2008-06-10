@@ -60,6 +60,12 @@ static void dmxDoChangeWindowAttributes(WindowPtr pWindow,
 
 static void dmxDoSetShape(WindowPtr pWindow);
 
+static void
+dmxDoRedirectWindow(WindowPtr pWindow);
+
+static void
+dmxDoUpdateWindowPixmap(WindowPtr pWindow);
+
 /** Initialize the private area for the window functions. */
 Bool dmxInitWindow(ScreenPtr pScreen)
 {
@@ -315,17 +321,20 @@ void dmxCreateAndRealizeWindow(WindowPtr pWindow, Bool doSync)
     if (!dmxScreen->beDisplay) return;
 
     pWinPriv->window = dmxCreateNonRootWindow(pWindow);
+    if (pWinPriv->redirected) dmxDoRedirectWindow(pWindow);
     if (pWinPriv->restacked) dmxDoRestackWindow(pWindow);
     if (pWinPriv->isShaped) dmxDoSetShape(pWindow);
 #ifdef RENDER
     if (pWinPriv->hasPict) dmxCreatePictureList(pWindow);
 #endif
-    if (pWinPriv->mapped && MapUnmapEventsEnabled (pWindow))
+    if (pWinPriv->mapped)
     {
 	XLIB_PROLOGUE (dmxScreen);
 	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	XLIB_EPILOGUE (dmxScreen);
+
+	if (pWinPriv->beRedirected) dmxDoUpdateWindowPixmap (pWindow);
     }
     if (doSync) dmxSync(dmxScreen, False);
 }
@@ -352,7 +361,6 @@ Bool dmxCreateWindow(WindowPtr pWindow)
     pWinPriv->mapped     = FALSE;
     pWinPriv->restacked  = FALSE;
     pWinPriv->redirected = FALSE;
-    pWinPriv->wasRedirected = FALSE;
     pWinPriv->attribMask = 0;
     pWinPriv->isShaped   = FALSE;
 #ifdef RENDER
@@ -362,6 +370,8 @@ Bool dmxCreateWindow(WindowPtr pWindow)
     pWinPriv->swapGroup  = NULL;
     pWinPriv->barrier    = 0;
 #endif
+
+    pWinPriv->beRedirected = FALSE;
 
     if (dmxScreen->beDisplay) {
 	/* Only create the root window at this stage -- non-root windows are
@@ -417,12 +427,17 @@ Bool dmxBEDestroyWindow(WindowPtr pWindow)
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
+    pWinPriv->beRedirected = FALSE;
+
     if (pWinPriv->window) {
-	XLIB_PROLOGUE (dmxScreen);
-	XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
-	XLIB_EPILOGUE (dmxScreen);
+	if (dmxScreen->alive)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
 	pWinPriv->window = (Window)0;
-	return TRUE;
+	return (dmxScreen->alive);
     }
 
     return FALSE;
@@ -667,65 +682,20 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
     if (pWinPriv->window) {
 	/* Realize window on back-end server */
 
-	if (pWinPriv->redirected)
-	{
-	    PixmapPtr pPixmap;
+	dmxDoRedirectWindow (pWindow);
 
-	    pPixmap = (*pScreen->GetWindowPixmap) (pWindow);
-	    if (pPixmap)
-	    {
-		dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
-		Bool updatePixmap = !pWinPriv->wasRedirected;
-
-		if (!pWinPriv->wasRedirected)
-		{
-		    XLIB_PROLOGUE (dmxScreen);
-		    XCompositeRedirectWindow (dmxScreen->beDisplay,
-					      pWinPriv->window,
-					      CompositeRedirectManual);
-		    XLIB_EPILOGUE (dmxScreen);
-		    pWinPriv->wasRedirected = TRUE;
-		}
-
-		if (MapUnmapEventsEnabled (pWindow))
-		{
-		    XLIB_PROLOGUE (dmxScreen);
-		    dmxSetIgnore (dmxScreen,
-				  NextRequest (dmxScreen->beDisplay));
-		    XMapWindow (dmxScreen->beDisplay, pWinPriv->window);
-		    updatePixmap = TRUE;
-		    XLIB_EPILOGUE (dmxScreen);
-		}
-
-		if (updatePixmap)
-		{
-		    if (pPixPriv->pixmap)
-		    {
-			XLIB_PROLOGUE (dmxScreen);
-			XFreePixmap (dmxScreen->beDisplay, pPixPriv->pixmap);
-			XLIB_EPILOGUE (dmxScreen);
-			pPixPriv->pixmap = None;
-		    }
-
-		    XLIB_PROLOGUE (dmxScreen);
-		    pPixPriv->pixmap =
-			XCompositeNameWindowPixmap (dmxScreen->beDisplay,
-						    pWinPriv->window);
-		    XLIB_EPILOGUE (dmxScreen);
-		    pWinPriv->wasRedirected = TRUE;
-		}
-	    }
-	}
-	else if (MapUnmapEventsEnabled (pWindow))
+	if (MapUnmapEventsEnabled (pWindow))
 	{
 	    XLIB_PROLOGUE (dmxScreen);
 	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
-	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XMapWindow (dmxScreen->beDisplay, pWinPriv->window);
 	    XLIB_EPILOGUE (dmxScreen);
 	}
 
-	dmxSync(dmxScreen, False);
+	dmxDoUpdateWindowPixmap (pWindow);
     }
+
+    dmxSync(dmxScreen, False);
 
     /* Let the other functions know that the window is now mapped */
     pWinPriv->mapped = TRUE;
@@ -759,12 +729,13 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
 	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
 	    XUnmapWindow(dmxScreen->beDisplay, pWinPriv->window);
 	}
-	if (!pWinPriv->redirected && pWinPriv->wasRedirected)
+
+	if (pWinPriv->beRedirected)
 	{
 	    XCompositeUnredirectWindow (dmxScreen->beDisplay,
 					pWinPriv->window,
 					CompositeRedirectManual);
-	    pWinPriv->wasRedirected = FALSE;
+	    pWinPriv->beRedirected = FALSE;
 	}
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, False);
@@ -1128,3 +1099,55 @@ void dmxSetShape(WindowPtr pWindow)
 
     DMX_WRAP(SetShape, dmxSetShape, dmxScreen, pScreen);
 }
+
+static void
+dmxDoRedirectWindow(WindowPtr pWindow)
+{
+    ScreenPtr      pScreen = pWindow->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
+
+    if (pWinPriv->window && pWinPriv->redirected && !pWinPriv->beRedirected)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XCompositeRedirectWindow (dmxScreen->beDisplay,
+				  pWinPriv->window,
+				  CompositeRedirectManual);
+	XLIB_EPILOGUE (dmxScreen);
+	pWinPriv->beRedirected = TRUE;
+    }
+}
+
+static void
+dmxDoUpdateWindowPixmap(WindowPtr pWindow)
+{
+    ScreenPtr      pScreen = pWindow->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
+
+    if (pWinPriv->beRedirected)
+    {
+	PixmapPtr pPixmap;
+
+	pPixmap = (*pScreen->GetWindowPixmap) (pWindow);
+	if (pPixmap)
+	{
+	    dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+
+	    if (pPixPriv->pixmap)
+	    {
+		XLIB_PROLOGUE (dmxScreen);
+		XFreePixmap (dmxScreen->beDisplay, pPixPriv->pixmap);
+		XLIB_EPILOGUE (dmxScreen);
+		pPixPriv->pixmap = None;
+	    }
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    pPixPriv->pixmap =
+		XCompositeNameWindowPixmap (dmxScreen->beDisplay,
+					    pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
+    }
+}
+

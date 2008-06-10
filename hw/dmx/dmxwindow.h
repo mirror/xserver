@@ -46,7 +46,6 @@ typedef struct _dmxWinPriv {
     Bool           mapped;
     Bool           restacked;
     Bool           redirected;
-    Bool           wasRedirected;
     unsigned long  attribMask;
     Colormap       cmap;
     Visual        *visual;
@@ -60,6 +59,7 @@ typedef struct _dmxWinPriv {
     void         (*windowDestroyed)(WindowPtr);
     void         (*windowUnmapped)(WindowPtr);
 #endif
+    Bool           beRedirected;
 } dmxWinPrivRec, *dmxWinPrivPtr;
 
 
