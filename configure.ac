@@ -40,8 +40,6 @@ AC_CONFIG_HEADERS(include/xorg-server.h)
 dnl dix-config.h covers most of the DIX (i.e. everything but the DDX, not just
 dnl dix/).
 AC_CONFIG_HEADERS(include/dix-config.h)
-dnl xgl-config.h covers the Xgl DDX.
-AC_CONFIG_HEADERS(include/xgl-config.h)
 dnl xorg-config.h covers the Xorg DDX.
 AC_CONFIG_HEADERS(include/xorg-config.h)
 dnl xkb-config.h covers XKB for the Xorg and Xnest DDXs.
@@ -567,9 +565,6 @@ AC_ARG_ENABLE(xvfb,    	      AS_HELP_STRING([--enable-xvfb], [Build Xvfb server
 AC_ARG_ENABLE(xnest,   	      AS_HELP_STRING([--enable-xnest], [Build Xnest server (default: auto)]), [XNEST=$enableval], [XNEST=auto])
 AC_ARG_ENABLE(xquartz,        AS_HELP_STRING([--enable-xquartz], [Build Xquartz server for OS-X (default: auto)]), [XQUARTZ=$enableval], [XQUARTZ=auto])
 AC_ARG_ENABLE(xwin,    	      AS_HELP_STRING([--enable-xwin], [Build XWin server (default: auto)]), [XWIN=$enableval], [XWIN=auto])
-AC_ARG_ENABLE(xgl,            AS_HELP_STRING([--enable-xgl], [Build Xgl server (default: no)]), [XGL=$enableval], [XGL=no])
-AC_ARG_ENABLE(xglx,           AS_HELP_STRING([--enable-xglx], [Build Xglx xgl module (default: no)]), [XGLX=$enableval], [XGLX=no])
-AC_ARG_ENABLE(xegl,           AS_HELP_STRING([--enable-xegl], [Build Xegl xgl module (default: no)]), [XEGL=$enableval], [XEGL=no])
 dnl legacy fb support
 AC_ARG_ENABLE(mfb,            AS_HELP_STRING([--enable-mfb], [Build legacy mono framebuffer support (default: disable)]), [MFB=$enableval], [MFB=no])
 dnl kdrive and its subsystems
@@ -1331,7 +1326,7 @@ xorg_bus_ppcpci=no
 xorg_bus_sparcpci=no
 xorg_bus_sparc=no
 
-if test "x$XORG" = xyes -o "x$XGL" = xyes; then
+if test "x$XORG" = xyes; then
 	XORG_DDXINCS='-I$(top_srcdir)/hw/xfree86 -I$(top_srcdir)/hw/xfree86/include -I$(top_srcdir)/hw/xfree86/common'
 	XORG_OSINCS='-I$(top_srcdir)/hw/xfree86/os-support -I$(top_srcdir)/hw/xfree86/os-support/bus -I$(top_srcdir)/os'
 	XORG_INCS="$XORG_DDXINCS $XORG_OSINCS"
@@ -2073,13 +2068,6 @@ hw/dmx/input/Makefile
 hw/dmx/glxProxy/Makefile
 hw/dmx/Makefile
 hw/vfb/Makefile
-hw/xgl/Makefile
-hw/xgl/egl/Makefile
-hw/xgl/egl/module/Makefile
-hw/xgl/glx/Makefile
-hw/xgl/glx/module/Makefile
-hw/xgl/glxext/Makefile
-hw/xgl/glxext/module/Makefile
 hw/xnest/Makefile
 hw/xwin/Makefile
 hw/xquartz/Makefile
