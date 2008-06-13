@@ -255,8 +255,8 @@ ChangeDeviceID(DeviceIntPtr dev, xEvent* event)
             // do nothing or drink a beer. your choice.
         } else
             DebugF("[mi] Unknown generic event (%d/%d), cannot change id.\n",
-                    ((xGenericEvent*)ev)->extension,
-                    ((xGenericEvent*)ev)->evtype);
+                    ((xGenericEvent*)event)->extension,
+                    ((xGenericEvent*)event)->evtype);
     } else
         DebugF("[mi] Unknown event type (%d), cannot change id.\n", type);
 }
@@ -268,7 +268,7 @@ ChangeDeviceID(DeviceIntPtr dev, xEvent* event)
  * @param master The event after being copied
  * @param count Number of events in original.
  */
-void
+static void
 CopyGetMasterEvent(DeviceIntPtr mdev, xEvent* original,
                    xEvent** master, int count)
 {

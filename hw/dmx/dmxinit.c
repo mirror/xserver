@@ -746,8 +746,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 		nconfigs = dmxScreen->numGlxVisuals;
 	    }
 
-	    configprivs = xalloc(dmxScreen->beNumVisuals *
-				 sizeof(dmxGlxVisualPrivate*));
+	    configprivs = xalloc(nconfigs * sizeof(dmxGlxVisualPrivate*));
 
 	    if (configs != NULL && configprivs != NULL) {
 
@@ -779,6 +778,8 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 
 		/* Hand out the glx configs to glx extension */
 		GlxSetVisualConfigs(nconfigs, configs, (void**)configprivs);
+
+                XFlush(dmxScreen->beDisplay);
 	    }
 	}
 #endif  /* GLXEXT */

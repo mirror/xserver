@@ -41,9 +41,11 @@ is" without express or implied warranty.
 #include "Init.h"
 #include "mipointer.h"
 #include "Args.h"
+#include "mipointrst.h"
 
 Window xnestDefaultWindows[MAXSCREENS];
 Window xnestScreenSaverWindows[MAXSCREENS];
+DevPrivateKey xnestCursorScreenKey = &xnestCursorScreenKey;
 
 ScreenPtr
 xnestScreen(Window window)
@@ -124,6 +126,8 @@ static miPointerSpriteFuncRec xnestPointerSpriteFuncs =
     xnestUnrealizeCursor,
     xnestSetCursor,
     xnestMoveCursor,
+    xnestDeviceCursorInitialize,
+    xnestDeviceCursorCleanup
 };
 
 Bool
@@ -139,6 +143,7 @@ xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
   XSizeHints sizeHints;
   VisualID defaultVisual;
   int rootDepth;
+  miPointerScreenPtr PointPriv;
 
   if (!dixRequestPrivate(xnestWindowPrivateKey, sizeof(xnestPrivWin)))
       return False;
@@ -305,8 +310,11 @@ xnestOpenScreen(int index, ScreenPtr pScreen, int argc, char *argv[])
   pScreen->blockData = NULL;
   pScreen->wakeupData = NULL;
 
-  miPointerInitialize (pScreen, &xnestPointerSpriteFuncs, 
-		       &xnestPointerCursorFuncs, True);
+  miDCInitialize(pScreen, &xnestPointerCursorFuncs); /* init SW rendering */
+  PointPriv = dixLookupPrivate(&pScreen->devPrivates, miPointerScreenKey);
+  xnestCursorFuncs.spriteFuncs = PointPriv->spriteFuncs;
+  dixSetPrivate(&pScreen->devPrivates, xnestCursorScreenKey, &xnestCursorFuncs);
+  PointPriv->spriteFuncs = &xnestPointerSpriteFuncs;
 
   pScreen->mmWidth = xnestWidth * DisplayWidthMM(xnestDisplay, 
 		       DefaultScreen(xnestDisplay)) / 

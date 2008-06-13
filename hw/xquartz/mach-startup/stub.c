@@ -113,9 +113,52 @@ static void set_x11_path() {
     }
 }
 
+static int create_socket(char *filename_out) {
+    struct sockaddr_un servaddr_un;
+    struct sockaddr *servaddr;
+    socklen_t servaddr_len;
+    int ret_fd;
+    size_t try, try_max;
+
+    for(try=0, try_max=5; try < try_max; try++) {
+        tmpnam(filename_out);
+
+        /* Setup servaddr_un */
+        memset (&servaddr_un, 0, sizeof (struct sockaddr_un));
+        servaddr_un.sun_family = AF_UNIX;
+        strlcpy(servaddr_un.sun_path, filename_out, sizeof(servaddr_un.sun_path));
+        
+        servaddr = (struct sockaddr *) &servaddr_un;
+        servaddr_len = sizeof(struct sockaddr_un) - sizeof(servaddr_un.sun_path) + strlen(filename_out);
+        
+        ret_fd = socket(PF_UNIX, SOCK_STREAM, 0);
+        if(ret_fd == 0) {
+            fprintf(stderr, "Failed to create socket (try %d / %d): %s - %s\n", (int)try+1, (int)try_max, filename_out, strerror(errno));
+            continue;
+        }
+        
+        if(bind(ret_fd, servaddr, servaddr_len) != 0) {
+            fprintf(stderr, "Failed to bind socket: %s - %s\n", filename_out, strerror(errno));
+            close(ret_fd);
+            return 0;
+        }
+
+        if(listen(ret_fd, 10) != 0) {
+            fprintf(stderr, "Failed to listen to socket: %s - %s\n", filename_out, strerror(errno));
+            close(ret_fd);
+            return 0;
+        }
+        
+        return ret_fd;
+    }
+    
+    return 0;
+}
+
 static void send_fd_handoff(int handoff_fd, int launchd_fd) {
     char databuf[] = "display";
     struct iovec iov[1];
+    int connected_fd;
     
     iov[0].iov_base = databuf;
     iov[0].iov_len  = sizeof(databuf);
@@ -143,47 +186,22 @@ static void send_fd_handoff(int handoff_fd, int launchd_fd) {
     
     *((int*)CMSG_DATA(cmsg)) = launchd_fd;
     
-    if (sendmsg(handoff_fd, &msg, 0) < 0) {
+    connected_fd = accept(handoff_fd, NULL, NULL);
+    if(connected_fd == -1) {
+        fprintf(stderr, "Failed to accept incoming connection on socket: %s\n", strerror(errno));
+        return;
+    }
+    
+    if(sendmsg(connected_fd, &msg, 0) < 0) {
         fprintf(stderr, "Error sending $DISPLAY file descriptor: %s\n", strerror(errno));
         return;
     }
 
+    close(connected_fd);
     fprintf(stderr, "send %d %d %d %s\n", handoff_fd, launchd_fd, errno, strerror(errno));
 }
 
-static void handoff_fd(const char *filename, int launchd_fd) {
-    struct sockaddr_un servaddr_un;
-    struct sockaddr *servaddr;
-    socklen_t servaddr_len;
-    int handoff_fd;
-
-    /* Setup servaddr_un */
-    memset (&servaddr_un, 0, sizeof (struct sockaddr_un));
-    servaddr_un.sun_family = AF_UNIX;
-    strlcpy(servaddr_un.sun_path, filename, sizeof(servaddr_un.sun_path));
-
-    servaddr = (struct sockaddr *) &servaddr_un;
-    servaddr_len = sizeof(struct sockaddr_un) - sizeof(servaddr_un.sun_path) + strlen(filename);
-
-    handoff_fd = socket(PF_UNIX, SOCK_STREAM, 0);
-    if(handoff_fd == 0) {
-        fprintf(stderr, "Failed to create socket: %s - %s\n", filename, strerror(errno));
-        return;
-    }
-
-    if(connect(handoff_fd, servaddr, servaddr_len) < 0) {
-        fprintf(stderr, "Failed to establish connection on socket: %s - %s\n", filename, strerror(errno));
-        return;
-    }
-
-    fprintf(stderr, "Socket: %s\n", filename);
-
-    send_fd_handoff(handoff_fd, launchd_fd);
-    close(handoff_fd);
-}
-
 int main(int argc, char **argv, char **envp) {
-#ifdef NEW_LAUNCH_METHOD
     int envpc;
     kern_return_t kr;
     mach_port_t mp;
@@ -191,8 +209,8 @@ int main(int argc, char **argv, char **envp) {
     string_array_t newargv;
     size_t i;
     int launchd_fd;
-    string_t handoff_socket;
-#endif
+    string_t handoff_socket_filename;
+    sig_t handler;
 
     if(argc == 2 && !strcmp(argv[1], "-version")) {
         fprintf(stderr, "X.org Release 7.3\n");
@@ -201,7 +219,15 @@ int main(int argc, char **argv, char **envp) {
         return EXIT_SUCCESS;
     }
 
-#ifdef NEW_LAUNCH_METHOD
+    /* We don't have a mechanism in place to handle this interrupt driven
+     * server-start notification, so just send the signal now, so xinit doesn't
+     * time out waiting for it and will just poll for the server.
+     */
+    handler = signal(SIGUSR1, SIG_IGN);
+    if(handler == SIG_IGN)
+        kill(getppid(), SIGUSR1);
+    signal(SIGUSR1, handler);
+    
     /* Get the $DISPLAY FD */
     launchd_fd = launchd_display_fd();
 
@@ -241,9 +267,15 @@ int main(int argc, char **argv, char **envp) {
     
     /* Handoff the $DISPLAY FD */
     if(launchd_fd != -1) {
-        tmpnam(handoff_socket);
-        if(prep_fd_handoff(mp, handoff_socket) == KERN_SUCCESS) {
-            handoff_fd(handoff_socket, launchd_fd);
+        int handoff_fd = create_socket(handoff_socket_filename);
+        
+        if((handoff_fd != 0) &&
+           (prep_fd_handoff(mp, handoff_socket_filename) == KERN_SUCCESS)) {
+            send_fd_handoff(handoff_fd, launchd_fd);
+            
+            // Cleanup
+            close(handoff_fd);
+            unlink(handoff_socket_filename);
         } else {
             fprintf(stderr, "Unable to hand of $DISPLAY file descriptor\n");
         }
@@ -276,10 +308,4 @@ int main(int argc, char **argv, char **envp) {
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
-    
-#else
-    set_x11_path();
-    argv[0] = x11_path;
-    return execvp(x11_path, argv);
-#endif
 }

@@ -48,8 +48,8 @@
 #include "mach_startupServer.h"
 
 #include "launchd_fd.h"
+/* From darwinEvents.c ... but don't want to pull in all the server cruft */
 void DarwinListenOnOpenFD(int fd);
-
 
 #define DEFAULT_CLIENT "/usr/X11/bin/xterm"
 #define DEFAULT_STARTX "/usr/X11/bin/startx"
@@ -77,13 +77,6 @@ static pthread_t create_thread(void *func, void *arg) {
 	
     return tid;
 }
-
-#ifdef NEW_LAUNCH_METHOD
-struct arg {
-    int argc;
-    char **argv;
-    char **envp;
-};
 
 /*** Mach-O IPC Stuffs ***/
 
@@ -124,9 +117,6 @@ static mach_port_t checkin_or_register(char *bname) {
 }
 
 /*** $DISPLAY handoff ***/
-/* From darwinEvents.c ... but don't want to pull in all the server cruft */
-void DarwinListenOnOpenFD(int fd);
-
 static void accept_fd_handoff(int connected_fd) {
     int launchd_fd;
     
@@ -189,7 +179,7 @@ static void socket_handoff_thread(void *arg) {
     struct sockaddr_un servaddr_un;
     struct sockaddr *servaddr;
     socklen_t servaddr_len;
-    int handoff_fd, connected_fd;
+    int handoff_fd;
 
     /* We need to save it since data dies after we pthread_cond_broadcast */
     strlcpy(filename, data->socket_filename, STRING_T_SIZE); 
@@ -208,45 +198,33 @@ static void socket_handoff_thread(void *arg) {
     handoff_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if(handoff_fd == 0) {
         fprintf(stderr, "Failed to create socket: %s - %s\n", filename, strerror(errno));
+
         data->retval = EXIT_FAILURE;
-        return;
-    }
-    
-    if(bind(handoff_fd, servaddr, servaddr_len) != 0) {
-        fprintf(stderr, "Failed to bind socket: %s - %s\n", filename, strerror(errno));
-        data->retval = EXIT_FAILURE;
-        return;
-    }
-    
-    if(listen(handoff_fd, 10) != 0) {
-        fprintf(stderr, "Failed to listen to socket: %s - %s\n", filename, strerror(errno));
-        data->retval = EXIT_FAILURE;
+        pthread_cond_broadcast(&data->cond);
+        pthread_mutex_unlock(&data->lock);
         return;
     }
 
-    /* Let the dispatch thread now tell the caller that we're listening */
+    /* Let the dispatch thread now tell the caller that we're ready */
     data->retval = EXIT_SUCCESS;
-    pthread_mutex_unlock(&data->lock);
     pthread_cond_broadcast(&data->cond);
+    pthread_mutex_unlock(&data->lock);
     
-    connected_fd = accept(handoff_fd, NULL, NULL);
-    
-    if(connected_fd == -1) {
-        fprintf(stderr, "Failed to accept incoming connection on socket: %s - %s\n", filename, strerror(errno));
+    if(connect(handoff_fd, servaddr, servaddr_len) < 0) {
+        fprintf(stderr, "Failed to connect to socket: %s - %s\n", filename, strerror(errno));
         return;
     }
 
     /* Now actually get the passed file descriptor from this connection */
-    accept_fd_handoff(connected_fd);
+    accept_fd_handoff(handoff_fd);
 
-    close(connected_fd);
     close(handoff_fd);
-    unlink(filename);
 }
 
 kern_return_t do_prep_fd_handoff(mach_port_t port, string_t socket_filename) {
     handoff_data_t handoff_data;
 
+    /* Initialize our data */
     pthread_mutex_init(&handoff_data.lock, NULL);
     pthread_cond_init(&handoff_data.cond, NULL);
     strlcpy(handoff_data.socket_filename, socket_filename, STRING_T_SIZE); 
@@ -254,9 +232,15 @@ kern_return_t do_prep_fd_handoff(mach_port_t port, string_t socket_filename) {
     pthread_mutex_lock(&handoff_data.lock);
     
     create_thread(socket_handoff_thread, &handoff_data);
-    
-    pthread_cond_wait(&handoff_data.cond, &handoff_data.lock);
 
+    /* Wait for our return value */
+    pthread_cond_wait(&handoff_data.cond, &handoff_data.lock);
+    pthread_mutex_unlock(&handoff_data.lock);
+
+    /* Cleanup */
+    pthread_cond_destroy(&handoff_data.cond);
+    pthread_mutex_destroy(&handoff_data.lock);
+    
     return handoff_data.retval;
 }
 
@@ -273,9 +257,11 @@ kern_return_t do_start_x11_server(mach_port_t port, string_array_t argv,
     if(!_argv || !_envp) {
         return KERN_FAILURE;
     }
-    
+
+    fprintf(stderr, "X11.app: do_start_x11_server(): argc=%d\n", argvCnt);
     for(i=0; i < argvCnt; i++) {
         _argv[i] = argv[i];
+        fprintf(stderr, "\targv[%u] = %s\n", (unsigned)i, argv[i]);
     }
     _argv[argvCnt] = NULL;
     
@@ -291,25 +277,13 @@ kern_return_t do_start_x11_server(mach_port_t port, string_array_t argv,
 }
 
 int startup_trigger(int argc, char **argv, char **envp) {
-#else
-void *add_launchd_display_thread(void *data);
-    
-int main(int argc, char **argv, char **envp) {
-#endif
     Display *display;
     const char *s;
     
     size_t i;
-#ifndef NEW_LAUNCH_METHOD
-    fprintf(stderr, "X11.app: main(): argc=%d\n", argc);
-    for(i=0; i < argc; i++) {
-        fprintf(stderr, "\targv[%u] = %s\n", (unsigned)i, argv[i]);
-    }
-#endif
     
     /* Take care of the case where we're called like a normal DDX */
     if(argc > 1 && argv[1][0] == ':') {
-#ifdef NEW_LAUNCH_METHOD
         kern_return_t kr;
         mach_port_t mp;
         string_array_t newenvp;
@@ -349,10 +323,6 @@ int main(int argc, char **argv, char **envp) {
             exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);
-#else
-        create_thread(add_launchd_display_thread, NULL);
-        return server_main(argc, argv, envp);
-#endif
     }
 
     /* If we have a process serial number and it's our only arg, act as if
@@ -364,6 +334,9 @@ int main(int argc, char **argv, char **envp) {
         if(display) {
             /* Could open the display, start the launcher */
             XCloseDisplay(display);
+            
+            /* TODO: Clean up this race better... givint xinitrc time to run. */
+            sleep(2);
             
             return execute(command_from_prefs("app_to_run", DEFAULT_CLIENT));
         }
@@ -377,13 +350,6 @@ int main(int argc, char **argv, char **envp) {
         fprintf(stderr, "X11.app: Could not connect to server (DISPLAY is not set).  Starting X server.\n");
     }
     return execute(command_from_prefs("startx_script", DEFAULT_STARTX));
-}
-
-#ifdef NEW_LAUNCH_METHOD
-static void startup_trigger_thread(void *arg) {
-    struct arg args = *((struct arg *)arg);
-    free(arg);
-    startup_trigger(args.argc, args.argv, args.envp);
 }
 
 /*** Main ***/
@@ -412,21 +378,13 @@ int main(int argc, char **argv, char **envp) {
      * thread handle it.
      */
     if(!listenOnly) {
-        struct arg *args = (struct arg*)malloc(sizeof(struct arg));
-        if(!args) {
-            fprintf(stderr, "Memory allocation error.\n");
-            return EXIT_FAILURE;
+        if(fork() == 0) {
+            return startup_trigger(argc, argv, envp);
         }
-        
-        args->argc = argc;
-        args->argv = argv;
-        args->envp = envp;
-        
-        create_thread(startup_trigger_thread, args);
     }
     
     /* Main event loop */
-    fprintf(stderr, "Statrup coming...\n");
+    fprintf(stderr, "Waiting for startup parameters via Mach IPC.\n");
     kr = mach_msg_server(mach_startup_server, mxmsgsz, mp, 0);
     if (kr != KERN_SUCCESS) {
         fprintf(stderr, "org.x.X11(mp): %s\n", mach_error_string(kr));
@@ -435,21 +393,6 @@ int main(int argc, char **argv, char **envp) {
     
     return EXIT_SUCCESS;
 }
-#else
-void *add_launchd_display_thread(void *data) {
-    /* TODO: Really fix this race... we want xinitrc to finish before connections
-     *       are accepted on the launchd socket.
-     */
-    sleep(2);
-    
-    /* Start listening on the launchd fd */
-    int launchd_fd = launchd_display_fd();
-    if(launchd_fd != -1) {
-        DarwinListenOnOpenFD(launchd_fd);
-    }
-    return NULL;
-}
-#endif
     
 static int execute(const char *command) {
     const char *newargv[7];
