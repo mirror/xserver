@@ -277,7 +277,7 @@ GetMotionHistory(DeviceIntPtr pDev, xTimecoord **buff, unsigned long start,
     int size;
     int dflt;
     AxisInfo from, *to; /* for scaling */
-    CARD32 *ocbuf, *icbuf; /* pointer to coordinates for copying */
+    INT32 *ocbuf, *icbuf; /* pointer to coordinates for copying */
     INT16 *corebuf;
     AxisInfo core_axis = {0};
 
@@ -295,7 +295,7 @@ GetMotionHistory(DeviceIntPtr pDev, xTimecoord **buff, unsigned long start,
     *buff = xalloc(size * pDev->valuator->numMotionEvents);
     if (!(*buff))
         return 0;
-    obuff = *buff;
+    obuff = (char *)*buff;
 
     for (i = pDev->valuator->first_motion;
          i != pDev->valuator->last_motion;
