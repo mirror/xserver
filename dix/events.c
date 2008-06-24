@@ -646,6 +646,7 @@ XineramaCheckVirtualMotion(
 static Bool
 XineramaCheckMotion(xEvent *xE, DeviceIntPtr pDev)
 {
+    INT16     *rootX, *rootY;
     WindowPtr prevSpriteWin;
     SpritePtr pSprite = pDev->spriteInfo->sprite;
 
@@ -653,15 +654,38 @@ XineramaCheckMotion(xEvent *xE, DeviceIntPtr pDev)
 
     if (xE && !syncEvents.playingEvents)
     {
+	/* GetPointerEvents() guarantees that pointer events have the correct
+           rootX/Y set already. */
+        switch(xE->u.u.type)
+        {
+            case ButtonPress:
+            case ButtonRelease:
+            case MotionNotify:
+                rootX = &XE_KBPTR.rootX;
+                rootY = &XE_KBPTR.rootY;
+                break;
+            default:
+                if (xE->u.u.type == DeviceButtonPress ||
+		    xE->u.u.type == DeviceButtonRelease ||
+		    xE->u.u.type == DeviceMotionNotify)
+                {
+                    rootX = &((deviceKeyButtonPointer*)xE)->root_x;
+                    rootY = &((deviceKeyButtonPointer*)xE)->root_y;
+                    break;
+                }
+                /* all other events return FALSE */
+                return FALSE;
+        }
+
 	/* Motion events entering DIX get translated to Screen 0
 	   coordinates.  Replayed events have already been
 	   translated since they've entered DIX before */
-	XE_KBPTR.rootX += panoramiXdataPtr[pSprite->screen->myNum].x -
-			  panoramiXdataPtr[0].x;
-	XE_KBPTR.rootY += panoramiXdataPtr[pSprite->screen->myNum].y -
-			  panoramiXdataPtr[0].y;
-	pSprite->hot.x = XE_KBPTR.rootX;
-	pSprite->hot.y = XE_KBPTR.rootY;
+	*rootX += panoramiXdataPtr[pSprite->screen->myNum].x -
+	    panoramiXdataPtr[0].x;
+	*rootY += panoramiXdataPtr[pSprite->screen->myNum].y -
+	    panoramiXdataPtr[0].y;
+	pSprite->hot.x = *rootX;
+        pSprite->hot.y = *rootY;
 	if (pSprite->hot.x < pSprite->physLimits.x1)
 	    pSprite->hot.x = pSprite->physLimits.x1;
 	else if (pSprite->hot.x >= pSprite->physLimits.x2)
@@ -675,14 +699,14 @@ XineramaCheckMotion(xEvent *xE, DeviceIntPtr pDev)
 	    ConfineToShape(pDev, pSprite->hotShape, &pSprite->hot.x, &pSprite->hot.y);
 
 	pSprite->hotPhys = pSprite->hot;
-	if ((pSprite->hotPhys.x != XE_KBPTR.rootX) ||
-	    (pSprite->hotPhys.y != XE_KBPTR.rootY))
+	if ((pSprite->hotPhys.x != *rootX) ||
+	    (pSprite->hotPhys.y != *rootY))
 	{
 	    XineramaSetCursorPosition(
 			pDev, pSprite->hotPhys.x, pSprite->hotPhys.y, FALSE);
 	}
-	XE_KBPTR.rootX = pSprite->hot.x;
-	XE_KBPTR.rootY = pSprite->hot.y;
+	*rootX = pSprite->hot.x;
+	*rootY = pSprite->hot.y;
     }
 
 #ifdef XEVIE
