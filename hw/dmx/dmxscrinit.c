@@ -1911,6 +1911,8 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 	DMX_WRAP(ChangeBorderWidth, dmxChangeBorderWidth, dmxScreen, pScreen);
 
+	DMX_WRAP(ModifyPixmapHeader, dmxModifyPixmapHeader, dmxScreen, pScreen);
+
 	DMX_WRAP(SetWindowPixmap, dmxSetWindowPixmap, dmxScreen, pScreen);
 
 	/* Wrap Image functions */
@@ -2062,6 +2064,10 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	DMX_UNWRAP(ReparentWindow, dmxScreen, pScreen);
 
 	DMX_UNWRAP(ChangeBorderWidth, dmxScreen, pScreen);
+
+	DMX_UNWRAP(ModifyPixmapHeader, dmxScreen, pScreen);
+
+	DMX_UNWRAP(SetWindowPixmap, dmxScreen, pScreen);
 
 	DMX_UNWRAP(GetImage, dmxScreen, pScreen);
 	DMX_UNWRAP(GetSpans, dmxScreen, pScreen);
