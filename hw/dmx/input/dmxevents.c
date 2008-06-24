@@ -210,16 +210,8 @@ static void dmxEnqueueExtEvent(DMXLocalInputInfoPtr dmxLocal, xEvent *e,
 
 DMXScreenInfo *dmxFindFirstScreen(int x, int y)
 {
-    int i;
-
-    for (i = 0; i < dmxNumScreens; i++) {
-        DMXScreenInfo *dmxScreen = &dmxScreens[i];
-        if (dmxOnScreen(x, y, dmxScreen))
-            return dmxScreen;
-    }
-    return NULL;
+    return dmxScreens;
 }
-
 
 /**
  * Enqueue a motion event.

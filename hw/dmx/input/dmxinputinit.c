@@ -114,7 +114,7 @@ static DMXLocalInputInfoRec DMXBackendKbd = {
     1, /* With backend-mou or console-mou */
     dmxCommonCopyPrivate, NULL,
     dmxBackendInit, NULL, NULL, dmxBackendKbdGetInfo,
-    dmxCommonKbdOn, dmxCommonKbdOff, NULL,
+    dmxCommonKbdOn, dmxBackendKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL,
     NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
@@ -219,86 +219,6 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
     },
     { NULL }                    /* Must be last */
 };
-
-static void
-dmxSyncKeys (DeviceIntPtr pDevice)
-{
-    DevicePtr    pDev = &pDevice->public;
-    DeviceIntPtr keyDev = inputInfo.keyboard;
-    KeyClassPtr  keyc = keyDev->key;
-    xEvent	 ke;
-    int		 i, x, y;
-
-    GETDMXINPUTFROMPDEV;
-
-    miPointerGetPosition (inputInfo.pointer, &x, &y);
-
-    ke.u.keyButtonPointer.time  = GetTimeInMillis ();
-    ke.u.keyButtonPointer.rootX = x;
-    ke.u.keyButtonPointer.rootY = y;
-
-    for (i = keyc->curKeySyms.minKeyCode; i < keyc->curKeySyms.maxKeyCode; i++)
-    {
-	ke.u.u.detail = i;
-
-	if (dmxInput->validHistory && BitIsOn (dmxInput->history, i))
-	{
-	    if (!BitIsOn (keyc->down, i))
-	    {
-		ke.u.u.type = KeyPress;
-		(*keyDev->public.processInputProc) (&ke, keyDev, 1);
-	    }
-	}
-	else
-	{
-	    if (BitIsOn (keyc->down, i))
-	    {
-		ke.u.u.type = KeyRelease;
-		(*keyDev->public.processInputProc) (&ke, keyDev, 1);
-	    }
-	}
-    }
-}
-
-static void
-dmxSyncButtons (DeviceIntPtr pDevice)
-{
-    DevicePtr      pDev = &pDevice->public;
-    DeviceIntPtr   buttonDev = inputInfo.pointer;
-    ButtonClassPtr buttonc = buttonDev->button;
-    xEvent	   be;
-    int		   i, x, y;
-
-    GETDMXINPUTFROMPDEV;
-
-    miPointerGetPosition (inputInfo.pointer, &x, &y);
-
-    be.u.keyButtonPointer.time  = GetTimeInMillis ();
-    be.u.keyButtonPointer.rootX = x;
-    be.u.keyButtonPointer.rootY = y;
-
-    for (i = 1; i < DOWN_LENGTH; i++)
-    {
-	be.u.u.detail = i;
-
-	if (dmxInput->validHistory && BitIsOn (dmxInput->history, i))
-	{
-	    if (!BitIsOn (buttonc->down, i))
-	    {
-		be.u.u.type = ButtonPress;
-		(*buttonDev->public.processInputProc) (&be, buttonDev, 1);
-	    }
-	}
-	else
-	{
-	    if (BitIsOn (buttonc->down, i))
-	    {
-		be.u.u.type = ButtonRelease;
-		(*buttonDev->public.processInputProc) (&be, buttonDev, 1);
-	    }
-	}
-    }
-}
 
 #if 11 /*BP*/
 void
@@ -561,11 +481,11 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
                                      info.modMap,
                                      dmxBell, dmxKbdCtrl);
         }
-        if (info.buttonClass) {
+	if (info.buttonClass) {
             InitButtonClassDeviceStruct(pDevice, info.numButtons, info.map);
         }
         if (info.valuatorClass) {
-            if (info.numRelAxes && dmxLocal->sendsCore) {
+            if (info.numRelAxes) {
                 InitValuatorClassDeviceStruct(pDevice, info.numRelAxes,
                                               GetMaximumEventsNum(),
                                               Relative);
@@ -641,7 +561,6 @@ static void dmxProcessInputEvents(DMXInputInfo *dmxInput)
 {
     int i;
 
-    dmxeqProcessInputEvents();
 #if 00 /*BP*/
     miPointerUpdate();
 #endif
@@ -650,14 +569,10 @@ static void dmxProcessInputEvents(DMXInputInfo *dmxInput)
     for (i = 0; i < dmxInput->numDevs; i += dmxInput->devs[i]->binding)
         if (dmxInput->devs[i]->process_input) {
 #if 11 /*BP*/
-            miPointerUpdateSprite(dmxInput->devs[i]->pDevice);
+            //miPointerUpdateSprite(dmxInput->devs[i]->pDevice);
 #endif
             dmxInput->devs[i]->process_input(dmxInput->devs[i]->private);
         }
-
-#if 11 /*BP*/
-    mieqProcessInputEvents();
-#endif
 }
 
 static void dmxUpdateWindowInformation(DMXInputInfo *dmxInput,
@@ -714,7 +629,7 @@ static void dmxBlockHandler(pointer blockData, OSTimePtr pTimeout,
 {
     DMXInputInfo    *dmxInput = &dmxInputs[(int)blockData];
     static unsigned long generation = 0;
-    
+
     if (generation != serverGeneration) {
         generation = serverGeneration;
         dmxCollectAll(dmxInput);
@@ -797,8 +712,6 @@ static DeviceIntPtr dmxAddDevice(DMXLocalInputInfoPtr dmxLocal)
 {
     DeviceIntPtr pDevice;
     Atom         atom;
-    const char   *name = NULL;
-    void         (*registerProcPtr)(DeviceIntPtr)   = NULL;
     char         *devname;
     DMXInputInfo *dmxInput;
 
@@ -806,30 +719,7 @@ static DeviceIntPtr dmxAddDevice(DMXLocalInputInfoPtr dmxLocal)
         return NULL;
     dmxInput = &dmxInputs[dmxLocal->inputIdx];
 
-    if (dmxLocal->sendsCore) {
-        if (dmxLocal->type == DMX_LOCAL_KEYBOARD && !dmxLocalCoreKeyboard) {
-            dmxLocal->isCore     = 1;
-            dmxLocalCoreKeyboard = dmxLocal;
-            name                 = "keyboard";
-            registerProcPtr      = RegisterKeyboardDevice;
-        }
-        if (dmxLocal->type == DMX_LOCAL_MOUSE && !dmxLocalCorePointer) {
-            dmxLocal->isCore     = 1;
-            dmxLocalCorePointer  = dmxLocal;
-            name                 = "pointer";
-            registerProcPtr      = RegisterPointerDevice;
-        }
-    }
-
-    if (!name) {
-        name            = "extension";
-        registerProcPtr = RegisterOtherDevice;
-    }
-
-    if (!name || !registerProcPtr)
-        dmxLog(dmxFatal, "Cannot add device %s\n", dmxLocal->name);
-
-    pDevice                       = AddInputDevice(serverClient, dmxDeviceOnOff, TRUE);
+    pDevice = AddInputDevice (serverClient, dmxDeviceOnOff, TRUE);
     if (!pDevice) {
         dmxLog(dmxError, "Too many devices -- cannot add device %s\n",
                dmxLocal->name);
@@ -843,21 +733,13 @@ static DeviceIntPtr dmxAddDevice(DMXLocalInputInfoPtr dmxLocal)
     pDevice->type = atom;
     pDevice->name = devname;
 
-    registerProcPtr(pDevice);
-
-    if (dmxLocal->isCore && dmxLocal->type == DMX_LOCAL_MOUSE) {
-#if 00 /*BP*/
-        miRegisterPointerDevice(screenInfo.screens[0], pDevice);
-#else
-        /* Nothing? dmxDeviceOnOff() should get called to init, right? */
-#endif
-    }
+    RegisterOtherDevice (pDevice);
 
     if (dmxLocal->create_private)
         dmxLocal->private = dmxLocal->create_private(pDevice);
 
     dmxLogInput(dmxInput, "Added %s as %s device called %s%s\n",
-                dmxLocal->name, name, devname,
+                dmxLocal->name, "extension", devname,
                 dmxLocal->isCore
                 ? " [core]"
                 : (dmxLocal->sendsCore
@@ -1066,7 +948,6 @@ void dmxInputLateReInit(DMXInputInfo *dmxInput)
 /** Initialize all of the devices described in \a dmxInput. */
 void dmxInputInit(DMXInputInfo *dmxInput)
 {
-    DeviceIntPtr         pPointer = NULL, pKeyboard = NULL;
     dmxArg               a;
     const char           *name;
     int                  i;
@@ -1124,7 +1005,7 @@ void dmxInputInit(DMXInputInfo *dmxInput)
                     dmxLog(dmxFatal,
                            "Cannot take input from shared backend (%s)\n",
                            name);
-                if (!dmxInput->core) {
+                if (0 && !dmxInput->core) {
                     dmxLog(dmxWarning,
                            "Cannot use core devices on a backend (%s)"
                            " as XInput devices\n", name);
@@ -1167,25 +1048,11 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     for (i = 0; i < dmxInput->numDevs; i++) {
         DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
         dmxLocal->pDevice = dmxAddDevice(dmxLocal);
-        if (dmxLocal->isCore) {
-            if (dmxLocal->type == DMX_LOCAL_MOUSE)
-                pPointer  = dmxLocal->pDevice;
-            if (dmxLocal->type == DMX_LOCAL_KEYBOARD)
-                pKeyboard = dmxLocal->pDevice;
-        }
     }
     
-    if (pPointer && pKeyboard) {
-        if (dmxeqInit(&pKeyboard->public, &pPointer->public))
-            dmxLogInput(dmxInput, "Using %s and %s as true core devices\n",
-                        pKeyboard->name, pPointer->name);
-    }
-
     dmxInput->processInputEvents    = dmxProcessInputEvents;
     dmxInput->detached              = False;
 
-    dmxInput->validHistory = FALSE;
-    
     RegisterBlockAndWakeupHandlers(dmxBlockHandler,
                                    dmxWakeupHandler,
                                    (void *)dmxInput->inputIdx);
@@ -1208,13 +1075,10 @@ static void dmxInputFreeLocal(DMXLocalInputInfoRec *local)
     xfree(local);
 }
 
-/** Free all of the memory associated with \a dmxInput */
-void dmxInputFree(DMXInputInfo *dmxInput)
+static void dmxInputFini(DMXInputInfo *dmxInput)
 {
     int i;
     
-    if (!dmxInput) return;
-
     if (dmxInput->keycodes) xfree(dmxInput->keycodes);
     if (dmxInput->symbols)  xfree(dmxInput->symbols);
     if (dmxInput->geometry) xfree(dmxInput->geometry);
@@ -1226,6 +1090,15 @@ void dmxInputFree(DMXInputInfo *dmxInput)
     xfree(dmxInput->devs);
     dmxInput->devs    = NULL;
     dmxInput->numDevs = 0;
+}
+
+/** Free all of the memory associated with \a dmxInput */
+void dmxInputFree(DMXInputInfo *dmxInput)
+{
+    if (!dmxInput) return;
+
+    dmxInputFini (dmxInput);
+
     if (dmxInput->freename) xfree(dmxInput->name);
     dmxInput->name    = NULL;
 }
@@ -1290,7 +1163,7 @@ int dmxInputDetach(DMXInputInfo *dmxInput)
     int i;
 
     if (dmxInput->detached) return BadAccess;
-    
+
     for (i = 0; i < dmxInput->numDevs; i++) {
         DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
         dmxLogInput(dmxInput, "Detaching device id %d: %s%s\n",
@@ -1301,10 +1174,12 @@ int dmxInputDetach(DMXInputInfo *dmxInput)
                     : (dmxLocal->sendsCore
                        ? " [sends core events]"
                        : ""));
-	dmxSyncKeys (dmxLocal->pDevice);
-	dmxSyncButtons (dmxLocal->pDevice);
-        DisableDevice(dmxLocal->pDevice);
+        DisableDevice (dmxLocal->pDevice);
+	ProcessInputEvents ();
+	DeleteInputDeviceRequest (dmxLocal->pDevice);
     }
+
+    dmxInputFini (dmxInput);
     dmxInput->detached = True;
     dmxInputLogDevices();
     return 0;
@@ -1352,8 +1227,20 @@ DMXInputInfo *dmxInputLocateId(int id)
 
 static int dmxInputAttachNew(DMXInputInfo *dmxInput, int *id)
 {
+    int i;
+
     dmxInputInit(dmxInput);
-    InitAndStartDevices();
+
+    for (i = 0; i < dmxInput->numDevs; i++) {
+        DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
+
+	if (ActivateDevice(dmxLocal->pDevice) != Success ||
+            EnableDevice(dmxLocal->pDevice) != TRUE) {
+            ErrorF ("[dmx] couldn't add or enable device\n");
+            return BadImplementation;
+        }
+    }
+
     if (id && dmxInput->devs) *id = dmxInput->devs[0]->pDevice->id;
     dmxInputLogDevices();
     return 0;
@@ -1364,21 +1251,18 @@ static int dmxInputAttachOld(DMXInputInfo *dmxInput, int *id)
     int i;
     
     dmxInput->detached = False;
+
+    dmxInputInit(dmxInput);
+
     for (i = 0; i < dmxInput->numDevs; i++) {
         DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
-        if (id) *id = dmxLocal->pDevice->id;
-        dmxLogInput(dmxInput,
-                    "Attaching device id %d: %s%s\n",
-                    dmxLocal->pDevice->id,
-                    dmxLocal->pDevice->name,
-                    dmxLocal->isCore
-                    ? " [core]"
-                    : (dmxLocal->sendsCore
-                       ? " [sends core events]"
-                       : ""));
-        /* EnableDevice(dmxLocal->pDevice); call InitAndStartDevices instead */
-        InitAndStartDevices();
+	if (ActivateDevice(dmxLocal->pDevice) != Success ||
+            EnableDevice(dmxLocal->pDevice) != TRUE) {
+            ErrorF ("[dmx] couldn't add or enable device\n");
+            return BadImplementation;
+        }
     }
+    if (id && dmxInput->devs) *id = dmxInput->devs[0]->pDevice->id;
     dmxInputLogDevices();
     return 0;
 }
@@ -1431,88 +1315,4 @@ int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
     dmxInput->scrnIdx = physicalScreen;
     dmxLogInput(dmxInput, "Attaching new backend input\n");
     return dmxInputAttachNew(dmxInput, id);
-}
-
-void
-dmxPauseCoreInput (void)
-{
-    int i, j;
-
-    for (i = 0; i < dmxNumInputs; i++)
-    {
-	DMXInputInfo *dmxInput = &dmxInputs[i];
-
-	for (j = 0; j < dmxInput->numDevs; j++)
-	{
-	    DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[j];
-	    DeviceIntPtr         pDevice = (DeviceIntPtr) dmxLocal->pDevice;
-
-	    if (!dmxInput->devs[j]->sendsCore)
-		continue;
-
-	    if (pDevice->button)
-	    {
-		if (inputInfo.pointer->enabled)
-		{
-		    memcpy (dmxInput->history,
-			    inputInfo.pointer->button->down,
-			    sizeof (CARD8) * DOWN_LENGTH);
-		    dmxInput->validHistory = TRUE;
-		}
-	    }
-	    else if (pDevice->key)
-	    {
-		if (inputInfo.keyboard->enabled)
-		{
-		    memcpy (dmxInput->history,
-			    inputInfo.keyboard->key->down,
-			    sizeof (CARD8) * DOWN_LENGTH);
-		    dmxInput->validHistory = TRUE;
-		}
-	    }
-	}
-    }
-
-    if (inputInfo.pointer->enabled)
-	DisableDevice (inputInfo.pointer);
-
-    if (inputInfo.keyboard->enabled)
-	DisableDevice (inputInfo.keyboard);
-}
-
-void
-dmxUnpauseCoreInput (void)
-{
-    int i, j;
-
-    for (i = 0; i < dmxNumInputs; i++)
-    {
-	DMXInputInfo *dmxInput = &dmxInputs[i];
-
-	for (j = 0; j < dmxInput->numDevs; j++)
-	{
-	    DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[j];
-	    DeviceIntPtr         pDevice = (DeviceIntPtr) dmxLocal->pDevice;
-
-	    if (!dmxInput->devs[j]->sendsCore)
-		continue;
-
-	    if (pDevice->button)
-	    {
-		if (!inputInfo.pointer->enabled)
-		    EnableDevice (inputInfo.pointer);
-	    }
-	    else if (pDevice->key)
-	    {
-		if (!inputInfo.keyboard->enabled)
-		    dmxSyncKeys (pDevice);
-	    }
-	}
-    }
-
-    if (!inputInfo.pointer->enabled)
-	EnableDevice (inputInfo.pointer);
-
-    if (!inputInfo.keyboard->enabled)
-	EnableDevice (inputInfo.keyboard);
 }

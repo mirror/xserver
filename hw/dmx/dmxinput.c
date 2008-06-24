@@ -71,12 +71,8 @@ void InitInput(int argc, char **argv)
     
     for (i = 0, dmxInput = &dmxInputs[0]; i < dmxNumInputs; i++, dmxInput++)
         dmxInputInit(dmxInput);
-    if (!dmxeqInitialized()) {
-        dmxLog(dmxWarning, "Use keyboard/mouse pair with the first -input\n");
-        dmxLog(dmxFatal,   "At least one core keyboard/mouse pair required\n");
-    }
 
-    mieqInit();
+    mieqInit ();
 }
 
 /** Called from dix/dispatch.c in Dispatch() whenever input events
@@ -86,6 +82,8 @@ void ProcessInputEvents(void)
 {
     int          i;
     DMXInputInfo *dmxInput;
+
+    mieqProcessInputEvents ();
 
     for (i = 0, dmxInput = &dmxInputs[0]; i < dmxNumInputs; i++, dmxInput++)
         if (!dmxInput->detached && dmxInput->processInputEvents)

@@ -265,6 +265,9 @@ typedef struct _DMXLocalInputInfo {
                                            * if any */
     const char               *deviceName; /**< devive name on remote
                                            * side, if any */
+
+
+    unsigned int             state;       /**< Modifier/Button state */
 } DMXLocalInputInfoRec;
 
 extern DMXLocalInputInfoPtr dmxLocalCorePointer, dmxLocalCoreKeyboard;
@@ -289,8 +292,5 @@ extern int          dmxInputAttachConsole(const char *name, int isCore,
                                           int *id);
 extern int          dmxInputAttachBackend(int physicalScreen, int isCore,
                                           int *id);
-
-extern void dmxPauseCoreInput (void);
-extern void dmxUnpauseCoreInput (void);
 
 #endif
