@@ -26,6 +26,7 @@
 
 #include "scrnintstr.h"
 #include "glyphstr.h"
+#include "cursorstr.h"
 #include "resource.h"
 #include "privates.h"
 
@@ -617,6 +618,22 @@ PictureGradientColor (PictGradientStopPtr stop1,
 
 void RenderExtensionInit (void);
 
+
+typedef struct _AnimCurElt {
+    CursorPtr	pCursor;    /* cursor to show */
+    CARD32	delay;	    /* in ms */
+} AnimCurElt;
+
+typedef struct _AnimCur {
+    int		nelt;	    /* number of elements in the elts array */
+    AnimCurElt	*elts;	    /* actually allocated right after the structure */
+} AnimCurRec, *AnimCurPtr;
+
+extern CursorBits animCursorBits;
+
+#define IsAnimCur(c)	    ((c) && ((c)->bits == &animCursorBits))
+#define GetAnimCur(c)	    ((AnimCurPtr) ((c) + 1))
+
 Bool
 AnimCurInit (ScreenPtr pScreen);
 
@@ -672,13 +689,5 @@ CreateConicalGradientPicture (Picture pid,
 void PanoramiXRenderInit (void);
 void PanoramiXRenderReset (void);
 #endif
-
-typedef void (*CursorProcPtr) (ScreenPtr pScreen,
-			       CursorPtr pCursor);
-
-void
-AnimForEachCursorElt (ScreenPtr     pScreen,
-		      CursorPtr     pCursor,
-		      CursorProcPtr callBack);
 
 #endif /* _PICTURESTR_H_ */

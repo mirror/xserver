@@ -47,16 +47,6 @@
 #include "inputstr.h"
 #include "xace.h"
 
-typedef struct _AnimCurElt {
-    CursorPtr	pCursor;    /* cursor to show */
-    CARD32	delay;	    /* in ms */
-} AnimCurElt;
-
-typedef struct _AnimCur {
-    int		nelt;	    /* number of elements in the elts array */
-    AnimCurElt	*elts;	    /* actually allocated right after the structure */
-} AnimCurRec, *AnimCurPtr;
-
 typedef struct _AnimScrPriv {
     CursorPtr			pCursor;
     int				elt;
@@ -86,7 +76,7 @@ static AnimCurStateRec animCurState[MAX_DEVICES];
 
 static unsigned char empty[4];
 
-static CursorBits   animCursorBits = {
+CursorBits   animCursorBits = {
     empty, empty, 2, 1, 1, 0, 0, 1
 };
 
@@ -95,8 +85,6 @@ static int AnimCurGeneration;
 static int AnimCurScreenPrivateKeyIndex;
 static DevPrivateKey AnimCurScreenPrivateKey = &AnimCurScreenPrivateKeyIndex;
 
-#define IsAnimCur(c)	    ((c) && ((c)->bits == &animCursorBits))
-#define GetAnimCur(c)	    ((AnimCurPtr) ((c) + 1))
 #define GetAnimCurScreen(s) ((AnimCurScreenPtr)dixLookupPrivate(&(s)->devPrivates, AnimCurScreenPrivateKey))
 #define GetAnimCurScreenIfSet(s) GetAnimCurScreen(s)
 #define SetAnimCurScreen(s,p) dixSetPrivate(&(s)->devPrivates, AnimCurScreenPrivateKey, p)
@@ -288,10 +276,7 @@ AnimCurRealizeCursor (DeviceIntPtr pDev,
     Bool		ret;
     
     Unwrap (as, pScreen, RealizeCursor);
-    if (IsAnimCur(pCursor))
-	ret = TRUE;
-    else
-	ret = (*pScreen->RealizeCursor) (pDev, pScreen, pCursor);
+    ret = (*pScreen->RealizeCursor) (pDev, pScreen, pCursor);
     Wrap (as, pScreen, RealizeCursor, AnimCurRealizeCursor);
     return ret;
 }
@@ -305,6 +290,7 @@ AnimCurUnrealizeCursor (DeviceIntPtr pDev,
     Bool		ret;
     
     Unwrap (as, pScreen, UnrealizeCursor);
+    ret = (*pScreen->UnrealizeCursor) (pDev, pScreen, pCursor);
     if (IsAnimCur(pCursor))
     {
         AnimCurPtr  ac = GetAnimCur(pCursor);
@@ -313,10 +299,7 @@ AnimCurUnrealizeCursor (DeviceIntPtr pDev,
 	if (pScreen->myNum == 0)
 	    for (i = 0; i < ac->nelt; i++)
 		FreeCursor (ac->elts[i].pCursor, 0);
-	ret = TRUE;
     }
-    else
-	ret = (*pScreen->UnrealizeCursor) (pDev, pScreen, pCursor);
     Wrap (as, pScreen, UnrealizeCursor, AnimCurUnrealizeCursor);
     return ret;
 }
@@ -381,9 +364,11 @@ AnimCurInit (ScreenPtr pScreen)
 int
 AnimCursorCreate (CursorPtr *cursors, CARD32 *deltas, int ncursor, CursorPtr *ppCursor, ClientPtr client, XID cid)
 {
-    CursorPtr	pCursor;
-    int		rc, i;
-    AnimCurPtr	ac;
+    CursorPtr	 pCursor;
+    int		 rc, nscr, i;
+    AnimCurPtr	 ac;
+    ScreenPtr 	 pscr;
+    DeviceIntPtr pDev;
 
     for (i = 0; i < screenInfo.numScreens; i++)
 	if (!GetAnimCurScreenIfSet (screenInfo.screens[i]))
@@ -435,27 +420,54 @@ AnimCursorCreate (CursorPtr *cursors, CARD32 *deltas, int ncursor, CursorPtr *pp
 	ac->elts[i].pCursor = cursors[i];
 	ac->elts[i].delay = deltas[i];
     }
-    
+
+    /*
+     * realize the cursor for every screen
+     * Do not change the refcnt, this will be changed when ChangeToCursor
+     * actually changes the sprite.
+     */
+    for (nscr = 0; nscr < screenInfo.numScreens; nscr++)
+    {
+        pscr = screenInfo.screens[nscr];
+        for (pDev = inputInfo.devices; pDev; pDev = pDev->next)
+        {
+            if (DevHasCursor(pDev))
+            {
+                if (!( *pscr->RealizeCursor)(pDev, pscr, pCursor))
+                {
+                    /* Realize failed for device pDev on screen pscr.
+                     * We have to assume that for all devices before, realize
+                     * worked. We need to rollback all devices so far on the
+                     * current screen and then all devices on previous
+                     * screens.
+                     */
+                    DeviceIntPtr pDevIt = inputInfo.devices; /*dev iterator*/
+                    while(pDevIt && pDevIt != pDev)
+                    {
+                        if (DevHasCursor(pDevIt))
+                            ( *pscr->UnrealizeCursor)(pDevIt, pscr, pCursor);
+                        pDevIt = pDevIt->next;
+                    }
+                    while (--nscr >= 0)
+                    {
+                        pscr = screenInfo.screens[nscr];
+                        /* now unrealize all devices on previous screens */
+                        pDevIt = inputInfo.devices;
+                        while (pDevIt)
+                        {
+                            if (DevHasCursor(pDevIt))
+                                ( *pscr->UnrealizeCursor)(pDevIt, pscr, pCursor);
+                            pDevIt = pDevIt->next;
+                        }
+                        ( *pscr->UnrealizeCursor)(pDev, pscr, pCursor);
+                    }
+                    dixFreePrivates(pCursor->devPrivates);
+		    xfree(pCursor);
+                    return BadAlloc;
+                }
+            }
+        }
+    }
     *ppCursor = pCursor;
     return Success;
-}
-
-void
-AnimForEachCursorElt (ScreenPtr     pScreen,
-		      CursorPtr     pCursor,
-		      CursorProcPtr callBack)
-{
-    if (IsAnimCur (pCursor))
-    {
-	AnimCurPtr  ac = GetAnimCur (pCursor);
-	int	    i;
-
-	for (i = 0; i < ac->nelt; i++)
-	    (*callBack) (pScreen, ac->elts[i].pCursor);
-
-    }
-    else
-    {
-	(*callBack) (pScreen, pCursor);
-    }
 }
