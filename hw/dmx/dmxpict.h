@@ -124,9 +124,6 @@ extern DevPrivateKey dmxGlyphSetPrivateKey; /**< Index for glyphset private data
 #define DMX_GET_PICT_PRIV(_pPict)					\
     (dmxPictPrivPtr)dixLookupPrivate(&(_pPict)->devPrivates, dmxPictPrivateKey)
 
-/** Set the glyphset private data given a glyphset pointer */
-#define DMX_SET_GLYPH_PRIV(_pGlyph, _pPriv)				\
-    GlyphSetSetPrivate((_pGlyph), dmxGlyphSetPrivateKey, (_pPriv))
 /** Get the glyphset private data given a glyphset pointer */
 #define DMX_GET_GLYPH_PRIV(_pGlyph)					\
     (dmxGlyphPrivPtr)GlyphSetGetPrivate((_pGlyph), dmxGlyphSetPrivateKey)

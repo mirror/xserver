@@ -390,6 +390,9 @@ Bool dmxPictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     if (!dixRequestPrivate(dmxPictPrivateKey, sizeof(dmxPictPrivRec)))
 	return FALSE;
 
+    if (!dixRequestPrivate(dmxGlyphSetPrivateKey, sizeof(dmxGlyphPrivRec)))
+	return FALSE;
+
     ps = GetPictureScreen(pScreen);
 
     DMX_WRAP(CreatePicture,      dmxCreatePicture,      dmxScreen, ps);
@@ -525,11 +528,9 @@ static int dmxProcRenderCreateGlyphSet(ClientPtr client)
 	
 	glyphSet = SecurityLookupIDByType(client, stuff->gsid, GlyphSetType,
 					  DixDestroyAccess);
-	glyphPriv = xalloc(sizeof(dmxGlyphPrivRec));
-	if (!glyphPriv) return BadAlloc;
+	glyphPriv = DMX_GET_GLYPH_PRIV(glyphSet);
         glyphPriv->glyphSets = NULL;
         MAXSCREENSALLOC_RETURN(glyphPriv->glyphSets, BadAlloc);
-	DMX_SET_GLYPH_PRIV(glyphSet, glyphPriv);
 
 	for (i = 0; i < dmxNumScreens; i++) {
 	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
@@ -582,8 +583,6 @@ static int dmxProcRenderFreeGlyphSet(ClientPtr client)
 	}
 
         MAXSCREENSFREE(glyphPriv->glyphSets);
-	xfree(glyphPriv);
-	DMX_SET_GLYPH_PRIV(glyphSet, NULL);
     }
 
     return dmxSaveRenderVector[stuff->renderReqType](client);
