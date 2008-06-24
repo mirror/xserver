@@ -53,6 +53,13 @@ extern PixmapPtr dmxCreatePixmap(ScreenPtr pScreen,
 				 unsigned usage_hint);
 extern Bool      dmxDestroyPixmap(PixmapPtr pPixmap);
 extern RegionPtr dmxBitmapToRegion(PixmapPtr pPixmap);
+extern Bool      dmxModifyPixmapHeader (PixmapPtr pPixmap,
+					int	 width,
+					int	 height,
+					int	 depth,
+					int	 bitsPerPixel,
+					int	 devKind,
+					pointer	 pPixData);
 
 extern void      dmxBECreatePixmap(PixmapPtr pPixmap);
 extern Bool      dmxBEFreePixmap(PixmapPtr pPixmap);

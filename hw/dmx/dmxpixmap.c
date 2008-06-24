@@ -70,7 +70,6 @@ void dmxBECreatePixmap(PixmapPtr pPixmap)
 	return;
 
     if (pPixmap->drawable.width && pPixmap->drawable.height) {
-	pPixPriv->pixmap = None;
 	XLIB_PROLOGUE (dmxScreen);
 	pPixPriv->pixmap = XCreatePixmap(dmxScreen->beDisplay,
 					 dmxScreen->scrnWin,
@@ -305,4 +304,95 @@ RegionPtr dmxBitmapToRegion(PixmapPtr pPixmap)
 
     dmxSync(dmxScreen, FALSE);
     return(pReg);
+}
+
+Bool
+dmxModifyPixmapHeader (PixmapPtr pPixmap,
+		       int	 width,
+		       int	 height,
+		       int	 depth,
+		       int	 bitsPerPixel,
+		       int	 devKind,
+		       pointer	 pPixData)
+{
+    ScreenPtr     pScreen = pPixmap->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    int           oldWidth, oldHeight, oldDepth;
+    Bool          status;
+
+    oldWidth  = pPixmap->drawable.width;
+    oldHeight = pPixmap->drawable.height;
+    oldDepth  = pPixmap->drawable.depth;
+
+    DMX_UNWRAP (ModifyPixmapHeader, dmxScreen, pScreen);
+    status = (*pScreen->ModifyPixmapHeader) (pPixmap,
+					     width,
+					     height,
+					     depth,
+					     bitsPerPixel,
+					     devKind,
+					     pPixData);
+    DMX_WRAP (ModifyPixmapHeader, dmxModifyPixmapHeader, dmxScreen, pScreen);
+
+    if (!status)
+	return FALSE;
+
+    if (pPixmap->drawable.width  != oldWidth  ||
+	pPixmap->drawable.height != oldHeight ||
+	pPixmap->drawable.depth  != oldDepth)
+    {
+	dmxBEFreePixmap (pPixmap);
+    }
+
+    if (pPixData && dmxScreen->beDisplay)
+    {
+	dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+	XlibGC        gc = NULL;
+	unsigned long m;
+	XGCValues     v;
+	XImage        ximage;
+
+	ximage.width = pPixmap->drawable.width;
+	ximage.height = pPixmap->drawable.height;
+	ximage.format = ZPixmap;
+	ximage.byte_order = IMAGE_BYTE_ORDER;
+	ximage.bitmap_unit = 32;
+	ximage.bitmap_bit_order = BITMAP_BIT_ORDER;
+	ximage.bitmap_pad = 32;
+	ximage.depth = pPixmap->drawable.depth;
+	ximage.red_mask = 0;
+	ximage.green_mask = 0;
+	ximage.blue_mask = 0;
+	ximage.xoffset = 0;
+	ximage.bits_per_pixel = pPixmap->drawable.bitsPerPixel;
+	ximage.bytes_per_line = pPixmap->devKind;
+	ximage.data = (char *) pPixData;
+
+	XInitImage (&ximage);
+
+	dmxBECreatePixmap (pPixmap);
+
+	m = GCFunction | GCPlaneMask | GCClipMask;
+
+	v.function   = GXcopy;
+	v.plane_mask = AllPlanes;
+	v.clip_mask  = None;
+
+	XLIB_PROLOGUE (dmxScreen);
+	gc = XCreateGC (dmxScreen->beDisplay, pPixPriv->pixmap, m, &v);
+	XLIB_EPILOGUE (dmxScreen);
+
+	if (gc)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XPutImage (dmxScreen->beDisplay,
+		       pPixPriv->pixmap,
+		       gc, &ximage, 0, 0, 0, 0,
+		       pPixmap->drawable.width, pPixmap->drawable.height);
+	    XFreeGC (dmxScreen->beDisplay, gc);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
+    }
+
+    return TRUE;
 }

@@ -238,6 +238,8 @@ typedef struct _DMXScreenInfo {
 
     ChangeBorderWidthProcPtr       ChangeBorderWidth;
 
+    ModifyPixmapHeaderProcPtr	   ModifyPixmapHeader;
+
     SetWindowPixmapProcPtr         SetWindowPixmap;
 
     GetImageProcPtr                GetImage;
