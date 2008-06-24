@@ -47,6 +47,7 @@
 #include "dmxinput.h"
 #include "dmxextension.h"
 #include "dmxscrinit.h"
+#include "dmxcursor.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -430,14 +431,11 @@ Bool dmxBEDestroyWindow(WindowPtr pWindow)
     pWinPriv->beRedirected = FALSE;
 
     if (pWinPriv->window) {
-	if (dmxScreen->alive)
-	{
-	    XLIB_PROLOGUE (dmxScreen);
-	    XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
-	    XLIB_EPILOGUE (dmxScreen);
-	}
+	XLIB_PROLOGUE (dmxScreen);
+	XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
+	XLIB_EPILOGUE (dmxScreen);
 	pWinPriv->window = (Window)0;
-	return (dmxScreen->alive);
+	return TRUE;
     }
 
     return FALSE;
@@ -615,7 +613,21 @@ static void dmxDoChangeWindowAttributes(WindowPtr pWindow,
     }
 
     if (*mask & CWCursor)
-	*mask &= ~CWCursor; /* Handled by the cursor code */
+    {
+	ScreenPtr pScreen = pWindow->drawable.pScreen;
+
+	if (wUseDefault (pWindow, cursor, 0))
+	{
+	    dmxCursorPrivPtr pCursorPriv =
+		DMX_GET_CURSOR_PRIV (pWindow->optional->cursor, pScreen);
+
+	    attribs->cursor = pCursorPriv->cursor;
+	}
+	else
+	{
+	    *mask &= ~CWCursor;
+	}
+    }
 }
 
 /** Change the window attributes of \a pWindow. */
@@ -1068,6 +1080,34 @@ static void dmxDoSetShape(WindowPtr pWindow)
 	XLIB_EPILOGUE (dmxScreen);
     }
 
+    if (wInputShape (pWindow)) {
+	pBox = REGION_RECTS(wInputShape(pWindow));
+	nRect = nBox = REGION_NUM_RECTS(wInputShape(pWindow));
+	pRectFirst = pRect = xalloc(nRect * sizeof(*pRect));
+	while (nBox--) {
+	    pRect->x      = pBox->x1;
+	    pRect->y      = pBox->y1;
+	    pRect->width  = pBox->x2 - pBox->x1;
+	    pRect->height = pBox->y2 - pBox->y1;
+	    pBox++;
+	    pRect++;
+	}
+	XLIB_PROLOGUE (dmxScreen);
+	XShapeCombineRectangles(dmxScreen->beDisplay, pWinPriv->window,
+				ShapeInput, 0, 0,
+				pRectFirst, nRect,
+				ShapeSet, YXBanded);
+	XLIB_EPILOGUE (dmxScreen);
+	xfree(pRectFirst);
+    }
+    else
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XShapeCombineMask (dmxScreen->beDisplay, pWinPriv->window,
+			   ShapeInput, 0, 0, None, ShapeSet);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+
     XLIB_PROLOGUE (dmxScreen);
     if (XShapeInputSelected(dmxScreen->beDisplay, pWinPriv->window)) {
 	ErrorF("Input selected for window %x on Screen %d\n",
@@ -1093,9 +1133,9 @@ void dmxSetShape(WindowPtr pWindow)
 	/* Handle setting the current shape on the back-end server */
 	dmxDoSetShape(pWindow);
 	dmxSync(dmxScreen, False);
-    } else {
-	pWinPriv->isShaped = TRUE;
     }
+
+    pWinPriv->isShaped = TRUE;
 
     DMX_WRAP(SetShape, dmxSetShape, dmxScreen, pScreen);
 }

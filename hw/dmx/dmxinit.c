@@ -1034,9 +1034,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	       "since it is now the default\n");
 	dmxShadowFB = FALSE;
 	retval = 1;
-    } else if (!strcmp(argv[i], "-nomulticursor")) {
-        dmxCursorNoMulti();
-	retval = 1;
     } else if (!strcmp(argv[i], "-shadowfb")) {
 	dmxShadowFB = TRUE;
 	retval = 1;
@@ -1150,7 +1147,6 @@ void ddxUseMsg(void)
     ErrorF("-shadowfb            Enable shadow frame buffer\n");
     ErrorF("-configfile file     Read from a configuration file\n");
     ErrorF("-config config       Select a specific configuration\n");
-    ErrorF("-nomulticursor       Turn of multiple cursor support\n");
     ErrorF("-fontpath            Sets the default font path\n");
     ErrorF("-stat inter scrns    Print out performance statistics\n");
     ErrorF("-syncbatch inter     Set interval for XSync batching\n");

@@ -1722,6 +1722,7 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 	if (!dmxInitGC(pScreen)) return FALSE;
 	if (!dmxInitWindow(pScreen)) return FALSE;
 	if (!dmxInitPixmap(pScreen)) return FALSE;
+	if (!dmxInitCursor(pScreen)) return FALSE;
     }
 
     /*

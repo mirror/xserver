@@ -111,13 +111,13 @@
 #define DMXDBG7(f,a,b,c,d,e,g,h)
 #endif
 
-static int dmxCursorDoMultiCursors = 1;
-
-/** Turn off support for displaying multiple cursors on overlapped
-    back-end displays.  See #dmxCursorDoMultiCursors. */
-void dmxCursorNoMulti(void)
+/** Initialize the private area for the cursor functions. */
+Bool dmxInitCursor(ScreenPtr pScreen)
 {
-    dmxCursorDoMultiCursors = 0;
+    if (!dixRequestPrivate(pScreen, sizeof(dmxCursorPrivRec)))
+	return FALSE;
+
+    return TRUE;
 }
 
 static Bool dmxCursorOffScreen(ScreenPtr *ppScreen, int *x, int *y)
@@ -180,24 +180,27 @@ static void dmxCrossScreen(ScreenPtr pScreen, Bool entering)
 
 static void dmxWarpCursor(DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
 {
-    DMXDBG3("dmxWarpCursor(%d,%d,%d)\n", pScreen->myNum, x, y);
-#if 11 /*BP*/
-    /* This call is depracated.  Replace with???? */
-    miPointerWarpCursor(pDev, pScreen, x, y);
-#else
-    pScreen->SetCursorPosition(pDev, pScreen, x, y, FALSE);
-#endif
+    int i;
+
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	if (!dmxScreen->beDisplay)
+	    continue;
+
+	XLIB_PROLOGUE (dmxScreen);
+	XWarpPointer (dmxScreen->beDisplay, None, dmxScreen->scrnWin,
+		      0, 0, 0, 0, x, y);
+	XLIB_EPILOGUE (dmxScreen);
+    }
 }
 
-miPointerScreenFuncRec dmxPointerCursorFuncs =
-{
+miPointerScreenFuncRec dmxPointerCursorFuncs = {
     dmxCursorOffScreen,
     dmxCrossScreen,
-    dmxWarpCursor,
-    dmxeqEnqueue,        /*XXX incompatible type/function! */
-    dmxeqSwitchScreen
+    dmxWarpCursor
 };
-
 
 /** Create a list of screens that we'll manipulate. */
 static int *dmxSLCreate(void)
@@ -406,7 +409,7 @@ void dmxInitOrigins(void)
 
 /** Returns non-zero if the global \a x, \a y coordinate is on the
  * screen window of the \a dmxScreen. */
-int dmxOnScreen(int x, int y, DMXScreenInfo *dmxScreen)
+static int dmxOnScreen(int x, int y, DMXScreenInfo *dmxScreen)
 {
 #if DMX_CURSOR_DEBUG > 1
     dmxLog(dmxDebug,
@@ -595,10 +598,39 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     unsigned long     m;
     int               i;
 
-    if (!pCursorPriv)
+    if (pCursorPriv->cursor)
 	return;
 
-    pCursorPriv->cursor = None;
+    if (IsAnimCur (pCursor))
+    {
+	AnimCurPtr  ac = GetAnimCur (pCursor);
+	XAnimCursor *cursors;
+	int         i;
+
+	cursors = xalloc (sizeof (*cursors) * ac->nelt);
+	if (!cursors)
+	    return;
+
+	for (i = 0; i < ac->nelt; i++)
+	{
+	    dmxCursorPrivPtr pEltPriv = DMX_GET_CURSOR_PRIV (ac->elts[i].pCursor,
+							     pScreen);
+
+	    dmxBECreateCursor (pScreen, ac->elts[i].pCursor);
+
+	    cursors[i].cursor = pEltPriv->cursor;
+	    cursors[i].delay  = ac->elts[i].delay;
+	}
+
+	pCursorPriv->cursor = XRenderCreateAnimCursor (dmxScreen->beDisplay,
+						       ac->nelt,
+						       cursors);
+
+	xfree (cursors);
+
+	if (pCursorPriv->cursor)
+	    return;
+    }
 
 #ifdef ARGB_CURSOR
     if (pCursor->bits->argb)
@@ -676,8 +708,6 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     XFreeGC(dmxScreen->beDisplay, gc);
 
     XLIB_EPILOGUE (dmxScreen);
-
-    dmxSync(dmxScreen, FALSE);
 }
 
 static Bool _dmxRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
@@ -687,17 +717,12 @@ static Bool _dmxRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
 
     DMXDBG2("_dmxRealizeCursor(%d,%p)\n", pScreen->myNum, pCursor);
 
-    DMX_SET_CURSOR_PRIV(pCursor, pScreen, xalloc(sizeof(*pCursorPriv)));
-    if (!DMX_GET_CURSOR_PRIV(pCursor, pScreen))
-	return FALSE;
-
     pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
     pCursorPriv->cursor = (Cursor)0;
 
-    if (!dmxScreen->beDisplay)
-	return TRUE;
+    if (dmxScreen->beDisplay)
+	dmxBECreateCursor(pScreen, pCursor);
 
-    dmxBECreateCursor(pScreen, pCursor);
     return TRUE;
 }
 
@@ -707,298 +732,74 @@ Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor)
     DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
 
-    if (pCursorPriv) {
+    if (pCursorPriv->cursor)
+    {
 	XLIB_PROLOGUE (dmxScreen);
 	XFreeCursor(dmxScreen->beDisplay, pCursorPriv->cursor);
 	XLIB_EPILOGUE (dmxScreen);
 	pCursorPriv->cursor = (Cursor) 0;
+
+	if (IsAnimCur (pCursor))
+	{
+	    AnimCurPtr ac = GetAnimCur (pCursor);
+	    int        i;
+
+	    for (i = 0; i < ac->nelt; i++)
+		dmxBEFreeCursor (pScreen, ac->elts[i].pCursor);
+	}
+
 	return TRUE;
     }
 
     return FALSE;
 }
 
-static Bool _dmxUnrealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
+static Bool
+_dmxUnrealizeCursor (ScreenPtr pScreen, CursorPtr pCursor)
 {
-    DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
-
     DMXDBG2("_dmxUnrealizeCursor(%d,%p)\n",
             pScreen->myNum, pCursor);
 
-    if (dmxScreen->beDisplay) {
-	if (dmxBEFreeCursor(pScreen, pCursor))
-	    xfree(DMX_GET_CURSOR_PRIV(pCursor, pScreen));
-    }
-    DMX_SET_CURSOR_PRIV(pCursor, pScreen, NULL);
+    dmxBEFreeCursor(pScreen, pCursor);
 
     return TRUE;
 }
 
-static void _dmxMoveCursor(ScreenPtr pScreen, int x, int y)
+static Bool
+dmxRealizeCursor(DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    int           newX       = x + dmxScreen->rootX;
-    int           newY       = y + dmxScreen->rootY;
+    if (pDev == inputInfo.pointer)
+	return _dmxRealizeCursor (pScreen, pCursor);
 
-    if (newX < 0) newX = 0;
-    if (newY < 0) newY = 0;
-
-    DMXDBG5("_dmxMoveCursor(%d,%d,%d) -> %d,%d\n",
-            pScreen->myNum, x, y, newX, newY);
-    if (dmxScreen->beDisplay) {
-	XLIB_PROLOGUE (dmxScreen);
-	XWarpPointer(dmxScreen->beDisplay, None, dmxScreen->scrnWin,
-		     0, 0, 0, 0, newX, newY);
-	XLIB_EPILOGUE (dmxScreen);
-	dmxSync(dmxScreen, TRUE);
-    }
-}
-
-static void _dmxSetCursor(ScreenPtr pScreen, CursorPtr pCursor, int x, int y)
-{
-    DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    DMXDBG4("_dmxSetCursor(%d,%p,%d,%d)\n", pScreen->myNum, pCursor, x, y);
-
-    if (pCursor) {
-	dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
-	if (pCursorPriv && dmxScreen->curCursor != pCursorPriv->cursor) {
-	    if (dmxScreen->beDisplay)
-	    {
-		XLIB_PROLOGUE (dmxScreen);
-		XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
-			      pCursorPriv->cursor);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
-            dmxScreen->cursor        = pCursor;
-	    dmxScreen->curCursor     = pCursorPriv->cursor;
-            dmxScreen->cursorVisible = 1;
-	}
-	_dmxMoveCursor(pScreen, x, y);
-    } else {
-	if (dmxScreen->beDisplay)
-	{
-	    XLIB_PROLOGUE (dmxScreen);
-	    XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
-			  dmxScreen->noCursor);
-	    XLIB_EPILOGUE (dmxScreen);
-	}
-        dmxScreen->cursor        = NULL;
-	dmxScreen->curCursor     = (Cursor)0;
-        dmxScreen->cursorVisible = 0;
-    }
-    if (dmxScreen->beDisplay) dmxSync(dmxScreen, TRUE);
-}
-
-static Bool dmxRealizeCursor(DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor)
-{
-    DMXScreenInfo *start = &dmxScreens[pScreen->myNum];
-    DMXScreenInfo *pt;
-
-    if (!start->over || !dmxCursorDoMultiCursors || start->cursorNotShared)
-        return _dmxRealizeCursor(pScreen, pCursor);
-
-    for (pt = start->over; /* condition at end of loop */; pt = pt->over) {
-        if (pt->cursorNotShared)
-            continue;
-        _dmxRealizeCursor(screenInfo.screens[pt->index], pCursor);
-        if (pt == start)
-            break;
-    }
     return TRUE;
 }
 
-static Bool dmxUnrealizeCursor(DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor)
+static Bool
+dmxUnrealizeCursor (DeviceIntPtr pDev,
+		    ScreenPtr    pScreen,
+		    CursorPtr    pCursor)
 {
-    DMXScreenInfo *start = &dmxScreens[pScreen->myNum];
-    DMXScreenInfo *pt;
+    if (pDev == inputInfo.pointer)
+	return _dmxUnrealizeCursor (pScreen, pCursor);
 
-    if (!start->over || !dmxCursorDoMultiCursors || start->cursorNotShared)
-        return _dmxUnrealizeCursor(pScreen, pCursor);
-
-    for (pt = start->over; /* condition at end of loop */; pt = pt->over) {
-        if (pt->cursorNotShared)
-            continue;
-        _dmxUnrealizeCursor(screenInfo.screens[pt->index], pCursor);
-        if (pt == start)
-            break;
-    }
     return TRUE;
 }
 
-static CursorPtr dmxFindCursor(DMXScreenInfo *start)
+static void
+dmxMoveCursor (DeviceIntPtr pDev,
+	       ScreenPtr    pScreen,
+	       int          x,
+	       int          y)
 {
-    DMXScreenInfo *pt;
-
-    if (!start || !start->over)
-        return GetSpriteCursor(inputInfo.pointer);
-    for (pt = start->over; /* condition at end of loop */; pt = pt->over) {
-        if (pt->cursor)
-            return pt->cursor;
-        if (pt == start)
-            break;
-    }
-    return GetSpriteCursor(inputInfo.pointer);
 }
 
-/** Move the cursor to coordinates (\a x, \a y)on \a pScreen.  This
- * function is usually called via #dmxPointerSpriteFuncs, except during
- * reconfiguration when the cursor is repositioned to force an update on
- * newley overlapping screens and on screens that no longer overlap.
- *
- * The coords (x,y) are in global coord space.  We'll loop over the
- * back-end screens and see if they contain the global coord.  If so, call
- * _dmxMoveCursor() (XWarpPointer) to position the pointer on that screen.
- */
-void dmxMoveCursor(DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
+static void
+dmxSetCursor (DeviceIntPtr pDev,
+	      ScreenPtr    pScreen,
+	      CursorPtr    pCursor,
+	      int          x,
+	      int          y)
 {
-    DMXScreenInfo *start = &dmxScreens[pScreen->myNum];
-    DMXScreenInfo *pt;
-
-    DMXDBG3("dmxMoveCursor(%d,%d,%d)\n", pScreen->myNum, x, y);
-
-    if (!start->over || !dmxCursorDoMultiCursors || start->cursorNotShared) {
-        _dmxMoveCursor(pScreen, x, y);
-        return;
-    }
-
-    for (pt = start->over; /* condition at end of loop */; pt = pt->over) {
-        if (pt->cursorNotShared)
-            continue;
-        if (dmxOnScreen(x + start->rootXOrigin, y + start->rootYOrigin, pt)) {
-            if (/* pt != start && */ !pt->cursorVisible) {
-                if (!pt->cursor) {
-                                /* This only happens during
-                                 * reconfiguration when a new overlap
-                                 * occurs. */
-                    CursorPtr pCursor;
-                    
-                    if ((pCursor = dmxFindCursor(start)))
-                        _dmxRealizeCursor(screenInfo.screens[pt->index],
-                                          pt->cursor = pCursor);
-                    
-                }
-                _dmxSetCursor(screenInfo.screens[pt->index],
-                              pt->cursor,
-                              x + start->rootXOrigin - pt->rootXOrigin,
-                              y + start->rootYOrigin - pt->rootYOrigin);
-            }
-            _dmxMoveCursor(screenInfo.screens[pt->index],
-                           x + start->rootXOrigin - pt->rootXOrigin,
-                           y + start->rootYOrigin - pt->rootYOrigin);
-        } else if (/* pt != start && */ pt->cursorVisible) {
-            _dmxSetCursor(screenInfo.screens[pt->index],
-                          NULL,
-                          x + start->rootXOrigin - pt->rootXOrigin,
-                          y + start->rootYOrigin - pt->rootYOrigin);
-        }
-        if (pt == start)
-            break;
-    }
-}
-
-static void dmxSetCursor(DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor, int x, int y)
-{
-    DMXScreenInfo *start = &dmxScreens[pScreen->myNum];
-    DMXScreenInfo *pt;
-    int           GX, GY, gx, gy;
-
-    DMXDBG5("dmxSetCursor(%d %p, %p,%d,%d)\n",
-            pScreen->myNum, start, pCursor, x, y);
-
-                                /* We do this check here because of two cases:
-                                 *
-                                 * 1) if a client calls XWarpPointer()
-                                 * and Xinerama is not running, we can
-                                 * have mi's notion of the pointer
-                                 * position out of phase with DMX's
-                                 * notion.
-                                 *
-                                 * 2) if a down button is held while the
-                                 * cursor moves outside the root window,
-                                 * mi's notion of the pointer position
-                                 * is out of phase with DMX's notion and
-                                 * the cursor can remain visible when it
-                                 * shouldn't be. */
-
-    dmxGetGlobalPosition(&GX, &GY);
-    gx = start->rootXOrigin + x;
-    gy = start->rootYOrigin + y;
-    if (x && y && (GX != gx || GY != gy))
-        dmxCoreMotion(NULL, gx, gy, 0, DMX_NO_BLOCK);
-    
-    if (!start->over || !dmxCursorDoMultiCursors || start->cursorNotShared) {
-        _dmxSetCursor(pScreen, pCursor, x, y);
-        return;
-    }
-
-    for (pt = start->over; /* condition at end of loop */; pt = pt->over) {
-        if (pt->cursorNotShared)
-            continue;
-        if (dmxOnScreen(x + start->rootXOrigin, y + start->rootYOrigin, pt)) {
-            _dmxSetCursor(screenInfo.screens[pt->index], pCursor,
-                          x + start->rootXOrigin - pt->rootXOrigin,
-                          y + start->rootYOrigin - pt->rootYOrigin);
-        } else {
-            _dmxSetCursor(screenInfo.screens[pt->index], NULL,
-                          x + start->rootXOrigin - pt->rootXOrigin,
-                          y + start->rootYOrigin - pt->rootYOrigin);
-        }
-        if (pt == start)
-            break;
-    }
-}
-
-
-/** This routine is used by the backend input routines to hide the
- * cursor on a screen that is being used for relative input.  \see
- * dmxbackend.c */
-void dmxHideCursor(DMXScreenInfo *dmxScreen)
-{
-    int       x, y;
-    ScreenPtr pScreen = screenInfo.screens[dmxScreen->index];
-
-    dmxGetGlobalPosition(&x, &y);
-    _dmxSetCursor(pScreen, NULL, x, y);
-}
-
-/** This routine is called during reconfiguration to make sure the
- * cursor is visible. */
-void dmxCheckCursor(void)
-{
-    int           i;
-    int           x, y;
-    ScreenPtr     pScreen;
-    DMXScreenInfo *firstScreen;
-
-    dmxGetGlobalPosition(&x, &y);
-    firstScreen = dmxFindFirstScreen(x, y);
-
-    DMXDBG2("dmxCheckCursor %d %d\n", x, y);
-    for (i = 0; i < dmxNumScreens; i++) {
-        DMXScreenInfo *dmxScreen = &dmxScreens[i];
-        pScreen                  = screenInfo.screens[dmxScreen->index];
-
-        if (!dmxOnScreen(x, y, dmxScreen)) {
-            if (firstScreen && i == miPointerGetScreen(inputInfo.pointer)->myNum)
-                miPointerSetScreen(inputInfo.pointer, firstScreen->index, x, y);
-            _dmxSetCursor(pScreen, NULL,
-                          x - dmxScreen->rootXOrigin,
-                          y - dmxScreen->rootYOrigin);
-        } else {
-            if (!dmxScreen->cursor) {
-                CursorPtr pCursor;
-                
-                if ((pCursor = dmxFindCursor(dmxScreen))) {
-                    _dmxRealizeCursor(pScreen, dmxScreen->cursor = pCursor);
-                }
-            }
-            _dmxSetCursor(pScreen, dmxScreen->cursor,
-                          x - dmxScreen->rootXOrigin,
-                          y - dmxScreen->rootYOrigin);
-        }
-    }
-    DMXDBG2("   leave dmxCheckCursor %d %d\n", x, y);
 }
 
 static Bool dmxDeviceCursorInitialize(DeviceIntPtr pDev, ScreenPtr pScr)

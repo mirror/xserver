@@ -306,8 +306,6 @@ static void dmxAdjustCursorBoundaries(void)
 	if (!dmxInput->detached) dmxInputReInit(dmxInput);
     }
 
-    dmxCheckCursor();
-
     for (i = 0; i < dmxNumInputs; i++) {
         DMXInputInfo *dmxInput = &dmxInputs[i];
 	if (!dmxInput->detached) dmxInputLateReInit(dmxInput);
@@ -1100,7 +1098,11 @@ static void dmxBECreateResources(pointer value, XID id, RESTYPE type,
     } else if ((type & TypeMask) == (RT_FONT & TypeMask)) {
 	(void)dmxBELoadFont(pScreen, (FontPtr)value);
     } else if ((type & TypeMask) == (RT_CURSOR & TypeMask)) {
-	AnimForEachCursorElt (pScreen, (CursorPtr) value, dmxBECreateCursor);
+	dmxBECreateCursor (pScreen, (CursorPtr) value);
+    } else if ((type & TypeMask) == (RT_PASSIVEGRAB & TypeMask)) {
+	GrabPtr grab = value;
+	if (grab->cursor)
+	    dmxBECreateCursor (pScreen, grab->cursor);
     } else if ((type & TypeMask) == (RT_COLORMAP & TypeMask)) {
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
@@ -1142,8 +1144,14 @@ static void dmxBECreateWindowTree(int idx)
 	dmxBERestorePixmap(pRoot->background.pixmap);
     }
 
+    dmxBECreateCursor (screenInfo.screens[idx], pRoot->optional->cursor);
+
     /* Create root window first */
     dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pRoot);
+
+#ifdef RENDER
+    if (pWinPriv->hasPict) dmxCreatePictureList (pRoot);
+#endif
 
     XLIB_PROLOGUE (dmxScreen);
     dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
@@ -1165,6 +1173,10 @@ static void dmxBECreateWindowTree(int idx)
 	    dmxBECreatePixmap(pWin->background.pixmap);
 	    dmxBERestorePixmap(pWin->background.pixmap);
 	}
+
+	if (wUseDefault(pWin, cursor, 0))
+	    dmxBECreateCursor (screenInfo.screens[idx],
+			       pWin->optional->cursor);
 
 	/* Reset the window attributes */
 	dmxGetDefaultWindowAttributes(pWin,
@@ -1409,7 +1421,7 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
     char            *pos;
     int              beret;
     int              len_images = 0;
-    int              i;
+    int              i, j, size;
     int              ctr;
 
     if (glyphPriv->glyphSets[scrnNum]) {
@@ -1433,8 +1445,17 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 	GlyphPtr     gl = gr->glyph;
 
 	if (!gl || gl == DeletedGlyph) continue;
-	len_images += gl->size - sizeof(gl->info);
+
+	size = gl->info.height * PixmapBytePad (gl->info.width,
+						glyphSet->format->depth);
+	if (size & 3)
+	    size += 4 - (size & 3);
+
+	len_images += size;
     }
+
+    if (!len_images)
+	return;
 
     /* Now allocate the memory we need */
     images = xcalloc(len_images, sizeof(char));
@@ -1448,6 +1469,7 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
     for (i = 0; i < glyphSet->hash.hashSet->size; i++) {
 	GlyphRefPtr  gr = &table[i];
 	GlyphPtr     gl = gr->glyph;
+	XImage       *img = NULL;
 
 	if (!gl || gl == DeletedGlyph) continue;
 
@@ -1462,21 +1484,62 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 	glyphs[ctr].xOff   = gl->info.xOff;
 	glyphs[ctr].yOff   = gl->info.yOff;
 
-	/* Copy the images from the DIX's data into the buffer */
-	memcpy(pos, gl+1, gl->size - sizeof(gl->info));
-	pos += gl->size - sizeof(gl->info);
+	for (j = 0; j < dmxNumScreens; j++)
+	{
+	    if (j != scrnNum && dmxScreens[j].alive)
+	    {
+		PicturePtr    pPict = GlyphPicture (gl)[j];
+		PixmapPtr     pPixmap = (PixmapPtr) pPict->pDrawable;
+		dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
+
+		XLIB_PROLOGUE (&dmxScreens[j]);
+		img = XGetImage (dmxScreens[j].beDisplay,
+				 pPixPriv->pixmap,
+				 0, 0,
+				 pPixmap->drawable.width,
+				 pPixmap->drawable.height,
+				 -1,
+				 ZPixmap);
+		XLIB_EPILOGUE (&dmxScreens[j]);
+
+		if (img)
+		    break;
+	    }
+	}
+
+	size = gl->info.height * PixmapBytePad (gl->info.width,
+						glyphSet->format->depth);
+	if (size & 3)
+	    size += 4 - (size & 3);
+
+	if (img)
+	{
+	    memcpy (pos, img->data, size);
+	    XDestroyImage (img);
+	}
+	else
+	{
+	    dmxLog (dmxWarning,
+		    "Cannot restore glyph image: %dx%d %d\n",
+		    gl->info.width,
+		    gl->info.height,
+		    glyphSet->format->depth);
+
+	    memset (pos, 0xff, size);
+	}
+
+	pos += size;
 	ctr++;
     }
-    
+
     /* Now restore the glyph data */
     XLIB_PROLOGUE (dmxScreen);
     XRenderAddGlyphs(dmxScreen->beDisplay, glyphPriv->glyphSets[scrnNum],
-		     gids,glyphs, glyphSet->hash.tableEntries, images,
-		     len_images);
+		     gids, glyphs, ctr, images, len_images);
     XLIB_EPILOGUE (dmxScreen);
 
     /* Clean up */
-    xfree(len_images);
+    xfree(images);
     xfree(gids);
     xfree(glyphs);    
 }
@@ -1669,6 +1732,10 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
     /* Create the scratch GCs */
     dmxBECreateScratchGCs(idx);
 
+    /* Create the scratch pixmap */
+    if (pScreen->pScratchPixmap)
+	dmxBECreatePixmap(pScreen->pScratchPixmap);
+
     /* Create all resources that don't depend on windows */
     for (i = currentMaxClients; --i >= 0; )
 	if (clients[i])
@@ -1712,7 +1779,7 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
 #endif
 
 #ifdef RANDR
-    RRTellChanged (screenInfo.screens[0]);
+    RRGetInfo (screenInfo.screens[0]);
 #endif
 
     return 0; /* Success */
@@ -1967,8 +2034,7 @@ static void dmxBEDestroyResources(pointer value, XID id, RESTYPE type,
     } else if ((type & TypeMask) == (RT_FONT & TypeMask)) {
 	dmxBEFreeFont(pScreen, (FontPtr)value);
     } else if ((type & TypeMask) == (RT_CURSOR & TypeMask)) {
-	AnimForEachCursorElt (pScreen, (CursorPtr) value,
-			      (void *) dmxBEFreeCursor);
+	dmxBEFreeCursor (pScreen, (CursorPtr) value);
     } else if ((type & TypeMask) == (RT_COLORMAP & TypeMask)) {
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
@@ -2023,6 +2089,10 @@ static void dmxBEDestroyWindowTree(int idx)
 	/* Destroy the window */
 	dmxBEDestroyWindow(pChild);
 
+	if (wUseDefault(pChild, cursor, 0))
+	    dmxBEFreeCursor (screenInfo.screens[idx],
+			     pChild->optional->cursor);
+
 	/* Make sure we destroy the window's border and background
 	 * pixmaps if they exist */
 	if (!pChild->borderIsPixel) {
@@ -2037,6 +2107,9 @@ static void dmxBEDestroyWindowTree(int idx)
 	while (!pChild->nextSib && (pChild != pWin)) {
 	    pChild = pChild->parent;
 	    dmxBEDestroyWindow(pChild);
+	    if (wUseDefault(pChild, cursor, 0))
+		dmxBEFreeCursor (screenInfo.screens[idx],
+				 pChild->optional->cursor);
 	    if (!pChild->borderIsPixel) {
 		dmxBESavePixmap(pChild->border.pixmap);
 		dmxBEFreePixmap(pChild->border.pixmap);
@@ -2131,6 +2204,9 @@ int dmxDetachScreen(int idx)
     dmxBESavePixmap(screenInfo.screens[idx]->PixmapPerDepth[0]);
     dmxBEFreePixmap(screenInfo.screens[idx]->PixmapPerDepth[0]);
 
+    if (screenInfo.screens[idx]->pScratchPixmap)
+	dmxBEFreePixmap(screenInfo.screens[idx]->pScratchPixmap);
+
     /* Free the remaining screen resources and close the screen */
     dmxBECloseScreen(screenInfo.screens[idx]);
 
@@ -2140,7 +2216,7 @@ int dmxDetachScreen(int idx)
     dmxScreen->name = "";
 
 #ifdef RANDR
-    RRTellChanged (screenInfo.screens[0]);
+    RRGetInfo (screenInfo.screens[0]);
 #endif
 
     dmxDiscardIgnore (dmxScreen, ~0);
