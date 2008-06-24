@@ -494,8 +494,7 @@ ProcCompositeGetOverlayWindow (ClientPtr client)
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
     {
-	static PanoramiXRes *overlayWin = NULL;
-	PanoramiXRes *win;
+	PanoramiXRes *win, *overlayWin = NULL;
 	int i;
 
 	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
@@ -505,8 +504,18 @@ ProcCompositeGetOverlayWindow (ClientPtr client)
 	    return BadWindow;
 	}
 
-	FOR_NSCREENS(i) {
-	    rc = dixLookupResource((pointer *)&pWin, stuff->window,
+	cs = GetCompScreen(screenInfo.screens[0]);
+	if (!cs->pOverlayWin)
+	{
+	    if(!(overlayWin = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
+		return BadAlloc;
+
+	    overlayWin->type = XRT_WINDOW;
+	    overlayWin->u.win.root = FALSE;
+	}
+
+	FOR_NSCREENS_BACKWARD(i) {
+	    rc = dixLookupResource((pointer *)&pWin, win->info[i].id,
 				   RT_WINDOW, client,
 				   DixGetAttrAccess);
 	    if (rc != Success)
@@ -546,14 +555,8 @@ ProcCompositeGetOverlayWindow (ClientPtr client)
 	    }
 	}
 
-	if (!overlayWin)
+	if (overlayWin)
 	{
-	    if(!(overlayWin = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
-		return BadAlloc;
-
-	    overlayWin->type = XRT_WINDOW;
-	    overlayWin->u.win.root = FALSE;
-
 	    FOR_NSCREENS(i) {
 		cs = GetCompScreen(screenInfo.screens[i]);
 		overlayWin->info[i].id = cs->pOverlayWin->drawable.id;
@@ -562,10 +565,12 @@ ProcCompositeGetOverlayWindow (ClientPtr client)
 	    AddResource(overlayWin->info[0].id, XRT_WINDOW, overlayWin);
 	}
 
+	cs = GetCompScreen(screenInfo.screens[0]);
+
 	rep.type = X_Reply;
 	rep.sequenceNumber = client->sequence;
 	rep.length = 0;
-	rep.overlayWin = overlayWin->info[0].id;
+	rep.overlayWin = cs->pOverlayWin->drawable.id;
 
 	if (client->swapped)
 	{
@@ -656,8 +661,8 @@ ProcCompositeReleaseOverlayWindow (ClientPtr client)
 	    return BadWindow;
 	}
 
-	FOR_NSCREENS(i) {
-	    pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
+	FOR_NSCREENS_BACKWARD(i) {
+	    pWin = (WindowPtr) LookupIDByType (win->info[i].id, RT_WINDOW);
 	    if (!pWin)
 	    {
 		client->errorValue = stuff->window;
