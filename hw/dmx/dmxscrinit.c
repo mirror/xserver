@@ -69,6 +69,51 @@
 #include "micmap.h"
 #include "mivalidate.h"
 
+#ifdef MITSHM
+#include "shmint.h"
+static void
+dmxShmPutImage (DrawablePtr  dst,
+		GCPtr	     pGC,
+		int	     depth,
+		unsigned int format,
+		int	     w,
+		int	     h,
+		int	     sx,
+		int	     sy,
+		int	     sw,
+		int	     sh,
+		int	     dx,
+		int	     dy,
+		char	     *data)
+{
+    PixmapPtr pmap;
+    GCPtr putGC;
+
+    putGC = GetScratchGC(depth, dst->pScreen);
+    if (!putGC)
+	return;
+    pmap = (*dst->pScreen->CreatePixmap)(dst->pScreen, sw, sh, depth,
+					 CREATE_PIXMAP_USAGE_SCRATCH);
+    if (!pmap)
+    {
+	FreeScratchGC(putGC);
+	return;
+    }
+    ValidateGC((DrawablePtr)pmap, putGC);
+    (*putGC->ops->PutImage)((DrawablePtr)pmap, putGC, depth, -sx, -sy, w, h, 0,
+			    (format == XYPixmap) ? XYPixmap : ZPixmap, data);
+    FreeScratchGC(putGC);
+    if (format == XYBitmap)
+	(void)(*pGC->ops->CopyPlane)((DrawablePtr)pmap, dst, pGC, 0, 0, sw, sh,
+				     dx, dy, 1L);
+    else
+	(void)(*pGC->ops->CopyArea)((DrawablePtr)pmap, dst, pGC, 0, 0, sw, sh,
+				    dx, dy);
+    (*pmap->drawable.pScreen->DestroyPixmap)(pmap);
+}
+static ShmFuncs shmFuncs = { NULL, dmxShmPutImage };
+#endif
+
 extern Bool dmxCloseScreen(int idx, ScreenPtr pScreen);
 static Bool dmxSaveScreen(ScreenPtr pScreen, int what);
 
@@ -1157,6 +1202,7 @@ dmxRRCheckScreen (ScreenPtr pScreen)
     if (dmxScreen->beDisplay)
     {
 	XEvent X;
+	Bool   changed = FALSE;
 
 	for (;;)
 	{
@@ -1199,7 +1245,7 @@ dmxRRCheckScreen (ScreenPtr pScreen)
 		dmxConfigureScreenWindows (1, &scrnNum, &attr, NULL);
 	    }
 
-	    RRTellChanged (screenInfo.screens[0]);
+	    changed = TRUE;
 	}
 
 	if (dmxScreen->beRandr)
@@ -1219,7 +1265,8 @@ dmxRRCheckScreen (ScreenPtr pScreen)
 		    break;
 
 		XRRUpdateConfiguration (&X);
-		RRTellChanged (screenInfo.screens[0]);
+
+		changed = TRUE;
 	    }
 
 	    for (;;)
@@ -1236,9 +1283,13 @@ dmxRRCheckScreen (ScreenPtr pScreen)
 		    break;
 
 		XRRUpdateConfiguration (&X);
-		RRTellChanged (screenInfo.screens[0]);
+
+		changed = TRUE;
 	    }
 	}
+
+	if (changed)
+	    RRGetInfo (screenInfo.screens[0]);
     }
 }
 
@@ -1766,6 +1817,10 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		 dmxScreen->beYDPI,
 		 dmxScreen->scrnWidth,
 		 dmxScreen->beBPP);
+
+#ifdef MITSHM
+    ShmRegisterFuncs (pScreen, &shmFuncs);
+#endif
 
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
