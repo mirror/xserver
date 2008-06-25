@@ -113,4 +113,5 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
 void
 DeleteInputDeviceRequest(DeviceIntPtr pDev)
 {
+    RemoveDevice (pDev);
 }
