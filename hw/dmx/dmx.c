@@ -72,6 +72,8 @@ extern int           PanoramiXNumScreens;
 #include "randrstr.h"
 #endif
 
+#include "dmxdbus.h"
+
 extern void DMXExtensionInit(void);
 
 static unsigned char DMXCode;
@@ -118,6 +120,15 @@ static int _DMXXineramaActive(void)
     return 0;
 }
 
+static void DMXResetProc(ExtensionEntry *extEntry)
+{
+
+#ifdef CONFIG_DBUS_API
+    dmx_dbus_fini ();
+#endif
+
+}
+
 /** Initialize the extension. */
 void DMXExtensionInit(void)
 {
@@ -125,9 +136,13 @@ void DMXExtensionInit(void)
 
     if ((extEntry = AddExtension(DMX_EXTENSION_NAME, 0, 0,
                                  ProcDMXDispatch, SProcDMXDispatch,
-                                 NULL, StandardMinorOpcode)))
-greater than screen count.:hw/dmx/dmx.c
+                                 DMXResetProc, StandardMinorOpcode)))
 	DMXCode = extEntry->base;
+
+#ifdef CONFIG_DBUS_API
+    dmx_dbus_init ();
+#endif
+
 }
 
 static void dmxSetScreenAttribute(int bit, DMXScreenAttributesPtr attr,

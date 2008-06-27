@@ -20,11 +20,19 @@ if BUILDDOCS
 SUBDIRS += doc
 endif
 
+if CONFIG_DBUS_API
+DBUS_SRCS = dmxdbus.c dmxdbus.h
+DBUS_INCS = -I$(top_srcdir)/config
+DBUS_DEFS = @DBUS_CFLAGS@
+endif
+
 AM_CFLAGS = \
       -DHAVE_DMX_CONFIG_H \
       $(DIX_CFLAGS) \
       $(GLX_INCS) \
       $(GLX_DEFS) \
+      $(DBUS_INCS) \
+      $(DBUS_DEFS) \
       $(DMX_CFLAGS) \
       @DMXMODULES_CFLAGS@
 
@@ -76,7 +84,8 @@ Xdmx_SOURCES = dmx.c \
                dmxlaunch.h \
                $(top_srcdir)/mi/miinitext.c \
                $(top_srcdir)/fb/fbcmap_mi.c \
-               $(GLX_SRCS) 
+               $(GLX_SRCS) \
+               $(DBUS_SRCS)
 
 
 #if COMPOSITE
