@@ -98,7 +98,7 @@ typedef struct _DMXStatInfo DMXStatInfo;
 
 /** Global structure containing information about each backend screen. */
 typedef struct _DMXScreenInfo {
-    const char   *name;           /**< Name from command line or config file */
+    char          *name;          /**< Name from command line or config file */
     int           index;          /**< Index into dmxScreens global          */
 
     /*---------- Back-end X server information ----------*/
@@ -136,7 +136,9 @@ typedef struct _DMXScreenInfo {
     int           beRandrEventBase;
 #endif
 
-    char          *authFile;
+    char          *authType;
+    char          *authData;
+    int           authDataLen;
 
     /*---------- Screen window information ----------*/
 
@@ -397,5 +399,7 @@ do {									\
 #define MAXSCREENSCALLOC(o,m)           _MAXSCREENSALLOCF(o,MAXSCREENS*(m),0)
 #define MAXSCREENSCALLOC_FATAL(o,m)     _MAXSCREENSALLOCF(o,MAXSCREENS*(m),1)
 #endif
+
+char *dmxAuthDataCopy (const char *authData, int authDataLen);
 
 #endif /* DMX_H */

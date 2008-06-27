@@ -115,6 +115,10 @@ extern int           dmxConfigureDesktop(DMXDesktopAttributesPtr attribs);
 extern void          dmxUpdateScreenResources(ScreenPtr pScreen,
                                               int x, int y, int w, int h);
 
-extern int           dmxAttachScreen(int idx, DMXScreenAttributesPtr attr);
+extern int           dmxAttachScreen(int                    idx,
+				     DMXScreenAttributesPtr attr,
+				     const char             *authType,
+				     const char             *authData,
+				     int                    authDataLen);
 extern int           dmxDetachScreen(int idx);
 #endif

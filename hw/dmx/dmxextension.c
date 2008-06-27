@@ -1546,7 +1546,12 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 #endif
 
 /** Reattach previously detached back-end screen. */
-int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
+int
+dmxAttachScreen (int                    idx,
+		 DMXScreenAttributesPtr attr,
+		 const char             *authType,
+		 const char             *authData,
+		 int                    authDataLen)
 {
     ScreenPtr      pScreen;
     DMXScreenInfo *dmxScreen;
@@ -1587,6 +1592,10 @@ int dmxAttachScreen(int idx, DMXScreenAttributesPtr attr)
 
     /* Copy the name to the new screen */
     dmxScreen->name = strdup(attr->displayName);
+
+    dmxScreen->authType = authType ? strdup (authType) : NULL;
+    dmxScreen->authData = dmxAuthDataCopy (authData, authDataLen);
+    dmxScreen->authDataLen = authDataLen;
 
     /* Open display and get all of the screen info */
     if (!dmxOpenDisplay(dmxScreen)) {
@@ -2213,7 +2222,25 @@ int dmxDetachScreen(int idx)
     /* Adjust the cursor boundaries (paints detached console window) */
     dmxAdjustCursorBoundaries();
 
-    dmxScreen->name = "";
+    if (dmxScreen->name)
+    {
+	free (dmxScreen->name);
+	dmxScreen->name = NULL;
+    }
+
+    if (dmxScreen->authType)
+    {
+	free (dmxScreen->authType);
+	dmxScreen->authType = NULL;
+    }
+
+    if (dmxScreen->authData)
+    {
+	free (dmxScreen->authData);
+	dmxScreen->authData = NULL;
+    }
+
+    dmxScreen->authDataLen = 0;
 
 #ifdef RANDR
     RRGetInfo (screenInfo.screens[0]);

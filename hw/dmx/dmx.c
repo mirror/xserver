@@ -514,7 +514,7 @@ static int ProcDMXAddScreen(ClientPtr client)
 	}
     }
 
-    status = dmxAttachScreen(physicalScreen, &attr);
+    status = dmxAttachScreen(physicalScreen, &attr, NULL, NULL, 0);
 
     xfree(name);
 

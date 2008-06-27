@@ -1311,7 +1311,8 @@ int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
                                 /* No match found */
     dmxScreen = &dmxScreens[physicalScreen];
     if (!dmxScreen->beDisplay) return BadAccess; /* Screen detached */
-    dmxInput = dmxConfigAddInput(dmxScreen->name, isCore);
+    dmxInput = dmxConfigAddInput(xstrdup (dmxScreen->name), isCore);
+    dmxInput->freename = TRUE;
     dmxInput->scrnIdx = physicalScreen;
     dmxLogInput(dmxInput, "Attaching new backend input\n");
     return dmxInputAttachNew(dmxInput, id);

@@ -250,6 +250,21 @@ static int dmxNOPErrorHandler(Display *dpy, XErrorEvent *ev)
 }
 #endif
 
+char *
+dmxAuthDataCopy (const char *authData,
+		 int        authDataLen)
+{
+    char *data;
+
+    data = malloc (authDataLen);
+    if (!data)
+	return NULL;
+
+    memcpy (data, authData, authDataLen);
+
+    return data;
+}
+
 Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 {
     dmxScreen->beDisplay = NULL;
@@ -257,26 +272,11 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     if (!dmxScreen->name || !*dmxScreen->name)
 	return FALSE;
 
-    if (dmxScreen->authFile)
-    {
-	setenv ("XAUTHORITY", dmxScreen->authFile, 1);
-    }
-    else
-    {
-	char *home = getenv ("HOME");
-
-	if (home && strlen (home) < 1000)
-	{
-	    char auth[1024];
-
-	    sprintf (auth, "%s/.Xauthority", home);
-	    setenv ("XAUTHORITY", auth, 1);
-	}
-	else
-	{
-	    setenv ("XAUTHORITY", ".Xauthority", 1);
-	}
-    }
+    if (dmxScreen->authType && *dmxScreen->authType)
+	XSetAuthorization (dmxScreen->authType,
+			   strlen (dmxScreen->authType),
+			   dmxScreen->authData,
+			   dmxScreen->authDataLen);
 
     if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->name)))
 	return FALSE;
@@ -1017,7 +1017,7 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     }
     
     if (!strcmp(argv[i], "-display")) {
-	if (++i < argc) dmxConfigStoreDisplay(argv[i], NULL);
+	if (++i < argc) dmxConfigStoreDisplay(argv[i], NULL, NULL, 0);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);

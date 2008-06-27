@@ -240,6 +240,11 @@ dmxSetupAuth (char *name, int authFd)
     XauWriteAuth (file, &auth);
     fclose (file);
 
+    dmxConfigStoreDisplay (xbeDisplay,
+			   auth.name,
+			   auth.data,
+			   auth.data_length);
+
     return TRUE;
 }
 
@@ -383,8 +388,6 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
     }
 
     signal (SIGUSR1, oldSigUsr1);
-
-    dmxConfigStoreDisplay (xbeDisplay, xbeAuth);
 
     return TRUE;
 }
