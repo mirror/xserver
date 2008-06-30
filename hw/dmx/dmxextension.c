@@ -1870,8 +1870,7 @@ dmxAttachScreen (int                    idx,
 	       "New screen data (%s) does not match previously\n",
 	       dmxScreen->name);
 	dmxLog(dmxWarning,
-	       "attached screen data (%s)\n",
-	       oldDMXScreen.name);
+	       "attached screen data\n");
 	dmxLog(dmxWarning,
 	       "All data must match in order to attach to screen #%d\n",
 	       idx);
