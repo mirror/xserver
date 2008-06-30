@@ -67,6 +67,13 @@
 #include <X11/extensions/dmxproto.h>  /* For DMX_BAD_* */
 #include "cursorstr.h"
 
+#define dmxErrorSet(set, error, name, fmt, ...)       \
+    if (set) (*set) (error, name, fmt, ##__VA_ARGS__)
+
+#define dmxLogErrorSet(type, set, error, name, fmt, ...) \
+    dmxLog (type, fmt "\n", ##__VA_ARGS__);		 \
+    dmxErrorSet (set, error, name, fmt, ##__VA_ARGS__)
+
 /* The default font is declared in dix/globals.c, but is not included in
  * _any_ header files. */
 extern FontPtr  defaultFont;
@@ -1232,7 +1239,11 @@ static void dmxForceExposures(int idx)
 }
 
 /** Compare the new and old screens to see if they are compatible. */
-static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
+static Bool dmxCompareScreens(DMXScreenInfo      *new,
+			      DMXScreenInfo      *old,
+			      dmxErrorSetProcPtr errorSet,
+			      void		 *error,
+			      const char         *errorName)
 {
     int i;
 
@@ -1245,17 +1256,17 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 
 	if (new->beDepth != old->beDepth)
 	{
-	    dmxLog (dmxWarning,
-		    "New screen depth is not %d\n",
-		    old->beDepth);
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "Screen depth is not %d",
+			    old->beDepth);
 	    return FALSE;
 	}
 
 	if (new->beBPP != old->beBPP)
 	{
-	    dmxLog (dmxWarning,
-		    "New screen BPP is not %d\n",
-		    old->beBPP);
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "Screen BPP is not %d",
+			    old->beBPP);
 	    return FALSE;
 	}
 
@@ -1267,9 +1278,9 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 
 	    if (j == new->beNumDepths)
 	    {
-		dmxLog (dmxWarning,
-			"New screen doesn't support depth %d\n",
-			old->beDepths[i]);
+		dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+				"Screen doesn't support depth %d",
+				old->beDepths[i]);
 		return FALSE;
 	    }
 	}
@@ -1287,12 +1298,12 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 
 	    if (j == new->beNumPixmapFormats)
 	    {
-		dmxLog (dmxWarning,
-			"New screen doesn't support pixmap format "
-			"depth=%d,bits_per_pixel=%d,scanline_pad=%d\n",
-			old->bePixmapFormats[i].depth,
-			old->bePixmapFormats[i].bits_per_pixel,
-			old->bePixmapFormats[i].scanline_pad);
+		dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+				"Screen doesn't support pixmap format "
+				"depth=%d,bits_per_pixel=%d,scanline_pad=%d\n",
+				old->bePixmapFormats[i].depth,
+				old->bePixmapFormats[i].bits_per_pixel,
+				old->bePixmapFormats[i].scanline_pad);
 		return FALSE;
 	    }
 	}
@@ -1318,17 +1329,36 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
 
 	    if (j == new->beNumVisuals)
 	    {
-		dmxLog (dmxWarning,
-			"New screen doesn't support visual "
-			"depth=%d,class=%d,red_mask=%d,green_mask=%d,"
-			"blue_mask=%d,colormap_size=%d,bits_per_rgb=%d\n",
-			old->beVisuals[i].depth,
-			old->beVisuals[i].class,
-			old->beVisuals[i].red_mask,
-			old->beVisuals[i].green_mask,
-			old->beVisuals[i].blue_mask,
-			old->beVisuals[i].colormap_size,
-			old->beVisuals[i].bits_per_rgb);
+		dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+				"Screen doesn't support visual: "
+				"class: %s, "
+				"depth: %d planes, "
+				"available colormap entries: %d%s, "
+				"red/green/blue masks: 0x%lx/0x%lx/0x%lx, "
+				"significant bits in color specification: "
+				"%d bits",
+				old->beVisuals[i].class == StaticGray ?
+				"StaticGray" :
+				old->beVisuals[i].class == GrayScale ?
+				"GrayScale" :
+				old->beVisuals[i].class == StaticColor ?
+				"StaticColor" :
+				old->beVisuals[i].class == PseudoColor ?
+				"PseudoColor" :
+				old->beVisuals[i].class == TrueColor ?
+				"TrueColor" :
+				old->beVisuals[i].class == DirectColor ?
+				"DirectColor" :
+				"Unknown Class",
+				old->beVisuals[i].depth,
+				old->beVisuals[i].colormap_size,
+				(old->beVisuals[i].class == TrueColor ||
+				 old->beVisuals[i].class == DirectColor) ?
+				" per subfield" : "",
+				old->beVisuals[i].red_mask,
+				old->beVisuals[i].green_mask,
+				old->beVisuals[i].blue_mask,
+				old->beVisuals[i].bits_per_rgb);
 		return FALSE;
 	    }
 	}
@@ -1337,48 +1367,178 @@ static Bool dmxCompareScreens(DMXScreenInfo *new, DMXScreenInfo *old)
     }
 #endif
 
-    if (new->beWidth != old->beWidth) return FALSE;
-    if (new->beHeight != old->beHeight) return FALSE;
-    if (new->beDepth != old->beDepth) return FALSE;
-    if (new->beBPP != old->beBPP) return FALSE;
+    if (new->beWidth != old->beWidth || new->beHeight != old->beHeight)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen dimensions are not %dx%d",
+			old->beWidth, old->beHeight);
+	return FALSE;
+    }
+    if (new->beDepth != old->beDepth)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen depth is not %d",
+			old->beDepth);
+	return FALSE;
+    }
+    if (new->beBPP != old->beBPP)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen BPP is not %dx%d",
+			old->beBPP);
+	return FALSE;
+    }
+    if (new->beNumDepths != old->beNumDepths)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen number of depths is not %d",
+			old->beNumDepths);
+	return FALSE;
+    }
 
-    if (new->beNumDepths != old->beNumDepths) return FALSE;
     for (i = 0; i < old->beNumDepths; i++)
-	if (new->beDepths[i] != old->beDepths[i]) return FALSE;
+	if (new->beDepths[i] != old->beDepths[i])
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "Screen depth index %d is not %d",
+			    i, old->beDepths[i]);
+	    return FALSE;
+	}
 
-    if (new->beNumPixmapFormats != old->beNumPixmapFormats) return FALSE;
+    if (new->beNumPixmapFormats != old->beNumPixmapFormats)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen number of pixmap formats is not %d",
+			old->beNumPixmapFormats);
+	return FALSE;
+    }
     for (i = 0; i < old->beNumPixmapFormats; i++) {
 	if (new->bePixmapFormats[i].depth !=
-	    old->bePixmapFormats[i].depth) return FALSE;
+	    old->bePixmapFormats[i].depth)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "depth of screen pixmap format index %d is not %d",
+			    i, old->bePixmapFormats[i].depth);
+	    return FALSE;
+	}
 	if (new->bePixmapFormats[i].bits_per_pixel !=
-	    old->bePixmapFormats[i].bits_per_pixel) return FALSE;
+	    old->bePixmapFormats[i].bits_per_pixel)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "bits_per_pixel of screen pixmap format "
+			    "index %d is not %d",
+			    i, old->bePixmapFormats[i].bits_per_pixel);
+	    return FALSE;
+	}
 	if (new->bePixmapFormats[i].scanline_pad !=
-	    old->bePixmapFormats[i].scanline_pad) return FALSE;
+	    old->bePixmapFormats[i].scanline_pad)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "scanline_pad of screen pixmap format "
+			    "index %d is not %d",
+			    i, old->bePixmapFormats[i].scanline_pad);
+	    return FALSE;
+	}
     }
 
-    if (new->beNumVisuals != old->beNumVisuals) return FALSE;
+    if (new->beNumVisuals != old->beNumVisuals)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen number of visuals is not %d",
+			old->beNumVisuals);
+	return FALSE;
+    }
     for (i = 0; i < old->beNumVisuals; i++) {
 	if (new->beVisuals[i].visualid !=
-	    old->beVisuals[i].visualid) return FALSE;
+	    old->beVisuals[i].visualid)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "visualid of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].visualid);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].screen !=
-	    old->beVisuals[i].screen) return FALSE;
+	    old->beVisuals[i].screen)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "screen of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].screen);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].depth !=
-	    old->beVisuals[i].depth) return FALSE;
+	    old->beVisuals[i].depth)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "depth of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].depth);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].class !=
-	    old->beVisuals[i].class) return FALSE;
+	    old->beVisuals[i].class)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "class of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].class);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].red_mask !=
-	    old->beVisuals[i].red_mask) return FALSE;
+	    old->beVisuals[i].red_mask)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "red_mask of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].red_mask);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].green_mask !=
-	    old->beVisuals[i].green_mask) return FALSE;
+	    old->beVisuals[i].green_mask)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "green_mask of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].green_mask);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].blue_mask !=
-	    old->beVisuals[i].blue_mask) return FALSE;
+	    old->beVisuals[i].blue_mask)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "blue_mask of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].blue_mask);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].colormap_size !=
-	    old->beVisuals[i].colormap_size) return FALSE;
+	    old->beVisuals[i].colormap_size)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "colormap_size of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].colormap_size);
+	    return FALSE;
+	}
 	if (new->beVisuals[i].bits_per_rgb !=
-	    old->beVisuals[i].bits_per_rgb) return FALSE;
+	    old->beVisuals[i].bits_per_rgb)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "bits_per_rgb of screen visual "
+			    "index %d is not %d",
+			    i, old->beVisuals[i].bits_per_rgb);
+	    return FALSE;
+	}
     }
 
-    if (new->beDefVisualIndex != old->beDefVisualIndex) return FALSE;
+    if (new->beDefVisualIndex != old->beDefVisualIndex)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Screen default visual index is not %d",
+			old->beDefVisualIndex);
+	return FALSE;
+    }
 
     return TRUE;
 }
@@ -1551,7 +1711,10 @@ dmxAttachScreen (int                    idx,
 		 DMXScreenAttributesPtr attr,
 		 const char             *authType,
 		 const char             *authData,
-		 int                    authDataLen)
+		 int                    authDataLen,
+		 dmxErrorSetProcPtr     errorSet,
+		 void			*error,
+		 const char             *errorName)
 {
     ScreenPtr      pScreen;
     DMXScreenInfo *dmxScreen;
@@ -1569,19 +1732,28 @@ dmxAttachScreen (int                    idx,
 	       "add the \"-addremovescreens\" option either to the command\n");
 	dmxLog(dmxWarning,
 	       "line or in the configuration file.\n");
+	dmxErrorSet (errorSet, error, errorName,
+		     "Screen attach extension has not been enabled");
 	return 1;
     }
 
     /* Cannot add a screen that does not exist */
-    if (idx < 0 || idx >= dmxNumScreens) return 1;
+    if (idx < 0 || idx >= dmxNumScreens)
+    {
+	dmxErrorSet (errorSet, error, errorName,
+		     "Screen %d does not exist", idx);
+	return 1;
+    }
+
     pScreen = screenInfo.screens[idx];
     dmxScreen = &dmxScreens[idx];
 
     /* Cannot attach to a screen that is already opened */
     if (dmxScreen->beDisplay) {
-	dmxLog(dmxWarning,
-	       "Attempting to add screen #%d but a screen already exists\n",
-	       idx);
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Attempting to add screen #%d but a screen "
+			"already exists",
+			idx);
 	return 1;
     }
 
@@ -1599,9 +1771,9 @@ dmxAttachScreen (int                    idx,
 
     /* Open display and get all of the screen info */
     if (!dmxOpenDisplay(dmxScreen)) {
-	dmxLog(dmxWarning,
-               "dmxOpenDisplay: Unable to open display %s\n",
-               dmxScreen->name);
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"Can't open display: %s",
+			dmxScreen->name);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1675,7 +1847,8 @@ dmxAttachScreen (int                    idx,
     }
 
     if (!dmxGetVisualInfo(dmxScreen)) {
-	dmxLog(dmxWarning, "dmxGetVisualInfo: No matching visuals found\n");
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"No matching visuals found");
 	XFree(dmxScreen->beVisuals);
 	XLIB_PROLOGUE (dmxScreen);
 	XCloseDisplay(dmxScreen->beDisplay);
@@ -1691,7 +1864,8 @@ dmxAttachScreen (int                    idx,
 
     /* Verify that the screen to be added has the same info as the
      * previously added screen. */
-    if (!dmxCompareScreens(dmxScreen, &oldDMXScreen)) {
+    if (!dmxCompareScreens(dmxScreen, &oldDMXScreen, errorSet, error, errorName))
+    {
 	dmxLog(dmxWarning,
 	       "New screen data (%s) does not match previously\n",
 	       dmxScreen->name);
@@ -1716,6 +1890,7 @@ dmxAttachScreen (int                    idx,
     /* Create the default font */
     if (!dmxBELoadFont(pScreen, defaultFont))
     {
+	dmxErrorSet (errorSet, error, errorName, "Failed to load default font");
 	XFree(dmxScreen->beVisuals);
 	XFree(dmxScreen->beDepths);
 	XFree(dmxScreen->bePixmapFormats);
@@ -1783,8 +1958,14 @@ dmxAttachScreen (int                    idx,
 
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
+    {
 	if (dmxConfigureScreenWindows(1, &scrnNum, attr, NULL))
+	{
+	    dmxErrorSet (errorSet, error, errorName,
+			 "Failed to configure screen windows");
 	    return 1;
+	}
+    }
 #endif
 
 #ifdef RANDR

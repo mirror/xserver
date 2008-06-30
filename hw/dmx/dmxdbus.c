@@ -136,7 +136,10 @@ handle_attach_screen (DBusMessage *message,
 			   &attr,
 			   auth_type,
 			   data,
-			   size);
+			   size,
+			   (dmxErrorSetProcPtr) dbus_set_error,
+			   error,
+			   DBUS_ERROR_FAILED);
 
     free (data);
 
@@ -368,8 +371,9 @@ message_handler (DBusConnection *connection,
 	dbus_message_unref (reply);
 
 	reply = dbus_message_new_error_printf (message,
-					       DBUS_ERROR_FAILED,
-					       "XError: %d", ret);
+					       error.name,
+					       error.message);
+
 	if (!reply)
 	{
 	    ErrorF ("[dmx/dbus] failed to create reply\n");
