@@ -156,7 +156,7 @@ static int dmxPropertyCheckOtherServers(DMXScreenInfo *dmxScreen, Atom atom)
                     ++retcode;
                     dmxLogOutputWarning(dmxScreen,
                                         "%s also running on %s\n",
-                                        tp.value, dmxScreen->name);
+                                        tp.value, dmxScreen->display);
                     list = xrealloc(list, ++count * sizeof(*list));
                     list[count-1] = xalloc(tp.nitems + 2);
                     strncpy(list[count-1], (char *)tp.value, tp.nitems + 1);
@@ -203,7 +203,7 @@ static DMXScreenInfo *dmxPropertyCheckOtherWindows(DMXScreenInfo *dmxScreen,
             Window win = strtol(pt+1, NULL, 10);
             if (XGetTextProperty(dpy, win, &tp, atom) && tp.nitems) {
                 dmxLog(dmxDebug,"On %s/%lu: %s\n",
-                       dmxScreen->name, win, tp.value);
+                       dmxScreen->display, win, tp.value);
                 if (!strncmp((char *)tp.value, (char *)id,
                              strlen((char *)id))) {
                     int idx;
@@ -267,12 +267,12 @@ int dmxPropertySameDisplay(DMXScreenInfo *dmxScreen, const char *name)
     tp1.nitems = 0;
 
     if ((atom0 = XInternAtom(dpy0, DMX_ATOMNAME, True)) == None) {
-        dmxLog(dmxWarning, "No atom on %s\n", dmxScreen->name);
+        dmxLog(dmxWarning, "No atom on %s\n", dmxScreen->display);
         return 0;
     }
     if (!XGetTextProperty(dpy0, RootWindow(dpy0,0), &tp0, atom0)
         || !tp0.nitems) {
-        dmxLog(dmxWarning, "No text property on %s\n", dmxScreen->name);
+        dmxLog(dmxWarning, "No text property on %s\n", dmxScreen->display);
         return 0;
     }
 
@@ -332,8 +332,8 @@ void dmxPropertyWindow(DMXScreenInfo *dmxScreen)
         dmxScreen->next    = (other->next ? other->next : other);
         other->next        = (tmp         ? tmp         : dmxScreen);
         dmxLog(dmxDebug, "%d/%s/%lu and %d/%s/%lu are on the same backend\n",
-               dmxScreen->index, dmxScreen->name, dmxScreen->scrnWin,
-               other->index, other->name, other->scrnWin);
+               dmxScreen->index, dmxScreen->display, dmxScreen->scrnWin,
+               other->index, other->display, other->scrnWin);
     }
 
     XmuSnprintf(buf, sizeof(buf), ".%d,%lu", dmxScreen->index,

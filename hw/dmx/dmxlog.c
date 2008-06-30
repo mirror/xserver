@@ -125,12 +125,12 @@ static void dmxHeader(dmxLogLevel logLevel, DMXInputInfo *dmxInput,
     }
 
     if (dmxInput && dmxScreen) {
-        ErrorF("(%s) dmx[i%d/%s;o%d/%s]: ", type,
+        ErrorF("(%s) dmx[i%d/%s;o%d/%s/%s]: ", type,
                dmxInput->inputIdx, dmxInput->name,
-               dmxScreen->index, dmxScreen->name);
+               dmxScreen->index, dmxScreen->display, dmxScreen->name);
     } else if (dmxScreen) {
-        ErrorF("(%s) dmx[o%d/%s]: ", type,
-               dmxScreen->index, dmxScreen->name);
+        ErrorF("(%s) dmx[o%d/%s/%s]: ", type,
+               dmxScreen->index, dmxScreen->display, dmxScreen->name);
     } else if (dmxInput) {
         const char *pt = strchr(dmxInput->name, ',');
         int        len = (pt

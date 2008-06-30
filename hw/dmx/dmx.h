@@ -98,7 +98,8 @@ typedef struct _DMXStatInfo DMXStatInfo;
 
 /** Global structure containing information about each backend screen. */
 typedef struct _DMXScreenInfo {
-    char          *name;          /**< Name from command line or config file */
+    char          *name;          /**< Name that uniquely identifies screen  */
+    char          *display;       /**< Name from command line or config file */
     int           index;          /**< Index into dmxScreens global          */
 
     /*---------- Back-end X server information ----------*/

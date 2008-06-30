@@ -35,7 +35,7 @@
 #include "dmxdbus.h"
 #include "dmxextension.h"
 
-#define API_VERSION 1
+#define API_VERSION 2
 
 #define MATCH_RULE "type='method_call',interface='org.x.config.dmx'"
 #define MALFORMED_MSG "[dmx/dbus] malformed message, dropping"
@@ -84,8 +84,6 @@ handle_attach_screen (DBusMessage *message,
 
     if (!dbus_message_get_args (message,
 				error,
-				DBUS_TYPE_UINT32,
-				&screen,
 				DBUS_TYPE_STRING,
 				&display,
 				DBUS_TYPE_STRING,
@@ -100,22 +98,26 @@ handle_attach_screen (DBusMessage *message,
 	return BadValue;
     }
 
+    for (screen = 0; screen < dmxGetNumScreens (); screen++)
+    {
+	dmxGetScreenAttributes (screen, &attr);
+
+	if (!attr.name || !*attr.name)
+	    break;
+    }
+
+    if (screen == dmxGetNumScreens ())
+    {
+	dbus_set_error (error,
+			DBUS_ERROR_FAILED,
+			"Maximum number of attached screens reached");
+	return BadMatch;
+    }
+
     memset (&attr, 0, sizeof (attr));
 
+    attr.name        = name;
     attr.displayName = display;
-
-    if (screen >= dmxGetNumScreens ())
-    {
-	DMXScreenAttributesRec attribs;
-
-	for (screen = 0; screen < dmxGetNumScreens (); screen++)
-	{
-	    dmxGetScreenAttributes (screen, &attribs);
-
-	    if (!attribs.displayName || !*attribs.displayName)
-		break;
-	}
-    }
 
     size = strlen (auth_data) / 2;
     data = ptr = malloc (size);
@@ -222,10 +224,10 @@ detach_screen (DBusMessage *message,
 
 	dmxGetScreenAttributes (screen, &attribs);
 
-	if (!attribs.displayName || !*attribs.displayName)
+	if (!attribs.name || !*attribs.name)
 	    continue;
 
-	if (strcmp (attribs.displayName, name) == 0)
+	if (strcmp (attribs.name, name) == 0)
 	    break;
     }
 
@@ -262,7 +264,7 @@ list_screens (DBusMessage *message,
 
 	dmxGetScreenAttributes (screen, &attribs);
 
-	if (!attribs.displayName || !*attribs.displayName)
+	if (!attribs.name || !*attribs.name)
 	    continue;
 
         if (!dbus_message_iter_open_container (&iter,
@@ -284,7 +286,7 @@ list_screens (DBusMessage *message,
 
         if (!dbus_message_iter_append_basic (&subiter,
 					     DBUS_TYPE_STRING,
-					     &attribs.displayName))
+					     &attribs.name))
 	{
             ErrorF("[dmx/dbus] couldn't append to iterator\n");
             return BadAlloc;

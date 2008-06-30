@@ -687,22 +687,37 @@ static void dmxWakeupHandler(pointer blockData, int result, pointer pReadMask)
 
 static char *dmxMakeUniqueDeviceName(DMXLocalInputInfoPtr dmxLocal)
 {
-    static int           k = 0;
-    static int           m = 0;
-    static int           o = 0;
-    static unsigned long dmxGeneration = 0;
-#define LEN  32
-    char *               buf = xalloc(LEN);
+    DMXInputInfo *dmxInput = &dmxInputs[dmxLocal->inputIdx];
+    char         *buf;
 
-    if (dmxGeneration != serverGeneration) {
-        k = m = o     = 0;
-        dmxGeneration = serverGeneration;
-    }
+#define LEN 32
 
-    switch (dmxLocal->type) {
-    case DMX_LOCAL_KEYBOARD: XmuSnprintf(buf, LEN, "Keyboard%d", k++); break;
-    case DMX_LOCAL_MOUSE:    XmuSnprintf(buf, LEN, "Mouse%d", m++);    break;
-    default:                 XmuSnprintf(buf, LEN, "Other%d", o++);    break;
+    buf = xalloc (strlen (dmxInput->name) + LEN);
+    if (buf)
+    {
+	switch (dmxLocal->type) {
+	case DMX_LOCAL_KEYBOARD:
+	    if (dmxInput->k)
+		sprintf (buf, "%s's keyboard%d", dmxInput->name, dmxInput->k);
+	    else
+		sprintf (buf, "%s's keyboard", dmxInput->name);
+	    dmxInput->k++;
+	    break;
+	case DMX_LOCAL_MOUSE:
+	    if (dmxInput->m)
+		sprintf (buf, "%s's pointer%d", dmxInput->name, dmxInput->m);
+	    else
+		sprintf (buf, "%s's pointer", dmxInput->name);
+	    dmxInput->m++;
+	    break;
+	default:
+	    if (dmxInput->o)
+		sprintf (buf, "%s's input device%d", dmxInput->name, dmxInput->o);
+	    else
+		sprintf (buf, "%s's input device", dmxInput->name);
+	    dmxInput->o++;
+	    break;
+	}
     }
 
     return buf;
@@ -956,6 +971,8 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     int                  doWindows          = 1; /* On by default */
     int                  hasXkb             = 0;
 
+    dmxInput->k = dmxInput->m = dmxInput->o = 0;
+
     a = dmxArgParse(dmxInput->name);
 
     for (i = 1; i < dmxArgC(a); i++) {
@@ -1090,6 +1107,8 @@ static void dmxInputFini(DMXInputInfo *dmxInput)
     xfree(dmxInput->devs);
     dmxInput->devs    = NULL;
     dmxInput->numDevs = 0;
+
+    dmxInput->k = dmxInput->m = dmxInput->o = 0;
 }
 
 /** Free all of the memory associated with \a dmxInput */

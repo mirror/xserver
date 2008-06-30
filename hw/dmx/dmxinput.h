@@ -127,6 +127,8 @@ struct _DMXInputInfo {
     char                    *keycodes; /**< XKB keycodes from command line */
     char                    *symbols;  /**< XKB symbols from command line */
     char                    *geometry; /**< XKB geometry from command line */
+
+    int                     k, m, o;
 };
 
 extern int                  dmxNumInputs; /**< Number of #dmxInputs */

@@ -206,7 +206,7 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
              * dmxSyncCallback must have been called. */
             if (dmxSyncPending)
                 dmxLog(dmxFatal, "dmxSync(%s,%d): dmxSyncPending = %d\n",
-                       dmxScreen ? dmxScreen->name : "", now, dmxSyncPending);
+                       dmxScreen ? dmxScreen->display : "", now, dmxSyncPending);
         } else {
             dmxScreen->needsSync = TRUE;
             if (dmxSyncPending == 1)

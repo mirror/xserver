@@ -169,10 +169,11 @@ static Bool
 dmxSetupAuth (char *name, int authFd)
 {
     Xauth   auth;
-    int	    randomFd;
+    int	    randomFd, i;
     ssize_t bytes, size;
     char    authHost[256];
     char    authData[AUTH_DATA_LEN];
+    char    realProg[PATH_MAX], buf[PATH_MAX];
     FILE    *file;
 
     auth.family = FamilyLocal;
@@ -240,7 +241,22 @@ dmxSetupAuth (char *name, int authFd)
     XauWriteAuth (file, &auth);
     fclose (file);
 
-    dmxConfigStoreDisplay (xbeDisplay,
+    strcpy (realProg, xbeProg);
+
+#define MAX_SYMLINKS 32
+
+    for (i = 0; i < MAX_SYMLINKS; i++)
+    {
+	size = readlink (realProg, buf, sizeof (buf) - 1);
+	if (size == -1)
+	    break;
+	
+	memcpy (realProg, buf, size);
+	realProg[size] = '\0';
+    }
+    
+    dmxConfigStoreDisplay (basename (realProg),
+			   xbeDisplay,
 			   auth.name,
 			   auth.data,
 			   auth.data_length);
@@ -302,7 +318,7 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
 
     xbeDisplay = xbeDisplayBuf;
     sprintf (xbeDisplay, ":%d", xbeDisplayOffset + atoi (display));
-
+    
     if (index)
     {
 	int i;

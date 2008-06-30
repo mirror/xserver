@@ -269,7 +269,7 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 {
     dmxScreen->beDisplay = NULL;
 
-    if (!dmxScreen->name || !*dmxScreen->name)
+    if (!dmxScreen->display || !*dmxScreen->display)
 	return FALSE;
 
     if (dmxScreen->authType && *dmxScreen->authType)
@@ -278,7 +278,7 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 			   dmxScreen->authData,
 			   dmxScreen->authDataLen);
 
-    if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->name)))
+    if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->display)))
 	return FALSE;
 
     /* XSynchronize (dmxScreen->beDisplay, TRUE); */
@@ -583,10 +583,10 @@ static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 {
     if (!dmxOpenDisplay(dmxScreen))
     {
-	if (dmxScreen->name && *dmxScreen->name)
+	if (dmxScreen->display && *dmxScreen->display)
 	    dmxLog(dmxWarning,
 		   "dmxOpenDisplay: Unable to open display %s\n",
-		   dmxScreen->name);
+		   dmxScreen->display);
 
 	dmxScreen->scrnWidth  = 1;
 	dmxScreen->scrnHeight = 1;
@@ -725,7 +725,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
         for (i = 0; i < dmxNumScreens; i++) {
             if (dmxScreens[i].beDisplay)
                 dmxLog(dmxWarning, "Display \"%s\" still open\n",
-                       dmxScreens[i].name);
+                       dmxScreens[i].display);
             dmxStatFree(dmxScreens[i].stat);
             dmxScreens[i].stat = NULL;
         }
@@ -786,7 +786,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 	if (!dmxDisplayInit(&dmxScreens[i]) && i == 0)
 	    dmxLog(dmxFatal,
 		   "dmxOpenDisplay: Unable to open display %s\n",
-		   dmxScreens[i].name);
+		   dmxScreens[i].display);
 
 #if PANORAMIX
     /* Register a Xinerama callback which will run from within
@@ -1017,7 +1017,7 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     }
     
     if (!strcmp(argv[i], "-display")) {
-	if (++i < argc) dmxConfigStoreDisplay(argv[i], NULL, NULL, 0);
+	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i], NULL, NULL, 0);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);

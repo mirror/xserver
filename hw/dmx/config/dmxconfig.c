@@ -61,6 +61,7 @@ static char *dmxXkbOptions;
 /** Stores lists of configuration information. */
 typedef struct DMXConfigListStruct {
     const char                 *name;
+    const char                 *display;
     const char                 *v0, *v1;
     int                        v2;
     struct DMXConfigListStruct *next;
@@ -84,14 +85,16 @@ static int dmxNumDetached = 4;
 /** Make a note that \a display is the name of an X11 display that
  * should be initialized as a backend (output) display.  Called from
  * #ddxProcessArgument. */
-void dmxConfigStoreDisplay(const char *display,
+void dmxConfigStoreDisplay(const char *name,
+			   const char *display,
 			   const char *authType,
 			   const char *authData,
 			   int        authDataLen)
 {
     DMXConfigListPtr entry = malloc(sizeof(*entry));
 
-    entry->name = strdup (display);
+    entry->name = strdup (name);
+    entry->display = strdup (display);
     entry->v0 = authType ? strdup (authType) : NULL;
     entry->v1 = dmxAuthDataCopy (authData, authDataLen);
     entry->v2 = authDataLen;
@@ -189,6 +192,7 @@ static const char *dmxConfigMatch(const char *target, DMXConfigEntryPtr entry)
 }
 
 static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
+					  const char *display,
 					  const char *authType,
 					  const char *authData,
 					  int        authDataLen,
@@ -206,10 +210,11 @@ static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
         dmxLog(dmxFatal,
                "dmxConfigAddDisplay: realloc failed for screen %d (%s)\n",
                dmxNumScreens, name);
-    
+
     dmxScreen = &dmxScreens[dmxNumScreens];
     memset(dmxScreen, 0, sizeof(*dmxScreen));
     dmxScreen->name        = strdup (name);
+    dmxScreen->display     = strdup (display);
     dmxScreen->index       = dmxNumScreens;
     dmxScreen->scrnWidth   = scrnWidth;
     dmxScreen->scrnHeight  = scrnHeight;
@@ -255,6 +260,7 @@ static void dmxConfigCopyFromDisplay(DMXConfigDisplayPtr d)
     DMXScreenInfo *dmxScreen;
 
     dmxScreen         = dmxConfigAddDisplay(d->name,
+					    d->name,
 					    NULL, NULL, 0,
                                             d->scrnWidth, d->scrnHeight,
                                             d->scrnX,     d->scrnY,
@@ -281,7 +287,7 @@ static void dmxConfigCopyFromWall(DMXConfigWallPtr w)
     }
 
     for (pt = w->nameList; pt; pt = pt->next) {
-        dmxScreen = dmxConfigAddDisplay(pt->string, NULL, NULL, 0,
+        dmxScreen = dmxConfigAddDisplay(pt->string, pt->string, NULL, NULL, 0,
 					w->width, w->height,
                                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         if (pt == w->nameList) { /* Upper left */
@@ -388,6 +394,7 @@ static void dmxConfigFromCommandLine(void)
     dmxLog(dmxInfo, "Using configuration from command line\n");
     for (pt = dmxConfigCmd.displays; pt; pt = pt->next) {
 	DMXScreenInfo *dmxScreen = dmxConfigAddDisplay(pt->name,
+						       pt->display,
 						       pt->v0,
 						       pt->v1,
 						       pt->v2,
@@ -416,7 +423,7 @@ static void dmxConfigFromCommandLine(void)
 
 	while (dmxNumDetached--)
 	{
-	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("", NULL, NULL, 0,
+	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("", "", NULL, NULL, 0,
 							    0, 0, 0, 0, 0, 0,
 							    0, 0, 0, 0, 0, 0);
 	    dmxScreen->where  = PosAbsolute;
@@ -454,7 +461,10 @@ static void dmxConfigConfigInputs(void)
         for (pt = dmxConfigCmd.inputs; pt; pt = pt->next)
             dmxConfigAddInput(pt->name, TRUE);
     } else if (dmxNumScreens) { /* Use first display */
-        dmxConfigAddInput(dmxScreens[0].name, TRUE);
+	DMXInputInfo *dmxInput;
+	dmxInput = dmxConfigAddInput(xstrdup (dmxScreens[0].name), TRUE);
+	dmxInput->freename = TRUE;
+	dmxInput->scrnIdx = 0;
     } else {                     /* Use dummy */
         dmxConfigAddInput("dummy", TRUE);
     }

@@ -87,7 +87,8 @@ Bool dmxGetScreenAttributes(int physical, DMXScreenAttributesPtr attr)
     if (physical < 0 || physical >= dmxNumScreens) return FALSE;
 
     dmxScreen = &dmxScreens[physical];
-    attr->displayName         = dmxScreen->name;
+    attr->name                = dmxScreen->name;
+    attr->displayName         = dmxScreen->display;
 #ifdef PANORAMIX
     attr->logicalScreen       = noPanoramiXExtension ? dmxScreen->index : 0;
 #else
@@ -1762,8 +1763,13 @@ dmxAttachScreen (int                    idx,
     /* Save old info */
     oldDMXScreen = *dmxScreen;
 
-    /* Copy the name to the new screen */
-    dmxScreen->name = strdup(attr->displayName);
+    /* Copy the display name to the new screen */
+    dmxScreen->display = strdup(attr->displayName);
+
+    if (attr->name)
+	dmxScreen->name = strdup(attr->name);
+    else
+	dmxScreen->name = strdup(attr->displayName);
 
     dmxScreen->authType = authType ? strdup (authType) : NULL;
     dmxScreen->authData = dmxAuthDataCopy (authData, authDataLen);
@@ -1773,7 +1779,7 @@ dmxAttachScreen (int                    idx,
     if (!dmxOpenDisplay(dmxScreen)) {
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
 			"Can't open display: %s",
-			dmxScreen->name);
+			dmxScreen->display);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -2406,6 +2412,12 @@ int dmxDetachScreen(int idx)
     {
 	free (dmxScreen->name);
 	dmxScreen->name = NULL;
+    }
+
+    if (dmxScreen->display)
+    {
+	free (dmxScreen->display);
+	dmxScreen->display = NULL;
     }
 
     if (dmxScreen->authType)

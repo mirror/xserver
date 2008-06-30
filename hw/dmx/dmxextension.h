@@ -42,6 +42,7 @@
 /** Screen attributes.  Used by #ProcDMXGetScreenAttributes and
  * #ProcDMXChangeScreenAttributes. */
 typedef struct {
+    const char   *name;
     const char   *displayName;
     int          logicalScreen;
 
