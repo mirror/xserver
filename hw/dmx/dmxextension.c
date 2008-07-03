@@ -1322,9 +1322,9 @@ static Bool dmxCompareScreens(DMXScreenInfo      *new,
 		    old->beVisuals[i].green_mask &&
 		    new->beVisuals[j].blue_mask ==
 		    old->beVisuals[i].blue_mask &&
-		    new->beVisuals[j].colormap_size ==
+		    new->beVisuals[j].colormap_size >=
 		    old->beVisuals[i].colormap_size &&
-		    new->beVisuals[j].bits_per_rgb ==
+		    new->beVisuals[j].bits_per_rgb >=
 		    old->beVisuals[i].bits_per_rgb)
 		    break;
 
