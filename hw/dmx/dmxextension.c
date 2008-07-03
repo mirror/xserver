@@ -1253,7 +1253,7 @@ static Bool dmxCompareScreens(DMXScreenInfo      *new,
     {
 	int j;
 
-	old = dmxScreens; /* each new screen must much the first screen */
+	old = dmxScreens; /* each new screen must match the first screen */
 
 	if (new->beDepth != old->beDepth)
 	{
