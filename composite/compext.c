@@ -620,10 +620,8 @@ int (*PanoramiXSaveCompositeVector[CompositeNumberRequests]) (ClientPtr);
 static int
 PanoramiXCompositeRedirectWindow (ClientPtr client)
 {
-    WindowPtr	pWin;
-    int rc;
     PanoramiXRes *win;
-    int result = 0, j;
+    int rc = 0, j;
     REQUEST(xCompositeRedirectWindowReq);
 
     REQUEST_SIZE_MATCH(xCompositeRedirectWindowReq);
@@ -633,30 +631,19 @@ PanoramiXCompositeRedirectWindow (ClientPtr client)
 	return BadWindow;
 
     FOR_NSCREENS_FORWARD(j) {
-	rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
-				RT_WINDOW, client,
-				DixSetAttrAccess | DixManageAccess |
-				DixBlendAccess);
-	if (rc != Success)
-	{
-	    client->errorValue = stuff->window;
-	    return (rc == BadValue) ? BadWindow : rc;
-	}
-
-	result = compRedirectWindow (client, pWin, stuff->update);
-	if(result != Success) break;
+	stuff->window = win->info[j].id;
+	rc = (*PanoramiXSaveCompositeVector[stuff->compositeReqType]) (client);
+	if (rc != Success) break;
     }
 
-    return (result);
+    return (rc);
 }
 
 static int
 PanoramiXCompositeRedirectSubwindows (ClientPtr client)
 {
-    WindowPtr	pWin;
-    int rc;
     PanoramiXRes *win;
-    int result = 0, j;
+    int rc = 0, j;
     REQUEST(xCompositeRedirectSubwindowsReq);
 
     REQUEST_SIZE_MATCH(xCompositeRedirectSubwindowsReq);
@@ -666,29 +653,19 @@ PanoramiXCompositeRedirectSubwindows (ClientPtr client)
 	return BadWindow;
 
     FOR_NSCREENS_FORWARD(j) {
-	rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
-				RT_WINDOW, client,
-				DixSetAttrAccess | DixManageAccess |
-				DixBlendAccess);
-	if (rc != Success)
-	{
-	    client->errorValue = stuff->window;
-	    return (rc == BadValue) ? BadWindow : rc;
-	}
-
-	result = compRedirectSubwindows (client, pWin, stuff->update);
-	if(result != Success) break;
+	stuff->window = win->info[j].id;
+	rc = (*PanoramiXSaveCompositeVector[stuff->compositeReqType]) (client);
+	if (rc != Success) break;
     }
 
-    return (result);
+    return (rc);
 }
 
 static int
 PanoramiXCompositeUnredirectWindow (ClientPtr client)
 {
-    WindowPtr	pWin;
     PanoramiXRes *win;
-    int result = 0, j;
+    int rc = 0, j;
     REQUEST(xCompositeUnredirectWindowReq);
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectWindowReq);
@@ -698,26 +675,19 @@ PanoramiXCompositeUnredirectWindow (ClientPtr client)
 	return BadWindow;
 
     FOR_NSCREENS_FORWARD(j) {
-	pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
-	if (!pWin)
-	{
-	    client->errorValue = stuff->window;
-	    return BadWindow;
-	}
-
-	result = compUnredirectWindow (client, pWin, stuff->update);
-	if(result != Success) break;
+	stuff->window = win->info[j].id;
+	rc = (*PanoramiXSaveCompositeVector[stuff->compositeReqType]) (client);
+	if (rc != Success) break;
     }
 
-    return (result);
+    return (rc);
 }
 
 static int
 PanoramiXCompositeUnredirectSubwindows (ClientPtr client)
 {
-    WindowPtr	pWin;
     PanoramiXRes *win;
-    int result = 0, j;
+    int rc = 0, j;
     REQUEST(xCompositeUnredirectSubwindowsReq);
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectSubwindowsReq);
@@ -727,18 +697,11 @@ PanoramiXCompositeUnredirectSubwindows (ClientPtr client)
 	return BadWindow;
 
     FOR_NSCREENS_FORWARD(j) {
-	pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
-	if (!pWin)
-	{
-	    client->errorValue = stuff->window;
-	    return BadWindow;
-	}
-
-	result = compUnredirectSubwindows (client, pWin, stuff->update);
-	if(result != Success) break;
+	rc = (*PanoramiXSaveCompositeVector[stuff->compositeReqType]) (client);
+	if (rc != Success) break;
     }
 
-    return (result);
+    return (rc);
 }
 
 static int
