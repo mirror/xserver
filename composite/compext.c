@@ -47,13 +47,6 @@
 #include "compint.h"
 #include "xace.h"
 
-#ifdef PANORAMIX
-#include "panoramiX.h"
-extern unsigned long XRT_PIXMAP;
-extern unsigned long XRT_WINDOW;
-extern int           PanoramiXNumScreens;
-#endif
-
 #define SERVER_COMPOSITE_MAJOR	0
 #define SERVER_COMPOSITE_MINOR	4
 
@@ -152,35 +145,6 @@ ProcCompositeRedirectWindow (ClientPtr client)
 
     REQUEST_SIZE_MATCH(xCompositeRedirectWindowReq);
 
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win;
-	int         result = 0, j;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	    return BadWindow;
-
-	FOR_NSCREENS_FORWARD(j) {
-	    rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
-				    RT_WINDOW, client,
-				    DixSetAttrAccess | DixManageAccess |
-				    DixBlendAccess);
-	    if (rc != Success)
-	    {
-		client->errorValue = stuff->window;
-		return (rc == BadValue) ? BadWindow : rc;
-	    }
-
-	    result = compRedirectWindow (client, pWin, stuff->update);
-	    if(result != Success) break;
-	}
-
-	return (result);
-    }
-#endif
-
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixSetAttrAccess|DixManageAccess|DixBlendAccess);
     if (rc != Success)
@@ -200,35 +164,6 @@ ProcCompositeRedirectSubwindows (ClientPtr client)
 
     REQUEST_SIZE_MATCH(xCompositeRedirectSubwindowsReq);
 
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win;
-	int         result = 0, j;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	    return BadWindow;
-
-	FOR_NSCREENS_FORWARD(j) {
-	    rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
-				    RT_WINDOW, client,
-				    DixSetAttrAccess | DixManageAccess |
-				    DixBlendAccess);
-	    if (rc != Success)
-	    {
-		client->errorValue = stuff->window;
-		return (rc == BadValue) ? BadWindow : rc;
-	    }
-
-	    result = compRedirectSubwindows (client, pWin, stuff->update);
-	    if(result != Success) break;
-	}
-
-	return (result);
-    }
-#endif
-
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixSetAttrAccess|DixManageAccess|DixBlendAccess);
     if (rc != Success)
@@ -247,32 +182,6 @@ ProcCompositeUnredirectWindow (ClientPtr client)
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectWindowReq);
 
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win;
-	int         result = 0, j;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	    return BadWindow;
-
-	FOR_NSCREENS_FORWARD(j) {
-	    pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
-	    if (!pWin)
-	    {
-		client->errorValue = stuff->window;
-		return BadWindow;
-	    }
-
-	    result = compUnredirectWindow (client, pWin, stuff->update);
-	    if(result != Success) break;
-	}
-
-	return (result);
-    }
-#endif
-
     pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
     if (!pWin)
     {
@@ -289,32 +198,6 @@ ProcCompositeUnredirectSubwindows (ClientPtr client)
     REQUEST(xCompositeUnredirectSubwindowsReq);
 
     REQUEST_SIZE_MATCH(xCompositeUnredirectSubwindowsReq);
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win;
-	int         result = 0, j;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	    return BadWindow;
-
-	FOR_NSCREENS_FORWARD(j) {
-	    pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
-	    if (!pWin)
-	    {
-		client->errorValue = stuff->window;
-		return BadWindow;
-	    }
-
-	    result = compUnredirectSubwindows (client, pWin, stuff->update);
-	    if(result != Success) break;
-	}
-
-	return (result);
-    }
-#endif
 
     pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
     if (!pWin)
@@ -372,76 +255,6 @@ ProcCompositeNameWindowPixmap (ClientPtr client)
 
     REQUEST_SIZE_MATCH(xCompositeNameWindowPixmapReq);
 
-    #ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win, *newPix;
-	int i;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	{
-	    client->errorValue = stuff->window;
-	    return BadWindow;
-	}
-
-	if(!(newPix = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
-	    return BadAlloc;
-
-	LEGAL_NEW_RESOURCE (stuff->pixmap, client);
-
-	newPix->type = XRT_PIXMAP;
-	newPix->u.pix.shared = FALSE;
-	newPix->info[0].id = stuff->pixmap;
-
-	for (i = 1; i < PanoramiXNumScreens; i++)
-	    newPix->info[i].id = FakeClientID (client->index);
-
-	FOR_NSCREENS(i) {
-	    rc = dixLookupResource ((pointer *) &pWin,
-				    win->info[i].id, RT_WINDOW, client,
-				    DixGetAttrAccess);
-	    if (rc != Success)
-	    {
-		client->errorValue = stuff->window;
-		xfree (newPix);
-		return (rc == BadValue) ? BadWindow : rc;
-	    }
-
-	    if (!pWin->viewable)
-	    {
-		xfree (newPix);
-		return BadMatch;
-	    }
-
-	    cw = GetCompWindow (pWin);
-	    if (!cw)
-	    {
-		xfree (newPix);
-		return BadMatch;
-	    }
-
-	    pPixmap = (*pWin->drawable.pScreen->GetWindowPixmap) (pWin);
-	    if (!pPixmap)
-	    {
-		xfree (newPix);
-		return BadMatch;
-	    }
-
-	    if (!AddResource (newPix->info[i].id, RT_PIXMAP,
-			      (pointer) pPixmap))
-		return BadAlloc;
-
-	    ++pPixmap->refcnt;
-	}
-
-	if (!AddResource (stuff->pixmap, XRT_PIXMAP, (pointer) newPix))
-	    return BadAlloc;
-
-	return (client->noClientException);
-    }
-#endif
-
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixGetAttrAccess);
     if (rc != Success)
@@ -490,100 +303,6 @@ ProcCompositeGetOverlayWindow (ClientPtr client)
     int rc;
 
     REQUEST_SIZE_MATCH(xCompositeGetOverlayWindowReq);
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win, *overlayWin = NULL;
-	int i;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	{
-	    client->errorValue = stuff->window;
-	    return BadWindow;
-	}
-
-	cs = GetCompScreen(screenInfo.screens[0]);
-	if (!cs->pOverlayWin)
-	{
-	    if(!(overlayWin = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
-		return BadAlloc;
-
-	    overlayWin->type = XRT_WINDOW;
-	    overlayWin->u.win.root = FALSE;
-	}
-
-	FOR_NSCREENS_BACKWARD(i) {
-	    rc = dixLookupResource((pointer *)&pWin, win->info[i].id,
-				   RT_WINDOW, client,
-				   DixGetAttrAccess);
-	    if (rc != Success)
-	    {
-		client->errorValue = stuff->window;
-		return (rc == BadValue) ? BadWindow : rc;
-	    }
-	    pScreen = pWin->drawable.pScreen;
-
-	    /*
-	     * Create an OverlayClient structure to mark this client's
-	     * interest in the overlay window
-	     */
-	    pOc = compCreateOverlayClient(pScreen, client);
-	    if (pOc == NULL)
-		return BadAlloc;
-
-	    /*
-	     * Make sure the overlay window exists
-	     */
-	    cs = GetCompScreen(pScreen);
-	    if (cs->pOverlayWin == NULL)
-		if (!compCreateOverlayWindow(pScreen))
-		{
-		    FreeResource (pOc->resource, RT_NONE);
-		    return BadAlloc;
-		}
-
-	    rc = XaceHook(XACE_RESOURCE_ACCESS, client,
-			  cs->pOverlayWin->drawable.id,
-			  RT_WINDOW, cs->pOverlayWin, RT_NONE, NULL,
-			  DixGetAttrAccess);
-	    if (rc != Success)
-	    {
-		FreeResource (pOc->resource, RT_NONE);
-		return rc;
-	    }
-	}
-
-	if (overlayWin)
-	{
-	    FOR_NSCREENS(i) {
-		cs = GetCompScreen(screenInfo.screens[i]);
-		overlayWin->info[i].id = cs->pOverlayWin->drawable.id;
-	    }
-
-	    AddResource(overlayWin->info[0].id, XRT_WINDOW, overlayWin);
-	}
-
-	cs = GetCompScreen(screenInfo.screens[0]);
-
-	rep.type = X_Reply;
-	rep.sequenceNumber = client->sequence;
-	rep.length = 0;
-	rep.overlayWin = cs->pOverlayWin->drawable.id;
-
-	if (client->swapped)
-	{
-	    int n;
-	    swaps(&rep.sequenceNumber, n);
-	    swapl(&rep.length, n);
-	    swapl(&rep.overlayWin, n);
-	}
-	(void) WriteToClient(client, sz_xCompositeGetOverlayWindowReply, (char *)&rep);
-
-	return client->noClientException;
-    }
-#endif
 
     rc = dixLookupResource((pointer *)&pWin, stuff->window, RT_WINDOW, client,
 			   DixGetAttrAccess);
@@ -647,44 +366,6 @@ ProcCompositeReleaseOverlayWindow (ClientPtr client)
     CompOverlayClientPtr pOc;
 
     REQUEST_SIZE_MATCH(xCompositeReleaseOverlayWindowReq);
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win;
-	int i;
-
-	if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		 client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
-	{
-	    client->errorValue = stuff->window;
-	    return BadWindow;
-	}
-
-	FOR_NSCREENS_BACKWARD(i) {
-	    pWin = (WindowPtr) LookupIDByType (win->info[i].id, RT_WINDOW);
-	    if (!pWin)
-	    {
-		client->errorValue = stuff->window;
-		return BadWindow;
-	    }
-	    pScreen = pWin->drawable.pScreen;
-
-	    /*
-	     * Has client queried a reference to the overlay window
-	     * on this screen? If not, generate an error.
-	     */
-	    pOc = compFindOverlayClient (pWin->drawable.pScreen, client);
-	    if (pOc == NULL)
-		return BadMatch;
-
-	    /* The delete function will free the client structure */
-	    FreeResource (pOc->resource, RT_NONE);
-	}
-
-	return client->noClientException;
-    }
-#endif
 
     pWin = (WindowPtr) LookupIDByType (stuff->window, RT_WINDOW);
     if (!pWin)
@@ -927,3 +608,394 @@ CompositeExtensionInit (void)
     /* Initialization succeeded */
     noCompositeExtension = FALSE;
 }
+
+#ifdef PANORAMIX
+#include "panoramiX.h"
+extern unsigned long XRT_PIXMAP;
+extern unsigned long XRT_WINDOW;
+extern int           PanoramiXNumScreens;
+
+int (*PanoramiXSaveCompositeVector[CompositeNumberRequests]) (ClientPtr);
+
+static int
+PanoramiXCompositeRedirectWindow (ClientPtr client)
+{
+    WindowPtr	pWin;
+    int rc;
+    PanoramiXRes *win;
+    int result = 0, j;
+    REQUEST(xCompositeRedirectWindowReq);
+
+    REQUEST_SIZE_MATCH(xCompositeRedirectWindowReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	return BadWindow;
+
+    FOR_NSCREENS_FORWARD(j) {
+	rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
+				RT_WINDOW, client,
+				DixSetAttrAccess | DixManageAccess |
+				DixBlendAccess);
+	if (rc != Success)
+	{
+	    client->errorValue = stuff->window;
+	    return (rc == BadValue) ? BadWindow : rc;
+	}
+
+	result = compRedirectWindow (client, pWin, stuff->update);
+	if(result != Success) break;
+    }
+
+    return (result);
+}
+
+static int
+PanoramiXCompositeRedirectSubwindows (ClientPtr client)
+{
+    WindowPtr	pWin;
+    int rc;
+    PanoramiXRes *win;
+    int result = 0, j;
+    REQUEST(xCompositeRedirectSubwindowsReq);
+
+    REQUEST_SIZE_MATCH(xCompositeRedirectSubwindowsReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	return BadWindow;
+
+    FOR_NSCREENS_FORWARD(j) {
+	rc = dixLookupResource ((pointer *) &pWin, win->info[j].id,
+				RT_WINDOW, client,
+				DixSetAttrAccess | DixManageAccess |
+				DixBlendAccess);
+	if (rc != Success)
+	{
+	    client->errorValue = stuff->window;
+	    return (rc == BadValue) ? BadWindow : rc;
+	}
+
+	result = compRedirectSubwindows (client, pWin, stuff->update);
+	if(result != Success) break;
+    }
+
+    return (result);
+}
+
+static int
+PanoramiXCompositeUnredirectWindow (ClientPtr client)
+{
+    WindowPtr	pWin;
+    PanoramiXRes *win;
+    int result = 0, j;
+    REQUEST(xCompositeUnredirectWindowReq);
+
+    REQUEST_SIZE_MATCH(xCompositeUnredirectWindowReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	return BadWindow;
+
+    FOR_NSCREENS_FORWARD(j) {
+	pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
+	if (!pWin)
+	{
+	    client->errorValue = stuff->window;
+	    return BadWindow;
+	}
+
+	result = compUnredirectWindow (client, pWin, stuff->update);
+	if(result != Success) break;
+    }
+
+    return (result);
+}
+
+static int
+PanoramiXCompositeUnredirectSubwindows (ClientPtr client)
+{
+    WindowPtr	pWin;
+    PanoramiXRes *win;
+    int result = 0, j;
+    REQUEST(xCompositeUnredirectSubwindowsReq);
+
+    REQUEST_SIZE_MATCH(xCompositeUnredirectSubwindowsReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+	return BadWindow;
+
+    FOR_NSCREENS_FORWARD(j) {
+	pWin = (WindowPtr) LookupIDByType (win->info[j].id, RT_WINDOW);
+	if (!pWin)
+	{
+	    client->errorValue = stuff->window;
+	    return BadWindow;
+	}
+
+	result = compUnredirectSubwindows (client, pWin, stuff->update);
+	if(result != Success) break;
+    }
+
+    return (result);
+}
+
+static int
+PanoramiXCompositeNameWindowPixmap (ClientPtr client)
+{
+    WindowPtr	    pWin;
+    CompWindowPtr   cw;
+    PixmapPtr	    pPixmap;
+    int rc;
+    PanoramiXRes *win, *newPix;
+    int i;
+    REQUEST(xCompositeNameWindowPixmapReq);
+
+    REQUEST_SIZE_MATCH(xCompositeNameWindowPixmapReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+    {
+	client->errorValue = stuff->window;
+	return BadWindow;
+    }
+
+    if(!(newPix = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
+	return BadAlloc;
+
+    LEGAL_NEW_RESOURCE (stuff->pixmap, client);
+
+    newPix->type = XRT_PIXMAP;
+    newPix->u.pix.shared = FALSE;
+    newPix->info[0].id = stuff->pixmap;
+
+    for (i = 1; i < PanoramiXNumScreens; i++)
+	newPix->info[i].id = FakeClientID (client->index);
+
+    FOR_NSCREENS(i) {
+	rc = dixLookupResource ((pointer *) &pWin,
+				win->info[i].id, RT_WINDOW, client,
+				DixGetAttrAccess);
+	if (rc != Success)
+	{
+	    client->errorValue = stuff->window;
+	    xfree (newPix);
+	    return (rc == BadValue) ? BadWindow : rc;
+	}
+
+	if (!pWin->viewable)
+	{
+	    xfree (newPix);
+	    return BadMatch;
+	}
+
+	cw = GetCompWindow (pWin);
+	if (!cw)
+	{
+	    xfree (newPix);
+	    return BadMatch;
+	}
+
+	pPixmap = (*pWin->drawable.pScreen->GetWindowPixmap) (pWin);
+	if (!pPixmap)
+	{
+	    xfree (newPix);
+	    return BadMatch;
+	}
+
+	if (!AddResource (newPix->info[i].id, RT_PIXMAP,
+			  (pointer) pPixmap))
+	    return BadAlloc;
+
+	++pPixmap->refcnt;
+    }
+
+    if (!AddResource (stuff->pixmap, XRT_PIXMAP, (pointer) newPix))
+	return BadAlloc;
+
+    return (client->noClientException);
+}
+
+
+static int
+PanoramiXCompositeGetOverlayWindow (ClientPtr client)
+{
+    REQUEST(xCompositeGetOverlayWindowReq);
+    xCompositeGetOverlayWindowReply rep;
+    WindowPtr pWin;
+    ScreenPtr pScreen;
+    CompScreenPtr cs;
+    CompOverlayClientPtr pOc;
+    int rc;
+    PanoramiXRes *win, *overlayWin = NULL;
+    int i;
+
+    REQUEST_SIZE_MATCH(xCompositeGetOverlayWindowReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+    {
+	client->errorValue = stuff->window;
+	return BadWindow;
+    }
+
+    cs = GetCompScreen(screenInfo.screens[0]);
+    if (!cs->pOverlayWin)
+    {
+	if(!(overlayWin = (PanoramiXRes *) xalloc(sizeof(PanoramiXRes))))
+	    return BadAlloc;
+
+	overlayWin->type = XRT_WINDOW;
+	overlayWin->u.win.root = FALSE;
+    }
+
+    FOR_NSCREENS_BACKWARD(i) {
+	rc = dixLookupResource((pointer *)&pWin, win->info[i].id,
+			       RT_WINDOW, client,
+			       DixGetAttrAccess);
+	if (rc != Success)
+	{
+	    client->errorValue = stuff->window;
+	    return (rc == BadValue) ? BadWindow : rc;
+	}
+	pScreen = pWin->drawable.pScreen;
+
+	/*
+	 * Create an OverlayClient structure to mark this client's
+	 * interest in the overlay window
+	 */
+	pOc = compCreateOverlayClient(pScreen, client);
+	if (pOc == NULL)
+	    return BadAlloc;
+
+	/*
+	 * Make sure the overlay window exists
+	 */
+	cs = GetCompScreen(pScreen);
+	if (cs->pOverlayWin == NULL)
+	    if (!compCreateOverlayWindow(pScreen))
+	    {
+		FreeResource (pOc->resource, RT_NONE);
+		return BadAlloc;
+	    }
+
+	rc = XaceHook(XACE_RESOURCE_ACCESS, client,
+		      cs->pOverlayWin->drawable.id,
+		      RT_WINDOW, cs->pOverlayWin, RT_NONE, NULL,
+		      DixGetAttrAccess);
+	if (rc != Success)
+	{
+	    FreeResource (pOc->resource, RT_NONE);
+	    return rc;
+	}
+    }
+
+    if (overlayWin)
+    {
+	FOR_NSCREENS(i) {
+	    cs = GetCompScreen(screenInfo.screens[i]);
+	    overlayWin->info[i].id = cs->pOverlayWin->drawable.id;
+	}
+
+	AddResource(overlayWin->info[0].id, XRT_WINDOW, overlayWin);
+    }
+
+    cs = GetCompScreen(screenInfo.screens[0]);
+
+    rep.type = X_Reply;
+    rep.sequenceNumber = client->sequence;
+    rep.length = 0;
+    rep.overlayWin = cs->pOverlayWin->drawable.id;
+
+    if (client->swapped)
+    {
+	int n;
+	swaps(&rep.sequenceNumber, n);
+	swapl(&rep.length, n);
+	swapl(&rep.overlayWin, n);
+    }
+    (void) WriteToClient(client, sz_xCompositeGetOverlayWindowReply, (char *)&rep);
+
+    return client->noClientException;
+}
+
+static int
+PanoramiXCompositeReleaseOverlayWindow (ClientPtr client)
+{
+    REQUEST(xCompositeReleaseOverlayWindowReq);
+    WindowPtr pWin;
+    ScreenPtr pScreen;
+    CompOverlayClientPtr pOc;
+    PanoramiXRes *win;
+    int i;
+
+    REQUEST_SIZE_MATCH(xCompositeReleaseOverlayWindowReq);
+
+    if(!(win = (PanoramiXRes *)SecurityLookupIDByType(
+	     client, stuff->window, XRT_WINDOW, DixUnknownAccess)))
+    {
+	client->errorValue = stuff->window;
+	return BadWindow;
+    }
+
+    FOR_NSCREENS_BACKWARD(i) {
+	pWin = (WindowPtr) LookupIDByType (win->info[i].id, RT_WINDOW);
+	if (!pWin)
+	{
+	    client->errorValue = stuff->window;
+	    return BadWindow;
+	}
+	pScreen = pWin->drawable.pScreen;
+
+	/*
+	 * Has client queried a reference to the overlay window
+	 * on this screen? If not, generate an error.
+	 */
+	pOc = compFindOverlayClient (pWin->drawable.pScreen, client);
+	if (pOc == NULL)
+	    return BadMatch;
+
+	/* The delete function will free the client structure */
+	FreeResource (pOc->resource, RT_NONE);
+    }
+
+    return client->noClientException;
+}
+
+void
+PanoramiXCompositeInit (void)
+{
+    int i;
+
+    for (i = 0; i < CompositeNumberRequests; i++)
+	PanoramiXSaveCompositeVector[i] = ProcCompositeVector[i];
+    /*
+     * Stuff in Xinerama aware request processing hooks
+     */
+    ProcCompositeVector[X_CompositeRedirectWindow] =
+	PanoramiXCompositeRedirectWindow;
+    ProcCompositeVector[X_CompositeRedirectSubwindows] =
+	PanoramiXCompositeRedirectSubwindows;
+    ProcCompositeVector[X_CompositeUnredirectWindow] =
+	PanoramiXCompositeUnredirectWindow;
+    ProcCompositeVector[X_CompositeUnredirectSubwindows] =
+	PanoramiXCompositeUnredirectSubwindows;
+    ProcCompositeVector[X_CompositeNameWindowPixmap] =
+	PanoramiXCompositeNameWindowPixmap;
+    ProcCompositeVector[X_CompositeGetOverlayWindow] =
+	PanoramiXCompositeGetOverlayWindow;
+    ProcCompositeVector[X_CompositeReleaseOverlayWindow] =
+	PanoramiXCompositeReleaseOverlayWindow;
+}
+
+void
+PanoramiXCompositeReset (void)
+{
+    int i;
+
+    for (i = 0; i < CompositeNumberRequests; i++)
+	ProcCompositeVector[i] = PanoramiXSaveCompositeVector[i];
+}
+
+#endif

@@ -319,4 +319,9 @@ CompositeRealChildHead (WindowPtr pWin);
 int
 DeleteWindowNoInputDevices(pointer value, XID wid);
 
+#ifdef PANORAMIX
+void PanoramiXCompositeInit (void);
+void PanoramiXCompositeReset (void);
+#endif
+
 #endif /* _COMPINT_H_ */
