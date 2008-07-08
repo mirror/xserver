@@ -24,7 +24,6 @@
 #include <kdrive-config.h>
 #endif
 #include "kdrive.h"
-#include "kaa.h"
 
 #define DEBUG_OFFSCREEN 0
 #if DEBUG_OFFSCREEN
@@ -308,29 +307,6 @@ KdOffscreenFree (ScreenPtr pScreen, KdOffscreenArea *area)
 
     KdOffscreenValidate (pScreen);
     return area;
-}
-
-void
-KdOffscreenMarkUsed (PixmapPtr pPixmap)
-{
-    KaaPixmapPriv (pPixmap);
-    KdScreenPriv (pPixmap->drawable.pScreen);
-    static int iter = 0;
-
-    if (!pKaaPixmap->area)
-	return;
-
-    /* The numbers here are arbitrary.  We may want to tune these. */
-    pKaaPixmap->area->score += 100;
-    if (++iter == 10) {
-	KdOffscreenArea *area;
-	for (area = pScreenPriv->off_screen_areas; area != NULL;
-	     area = area->next)
-	{
-	    if (area->state == KdOffscreenRemovable)
-		area->score = (area->score * 7) / 8;
-	}
-    }
 }
 
 Bool

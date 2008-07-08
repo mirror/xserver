@@ -275,7 +275,7 @@ EnableDevice(DeviceIntPtr dev)
     ev.time = currentTime.milliseconds;
     ev.devchange = DeviceEnabled;
     ev.deviceid = dev->id;
-    dummyDev.id = 0;
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -339,7 +339,7 @@ DisableDevice(DeviceIntPtr dev)
     ev.time = currentTime.milliseconds;
     ev.devchange = DeviceDisabled;
     ev.deviceid = dev->id;
-    dummyDev.id = 0;
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -379,6 +379,7 @@ ActivateDevice(DeviceIntPtr dev)
     ev.deviceid = dev->id;
 
     memset(&dummyDev, 0, sizeof(DeviceIntRec));
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -937,7 +938,7 @@ RemoveDevice(DeviceIntPtr dev)
         ev.time = currentTime.milliseconds;
         ev.devchange = DeviceRemoved;
         ev.deviceid = deviceid;
-        dummyDev.id = 0;
+        dummyDev.id = MAX_DEVICES;
         SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                               (xEvent *) &ev, 1);
     }
@@ -1734,7 +1735,7 @@ DoSetPointerMapping(ClientPtr client, DeviceIntPtr device, BYTE *map, int n)
         if ((dev->coreEvents || dev == inputInfo.pointer) && dev->button) {
             for (i = 0; i < n; i++) {
                 if ((device->button->map[i + 1] != map[i]) &&
-                    BitIsOn(device->button->down, i + 1)) {
+                        device->button->down[i + 1]) {
                     return MappingBusy;
                 }
             }

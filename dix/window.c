@@ -929,6 +929,7 @@ CrushTree(WindowPtr pWin)
 		(*UnrealizeWindow)(pChild);
 	    }
 	    FreeWindowResources(pChild);
+	    dixFreePrivates(pChild->devPrivates);
 	    xfree(pChild);
 	    if ( (pChild = pSib) )
 		break;
@@ -978,6 +979,7 @@ DeleteWindow(pointer value, XID wid)
 	if (pWin->prevSib)
 	    pWin->prevSib->nextSib = pWin->nextSib;
     }
+    xfree(dixLookupPrivate(&pWin->devPrivates, FocusPrivatesKey));
     dixFreePrivates(pWin->devPrivates);
     xfree(pWin);
     return Success;

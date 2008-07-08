@@ -131,7 +131,7 @@ xf86ProcessCommonOptions(LocalDevicePtr local,
     local->history_size = GetMotionHistorySize();
     /* Preallocate xEvent store */
     if (!xf86Events)
-        xf86Events = (xEvent *)xcalloc(sizeof(xEvent), GetMaximumEventsNum());
+        GetEventList(&xf86Events);
     if (!xf86Events)
         FatalError("Couldn't allocate event store\n");
 }
@@ -467,7 +467,6 @@ DeleteInputDeviceRequest(DeviceIntPtr pDev)
     LocalDevicePtr pInfo = (LocalDevicePtr) pDev->public.devicePrivate;
     InputDriverPtr drv;
     IDevRec *idev;
-    BOOL found;
     IDevPtr *it;
 
     if (pInfo) /* need to get these before RemoveDevice */

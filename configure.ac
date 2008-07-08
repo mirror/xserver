@@ -262,6 +262,8 @@ AM_CONDITIONAL(FREEBSD_KLDLOAD, [test "x$ac_cv_sys_linker_h" = xyes])
 AC_CACHE_CHECK([for SYSV IPC],
 		ac_cv_sysv_ipc,
 		[AC_TRY_LINK([
+#include <sys/types.h>
+#include <sys/ipc.h>
 #include <sys/shm.h>
 ],[
 { 
@@ -379,7 +381,7 @@ case $host_os in
 	AC_DEFINE(PCVT_SUPPORT, 1, [System has PCVT console])
 	AC_DEFINE(SYSCONS_SUPPORT, 1, [System has syscons console])
 	DRI=yes
-	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.1], DRI2=yes, DRI2=no)
+	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.2], DRI2=yes, DRI2=no)
 	;;
   *netbsd*)
 	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
@@ -387,7 +389,7 @@ case $host_os in
 	AC_DEFINE(PCVT_SUPPORT, 1, [System has PCVT console])
 	AC_DEFINE(WSCONS_SUPPORT, 1, [System has wscons console])
 	DRI=yes
-	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.1], DRI2=yes, DRI2=no)
+	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.2], DRI2=yes, DRI2=no)
 	;;
   *openbsd*)
 	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
@@ -396,7 +398,7 @@ case $host_os in
 	;;
   *linux*)
 	DRI=yes
-	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.1], DRI2=yes, DRI2=no)
+	PKG_CHECK_EXISTS([dri2proto >= 1.1 libdrm >= 2.3.2], DRI2=yes, DRI2=no)
 	KDRIVE_HW=yes
 	;;
   *solaris*)
@@ -503,9 +505,9 @@ AC_ARG_ENABLE(install-libxf86config,
 				[Install libxf86config (default: disabled)]),
 				[INSTALL_LIBXF86CONFIG=$enableval],
 				[INSTALL_LIBXF86CONFIG=no])
-AC_ARG_ENABLE(builtin-fonts,  AS_HELP_STRING([--enable-builtin-fonts], [Use only built-in fonts (default: use external)]),
+AC_ARG_ENABLE(builtin-fonts,  AS_HELP_STRING([--enable-builtin-fonts], [Use only built-in fonts (default: yes)]),
                                 [BUILTIN_FONTS=$enableval],
-                                [BUILTIN_FONTS=no])
+                                [BUILTIN_FONTS=yes])
 AC_ARG_ENABLE(null-root-cursor, AS_HELP_STRING([--enable-null-root-cursor], [Use an empty root cursor (default: use core cursor)]),
                                  [NULL_ROOT_CURSOR=$enableval],
                                  [NULL_ROOT_CURSOR=no])
@@ -529,7 +531,6 @@ AC_ARG_ENABLE(registry,       AS_HELP_STRING([--disable-registry], [Build string
 AC_ARG_ENABLE(composite,      AS_HELP_STRING([--disable-composite], [Build Composite extension (default: enabled)]), [COMPOSITE=$enableval], [COMPOSITE=yes])
 AC_ARG_ENABLE(mitshm,         AS_HELP_STRING([--disable-shm], [Build SHM extension (default: enabled)]), [MITSHM=$enableval], [MITSHM=yes])
 AC_ARG_ENABLE(xres,           AS_HELP_STRING([--disable-xres], [Build XRes extension (default: enabled)]), [RES=$enableval], [RES=yes])
-AC_ARG_ENABLE(xtrap,          AS_HELP_STRING([--disable-xtrap], [Build XTrap extension (default: enabled)]), [XTRAP=$enableval], [XTRAP=yes])
 AC_ARG_ENABLE(record,         AS_HELP_STRING([--enable-record], [Build Record extension (default: disabled)]), [RECORD=$enableval], [RECORD=no])
 AC_ARG_ENABLE(xv,             AS_HELP_STRING([--disable-xv], [Build Xv extension (default: enabled)]), [XV=$enableval], [XV=yes])
 AC_ARG_ENABLE(xvmc,           AS_HELP_STRING([--disable-xvmc], [Build XvMC extension (default: enabled)]), [XVMC=$enableval], [XVMC=yes])
@@ -817,13 +818,6 @@ if test "x$MITSHM" = xyes; then
 	AC_DEFINE(HAS_SHM, 1, [Support SHM])
 fi
 
-AM_CONDITIONAL(XTRAP, [test "x$XTRAP" = xyes])
-if test "x$XTRAP" = xyes; then
-	AC_DEFINE(XTRAP, 1, [Support XTrap extension])
-	REQUIRED_MODULES="$REQUIRED_MODULES trapproto"
-	XTRAP_LIB='$(top_builddir)/XTrap/libxtrap.la'
-fi
-
 AM_CONDITIONAL(RECORD, [test "x$RECORD" = xyes])
 if test "x$RECORD" = xyes; then
 	AC_DEFINE(XRECORD, 1, [Support Record extension])
@@ -873,7 +867,7 @@ if test "x$DRI" = xyes; then
 	AC_DEFINE(XF86DRI, 1, [Build DRI extension])
 	PKG_CHECK_MODULES([DRIPROTO], [xf86driproto])
 	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.0])
-	PKG_CHECK_MODULES([GL], [glproto >= 1.4.1 gl >= 7.1.0])
+	PKG_CHECK_MODULES([GL], [glproto >= 1.4.1 dri >= 7.1.0])
 	PKG_CHECK_EXISTS(libdrm >= 2.2.0,
 			 [AC_DEFINE([HAVE_LIBDRM_2_2], 1,
 			 [Has version 2.2 (or newer) of the drm library])])
@@ -888,7 +882,7 @@ if test "x$DRI2" = xyes; then
 	# FIXME: Bump the versions once we have releases of these.
 	AC_DEFINE(DRI2, 1, [Build DRI2 extension])
 	PKG_CHECK_MODULES([DRI2PROTO], [dri2proto >= 1.1])
-	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.1])
+	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.2])
 fi
 
 AM_CONDITIONAL(XINERAMA, [test "x$XINERAMA" = xyes])
@@ -960,7 +954,6 @@ fi
 
 if test "x$BUILTIN_FONTS" = xyes; then
        AC_DEFINE(BUILTIN_FONTS, 1, [Use only built-in fonts])
-       AC_DEFINE(NOFONTSERVERACCESS, 1, [Avoid using a font server])
        FONTPATH="built-ins"
 fi
 
@@ -1117,7 +1110,7 @@ if test "x$SHA1_LIB" = "x" ; then
 	   [Define to use libmd SHA1 functions instead of OpenSSL libcrypto])])
 fi
 if test "x$SHA1_LIB" = "x" ; then
- PKG_CHECK_EXISTS([openssl],
+ AC_CHECK_LIB([crypto], [SHA1_Init], [],
   [PKG_CHECK_MODULES([OPENSSL], [openssl],
    [OPENSSL_LIB_FLAGS=`$PKG_CONFIG --libs-only-L --libs-only-other openssl`])])
  SHA1_LIB="$OPENSSL_LIB_FLAGS -lcrypto"
@@ -1208,7 +1201,7 @@ AC_MSG_RESULT([$XVFB])
 AM_CONDITIONAL(XVFB, [test "x$XVFB" = xyes])
 
 if test "x$XVFB" = xyes; then
-	XVFB_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB"
+	XVFB_LIBS="$FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB"
 	XVFB_SYS_LIBS="$XVFBMODULES_LIBS"
 	AC_SUBST([XVFB_LIBS])
 	AC_SUBST([XVFB_SYS_LIBS])
@@ -1226,7 +1219,7 @@ AC_MSG_RESULT([$XNEST])
 AM_CONDITIONAL(XNEST, [test "x$XNEST" = xyes])
 
 if test "x$XNEST" = xyes; then
-	XNEST_LIBS="$FB_LIB $FIXES_LIB $MI_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RANDR_LIB $RENDER_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $DIX_LIB $OS_LIB $CONFIG_LIB"
+	XNEST_LIBS="$FB_LIB $FIXES_LIB $MI_LIB $XEXT_LIB $DBE_LIB $RECORD_LIB $GLX_LIBS $RANDR_LIB $RENDER_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $DIX_LIB $OS_LIB $CONFIG_LIB"
 	XNEST_SYS_LIBS="$XNESTMODULES_LIBS"
 	AC_SUBST([XNEST_LIBS])
 	AC_SUBST([XNEST_SYS_LIBS])
@@ -1287,8 +1280,6 @@ if test "x$XORG" = xyes; then
 			;;
 		  alpha*)
 		  	linux_alpha=yes
-			XORG_OS_PCI="axp"
-			xorg_bus_linuxpci="no"
 			;;
 		  i*86|amd64*|x86_64*)
 			linux_acpi="yes"
@@ -1590,7 +1581,7 @@ if test "x$XQUARTZ" = xyes; then
 	AC_DEFINE(ROOTLESS,1,[Build Rootless code])
 
 	DARWIN_GLX_LIBS='$(top_builddir)/hw/xquartz/GL/libCGLCore.la $(top_builddir)/glx/libglx.la'
-	DARWIN_LIBS="$MI_LIB $OS_LIB $DIX_LIB $FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB $DARWIN_GLX_LIBS"
+	DARWIN_LIBS="$MI_LIB $OS_LIB $DIX_LIB $FB_LIB $FIXES_LIB $XEXT_LIB $CONFIG_LIB $DBE_LIB $RECORD_LIB $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $XPSTUBS_LIB $DARWIN_GLX_LIBS"
 	AC_SUBST([DARWIN_LIBS])
 
 	AC_CHECK_LIB([Xplugin],[xp_init],[:])
@@ -1632,9 +1623,9 @@ if test "x$DMX" = xyes; then
 		AC_MSG_ERROR([Xdmx build explicitly requested, but required
 		              modules not found.])
 	fi
-	DMX_INCLUDES="$XEXT_INC $RENDER_INC $XTRAP_INC $RECORD_INC"
+	DMX_INCLUDES="$XEXT_INC $RENDER_INC $RECORD_INC"
 	XDMX_CFLAGS="$DMXMODULES_CFLAGS"
-	XDMX_LIBS="$XEXT_LIB $FB_LIB $CONFIG_LIB $RENDER_LIB $XTRAP_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB"
+	XDMX_LIBS="$XEXT_LIB $FB_LIB $CONFIG_LIB $RENDER_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB"
 	XDMX_SYS_LIBS="$DMXMODULES_LIBS"
 	AC_SUBST([XDMX_CFLAGS])
 	AC_SUBST([XDMX_LIBS])
@@ -1760,7 +1751,7 @@ if test "$KDRIVE" = yes; then
     
     KDRIVE_CFLAGS="$XSERVER_CFLAGS -DHAVE_KDRIVE_CONFIG_H $TSLIB_CFLAGS"
 
-    KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $XTRAP_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $OS_LIB"
+    KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $RECORD_LIB $GLX_LIBS $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $OS_LIB"
     KDRIVE_LIB='$(top_builddir)/hw/kdrive/src/libkdrive.a'
     case $host_os in
 	*linux*)
@@ -1829,13 +1820,6 @@ AC_TRY_COMPILE([
 	[ Enable GNU and other extensions to the C environment for glibc])])
 
 AC_DEFINE_DIR(PROJECTROOT, prefix, [Overall prefix])
-
-dnl xorgconfig CLI configuration utility
-if test "x$XORG" = xyes; then
-    PKG_CHECK_MODULES([XORGCONFIG_DEP], [xkbfile x11])
-    AC_SUBST(XORGCONFIG_DEP_CFLAGS)
-    AC_SUBST(XORGCONFIG_DEP_LIBS)
-fi
 
 dnl xorgcfg GUI configuration utility
 AC_ARG_ENABLE(xorgcfg, AS_HELP_STRING([--enable-xorgcfg], 
@@ -1909,7 +1893,6 @@ dix/Makefile
 doc/Makefile
 fb/Makefile
 record/Makefile
-XTrap/Makefile
 config/Makefile
 mi/Makefile
 miext/Makefile
@@ -1971,7 +1954,6 @@ hw/xfree86/utils/gtf/Makefile
 hw/xfree86/utils/ioport/Makefile
 hw/xfree86/utils/kbd_mode/Makefile
 hw/xfree86/utils/xorgcfg/Makefile
-hw/xfree86/utils/xorgconfig/Makefile
 hw/dmx/config/Makefile
 hw/dmx/doc/Makefile
 hw/dmx/examples/Makefile
