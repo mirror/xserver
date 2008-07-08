@@ -57,6 +57,9 @@
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
+#ifdef COMPOSITE
+#include "dmxcomp.h"
+#endif
 #include "dmxextension.h"
 
 #include <X11/Xos.h>                /* For gettimeofday */
@@ -931,6 +934,12 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     /* Initialize the render extension */
     if (!noRenderExtension)
 	dmxInitRender();
+#endif
+
+#ifdef COMPOSITE
+    /* Initialize the composite extension */
+    if (!noCompositeExtension)
+	dmxInitComposite();
 #endif
 
     /* Initialized things that need timer hooks */

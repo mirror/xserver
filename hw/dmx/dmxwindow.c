@@ -746,7 +746,7 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
 	{
 	    XCompositeUnredirectWindow (dmxScreen->beDisplay,
 					pWinPriv->window,
-					CompositeRedirectManual);
+					CompositeRedirectAutomatic);
 	    pWinPriv->beRedirected = FALSE;
 	}
 	XLIB_EPILOGUE (dmxScreen);
@@ -1152,7 +1152,7 @@ dmxDoRedirectWindow(WindowPtr pWindow)
 	XLIB_PROLOGUE (dmxScreen);
 	XCompositeRedirectWindow (dmxScreen->beDisplay,
 				  pWinPriv->window,
-				  CompositeRedirectManual);
+				  CompositeRedirectAutomatic);
 	XLIB_EPILOGUE (dmxScreen);
 	pWinPriv->beRedirected = TRUE;
     }
