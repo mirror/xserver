@@ -389,7 +389,7 @@ ProcCompositeReleaseOverlayWindow (ClientPtr client)
     return client->noClientException;
 }
 
-static int (*ProcCompositeVector[CompositeNumberRequests])(ClientPtr) = {
+int (*ProcCompositeVector[CompositeNumberRequests])(ClientPtr) = {
     ProcCompositeQueryVersion,
     ProcCompositeRedirectWindow,
     ProcCompositeRedirectSubwindows,
