@@ -64,7 +64,7 @@ static int (*dmxSaveRenderVector[RenderNumberRequests])(ClientPtr);
 
 
 static int dmxProcRenderCreateGlyphSet(ClientPtr client);
-static int dmxProcRenderFreeGlyphSet(ClientPtr client);
+static int dmxProcRenderReferenceGlyphSet(ClientPtr client);
 static int dmxProcRenderAddGlyphs(ClientPtr client);
 static int dmxProcRenderFreeGlyphs(ClientPtr client);
 static int dmxProcRenderCompositeGlyphs(ClientPtr client);
@@ -85,6 +85,32 @@ static int dmxGlyphErrorHandler(Display *dpy, XErrorEvent *ev)
     return 0;
 }
 
+unsigned long DMX_GLYPHSET;
+
+static int
+dmxFreeGlyphSet (pointer value,
+		 XID     gid)
+{
+    GlyphSetPtr	glyphSet = (GlyphSetPtr) value;
+
+    if (glyphSet->refcnt <= 2) {
+	dmxGlyphPrivPtr  glyphPriv = DMX_GET_GLYPH_PRIV(glyphSet);
+	int              i;
+
+	for (i = 0; i < dmxNumScreens; i++) {
+	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	    if (dmxScreen->beDisplay) {
+		if (dmxBEFreeGlyphSet(screenInfo.screens[i], glyphSet))
+		    dmxSync(dmxScreen, FALSE);
+	    }
+	}
+
+        MAXSCREENSFREE(glyphPriv->glyphSets);
+    }
+
+    return FreeGlyphSet (value, gid);
+}
 
 /** Initialize the Proc Vector for the RENDER extension.  The functions
  *  here cannot be handled by the mi layer RENDER hooks either because
@@ -96,13 +122,15 @@ void dmxInitRender(void)
 {
     int i;
 
+    DMX_GLYPHSET = CreateNewResourceType (dmxFreeGlyphSet);
+
     for (i = 0; i < RenderNumberRequests; i++)
         dmxSaveRenderVector[i] = ProcRenderVector[i];
 
     ProcRenderVector[X_RenderCreateGlyphSet]
 	= dmxProcRenderCreateGlyphSet;
-    ProcRenderVector[X_RenderFreeGlyphSet]
-	= dmxProcRenderFreeGlyphSet;
+    ProcRenderVector[X_RenderReferenceGlyphSet]
+	= dmxProcRenderReferenceGlyphSet;
     ProcRenderVector[X_RenderAddGlyphs]
 	= dmxProcRenderAddGlyphs;
     ProcRenderVector[X_RenderFreeGlyphs]
@@ -531,15 +559,17 @@ static int dmxProcRenderCreateGlyphSet(ClientPtr client)
 	glyphPriv = DMX_GET_GLYPH_PRIV(glyphSet);
         glyphPriv->glyphSets = NULL;
         MAXSCREENSALLOC_RETURN(glyphPriv->glyphSets, BadAlloc);
+	memset (glyphPriv->glyphSets, 0,
+		sizeof (*glyphPriv->glyphSets) * MAXSCREENS);
+	glyphSet->refcnt++;
+	AddResource (stuff->gsid, DMX_GLYPHSET, glyphSet);
 
 	for (i = 0; i < dmxNumScreens; i++) {
 	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
 	    int beret;
 
-	    if (!dmxScreen->beDisplay) {
-		glyphPriv->glyphSets[i] = 0;
+	    if (!dmxScreen->beDisplay)
 		continue;
-	    }
 
 	    if ((beret = dmxBECreateGlyphSet(i, glyphSet)) != Success) {
 		int  j;
@@ -559,33 +589,24 @@ static int dmxProcRenderCreateGlyphSet(ClientPtr client)
     return ret;
 }
 
-/** Free the previously allocated Glyph Sets for each screen. */
-static int dmxProcRenderFreeGlyphSet(ClientPtr client)
+static int dmxProcRenderReferenceGlyphSet (ClientPtr client)
 {
-    GlyphSetPtr  glyphSet;
-    REQUEST(xRenderFreeGlyphSetReq);
+    int ret;
+    REQUEST(xRenderReferenceGlyphSetReq);
 
-    REQUEST_SIZE_MATCH(xRenderFreeGlyphSetReq);
-    glyphSet = SecurityLookupIDByType(client, stuff->glyphset, GlyphSetType,
-				      DixDestroyAccess);
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
 
-    if (glyphSet && glyphSet->refcnt == 1) {
-	dmxGlyphPrivPtr  glyphPriv = DMX_GET_GLYPH_PRIV(glyphSet);
-	int              i;
+    if (ret == Success)
+    {
+	GlyphSetPtr glyphSet;
 
-	for (i = 0; i < dmxNumScreens; i++) {
-	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
-	    
-	    if (dmxScreen->beDisplay) {
-		if (dmxBEFreeGlyphSet(screenInfo.screens[i], glyphSet))
-		    dmxSync(dmxScreen, FALSE);
-	    }
-	}
-
-        MAXSCREENSFREE(glyphPriv->glyphSets);
+	glyphSet = SecurityLookupIDByType (client, stuff->gsid, GlyphSetType,
+					   DixDestroyAccess);
+	glyphSet->refcnt++;
+	AddResource (stuff->gsid, DMX_GLYPHSET, glyphSet);
     }
 
-    return dmxSaveRenderVector[stuff->renderReqType](client);
+    return ret;
 }
 
 /** Add glyphs to the Glyph Set on each screen. */
