@@ -265,7 +265,7 @@ dmxSetupAuth (char *name, int authFd)
 }
 
 Bool
-dmxLaunchDisplay (int argc, char *argv[], int index)
+dmxLaunchDisplay (int argc, char *argv[], int index, char *vt)
 {
     sighandler_t oldSigUsr1;
     pid_t	 pid;
@@ -348,6 +348,10 @@ dmxLaunchDisplay (int argc, char *argv[], int index)
         if (!dmxAddXbeArguments (defs, sizeof (defs) / sizeof (char *)))
             return FALSE;
     }
+
+    if (vt)
+	if (!dmxAddXbeArguments (&vt, 1))
+	    return FALSE;
 
     if (!dmxAddXbeArguments (&endArg, 1))
 	return FALSE;

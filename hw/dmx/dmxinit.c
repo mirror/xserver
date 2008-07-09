@@ -124,6 +124,7 @@ Bool            dmxIgnoreBadFontPaths = FALSE;
 Bool            dmxAddRemoveScreens = TRUE;
 
 int             dmxLaunchIndex = 0;
+char            *dmxLaunchVT = NULL;
 
 #ifdef DMXVNC
 Bool            dmxVnc = FALSE;
@@ -761,7 +762,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     }
 
     if (!dmxConfigDisplaysFromCommandLine ())
-	dmxLaunchDisplay (argc, argv, dmxLaunchIndex);
+	dmxLaunchDisplay (argc, argv, dmxLaunchIndex, dmxLaunchVT);
 
     /* ddxProcessArgument has been called at this point, but any data
      * from the configuration file has not been applied.  Do so, and be
@@ -1133,8 +1134,8 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     }
     else if ((argv[i][0] == 'v') && (argv[i][1] == 't'))
     {
-	/* ignore vtXX arguments */
-        retval = 1;
+        dmxLaunchVT = argv[i];
+	retval = 1;
     }
     else if (!strcmp(argv[i], "--")) {
         dmxLaunchIndex = i + 1;

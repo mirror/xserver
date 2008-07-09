@@ -26,7 +26,7 @@
 #ifndef DMXLAUNCH_H
 #define DMXLAUNCH_H
 
-extern Bool dmxLaunchDisplay (int argc, char *argv[], int index);
+extern Bool dmxLaunchDisplay (int argc, char *argv[], int index, char *vt);
 extern void dmxAbortDisplay (void);
 
 #endif /* DMXLAUNCH_H */
