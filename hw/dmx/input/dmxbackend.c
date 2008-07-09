@@ -621,15 +621,7 @@ void dmxBackendInit(DevicePtr pDev)
 
     /* Finish initialization using computed values or constants. */
     dmxBackendComputeCenter(priv);
-    priv->eventMask          = (KeyPressMask
-				| KeyReleaseMask
-				| ButtonPressMask
-				| ButtonReleaseMask
-				| EnterWindowMask
-				| LeaveWindowMask
-				| PointerMotionMask
-				| KeymapStateMask
-				| FocusChangeMask);
+    priv->eventMask          = StructureNotifyMask;
     priv->myScreen           = dmxScreen->index;
     priv->lastX              = priv->centerX;
     priv->lastY              = priv->centerY;

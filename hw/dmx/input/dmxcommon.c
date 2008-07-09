@@ -292,10 +292,10 @@ int dmxCommonKbdOn(DevicePtr pDev)
     GETPRIVFROMPDEV;
     if (priv->be) dmxCommonSaveState(priv);
     priv->eventMask |= DMX_KEYBOARD_EVENT_MASK;
-    //XSelectInput(priv->display, priv->window, priv->eventMask);
-//    if (priv->be)
-//        XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
-//                       CurrentTime);
+    XSelectInput(priv->display, priv->window, priv->eventMask);
+    if (priv->be)
+        XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
+                       CurrentTime);
     return -1;
 }
 
@@ -304,7 +304,7 @@ void dmxCommonKbdOff(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
     priv->eventMask &= ~DMX_KEYBOARD_EVENT_MASK;
-    //XSelectInput(priv->display, priv->window, priv->eventMask);
+    XSelectInput(priv->display, priv->window, priv->eventMask);
     dmxCommonRestoreState(priv);
 }
 
@@ -460,10 +460,10 @@ void dmxCommonMouGetMap(DevicePtr pDev, unsigned char *map, int *nButtons)
 
 static void *dmxCommonXSelect(DMXScreenInfo *dmxScreen, void *closure)
 {
-    /* myPrivate *priv = closure;
+    myPrivate *priv = closure;
     XLIB_PROLOGUE (dmxScreen);
     XSelectInput(dmxScreen->beDisplay, dmxScreen->scrnWin, priv->eventMask);
-    XLIB_EPILOGUE (dmxScreen);*/
+    XLIB_EPILOGUE (dmxScreen);
     return NULL;
 }
 

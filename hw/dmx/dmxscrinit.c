@@ -1421,32 +1421,34 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     /* Create root window for screen */
     mask = CWBackPixel | CWEventMask | CWColormap | CWOverrideRedirect;
     attribs.background_pixel = dmxScreen->beBlackPixel;
-    attribs.event_mask = (KeyPressMask
-                          | KeyReleaseMask
-                          | ButtonPressMask
-                          | ButtonReleaseMask
-                          | EnterWindowMask
-                          | LeaveWindowMask
-                          | PointerMotionMask
-                          | KeymapStateMask
-                          | FocusChangeMask);
+    attribs.event_mask = StructureNotifyMask;
     attribs.colormap = dmxScreen->beDefColormaps[dmxScreen->beDefVisualIndex];
     attribs.override_redirect = True;
 
-    
-    dmxScreen->scrnWin =
-	XCreateWindow(dmxScreen->beDisplay, 
-		      DefaultRootWindow(dmxScreen->beDisplay),
-		      dmxScreen->scrnX,
-		      dmxScreen->scrnY,
-		      dmxScreen->scrnWidth,
-		      dmxScreen->scrnHeight,
-		      0,
-		      pScreen->rootDepth,
-		      InputOutput,
-		      dmxScreen->beVisuals[dmxScreen->beDefVisualIndex].visual,
-		      mask,
-		      &attribs);
+    if (!dmxScreen->beUseRoot)
+    {
+	dmxScreen->scrnWin =
+	    XCreateWindow(dmxScreen->beDisplay,
+			  DefaultRootWindow(dmxScreen->beDisplay),
+			  dmxScreen->scrnX,
+			  dmxScreen->scrnY,
+			  dmxScreen->scrnWidth,
+			  dmxScreen->scrnHeight,
+			  0,
+			  pScreen->rootDepth,
+			  InputOutput,
+			  dmxScreen->beVisuals[dmxScreen->beDefVisualIndex].visual,
+			  mask,
+			  &attribs);
+    }
+    else
+    {
+	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+	XSetWindowBackground (dmxScreen->beDisplay, dmxScreen->scrnWin,
+			      attribs.background_pixel);
+	XSelectInput (dmxScreen->beDisplay, dmxScreen->scrnWin,
+		      attribs.event_mask);
+    }
     dmxPropertyWindow(dmxScreen);
 
     /*
@@ -1473,10 +1475,6 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     }
 
 #ifdef RANDR
-    XSelectInput (dmxScreen->beDisplay,
-		  DefaultRootWindow (dmxScreen->beDisplay),
-		  StructureNotifyMask);
-
     if (dmxScreen->beRandr)
 	XRRSelectInput (dmxScreen->beDisplay,
 			DefaultRootWindow (dmxScreen->beDisplay),
@@ -1486,11 +1484,8 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 			RROutputPropertyNotifyMask);
 #endif
 
-    XMapWindow (dmxScreen->beDisplay, dmxScreen->scrnWin);
-
-    XSetInputFocus (dmxScreen->beDisplay, dmxScreen->scrnWin,
-		    RevertToPointerRoot,
-		    CurrentTime);
+    if (!dmxScreen->beUseRoot)
+	XMapWindow (dmxScreen->beDisplay, dmxScreen->scrnWin);
 
     if (dmxShadowFB) {
 	mask = (GCFunction
@@ -1965,10 +1960,13 @@ void dmxBECloseScreen(ScreenPtr pScreen)
     XLIB_EPILOGUE (dmxScreen);
     dmxScreen->noCursor = (Cursor)0;
 
-    XLIB_PROLOGUE (dmxScreen);
-    XUnmapWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
-    XDestroyWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
-    XLIB_EPILOGUE (dmxScreen);
+    if (!dmxScreen->beUseRoot)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XUnmapWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
+	XDestroyWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
+	XLIB_EPILOGUE (dmxScreen);
+    }
     dmxScreen->scrnWin = (Window)0;
 
     if (dmxShadowFB) {

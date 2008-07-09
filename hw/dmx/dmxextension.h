@@ -124,6 +124,7 @@ typedef void (*dmxErrorSetProcPtr) (void       *error,
 
 extern int           dmxAttachScreen (int                    idx,
 				      DMXScreenAttributesPtr attr,
+				      int		     useRoot,
 				      const char             *authType,
 				      const char             *authData,
 				      int                    authDataLen,

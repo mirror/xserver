@@ -1710,6 +1710,7 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 int
 dmxAttachScreen (int                    idx,
 		 DMXScreenAttributesPtr attr,
+		 int			useRoot,
 		 const char             *authType,
 		 const char             *authData,
 		 int                    authDataLen,
@@ -1762,6 +1763,8 @@ dmxAttachScreen (int                    idx,
 
     /* Save old info */
     oldDMXScreen = *dmxScreen;
+
+    dmxScreen->beUseRoot = useRoot;
 
     /* Copy the display name to the new screen */
     dmxScreen->display = strdup(attr->displayName);

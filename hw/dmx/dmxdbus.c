@@ -136,6 +136,7 @@ handle_attach_screen (DBusMessage *message,
 
     ret = dmxAttachScreen (screen,
 			   &attr,
+			   TRUE,
 			   auth_type,
 			   data,
 			   size,

@@ -141,6 +141,8 @@ typedef struct _DMXScreenInfo {
     char          *authData;
     int           authDataLen;
 
+    int           beUseRoot;
+
     /*---------- Screen window information ----------*/
 
     Window        scrnWin;        /**< "Screen" window on backend display */

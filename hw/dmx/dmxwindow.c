@@ -84,11 +84,32 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     dmxWinPrivPtr         pWinPriv  = DMX_GET_WINDOW_PRIV(pWindow);
     Window                parent;
     Visual               *visual;
-    unsigned long         mask;
+    unsigned long         mask = 0;
     XSetWindowAttributes  attribs;
     ColormapPtr           pCmap;
     dmxColormapPrivPtr    pCmapPriv;
     Window                win = None;
+
+    mask = CWEventMask;
+    attribs.event_mask = ExposureMask;
+
+    /* Incorporate new attributes, if needed */
+    if (pWinPriv->attribMask) {
+	dmxDoChangeWindowAttributes(pWindow, &pWinPriv->attribMask, &attribs);
+	mask |= pWinPriv->attribMask;
+    }
+
+    if (dmxScreen->beUseRoot)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XChangeWindowAttributes (dmxScreen->beDisplay,
+				 DefaultRootWindow (dmxScreen->beDisplay),
+				 mask, &attribs);
+	XLIB_EPILOGUE (dmxScreen);
+	dmxSync (dmxScreen, False);
+
+	return DefaultRootWindow (dmxScreen->beDisplay);
+    }
 
     /* Create root window */
 
@@ -98,17 +119,10 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     pCmap = (ColormapPtr)LookupIDByType(wColormap(pWindow), RT_COLORMAP);
     pCmapPriv = DMX_GET_COLORMAP_PRIV(pCmap);
 
-    mask = CWEventMask | CWBackingStore | CWColormap | CWBorderPixel;
-    attribs.event_mask    = ExposureMask;
+    mask |= CWBackingStore | CWColormap | CWBorderPixel;
     attribs.backing_store = NotUseful;
     attribs.colormap      = pCmapPriv->cmap;
     attribs.border_pixel  = 0;
-
-    /* Incorporate new attributes, if needed */
-    if (pWinPriv->attribMask) {
-	dmxDoChangeWindowAttributes(pWindow, &pWinPriv->attribMask, &attribs);
-	mask |= pWinPriv->attribMask;
-    }
 
     XLIB_PROLOGUE (dmxScreen);
     win = XCreateWindow(dmxScreen->beDisplay,
@@ -137,7 +151,7 @@ void dmxResizeScreenWindow(ScreenPtr pScreen,
     unsigned int    m;
     XWindowChanges  c;
 
-    if (!dmxScreen->beDisplay)
+    if (!dmxScreen->beDisplay || dmxScreen->beUseRoot)
 	return;
 
     /* Handle resizing on back-end server */
@@ -164,7 +178,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
     XWindowChanges  c;
 
     /* Handle resizing on back-end server */
-    if (dmxScreen->beDisplay) {
+    if (dmxScreen->beDisplay && !dmxScreen->beUseRoot) {
 	m = CWX | CWY | CWWidth | CWHeight;
 	c.x = x;
 	c.y = y;
@@ -179,7 +193,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 
     if (w == 0 || h == 0) {
 	if (pWinPriv->mapped) {
-	    if (dmxScreen->beDisplay)
+	    if (dmxScreen->beDisplay && !dmxScreen->beUseRoot)
 	    {
 		XLIB_PROLOGUE (dmxScreen);
 		dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
@@ -189,7 +203,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	    pWinPriv->mapped = FALSE;
 	}
     } else if (!pWinPriv->mapped) {
-	if (dmxScreen->beDisplay)
+	if (dmxScreen->beDisplay && !dmxScreen->beUseRoot)
 	{
 	    XLIB_PROLOGUE (dmxScreen);
 	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
