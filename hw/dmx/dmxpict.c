@@ -76,15 +76,6 @@ static int dmxProcRenderCreateCursor(ClientPtr client);
 static int dmxProcRenderCreateAnimCursor(ClientPtr client);
 #endif
 
-/** Catch errors that might occur when allocating Glyph Sets.  Errors
- *  are saved in dmxGlyphLastError for later handling. */
-static int dmxGlyphLastError;
-static int dmxGlyphErrorHandler(Display *dpy, XErrorEvent *ev)
-{
-    dmxGlyphLastError = ev->error_code;
-    return 0;
-}
-
 unsigned long DMX_GLYPHSET;
 
 static int
@@ -507,7 +498,6 @@ int dmxBECreateGlyphSet(int idx, GlyphSetPtr glyphSet)
     DMXScreenInfo     *dmxScreen = &dmxScreens[idx];
     dmxGlyphPrivPtr    glyphPriv = DMX_GET_GLYPH_PRIV(glyphSet);
     PictFormatPtr      pFmt      = glyphSet->format;
-    int              (*oldErrorHandler)(Display *, XErrorEvent *);
 
     pFormat = dmxFindFormat(dmxScreen, pFmt);
     if (!pFormat) {
@@ -516,20 +506,11 @@ int dmxBECreateGlyphSet(int idx, GlyphSetPtr glyphSet)
 
     glyphPriv->glyphSets[idx] = None;
 
-    dmxGlyphLastError = 0;
-    oldErrorHandler = XSetErrorHandler(dmxGlyphErrorHandler);
-
     /* Catch when this fails */
     XLIB_PROLOGUE (dmxScreen);
     glyphPriv->glyphSets[idx]
 	= XRenderCreateGlyphSet(dmxScreen->beDisplay, pFormat);
     XLIB_EPILOGUE (dmxScreen);
-
-    XSetErrorHandler(oldErrorHandler);
-
-    if (dmxGlyphLastError) {
-	return dmxGlyphLastError;
-    }
 
     return Success;
 }
@@ -566,23 +547,12 @@ static int dmxProcRenderCreateGlyphSet(ClientPtr client)
 
 	for (i = 0; i < dmxNumScreens; i++) {
 	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
-	    int beret;
 
 	    if (!dmxScreen->beDisplay)
 		continue;
 
-	    if ((beret = dmxBECreateGlyphSet(i, glyphSet)) != Success) {
-		int  j;
-
-		/* Free the glyph sets we've allocated thus far */
-		for (j = 0; j < i; j++)
-		    dmxBEFreeGlyphSet(screenInfo.screens[j], glyphSet);
-
-		/* Free the resource created by render */
-		FreeResource(stuff->gsid, RT_NONE);
-
-		return beret;
-	    }
+	    dmxBECreateGlyphSet (i, glyphSet);
+	    dmxSync (dmxScreen, FALSE);
 	}
     }
 
