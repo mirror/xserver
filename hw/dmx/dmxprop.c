@@ -61,7 +61,13 @@
 
 #include "dmx.h"
 #include "dmxprop.h"
+#include "dmxwindow.h"
 #include "dmxlog.h"
+
+#ifdef PANORAMIX
+#include "panoramiX.h"
+#include "panoramiXsrv.h"
+#endif
 
 /** Holds the window id of all DMX windows on the backend X server. */
 #define DMX_ATOMNAME "DMX_NAME"
@@ -344,4 +350,234 @@ void dmxPropertyWindow(DMXScreenInfo *dmxScreen)
     XmuSnprintf(buf, sizeof(buf), "%s,%d", id, dmxScreen->index);
     XChangeProperty(dpy, win, atom, XA_STRING, 8,
                     PropModeAppend, (unsigned char *)buf, strlen(buf));
+}
+
+static int (*dmxSaveProcVector[256]) (ClientPtr);
+
+static int
+dmxProcChangeProperty (ClientPtr client)
+{
+    WindowPtr   pWin;
+    PropertyPtr pProp;
+    int         err;
+    REQUEST(xChangePropertyReq);
+
+    err = (*dmxSaveProcVector[X_ChangeProperty]) (client);
+    if (err != Success)
+	return err;
+
+    if (dixLookupWindow (&pWin,
+			 stuff->window,
+			 serverClient,
+			 DixReadAccess) != Success ||
+	dixLookupProperty (&pProp,
+			   pWin,
+			   stuff->property,
+			   serverClient,
+			   DixReadAccess) != Success)
+	return Success;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int          j;
+
+	if ((win = (PanoramiXRes *) SecurityLookupIDByType (serverClient,
+							    stuff->window,
+							    XRT_WINDOW,
+							    DixReadAccess)))
+	{
+	    FOR_NSCREENS_FORWARD(j) {
+		if (dixLookupWindow (&pWin,
+				     win->info[j].id,
+				     serverClient,
+				     DixReadAccess) == Success)
+		    dmxBESetWindowProperty (pWin, pProp);
+	    }
+	}
+
+	return Success;
+    }
+#endif
+
+    dmxBESetWindowProperty (pWin, pProp);
+
+    return Success;
+}
+
+static void
+dmxDeleteProperty (WindowPtr pWin,
+		   Atom      property)
+{
+    ScreenPtr      pScreen = pWin->drawable.pScreen;
+    DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+
+    if (!dmxScreen->beDisplay)
+	return;
+
+    XLIB_PROLOGUE (dmxScreen);
+    XDeleteProperty (dmxScreen->beDisplay,
+		     pWinPriv->window,
+		     XInternAtom (dmxScreen->beDisplay,
+				  NameForAtom (property),
+				  FALSE));
+    XLIB_EPILOGUE (dmxScreen);
+}
+
+static int
+dmxProcDeleteProperty (ClientPtr client)
+{
+    WindowPtr pWin;
+    int       err;
+    REQUEST(xDeletePropertyReq);
+
+    err = (*dmxSaveProcVector[X_DeleteProperty]) (client);
+    if (err != Success)
+	return err;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int          j;
+
+	if ((win = (PanoramiXRes *) SecurityLookupIDByType (serverClient,
+							    stuff->window,
+							    XRT_WINDOW,
+							    DixReadAccess)))
+	{
+	    FOR_NSCREENS_FORWARD(j) {
+		if (dixLookupWindow (&pWin,
+				     win->info[j].id,
+				     serverClient,
+				     DixReadAccess) == Success)
+		    dmxDeleteProperty (pWin, stuff->property);
+	    }
+	}
+
+	return Success;
+    }
+#endif
+
+    if (dixLookupWindow (&pWin,
+			 stuff->window,
+			 serverClient,
+			 DixReadAccess) == Success)
+	dmxDeleteProperty (pWin, stuff->property);
+
+    return Success;
+}
+
+static void
+dmxRotateProperties (WindowPtr pWin,
+		     Atom      *atoms,
+		     Atom      *buf,
+		     int       nAtoms,
+		     int       nPositions)
+{
+    ScreenPtr     pScreen = pWin->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+    int		  i;
+
+    if (!dmxScreen->beDisplay)
+	return;
+
+    XLIB_PROLOGUE (dmxScreen);
+    for (i = 0; i < nAtoms; i++)
+	buf[i] = XInternAtom (dmxScreen->beDisplay,
+			      NameForAtom (atoms[i]),
+			      FALSE);
+
+    XRotateWindowProperties (dmxScreen->beDisplay,
+			     pWinPriv->window,
+			     buf,
+			     nAtoms,
+			     nPositions);
+
+    XLIB_EPILOGUE (dmxScreen);
+}
+
+static int
+dmxProcRotateProperties (ClientPtr client)
+{
+    WindowPtr pWin;
+    int       err;
+    Atom      *buf, *atoms;
+    REQUEST(xRotatePropertiesReq);
+
+    err = (*dmxSaveProcVector[X_RotateProperties]) (client);
+    if (err != Success)
+	return err;
+
+    atoms = (Atom *) & stuff[1];
+    buf   = (Atom *) xalloc (stuff->nAtoms * sizeof (Atom));
+    if (!buf)
+	return Success;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int          j;
+
+	if ((win = (PanoramiXRes *) SecurityLookupIDByType (serverClient,
+							    stuff->window,
+							    XRT_WINDOW,
+							    DixReadAccess)))
+	{
+	    FOR_NSCREENS_FORWARD(j) {
+		if (dixLookupWindow (&pWin,
+				     win->info[j].id,
+				     serverClient,
+				     DixReadAccess) == Success)
+		    dmxRotateProperties (pWin, atoms, buf, stuff->nAtoms,
+					 stuff->nPositions);
+	    }
+	}
+
+	xfree (buf);
+
+	return Success;
+    }
+#endif
+
+    if (dixLookupWindow (&pWin,
+			 stuff->window,
+			 serverClient,
+			 DixReadAccess) == Success)
+	dmxRotateProperties (pWin, atoms, buf, stuff->nAtoms,
+			     stuff->nPositions);
+
+    xfree (buf);
+
+    return Success;
+}
+
+/** Initialize property support.  In addition to the screen function call
+ *  pointers, DMX also hooks in at the ProcVector[] level.  Here the old
+ *  ProcVector function pointers are saved and the new ProcVector
+ *  function pointers are initialized. */
+void dmxInitProps (void)
+{
+    int  i;
+
+    for (i = 0; i < 256; i++)
+	dmxSaveProcVector[i] = ProcVector[i];
+
+    ProcVector[X_ChangeProperty]   = dmxProcChangeProperty;
+    ProcVector[X_DeleteProperty]   = dmxProcDeleteProperty;
+    ProcVector[X_RotateProperties] = dmxProcRotateProperties;
+}
+
+/** Reset property support by restoring the original ProcVector function
+ *  pointers. */
+void dmxResetProps (void)
+{
+    int  i;
+
+    for (i = 0; i < 256; i++)
+	ProcVector[i] = dmxSaveProcVector[i];
 }

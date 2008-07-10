@@ -939,10 +939,8 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     /* Make sure there is a global width/height available */
     dmxComputeWidthHeight(DMX_NO_RECOMPUTE_BOUNDING_BOX);
 
-    /* FIXME: The following is temporarily placed here.  When the DMX
-     * extension is available, it will be move there.
-     */
     dmxInitFonts();
+    dmxInitProps();
 
 #ifdef RENDER
     /* Initialize the render extension */

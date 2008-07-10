@@ -66,6 +66,7 @@
 #include "inputstr.h"                 /* For DeviceIntRec */
 #include <X11/extensions/dmxproto.h>  /* For DMX_BAD_* */
 #include "cursorstr.h"
+#include "propertyst.h"
 
 #define dmxErrorSet(set, error, name, fmt, ...)       \
     if (set) (*set) (error, name, fmt, ##__VA_ARGS__)
@@ -1139,8 +1140,11 @@ static void dmxBECreateWindowTree(int idx)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
     WindowPtr      pRoot     = WindowTable[idx];
+    WindowPtr      pRoot0    = WindowTable[0];
     dmxWinPrivPtr  pWinPriv  = DMX_GET_WINDOW_PRIV(pRoot);
     WindowPtr      pWin;
+    WindowPtr      pWin0;
+    PropertyPtr    pProp;
 
     /* Create the pixmaps associated with the root window */
     if (!pRoot->borderIsPixel) {
@@ -1157,6 +1161,9 @@ static void dmxBECreateWindowTree(int idx)
     /* Create root window first */
     dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pRoot);
 
+    for (pProp = wUserProps (pRoot0); pProp; pProp = pProp->next)
+	dmxBESetWindowProperty (pRoot, pProp);
+
 #ifdef RENDER
     if (pWinPriv->hasPict) dmxCreatePictureList (pRoot);
 #endif
@@ -1167,6 +1174,7 @@ static void dmxBECreateWindowTree(int idx)
     XLIB_EPILOGUE (dmxScreen);
 
     pWin = pRoot->lastChild;
+    pWin0 = pRoot0->lastChild;
     while (pWin) {
 	pWinPriv = DMX_GET_WINDOW_PRIV(pWin);
 
@@ -1194,18 +1202,26 @@ static void dmxBECreateWindowTree(int idx)
 	/* Create the window */
 	dmxCreateAndRealizeWindow(pWin, TRUE);
 
+	for (pProp = wUserProps (pWin0); pProp; pProp = pProp->next)
+	    dmxBESetWindowProperty (pWin, pProp);
+
 	/* Next, create the bottom-most child */
 	if (pWin->lastChild) {
 	    pWin = pWin->lastChild;
+	    pWin0 = pWin0->lastChild;
 	    continue;
 	}
 
 	/* If the window has no children, move on to the next higher window */
 	while (!pWin->prevSib && (pWin != pRoot))
+	{
 	    pWin = pWin->parent;
+	    pWin0 = pWin0->parent;
+	}
 
 	if (pWin->prevSib) {
 	    pWin = pWin->prevSib;
+	    pWin0 = pWin0->prevSib;
 	    continue;
 	}
 

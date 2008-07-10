@@ -38,6 +38,7 @@
 #define DMXWINDOW_H
 
 #include "windowstr.h"
+#include "property.h"
 
 /** Window private area. */
 typedef struct _dmxWinPriv {
@@ -94,6 +95,8 @@ extern void dmxResizeRootWindow(WindowPtr pRoot,
 				int x, int y, int w, int h);
 
 extern Bool dmxBEDestroyWindow(WindowPtr pWindow);
+
+extern void dmxBESetWindowProperty(WindowPtr pWindow, PropertyPtr pProp);
 
 /* Support for shape extension */
 extern void dmxSetShape(WindowPtr pWindow);

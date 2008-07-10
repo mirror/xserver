@@ -43,4 +43,6 @@ extern void *dmxPropertyIterate(DMXScreenInfo *start,
                                            void *closure),
                                 void *closure);
 extern int dmxPropertySameDisplay(DMXScreenInfo *dmxScreen, const char *name);
+extern void dmxInitProps (void);
+extern void dmxResetProps (void);
 #endif

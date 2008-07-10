@@ -53,6 +53,7 @@
 #endif
 
 #include "windowstr.h"
+#include "propertyst.h"
 
 static void dmxDoRestackWindow(WindowPtr pWindow);
 static void dmxDoChangeWindowAttributes(WindowPtr pWindow,
@@ -1203,5 +1204,33 @@ dmxDoUpdateWindowPixmap(WindowPtr pWindow)
 	    XLIB_EPILOGUE (dmxScreen);
 	}
     }
+}
+
+/* TODO: translate X resource data */
+void
+dmxBESetWindowProperty (WindowPtr   pWindow,
+			PropertyPtr pProp)
+{
+    ScreenPtr      pScreen = pWindow->drawable.pScreen;
+    DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWindow);
+
+    if (!dmxScreen->beDisplay)
+	return;
+
+    XLIB_PROLOGUE (dmxScreen);
+    XChangeProperty (dmxScreen->beDisplay,
+		     pWinPriv->window,
+		     XInternAtom (dmxScreen->beDisplay,
+				  NameForAtom (pProp->propertyName),
+				  FALSE),
+		     XInternAtom (dmxScreen->beDisplay,
+				  NameForAtom (pProp->type),
+				  FALSE),
+		     pProp->format,
+		     PropModeReplace,
+		     pProp->data,
+		     pProp->size);
+    XLIB_EPILOGUE (dmxScreen);
 }
 
