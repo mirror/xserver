@@ -1140,11 +1140,8 @@ static void dmxBECreateWindowTree(int idx)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
     WindowPtr      pRoot     = WindowTable[idx];
-    WindowPtr      pRoot0    = WindowTable[0];
     dmxWinPrivPtr  pWinPriv  = DMX_GET_WINDOW_PRIV(pRoot);
     WindowPtr      pWin;
-    WindowPtr      pWin0;
-    PropertyPtr    pProp;
 
     /* Create the pixmaps associated with the root window */
     if (!pRoot->borderIsPixel) {
@@ -1161,9 +1158,6 @@ static void dmxBECreateWindowTree(int idx)
     /* Create root window first */
     dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pRoot);
 
-    for (pProp = wUserProps (pRoot0); pProp; pProp = pProp->next)
-	dmxBESetWindowProperty (pRoot, pProp);
-
 #ifdef RENDER
     if (pWinPriv->hasPict) dmxCreatePictureList (pRoot);
 #endif
@@ -1174,7 +1168,6 @@ static void dmxBECreateWindowTree(int idx)
     XLIB_EPILOGUE (dmxScreen);
 
     pWin = pRoot->lastChild;
-    pWin0 = pRoot0->lastChild;
     while (pWin) {
 	pWinPriv = DMX_GET_WINDOW_PRIV(pWin);
 
@@ -1202,6 +1195,42 @@ static void dmxBECreateWindowTree(int idx)
 	/* Create the window */
 	dmxCreateAndRealizeWindow(pWin, TRUE);
 
+	/* Next, create the bottom-most child */
+	if (pWin->lastChild) {
+	    pWin = pWin->lastChild;
+	    continue;
+	}
+
+	/* If the window has no children, move on to the next higher window */
+	while (!pWin->prevSib && (pWin != pRoot))
+	    pWin = pWin->parent;
+
+	if (pWin->prevSib) {
+	    pWin = pWin->prevSib;
+	    continue;
+	}
+
+	/* When we reach the root window, we are finished */
+	if (pWin == pRoot)
+	    break;
+    }
+}
+
+static void dmxBECreateWindowProperties (int idx)
+{
+    WindowPtr      pRoot  = WindowTable[idx];
+    WindowPtr      pRoot0 = WindowTable[0];
+    WindowPtr      pWin;
+    WindowPtr      pWin0;
+    PropertyPtr    pProp;
+
+    for (pProp = wUserProps (pRoot0); pProp; pProp = pProp->next)
+	dmxBESetWindowProperty (pRoot, pProp);
+
+    pWin = pRoot->lastChild;
+    pWin0 = pRoot0->lastChild;
+    while (pWin)
+    {
 	for (pProp = wUserProps (pWin0); pProp; pProp = pProp->next)
 	    dmxBESetWindowProperty (pWin, pProp);
 
@@ -1977,6 +2006,8 @@ dmxAttachScreen (int                    idx,
 	    FindClientResourcesByType(clients[i],GlyphSetType, 
 				      dmxBERestoreRenderGlyph,(pointer)idx);
 #endif
+
+    dmxBECreateWindowProperties(idx);
 
     /* Refresh screen by generating exposure events for all windows */
     dmxForceExposures(idx);
