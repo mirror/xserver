@@ -1689,9 +1689,10 @@ dmxScreenManage (ScreenPtr pScreen)
 
 	    if (pChild0)
 	    {
-		XID vlist[8];
-		int mask, i = 0;
-		int status = BadMatch;
+		XID    vlist[8];
+		int    mask, i = 0;
+		int    status = BadMatch;
+		xEvent x;
 
 		switch (X.type) {
 		case CirculateRequest:
@@ -1745,6 +1746,52 @@ dmxScreenManage (ScreenPtr pScreen)
 		case MapRequest:
 		    status = MapWindow (pChild0, serverClient);
 		    break;
+		case ClientMessage:
+		    x.u.u.type               = ClientMessage | 0x80;
+		    x.u.u.detail             = X.xclient.format;
+		    x.u.clientMessage.window = pChild0->drawable.id;
+
+		    switch (X.xclient.format) {
+		    case 8:
+			x.u.clientMessage.u.b.type = X.xclient.message_type;
+
+			for (i = 0; i < 20; i++)
+			    x.u.clientMessage.u.b.bytes[i] =
+				X.xclient.data.b[i];
+			break;
+		    case 16:
+			x.u.clientMessage.u.s.type = X.xclient.message_type;
+
+			x.u.clientMessage.u.s.shorts0 = X.xclient.data.s[0];
+			x.u.clientMessage.u.s.shorts1 = X.xclient.data.s[1];
+			x.u.clientMessage.u.s.shorts2 = X.xclient.data.s[2];
+			x.u.clientMessage.u.s.shorts3 = X.xclient.data.s[3];
+			x.u.clientMessage.u.s.shorts4 = X.xclient.data.s[4];
+			x.u.clientMessage.u.s.shorts5 = X.xclient.data.s[5];
+			x.u.clientMessage.u.s.shorts6 = X.xclient.data.s[6];
+			x.u.clientMessage.u.s.shorts7 = X.xclient.data.s[7];
+			x.u.clientMessage.u.s.shorts8 = X.xclient.data.s[8];
+			x.u.clientMessage.u.s.shorts9 = X.xclient.data.s[9];
+			break;
+		    case 32:
+			x.u.clientMessage.u.l.type = X.xclient.message_type;
+
+			x.u.clientMessage.u.l.longs0 = X.xclient.data.l[0];
+			x.u.clientMessage.u.l.longs1 = X.xclient.data.l[1];
+			x.u.clientMessage.u.l.longs2 = X.xclient.data.l[2];
+			x.u.clientMessage.u.l.longs3 = X.xclient.data.l[3];
+			x.u.clientMessage.u.l.longs4 = X.xclient.data.l[4];
+			break;
+		    }
+
+		    DeliverEventsToWindow (PickPointer (serverClient),
+					   pChild0,
+					   &x,
+					   1,
+					   SubstructureRedirectMask |
+					   SubstructureNotifyMask,
+					   NullGrab, 0);
+		    break;
 		}
 
 		if (status != Success)
@@ -1782,6 +1829,8 @@ dmxScreenManage (ScreenPtr pScreen)
 		    break;
 		case MapRequest:
 		    XMapWindow (dmxScreen->beDisplay, X.xmaprequest.window);
+		    break;
+		case ClientMessage:
 		    break;
 		}
 	    }
