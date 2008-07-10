@@ -1629,6 +1629,167 @@ dmxScreenExpose (ScreenPtr pScreen)
 }
 
 static void
+dmxScreenManage (ScreenPtr pScreen)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxScreen->beDisplay)
+    {
+	WindowPtr pChild0, pChildN;
+	XEvent    X;
+
+	for (;;)
+	{
+	    Bool status = FALSE;
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    status = XCheckMaskEvent (dmxScreen->beDisplay,
+				      SubstructureRedirectMask,
+				      &X);
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    if (!status)
+		break;
+
+	    pChild0 = WindowTable[0];
+	    pChildN = WindowTable[pScreen->myNum];
+
+	    for (;;)
+	    {
+		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChildN);
+
+		if (pWinPriv->window == X.xany.window)
+		    break;
+
+		if (pChild0->firstChild)
+		{
+		    assert (pChildN->firstChild);
+		    pChild0 = pChild0->firstChild;
+		    pChildN = pChildN->firstChild;
+		    continue;
+		}
+
+		while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
+		{
+		    assert (!pChildN->nextSib &&
+			    (pChildN != WindowTable[pScreen->myNum]));
+		    pChild0 = pChild0->parent;
+		    pChildN = pChildN->parent;
+		}
+
+		if (pChild0 == WindowTable[0])
+		{
+		    assert (pChildN == WindowTable[pScreen->myNum]);
+		    break;
+		}
+
+		pChild0 = pChild0->nextSib;
+		pChildN = pChildN->nextSib;
+	    }
+
+	    if (pChild0)
+	    {
+		XID vlist[8];
+		int mask, i = 0;
+		int status = BadMatch;
+
+		switch (X.type) {
+		case CirculateRequest:
+		    vlist[0] = None;
+
+		    if (X.xcirculaterequest.place == PlaceOnTop)
+			vlist[1] = Above;
+		    else
+			vlist[1] = Below;
+
+		    status = ConfigureWindow (pChild0,
+					      CWSibling | CWStackMode,
+					      vlist,
+					      serverClient);
+		    break;
+		case ConfigureRequest:
+		    mask = X.xconfigurerequest.value_mask;
+
+		    if (mask & (CWX | CWY))
+		    {
+			vlist[i++] = X.xconfigurerequest.x;
+			vlist[i++] = X.xconfigurerequest.y;
+		    }
+
+		    if (mask & (CWWidth | CWHeight))
+		    {
+			vlist[i++] = X.xconfigurerequest.width;
+			vlist[i++] = X.xconfigurerequest.height;
+		    }
+
+		    if (mask & CWBorderWidth)
+			vlist[i++] = X.xconfigurerequest.border_width;
+
+		    if (mask & CWSibling)
+		    {
+			/* ignore stacking requests with sibling */
+			if (X.xconfigurerequest.above == None)
+			    vlist[i++] = None;
+			else
+			    mask &= ~(CWSibling | CWStackMode);
+		    }
+
+		    if (mask & CWStackMode)
+			vlist[i++] = X.xconfigurerequest.detail;
+
+		    status = ConfigureWindow (pChild0,
+					      mask,
+					      vlist,
+					      serverClient);
+		    break;
+		case MapRequest:
+		    status = MapWindow (pChild0, serverClient);
+		    break;
+		}
+
+		if (status != Success)
+		    dmxLog (dmxWarning,
+			    "dmxScreenManage: failed to handle "
+			    "request type %d\n",
+			    X.type);
+	    }
+	    else
+	    {
+		XWindowChanges xwc;
+
+		switch (X.type) {
+		case CirculateRequest:
+		    if (X.xcirculaterequest.place == PlaceOnTop)
+			XRaiseWindow (dmxScreen->beDisplay,
+				      X.xcirculaterequest.window);
+		    else
+			XLowerWindow (dmxScreen->beDisplay,
+				      X.xcirculaterequest.window);
+		    break;
+		case ConfigureRequest:
+		    xwc.x	     = X.xconfigurerequest.x;
+		    xwc.y	     = X.xconfigurerequest.y;
+		    xwc.width	     = X.xconfigurerequest.width;
+		    xwc.height	     = X.xconfigurerequest.height;
+		    xwc.border_width = X.xconfigurerequest.border_width;
+		    xwc.sibling      = X.xconfigurerequest.above;
+		    xwc.stack_mode   = X.xconfigurerequest.detail;
+
+		    XConfigureWindow (dmxScreen->beDisplay,
+				      X.xconfigurerequest.window,
+				      X.xconfigurerequest.value_mask,
+				      &xwc);
+		    break;
+		case MapRequest:
+		    XMapWindow (dmxScreen->beDisplay, X.xmaprequest.window);
+		    break;
+		}
+	    }
+	}
+    }
+}
+
+static void
 dmxScreenBlockHandler (pointer   blockData,
 		       OSTimePtr pTimeout,
 		       pointer   pReadMask)
@@ -1649,6 +1810,7 @@ dmxScreenWakeupHandler (pointer blockData,
     dmxRRCheckScreen (pScreen);
 #endif
 
+    dmxScreenManage (pScreen);
 }
 
 static void
