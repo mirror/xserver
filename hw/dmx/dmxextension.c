@@ -1793,6 +1793,17 @@ dmxAttachScreen (int                    idx,
     dmxCheckForWM(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
 
+    if (dmxScreen->beUseRoot && dmxScreen->WMRunningOnBE)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"WM running. cannot use back-end server "
+			"root window\n");
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
 #ifdef RANDR
     dmxScreen->beRandr = FALSE;
 #endif

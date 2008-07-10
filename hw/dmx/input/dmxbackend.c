@@ -621,7 +621,7 @@ void dmxBackendInit(DevicePtr pDev)
 
     /* Finish initialization using computed values or constants. */
     dmxBackendComputeCenter(priv);
-    priv->eventMask          = StructureNotifyMask;
+    priv->eventMask          = StructureNotifyMask | SubstructureRedirectMask;
     priv->myScreen           = dmxScreen->index;
     priv->lastX              = priv->centerX;
     priv->lastY              = priv->centerY;

@@ -611,6 +611,19 @@ static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 	dmxCheckForWM(dmxScreen);
 	dmxGetScreenAttribs(dmxScreen);
 
+	if (dmxScreen->beUseRoot && dmxScreen->WMRunningOnBE)
+	{
+	    dmxLog (dmxWarning,
+		    "WM running. cannot use back-end server root window\n");
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    XCloseDisplay(dmxScreen->beDisplay);
+	    XLIB_EPILOGUE (dmxScreen);
+	    dmxScreen->beDisplay = NULL;
+
+	    return FALSE;
+	}
+
 	if (!dmxGetVisualInfo(dmxScreen))
 	{
 	    dmxLog(dmxWarning,

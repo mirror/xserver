@@ -1421,7 +1421,7 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     /* Create root window for screen */
     mask = CWBackPixel | CWEventMask | CWColormap | CWOverrideRedirect;
     attribs.background_pixel = dmxScreen->beBlackPixel;
-    attribs.event_mask = StructureNotifyMask;
+    attribs.event_mask = StructureNotifyMask | SubstructureRedirectMask;
     attribs.colormap = dmxScreen->beDefColormaps[dmxScreen->beDefVisualIndex];
     attribs.override_redirect = True;
 
