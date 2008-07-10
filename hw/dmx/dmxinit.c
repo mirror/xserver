@@ -577,8 +577,7 @@ void dmxCheckForWM(DMXScreenInfo *dmxScreen)
 				  &xwa);
     dmxScreen->WMRunningOnBE =
 	(status &&
-	 ((xwa.all_event_masks & SubstructureRedirectMask) ||
-	  (xwa.all_event_masks & SubstructureNotifyMask)));
+	 (xwa.all_event_masks & SubstructureRedirectMask));
 }
 
 /** Initialize the display and collect relevant information about the
