@@ -638,16 +638,16 @@ static void dmxDoChangeWindowAttributes(WindowPtr pWindow,
     {
 	ScreenPtr pScreen = pWindow->drawable.pScreen;
 
-	if (wUseDefault (pWindow, cursor, 0))
+	if (pWindow->cursorIsNone)
 	{
-	    dmxCursorPrivPtr pCursorPriv =
-		DMX_GET_CURSOR_PRIV (pWindow->optional->cursor, pScreen);
-
-	    attribs->cursor = pCursorPriv->cursor;
+	    attribs->cursor = None;
 	}
 	else
 	{
-	    *mask &= ~CWCursor;
+	    dmxCursorPrivPtr pCursorPriv =
+		DMX_GET_CURSOR_PRIV (wCursor (pWindow), pScreen);
+
+	    attribs->cursor = pCursorPriv->cursor;
 	}
     }
 }
