@@ -68,6 +68,8 @@ static jmp_buf jumpbuf;
 static char **xbeArgv = 0;
 static int  nXbeArgv  = 0;
 
+static int xbePriority = 0;
+
 static int
 dmxAddXbeArguments (char **argv,
 		    int  n)
@@ -175,6 +177,7 @@ dmxSetupAuth (char *name, int authFd)
     char    authData[AUTH_DATA_LEN];
     char    realProg[PATH_MAX], buf[PATH_MAX];
     FILE    *file;
+    int     virtualFb = FALSE;
 
     auth.family = FamilyLocal;
 
@@ -254,13 +257,18 @@ dmxSetupAuth (char *name, int authFd)
 	memcpy (realProg, buf, size);
 	realProg[size] = '\0';
     }
+
+    /* a bit hackish but very useful */
+    if (strcmp (basename (realProg), "Xvfb")  == 0 ||
+	strcmp (basename (realProg), "Xfake") == 0)
+	virtualFb = TRUE;
     
     dmxConfigStoreDisplay (basename (realProg),
 			   xbeDisplay,
 			   auth.name,
 			   auth.data,
 			   auth.data_length,
-			   0);
+			   virtualFb);
 
     return TRUE;
 }
