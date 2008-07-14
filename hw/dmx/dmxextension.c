@@ -1296,7 +1296,8 @@ static Bool dmxCompareScreens(DMXScreenInfo      *new,
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
     {
-	int j;
+	ScreenPtr pScreen = screenInfo.screens[0];
+	int       j;
 
 	old = dmxScreens; /* each new screen must match the first screen */
 
@@ -1354,23 +1355,44 @@ static Bool dmxCompareScreens(DMXScreenInfo      *new,
 	    }
 	}
 
-	for (i = 0; i < old->beNumVisuals; i++)
+	for (i = 0; i < pScreen->numVisuals; i++)
 	{
+	    int k;
+
+	    for (k = 0; k < old->beNumVisuals; k++)
+		if (pScreen->visuals[i].class ==
+		    old->beVisuals[k].class &&
+		    pScreen->visuals[i].bitsPerRGBValue ==
+		    old->beVisuals[k].bits_per_rgb &&
+		    pScreen->visuals[i].ColormapEntries ==
+		    old->beVisuals[k].colormap_size &&
+		    pScreen->visuals[i].nplanes ==
+		    old->beVisuals[k].depth &&
+		    pScreen->visuals[i].redMask ==
+		    old->beVisuals[k].red_mask &&
+		    pScreen->visuals[i].greenMask ==
+		    old->beVisuals[k].green_mask &&
+		    pScreen->visuals[i].blueMask ==
+		    old->beVisuals[k].blue_mask)
+		    break;
+
+	    assert (k < old->beNumVisuals);
+
 	    for (j = 0; j < new->beNumVisuals; j++)
 		if (new->beVisuals[j].depth ==
-		    old->beVisuals[i].depth &&
+		    old->beVisuals[k].depth &&
 		    new->beVisuals[j].class ==
-		    old->beVisuals[i].class &&
+		    old->beVisuals[k].class &&
 		    new->beVisuals[j].red_mask ==
-		    old->beVisuals[i].red_mask &&
+		    old->beVisuals[k].red_mask &&
 		    new->beVisuals[j].green_mask ==
-		    old->beVisuals[i].green_mask &&
+		    old->beVisuals[k].green_mask &&
 		    new->beVisuals[j].blue_mask ==
-		    old->beVisuals[i].blue_mask &&
-		    new->beVisuals[j].colormap_size >=
-		    old->beVisuals[i].colormap_size &&
+		    old->beVisuals[k].blue_mask &&
 		    new->beVisuals[j].bits_per_rgb >=
-		    old->beVisuals[i].bits_per_rgb)
+		    old->beVisuals[k].bits_per_rgb &&
+		    new->beVisuals[j].colormap_size >=
+		    old->beVisuals[k].colormap_size)
 		    break;
 
 	    if (j == new->beNumVisuals)
@@ -1383,28 +1405,28 @@ static Bool dmxCompareScreens(DMXScreenInfo      *new,
 				"red/green/blue masks: 0x%lx/0x%lx/0x%lx, "
 				"significant bits in color specification: "
 				"%d bits",
-				old->beVisuals[i].class == StaticGray ?
+				old->beVisuals[k].class == StaticGray ?
 				"StaticGray" :
-				old->beVisuals[i].class == GrayScale ?
+				old->beVisuals[k].class == GrayScale ?
 				"GrayScale" :
-				old->beVisuals[i].class == StaticColor ?
+				old->beVisuals[k].class == StaticColor ?
 				"StaticColor" :
-				old->beVisuals[i].class == PseudoColor ?
+				old->beVisuals[k].class == PseudoColor ?
 				"PseudoColor" :
-				old->beVisuals[i].class == TrueColor ?
+				old->beVisuals[k].class == TrueColor ?
 				"TrueColor" :
-				old->beVisuals[i].class == DirectColor ?
+				old->beVisuals[k].class == DirectColor ?
 				"DirectColor" :
 				"Unknown Class",
-				old->beVisuals[i].depth,
-				old->beVisuals[i].colormap_size,
-				(old->beVisuals[i].class == TrueColor ||
-				 old->beVisuals[i].class == DirectColor) ?
+				old->beVisuals[k].depth,
+				old->beVisuals[k].colormap_size,
+				(old->beVisuals[k].class == TrueColor ||
+				 old->beVisuals[k].class == DirectColor) ?
 				" per subfield" : "",
-				old->beVisuals[i].red_mask,
-				old->beVisuals[i].green_mask,
-				old->beVisuals[i].blue_mask,
-				old->beVisuals[i].bits_per_rgb);
+				old->beVisuals[k].red_mask,
+				old->beVisuals[k].green_mask,
+				old->beVisuals[k].blue_mask,
+				old->beVisuals[k].bits_per_rgb);
 		return FALSE;
 	    }
 	}
