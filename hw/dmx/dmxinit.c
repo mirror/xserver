@@ -1042,6 +1042,11 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	noPanoramiXExtension = FALSE;
 	PanoramiXExtensionDisabledHack = TRUE;
 #endif
+	dmxPropTrans = xalloc (sizeof (DMXPropTrans));
+	dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
+	dmxPropTrans->format = "xP";
+	dmxPropTrans->type = 0;
+	dmxPropTransNum = 1;
     }
     
     if (!strcmp(argv[i], "-display")) {
