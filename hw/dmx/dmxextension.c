@@ -2013,8 +2013,16 @@ dmxAttachScreen (int                    idx,
 	    FindAllClientResources(clients[i], dmxBECreateResources,
 				   (pointer)idx);
 
+    /* Grab back-end server while creating window tree and window
+       properties to prevent race conditions in back-end server
+       clients */
+    XGrabServer (dmxScreen->beDisplay);
+
     /* Create window hierarchy (top down) */
     dmxBECreateWindowTree(idx);
+    dmxBECreateWindowProperties(idx);
+
+    XUngrabServer (dmxScreen->beDisplay);
 
 #ifdef RENDER
     /* Restore the picture state for RENDER */
@@ -2029,8 +2037,6 @@ dmxAttachScreen (int                    idx,
 	    FindClientResourcesByType(clients[i],GlyphSetType, 
 				      dmxBERestoreRenderGlyph,(pointer)idx);
 #endif
-
-    dmxBECreateWindowProperties(idx);
 
     /* Refresh screen by generating exposure events for all windows */
     dmxForceExposures(idx);
