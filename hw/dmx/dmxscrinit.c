@@ -56,6 +56,11 @@
 #include "dmxlog.h"
 #include "dmxcb.h"
 
+#ifdef PANORAMIX
+#include "panoramiX.h"
+#include "panoramiXsrv.h"
+#endif
+
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -1635,12 +1640,18 @@ dmxScreenManage (ScreenPtr pScreen)
 
     if (dmxScreen->beDisplay)
     {
-	WindowPtr pChild0, pChildN;
+	WindowPtr pChild;
+	Window    xWindow;
 	XEvent    X;
 
 	for (;;)
 	{
-	    Bool status = FALSE;
+	    Bool         status = FALSE;
+
+#ifdef PANORAMIX
+	    PanoramiXRes *win = NULL;
+	    WindowPtr    pWin;
+#endif
 
 	    XLIB_PROLOGUE (dmxScreen);
 	    status = XCheckMaskEvent (dmxScreen->beDisplay,
@@ -1651,47 +1662,68 @@ dmxScreenManage (ScreenPtr pScreen)
 	    if (!status)
 		break;
 
-	    pChild0 = WindowTable[0];
-	    pChildN = WindowTable[pScreen->myNum];
+	    switch (X.type) {
+	    case CirculateRequest:
+		xWindow = X.xcirculaterequest.window;
+		break;
+	    case ConfigureRequest:
+		xWindow = X.xconfigurerequest.window;
+		break;
+	    case MapRequest:
+		xWindow = X.xmaprequest.window;
+		break;
+	    case ClientMessage:
+		xWindow = X.xclient.window;
+		break;
+	    default:
+		xWindow = None;
+	    }
+
+	    pChild = WindowTable[pScreen->myNum];
 
 	    for (;;)
 	    {
-		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChildN);
+		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChild);
 
-		if (pWinPriv->window == X.xany.window)
-		    break;
-
-		if (pChild0->firstChild)
+		if (pWinPriv->window == xWindow)
 		{
-		    assert (pChildN->firstChild);
-		    pChild0 = pChild0->firstChild;
-		    pChildN = pChildN->firstChild;
+
+#ifdef PANORAMIX
+		    if (!noPanoramiXExtension)
+			win = PanoramiXFindIDByScrnum (XRT_WINDOW,
+						       pChild->drawable.id,
+						       pScreen->myNum);
+#endif
+
+		    break;
+		}
+
+		if (pChild->firstChild)
+		{
+		    pChild = pChild->firstChild;
 		    continue;
 		}
 
-		while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
-		{
-		    assert (!pChildN->nextSib &&
-			    (pChildN != WindowTable[pScreen->myNum]));
-		    pChild0 = pChild0->parent;
-		    pChildN = pChildN->parent;
-		}
+		while (!pChild->nextSib && (pChild != WindowTable[0]))
+		    pChild = pChild->parent;
 
-		if (pChild0 == WindowTable[0])
-		{
-		    assert (pChildN == WindowTable[pScreen->myNum]);
+		if (pChild == WindowTable[0])
 		    break;
-		}
 
-		pChild0 = pChild0->nextSib;
-		pChildN = pChildN->nextSib;
+		pChild = pChild->nextSib;
 	    }
 
-	    if (pChild0)
+	    if (pChild
+
+#ifdef PANORAMIX
+		&& win
+#endif
+
+		)
 	    {
 		XID    vlist[8];
 		int    mask, i = 0;
-		int    status = BadMatch;
+		int    status = Success;
 		xEvent x;
 
 		switch (X.type) {
@@ -1703,10 +1735,29 @@ dmxScreenManage (ScreenPtr pScreen)
 		    else
 			vlist[1] = Below;
 
-		    status = ConfigureWindow (pChild0,
-					      CWSibling | CWStackMode,
-					      vlist,
-					      serverClient);
+#ifdef PANORAMIX
+		    if (!noPanoramiXExtension)
+		    {
+			int j;
+
+			FOR_NSCREENS_FORWARD(j) {
+			    if (dixLookupWindow (&pWin,
+						 win->info[j].id,
+						 serverClient,
+						 DixReadAccess) == Success)
+				status |= ConfigureWindow (pWin,
+							   CWSibling |
+							   CWStackMode,
+							   vlist,
+							   serverClient);
+			}
+		    }
+		    else
+#endif
+			status = ConfigureWindow (pChild,
+						  CWSibling | CWStackMode,
+						  vlist,
+						  serverClient);
 		    break;
 		case ConfigureRequest:
 		    mask = X.xconfigurerequest.value_mask;
@@ -1738,18 +1789,54 @@ dmxScreenManage (ScreenPtr pScreen)
 		    if (mask & CWStackMode)
 			vlist[i++] = X.xconfigurerequest.detail;
 
-		    status = ConfigureWindow (pChild0,
-					      mask,
-					      vlist,
-					      serverClient);
+#ifdef PANORAMIX
+		    if (!noPanoramiXExtension)
+		    {
+			int j;
+
+			FOR_NSCREENS_FORWARD(j) {
+			    if (dixLookupWindow (&pWin,
+						 win->info[j].id,
+						 serverClient,
+						 DixReadAccess) == Success)
+				status |= ConfigureWindow (pWin,
+							   mask,
+							   vlist,
+							   serverClient);
+			}
+		    }
+		    else
+#endif
+
+			status = ConfigureWindow (pChild,
+						  mask,
+						  vlist,
+						  serverClient);
 		    break;
 		case MapRequest:
-		    status = MapWindow (pChild0, serverClient);
+
+#ifdef PANORAMIX
+		    if (!noPanoramiXExtension)
+		    {
+			int j;
+
+			FOR_NSCREENS_FORWARD(j) {
+			    if (dixLookupWindow (&pWin,
+						 win->info[j].id,
+						 serverClient,
+						 DixReadAccess) == Success)
+				status |= MapWindow (pWin, serverClient);
+			}
+		    }
+		    else
+#endif
+
+			status = MapWindow (pChild, serverClient);
 		    break;
 		case ClientMessage:
 		    x.u.u.type               = ClientMessage | 0x80;
 		    x.u.u.detail             = X.xclient.format;
-		    x.u.clientMessage.window = pChild0->drawable.id;
+		    x.u.clientMessage.window = pChild->drawable.id;
 
 		    switch (X.xclient.format) {
 		    case 8:
@@ -1784,13 +1871,33 @@ dmxScreenManage (ScreenPtr pScreen)
 			break;
 		    }
 
-		    DeliverEventsToWindow (PickPointer (serverClient),
-					   pChild0,
-					   &x,
-					   1,
-					   SubstructureRedirectMask |
-					   SubstructureNotifyMask,
-					   NullGrab, 0);
+#ifdef PANORAMIX
+		    if (!noPanoramiXExtension)
+		    {
+			x.u.clientMessage.window = win->info[0].id;
+
+			if (dixLookupWindow (&pWin,
+					     win->info[0].id,
+					     serverClient,
+					     DixReadAccess) == Success)
+			    DeliverEventsToWindow (PickPointer (serverClient),
+						   pWin,
+						   &x,
+						   1,
+						   SubstructureRedirectMask |
+						   SubstructureNotifyMask,
+						   NullGrab, 0);
+		    }
+		    else
+#endif
+
+			DeliverEventsToWindow (PickPointer (serverClient),
+					       pChild,
+					       &x,
+					       1,
+					       SubstructureRedirectMask |
+					       SubstructureNotifyMask,
+					       NullGrab, 0);
 		    break;
 		}
 
