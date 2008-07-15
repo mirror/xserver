@@ -1213,6 +1213,214 @@ dmxDoUpdateWindowPixmap(WindowPtr pWindow)
     }
 }
 
+static void
+dmxTranslateWindowProperty (WindowPtr     pWindow,
+			    char	  type,
+			    unsigned char *data,
+			    unsigned char *output)
+{
+    ScreenPtr     pScreen = pWindow->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    switch (type) {
+    case 'a':
+    case 'A': {
+	Atom *src = (Atom *) data;
+	Atom *dst = (Atom *) output;
+	char *name;
+
+	name = NameForAtom (*src);
+	if (name)
+	    *dst = XInternAtom (dmxScreen->beDisplay, name, FALSE);
+	else
+	    *dst = *src;
+    } break;
+    case 'p':
+    case 'P': {
+	XID       *src = (XID *) data;
+	XID       *dst = (XID *) output;
+	PixmapPtr pPixmap;
+	XID       id = *src;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    PanoramiXRes *res;
+
+	    if (dixLookupResource ((pointer *) &res,
+				   id,
+				   XRT_PIXMAP,
+				   serverClient,
+				   DixReadAccess) == Success)
+		id = res->info[pScreen->myNum].id;
+	}
+#endif
+
+	if (dixLookupResource ((pointer *) &pPixmap,
+			       id,
+			       RT_PIXMAP,
+			       serverClient,
+			       DixReadAccess) == Success)
+	    *dst = (DMX_GET_PIXMAP_PRIV (pPixmap))->pixmap;
+	else
+	    *dst = *src;
+    } break;
+    case 'm':
+    case 'M': {
+	XID         *src = (XID *) data;
+	XID         *dst = (XID *) output;
+	ColormapPtr pColormap;
+	XID         id = *src;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    PanoramiXRes *res;
+
+	    if (dixLookupResource ((pointer *) &res,
+				   id,
+				   XRT_COLORMAP,
+				   serverClient,
+				   DixReadAccess) == Success)
+		id = res->info[pScreen->myNum].id;
+	}
+#endif
+
+	if (dixLookupResource ((pointer *) &pColormap,
+			       id,
+			       RT_COLORMAP,
+			       serverClient,
+			       DixReadAccess) == Success)
+	    *dst = (DMX_GET_COLORMAP_PRIV (pColormap))->cmap;
+	else
+	    *dst = *src;
+    } break;
+    case 'c':
+    case 'C': {
+	XID       *src = (XID *) data;
+	XID       *dst = (XID *) output;
+	CursorPtr pCursor;
+
+	if (dixLookupResource ((pointer *) &pCursor,
+			       *src,
+			       RT_CURSOR,
+			       serverClient,
+			       DixReadAccess) == Success)
+	    *dst = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
+	else
+	    *dst = *src;
+    } break;
+    case 'd':
+    case 'D': {
+	XID         *src = (XID *) data;
+	XID         *dst = (XID *) output;
+	DrawablePtr pDrawable;
+	XID         id = *src;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    PanoramiXRes *res;
+
+	    if (dixLookupResource ((pointer *) &res,
+				   id,
+				   XRC_DRAWABLE,
+				   serverClient,
+				   DixReadAccess) == Success)
+		id = res->info[pScreen->myNum].id;
+	}
+#endif
+
+	if (dixLookupResource ((pointer *) &pDrawable,
+			       id,
+			       RC_DRAWABLE,
+			       serverClient,
+			       DixReadAccess) == Success)
+	{
+	    if (pDrawable->type == DRAWABLE_WINDOW)
+	    {
+		WindowPtr pWin = (WindowPtr) pDrawable;
+
+		*dst = (DMX_GET_WINDOW_PRIV (pWin))->window;
+	    }
+	    else
+	    {
+		PixmapPtr pPixmap = (PixmapPtr) pDrawable;
+
+		*dst = (DMX_GET_PIXMAP_PRIV (pPixmap))->pixmap;
+	    }
+	}
+	else
+	    *dst = *src;
+    } break;
+    case 'f':
+    case 'F': {
+	XID     *src = (XID *) data;
+	XID     *dst = (XID *) output;
+	FontPtr pFont;
+
+	if (dixLookupResource ((pointer *) &pFont,
+			       *src,
+			       RT_FONT,
+			       serverClient,
+			       DixReadAccess) == Success)
+	{
+	    dmxFontPrivPtr pFontPriv =
+		FontGetPrivate (pFont, dmxFontPrivateIndex);
+
+	    *dst = pFontPriv->font[pScreen->myNum]->fid;
+	}
+	else
+	    *dst = *src;
+    } break;
+    case 'v':
+    case 'V': {
+	XID    *src = (XID *) data;
+	XID    *dst = (XID *) output;
+	Visual *visual;
+
+	visual = dmxLookupVisualFromID (pScreen, *src);
+	if (visual)
+	    *dst = XVisualIDFromVisual (visual);
+	else
+	    *dst = *src;
+    } break;
+    case 'w':
+    case 'W': {
+	XID       *src = (XID *) data;
+	XID       *dst = (XID *) output;
+	WindowPtr pWin;
+	XID       id = *src;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    PanoramiXRes *res;
+
+	    if (dixLookupResource ((pointer *) &res,
+				   id,
+				   XRT_WINDOW,
+				   serverClient,
+				   DixReadAccess) == Success)
+		id = res->info[pScreen->myNum].id;
+	}
+#endif
+
+	if (dixLookupResource ((pointer *) &pWin,
+			       id,
+			       RT_WINDOW,
+			       serverClient,
+			       DixReadAccess) == Success)
+	    *dst = (DMX_GET_WINDOW_PRIV (pWin))->window;
+	else
+	    *dst = *src;
+    } break;
+    default:
+	*((CARD32 *) output) = *((CARD32 *) data);
+	break;
+    }
+}
+
 void
 dmxBESetWindowProperty (WindowPtr   pWindow,
 			PropertyPtr pProp)
@@ -1221,261 +1429,82 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
     DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWindow);
     unsigned char  *data = pProp->data;
+    const char     *format = NULL;
     int		   i;
 
     if (!dmxScreen->beDisplay)
 	return;
 
-    switch (pProp->type) {
-    case XA_ATOM: {
-	Atom *dst, *src = (Atom *) data;
-
-	dst = (Atom *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
+    /* only 32 bit data types can be translated */
+    if (pProp->format == 32)
+    {
+	switch (pProp->type) {
+	case XA_ATOM:
+	    format = "a";
+	    break;
+	case XA_BITMAP:
+	case XA_PIXMAP:
+	    format = "p";
+	    break;
+	case XA_COLORMAP:
+	    format = "m";
+	    break;
+	case XA_CURSOR:
+	    format = "c";
+	    break;
+	case XA_DRAWABLE:
+	    format = "d";
+	    break;
+	case XA_FONT:
+	    format = "f";
+	    break;
+	case XA_VISUALID:
+	    format = "v";
+	    break;
+	case XA_WINDOW:
+	    format = "w";
+	    break;
+	default:
+	    for (i = 0; i < dmxPropTransNum; i++)
 	    {
-		char *name;
-
-		name = NameForAtom (src[i]);
-		if (name)
-		    dst[i] = XInternAtom (dmxScreen->beDisplay, name, FALSE);
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
-    case XA_BITMAP:
-    case XA_PIXMAP: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		PixmapPtr pPixmap;
-		XID       id = src[i];
-
-#ifdef PANORAMIX
-		if (!noPanoramiXExtension)
+		if (pProp->type == dmxPropTrans[i].type)
 		{
-		    PanoramiXRes *res;
-
-		    if (dixLookupResource ((pointer *) &res,
-					   id,
-					   XRT_PIXMAP,
-					   serverClient,
-					   DixReadAccess) == Success)
-			id = res->info[pScreen->myNum].id;
+		    format = dmxPropTrans[i].format;
+		    break;
 		}
-#endif
-
-		if (dixLookupResource ((pointer *) &pPixmap,
-				       id,
-				       RT_PIXMAP,
-				       serverClient,
-				       DixReadAccess) == Success)
-		    dst[i] = (DMX_GET_PIXMAP_PRIV (pPixmap))->pixmap;
-		else
-		    dst[i] = src[i];
 	    }
 	}
-    } break;
-    case XA_COLORMAP: {
-	XID *dst, *src = (XID *) data;
+    }
 
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
+    if (format)
+    {
+	unsigned char *dst, *src = data;
+
+	dst = xalloc (pProp->size * (pProp->format >> 3));
 	if (dst)
 	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
+	    int j;
+
+	    i = j = 0;
+	    data = dst;
+
+	    while (format[j] != '\0')
 	    {
-		ColormapPtr pColormap;
-		XID         id = src[i];
+		if (i++ == pProp->size)
+		    break;
 
-#ifdef PANORAMIX
-		if (!noPanoramiXExtension)
-		{
-		    PanoramiXRes *res;
+		if (format[j] == '.')
+		    j = 0;
 
-		    if (dixLookupResource ((pointer *) &res,
-					   id,
-					   XRT_COLORMAP,
-					   serverClient,
-					   DixReadAccess) == Success)
-			id = res->info[pScreen->myNum].id;
-		}
-#endif
+		dmxTranslateWindowProperty (pWindow, format[j], src, dst);
 
-		if (dixLookupResource ((pointer *) &pColormap,
-				       id,
-				       RT_COLORMAP,
-				       serverClient,
-				       DixReadAccess) == Success)
-		    dst[i] = (DMX_GET_COLORMAP_PRIV (pColormap))->cmap;
-		else
-		    dst[i] = src[i];
+		src += (pProp->format >> 3);
+		dst += (pProp->format >> 3);
 	    }
+
+	    if (i < pProp->size)
+		memcpy (dst, src, pProp->size - i);
 	}
-    } break;
-    case XA_CURSOR: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		CursorPtr pCursor;
-
-		if (dixLookupResource ((pointer *) &pCursor,
-				       src[i],
-				       RT_CURSOR,
-				       serverClient,
-				       DixReadAccess) == Success)
-		    dst[i] = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
-    case XA_DRAWABLE: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		DrawablePtr pDrawable;
-		XID         id = src[i];
-
-#ifdef PANORAMIX
-		if (!noPanoramiXExtension)
-		{
-		    PanoramiXRes *res;
-
-		    if (dixLookupResource ((pointer *) &res,
-					   id,
-					   XRC_DRAWABLE,
-					   serverClient,
-					   DixReadAccess) == Success)
-			id = res->info[pScreen->myNum].id;
-		}
-#endif
-
-		if (dixLookupResource ((pointer *) &pDrawable,
-				       id,
-				       RC_DRAWABLE,
-				       serverClient,
-				       DixReadAccess) == Success)
-		{
-		    if (pDrawable->type == DRAWABLE_WINDOW)
-		    {
-			WindowPtr pWin = (WindowPtr) pDrawable;
-
-			dst[i] = (DMX_GET_WINDOW_PRIV (pWin))->window;
-		    }
-		    else
-		    {
-			PixmapPtr pPixmap = (PixmapPtr) pDrawable;
-
-			dst[i] = (DMX_GET_PIXMAP_PRIV (pPixmap))->pixmap;
-		    }
-		}
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
-    case XA_FONT: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		FontPtr pFont;
-
-		if (dixLookupResource ((pointer *) &pFont,
-				       src[i],
-				       RT_FONT,
-				       serverClient,
-				       DixReadAccess) == Success)
-		{
-		    dmxFontPrivPtr pFontPriv =
-			FontGetPrivate (pFont, dmxFontPrivateIndex);
-
-		    dst[i] = pFontPriv->font[pScreen->myNum]->fid;
-		}
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
-    case XA_VISUALID: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		Visual *visual;
-
-		visual = dmxLookupVisualFromID (pScreen, src[i]);
-		if (visual)
-		    dst[i] = XVisualIDFromVisual (visual);
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
-    case XA_WINDOW: {
-	XID *dst, *src = (XID *) data;
-
-	dst = (XID *) xalloc (pProp->size * (pProp->format >> 3));
-	if (dst)
-	{
-	    data = (unsigned char *) dst;
-	    for (i = 0; i < pProp->size; i++)
-	    {
-		WindowPtr pWin;
-		XID       id = src[i];
-
-#ifdef PANORAMIX
-		if (!noPanoramiXExtension)
-		{
-		    PanoramiXRes *res;
-
-		    if (dixLookupResource ((pointer *) &res,
-					   id,
-					   XRT_WINDOW,
-					   serverClient,
-					   DixReadAccess) == Success)
-			id = res->info[pScreen->myNum].id;
-		}
-#endif
-
-		if (dixLookupResource ((pointer *) &pWin,
-				       id,
-				       RT_WINDOW,
-				       serverClient,
-				       DixReadAccess) == Success)
-		    dst[i] = (DMX_GET_WINDOW_PRIV (pWin))->window;
-		else
-		    dst[i] = src[i];
-	    }
-	}
-    } break;
     }
 
     XLIB_PROLOGUE (dmxScreen);

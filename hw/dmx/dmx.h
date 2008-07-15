@@ -88,6 +88,12 @@ typedef struct _DMXIgnore {
     unsigned long     sequence;
 } DMXIgnore;
 
+typedef struct _DMXPropTrans {
+    const char *name;
+    const char *format;
+    Atom       type;
+} DMXPropTrans;
+
 /** Provide the typedef globally, but keep the contents opaque outside
  * of the input routines.  \see dmxinput.h */
 typedef struct _DMXInputInfo DMXInputInfo;
@@ -351,6 +357,9 @@ extern Bool             dmxAddRemoveScreens;    /**< True if add and
 extern int             xRROutputsPerScreen;
 extern int             xRRCrtcsPerScreen;
 #endif
+
+extern DMXPropTrans     *dmxPropTrans;
+extern int              dmxPropTransNum;
 
 /** Wrap screen or GC function pointer */
 #define DMX_WRAP(_entry, _newfunc, _saved, _actual)			\

@@ -135,6 +135,9 @@ int xRROutputsPerScreen = 2;
 int xRRCrtcsPerScreen = 2;
 #endif
 
+DMXPropTrans    *dmxPropTrans = NULL;
+int             dmxPropTransNum = 0;
+
 #include <execinfo.h>
 
 static void
@@ -773,6 +776,11 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 	       "Dynamic screen addition/removal error (see above).\n");
     }
 
+    for (i = 0; i < dmxPropTransNum; i++)
+	dmxPropTrans[i].type = MakeAtom ((char *) dmxPropTrans[i].name,
+					 strlen (dmxPropTrans[i].name),
+					 TRUE);
+
     if (!dmxConfigDisplaysFromCommandLine ())
 	dmxLaunchDisplay (argc, argv, dmxLaunchIndex, dmxLaunchVT);
 
@@ -1143,6 +1151,26 @@ int ddxProcessArgument(int argc, char *argv[], int i)
         }
         retval = 3;
     }
+    else if (!strcmp (argv[i], "-prop"))
+    {
+	if ((i + 2) < argc)
+	{
+	    DMXPropTrans *prop;
+
+	    prop = xrealloc (dmxPropTrans, sizeof (DMXPropTrans) *
+			     (dmxPropTransNum + 1));
+	    if (prop)
+	    {
+		prop[dmxPropTransNum].name   = argv[i + 1];
+		prop[dmxPropTransNum].format = argv[i + 2];
+		prop[dmxPropTransNum].type   = 0;
+
+		dmxPropTransNum++;
+		dmxPropTrans = prop;
+	    }
+	}
+        retval = 3;
+    }
     else if ((argv[i][0] == 'v') && (argv[i][1] == 't'))
     {
         dmxLaunchVT = argv[i];
@@ -1197,6 +1225,7 @@ void ddxUseMsg(void)
 #endif
     ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
     ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");
+    ErrorF("-prop name format    Specify property translation\n");
     ErrorF("\n");
     ErrorF("    If the -input string matches a -display string, then input\n"
            "    is taken from that backend display.  (XInput cannot be taken\n"
