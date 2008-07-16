@@ -124,7 +124,8 @@ PixmapPtr dmxCreatePixmap(ScreenPtr pScreen, int width, int height, int depth,
     pPixPriv->pixmap = (Pixmap)0;
     pPixPriv->detachedImage = NULL;
 
-    if (usage_hint != CREATE_PIXMAP_USAGE_GLYPH_PICTURE)
+    if (usage_hint != CREATE_PIXMAP_USAGE_GLYPH_PICTURE &&
+	usage_hint != CREATE_PIXMAP_USAGE_BACKING_PIXMAP)
     {
 	/* Create the pixmap on the back-end server */
 	if (dmxScreen->beDisplay) {
