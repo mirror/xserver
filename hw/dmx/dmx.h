@@ -292,6 +292,9 @@ typedef struct _DMXScreenInfo {
     TrianglesProcPtr               Triangles;
     TriStripProcPtr                TriStrip;
     TriFanProcPtr                  TriFan;
+
+    RealizeGlyphProcPtr            RealizeGlyph;
+    UnrealizeGlyphProcPtr          UnrealizeGlyph;
 #endif
 } DMXScreenInfo;
 

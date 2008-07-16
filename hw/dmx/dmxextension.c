@@ -1649,7 +1649,7 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
     char            *pos;
     int              beret;
     int              len_images = 0;
-    int              i, j, size;
+    int              i, size;
     int              ctr;
 
     if (glyphPriv->glyphSets[scrnNum]) {
@@ -1697,7 +1697,7 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
     for (i = 0; i < glyphSet->hash.hashSet->size; i++) {
 	GlyphRefPtr  gr = &table[i];
 	GlyphPtr     gl = gr->glyph;
-	XImage       *img = NULL;
+	char         *data;
 
 	if (!gl || gl == DeletedGlyph) continue;
 
@@ -1712,38 +1712,15 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 	glyphs[ctr].xOff   = gl->info.xOff;
 	glyphs[ctr].yOff   = gl->info.yOff;
 
-	for (j = 0; j < dmxNumScreens; j++)
-	{
-	    if (j != scrnNum && dmxScreens[j].alive)
-	    {
-		PicturePtr    pPict = GlyphPicture (gl)[j];
-		PixmapPtr     pPixmap = (PixmapPtr) pPict->pDrawable;
-		dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV (pPixmap);
-
-		XLIB_PROLOGUE (&dmxScreens[j]);
-		img = XGetImage (dmxScreens[j].beDisplay,
-				 pPixPriv->pixmap,
-				 0, 0,
-				 pPixmap->drawable.width,
-				 pPixmap->drawable.height,
-				 -1,
-				 ZPixmap);
-		XLIB_EPILOGUE (&dmxScreens[j]);
-
-		if (img)
-		    break;
-	    }
-	}
-
 	size = gl->info.height * PixmapBytePad (gl->info.width,
 						glyphSet->format->depth);
 	if (size & 3)
 	    size += 4 - (size & 3);
 
-	if (img)
+	data = dixLookupPrivate (&(gl)->devPrivates, dmxGlyphPrivateKey);
+	if (data)
 	{
-	    memcpy (pos, img->data, size);
-	    XDestroyImage (img);
+	    memcpy (pos, data, size);
 	}
 	else
 	{

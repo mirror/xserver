@@ -118,7 +118,7 @@ extern Bool dmxBEFreePicture(PicturePtr pPicture);
 
 extern DevPrivateKey dmxPictPrivateKey;	/**< Index for picture private data */
 extern DevPrivateKey dmxGlyphSetPrivateKey; /**< Index for glyphset private data */
-
+extern DevPrivateKey dmxGlyphPrivateKey; /**< Index for glyph private data */
 
 /** Get the picture private data given a picture pointer */
 #define DMX_GET_PICT_PRIV(_pPict)					\

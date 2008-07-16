@@ -103,6 +103,46 @@ dmxFreeGlyphSet (pointer value,
     return FreeGlyphSet (value, gid);
 }
 
+static Bool
+dmxRealizeGlyph (ScreenPtr pScreen,
+		 GlyphPtr  glyph)
+{
+    PictureScreenPtr ps  = GetPictureScreen (pScreen);
+    DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
+    int              ret;
+
+    if (pScreen->myNum == 0)
+	*((PrivateRec **) dixLookupPrivateAddr (&(glyph)->devPrivates,
+						dmxGlyphPrivateKey)) = NULL;
+
+    DMX_UNWRAP (RealizeGlyph, dmxScreen, ps);
+    ret = (*ps->RealizeGlyph) (pScreen, glyph);
+    DMX_WRAP (RealizeGlyph, dmxRealizeGlyph, dmxScreen, ps);
+
+    return ret;
+}
+
+static void
+dmxUnrealizeGlyph (ScreenPtr pScreen,
+		   GlyphPtr  glyph)
+{
+    PictureScreenPtr ps = GetPictureScreen (pScreen);
+    DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (pScreen->myNum == 0)
+    {
+	char *data;
+
+	data = dixLookupPrivate (&(glyph)->devPrivates, dmxGlyphPrivateKey);
+	if (data)
+	    xfree (data);
+    }
+
+    DMX_UNWRAP (UnrealizeGlyph, dmxScreen, ps);
+    (*ps->UnrealizeGlyph) (pScreen, glyph);
+    DMX_WRAP (UnrealizeGlyph, dmxUnrealizeGlyph, dmxScreen, ps);
+}
+
 /** Initialize the Proc Vector for the RENDER extension.  The functions
  *  here cannot be handled by the mi layer RENDER hooks either because
  *  the required information is no longer available when it reaches the
@@ -412,6 +452,9 @@ Bool dmxPictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     if (!dixRequestPrivate(dmxGlyphSetPrivateKey, sizeof(dmxGlyphPrivRec)))
 	return FALSE;
 
+    if (!dixRequestPrivate(dmxGlyphPrivateKey, 0))
+	return FALSE;
+
     ps = GetPictureScreen(pScreen);
 
     DMX_WRAP(CreatePicture,      dmxCreatePicture,      dmxScreen, ps);
@@ -431,6 +474,9 @@ Bool dmxPictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     DMX_WRAP(Triangles,          dmxTriangles,          dmxScreen, ps);
     DMX_WRAP(TriStrip,           dmxTriStrip,           dmxScreen, ps);
     DMX_WRAP(TriFan,             dmxTriFan,             dmxScreen, ps);
+
+    DMX_WRAP(RealizeGlyph,       dmxRealizeGlyph,       dmxScreen, ps);
+    DMX_WRAP(UnrealizeGlyph,     dmxUnrealizeGlyph,     dmxScreen, ps);
 
     return TRUE;
 }
@@ -596,7 +642,8 @@ static int dmxProcRenderAddGlyphs(ClientPtr client)
 	Glyph           *gidsCopy;
 	xGlyphInfo      *gi;
 	CARD8           *bits;
-	int              nbytes;
+	int              nbytes, size;
+	void		*data;
 
 	glyphSet = SecurityLookupIDByType(client, stuff->glyphset,
 					  GlyphSetType, DixReadAccess);
@@ -611,7 +658,34 @@ static int dmxProcRenderAddGlyphs(ClientPtr client)
 		  (sizeof(CARD32) + sizeof(xGlyphInfo)) * nglyphs);
 
         gidsCopy = xalloc(sizeof(*gidsCopy) * nglyphs);
-        for (i = 0; i < nglyphs; i++) gidsCopy[i] = gids[i];
+        for (i = 0; i < nglyphs; i++)
+	{
+	    GlyphPtr glyph;
+
+	    gidsCopy[i] = gids[i];
+
+	    size = gi[i].height * PixmapBytePad (gi[i].width,
+						 glyphSet->format->depth);
+	    if (size & 3)
+		size += 4 - (size & 3);
+
+	    glyph = FindGlyph (glyphSet, gids[i]);
+	    if (glyph)
+	    {
+		data = xalloc (size);
+		if (data)
+		{
+		    memcpy (data, bits, size);
+		    *((PrivateRec **)
+		      dixLookupPrivateAddr (&(glyph)->devPrivates,
+					    dmxGlyphPrivateKey)) = data;
+		}
+	    }
+
+	    bits += size;
+	}
+
+	bits = (CARD8 *)(gi + nglyphs);
 
 	/* FIXME: Will this ever fail? */
 	for (i = 0; i < dmxNumScreens; i++) {

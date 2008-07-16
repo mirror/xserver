@@ -141,6 +141,8 @@ static int dmxPictPrivateKeyIndex;
 DevPrivateKey dmxPictPrivateKey = &dmxPictPrivateKeyIndex; /**< Private index for Picts     */
 static int dmxGlyphSetPrivateKeyIndex;
 DevPrivateKey dmxGlyphSetPrivateKey = &dmxGlyphSetPrivateKeyIndex; /**< Private index for GlyphSets */
+static int dmxGlyphPrivateKeyIndex;
+DevPrivateKey dmxGlyphPrivateKey = &dmxGlyphPrivateKeyIndex; /**< Private index for Glyphs */
 #endif
 
 #ifdef RANDR
