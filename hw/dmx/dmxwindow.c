@@ -1503,7 +1503,7 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
 	    }
 
 	    if (i < pProp->size)
-		memcpy (dst, src, pProp->size - i);
+		memcpy (dst, src, (pProp->size - i) * (pProp->format >> 3));
 	}
     }
 
