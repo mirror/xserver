@@ -1633,6 +1633,33 @@ dmxScreenExpose (ScreenPtr pScreen)
     }
 }
 
+static Bool
+dmxManagerPredicate (Display  *xdisplay,
+		     XEvent   *X,
+		     XPointer arg)
+{
+    Window *xWindow = (Window *) arg;
+
+    switch (X->type) {
+    case CirculateRequest:
+	*xWindow = X->xcirculaterequest.window;
+	break;
+    case ConfigureRequest:
+	*xWindow = X->xconfigurerequest.window;
+	break;
+    case MapRequest:
+	*xWindow = X->xmaprequest.window;
+	break;
+    case ClientMessage:
+	*xWindow = X->xclient.window;
+	break;
+    default:
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
 static void
 dmxScreenManage (ScreenPtr pScreen)
 {
@@ -1654,30 +1681,14 @@ dmxScreenManage (ScreenPtr pScreen)
 #endif
 
 	    XLIB_PROLOGUE (dmxScreen);
-	    status = XCheckMaskEvent (dmxScreen->beDisplay,
-				      SubstructureRedirectMask,
-				      &X);
+	    status = XCheckIfEvent (dmxScreen->beDisplay,
+				    &X,
+				    dmxManagerPredicate,
+				    (XPointer) &xWindow);
 	    XLIB_EPILOGUE (dmxScreen);
 
 	    if (!status)
 		break;
-
-	    switch (X.type) {
-	    case CirculateRequest:
-		xWindow = X.xcirculaterequest.window;
-		break;
-	    case ConfigureRequest:
-		xWindow = X.xconfigurerequest.window;
-		break;
-	    case MapRequest:
-		xWindow = X.xmaprequest.window;
-		break;
-	    case ClientMessage:
-		xWindow = X.xclient.window;
-		break;
-	    default:
-		xWindow = None;
-	    }
 
 	    pChild = WindowTable[pScreen->myNum];
 
@@ -1704,10 +1715,11 @@ dmxScreenManage (ScreenPtr pScreen)
 		    continue;
 		}
 
-		while (!pChild->nextSib && (pChild != WindowTable[0]))
+		while (!pChild->nextSib &&
+		       (pChild != WindowTable[pScreen->myNum]))
 		    pChild = pChild->parent;
 
-		if (pChild == WindowTable[0])
+		if (pChild == WindowTable[pScreen->myNum])
 		    break;
 
 		pChild = pChild->nextSib;
@@ -1722,6 +1734,8 @@ dmxScreenManage (ScreenPtr pScreen)
 		)
 	    {
 		XID    vlist[8];
+		char   *name = NULL;
+		Atom   type;
 		int    mask, i = 0;
 		int    status = Success;
 		xEvent x;
@@ -1838,16 +1852,27 @@ dmxScreenManage (ScreenPtr pScreen)
 		    x.u.u.detail             = X.xclient.format;
 		    x.u.clientMessage.window = pChild->drawable.id;
 
+		    /* ROUNDTRIP: if name is not cached by xlib */
+		    XLIB_PROLOGUE (dmxScreen);
+		    name = XGetAtomName (dmxScreen->beDisplay,
+					 X.xclient.message_type);
+		    XLIB_EPILOGUE (dmxScreen);
+
+		    if (!name)
+			break;
+
+		    type = MakeAtom (name, strlen (name), TRUE);
+
 		    switch (X.xclient.format) {
 		    case 8:
-			x.u.clientMessage.u.b.type = X.xclient.message_type;
+			x.u.clientMessage.u.b.type = type;
 
 			for (i = 0; i < 20; i++)
 			    x.u.clientMessage.u.b.bytes[i] =
 				X.xclient.data.b[i];
 			break;
 		    case 16:
-			x.u.clientMessage.u.s.type = X.xclient.message_type;
+			x.u.clientMessage.u.s.type = type;
 
 			x.u.clientMessage.u.s.shorts0 = X.xclient.data.s[0];
 			x.u.clientMessage.u.s.shorts1 = X.xclient.data.s[1];
@@ -1861,7 +1886,7 @@ dmxScreenManage (ScreenPtr pScreen)
 			x.u.clientMessage.u.s.shorts9 = X.xclient.data.s[9];
 			break;
 		    case 32:
-			x.u.clientMessage.u.l.type = X.xclient.message_type;
+			x.u.clientMessage.u.l.type = type;
 
 			x.u.clientMessage.u.l.longs0 = X.xclient.data.l[0];
 			x.u.clientMessage.u.l.longs1 = X.xclient.data.l[1];
@@ -1871,33 +1896,26 @@ dmxScreenManage (ScreenPtr pScreen)
 			break;
 		    }
 
+		    /* client messages are always forwarded to the root
+		       window as there's no way for us to know which
+		       windows they were originally intended for */
+		    pWin = WindowTable[pScreen->myNum];
+
 #ifdef PANORAMIX
 		    if (!noPanoramiXExtension)
 		    {
 			x.u.clientMessage.window = win->info[0].id;
-
-			if (dixLookupWindow (&pWin,
-					     win->info[0].id,
-					     serverClient,
-					     DixReadAccess) == Success)
-			    DeliverEventsToWindow (PickPointer (serverClient),
-						   pWin,
-						   &x,
-						   1,
-						   SubstructureRedirectMask |
-						   SubstructureNotifyMask,
-						   NullGrab, 0);
+			pWin = WindowTable[0];
 		    }
-		    else
 #endif
 
-			DeliverEventsToWindow (PickPointer (serverClient),
-					       pChild,
-					       &x,
-					       1,
-					       SubstructureRedirectMask |
-					       SubstructureNotifyMask,
-					       NullGrab, 0);
+		    DeliverEventsToWindow (PickPointer (serverClient),
+					   pWin,
+					   &x,
+					   1,
+					   SubstructureRedirectMask |
+					   SubstructureNotifyMask,
+					   NullGrab, 0);
 		    break;
 		}
 
@@ -1913,12 +1931,14 @@ dmxScreenManage (ScreenPtr pScreen)
 
 		switch (X.type) {
 		case CirculateRequest:
+		    XLIB_PROLOGUE (dmxScreen);
 		    if (X.xcirculaterequest.place == PlaceOnTop)
 			XRaiseWindow (dmxScreen->beDisplay,
 				      X.xcirculaterequest.window);
 		    else
 			XLowerWindow (dmxScreen->beDisplay,
 				      X.xcirculaterequest.window);
+		    XLIB_EPILOGUE (dmxScreen);
 		    break;
 		case ConfigureRequest:
 		    xwc.x	     = X.xconfigurerequest.x;
@@ -1929,13 +1949,17 @@ dmxScreenManage (ScreenPtr pScreen)
 		    xwc.sibling      = X.xconfigurerequest.above;
 		    xwc.stack_mode   = X.xconfigurerequest.detail;
 
+		    XLIB_PROLOGUE (dmxScreen);
 		    XConfigureWindow (dmxScreen->beDisplay,
 				      X.xconfigurerequest.window,
 				      X.xconfigurerequest.value_mask,
 				      &xwc);
+		    XLIB_EPILOGUE (dmxScreen);
 		    break;
 		case MapRequest:
+		    XLIB_PROLOGUE (dmxScreen);
 		    XMapWindow (dmxScreen->beDisplay, X.xmaprequest.window);
+		    XLIB_EPILOGUE (dmxScreen);
 		    break;
 		case ClientMessage:
 		    break;
