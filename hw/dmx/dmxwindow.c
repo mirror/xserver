@@ -1233,7 +1233,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 	if (name)
 	    *dst = XInternAtom (dmxScreen->beDisplay, name, FALSE);
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'p':
     case 'P': {
@@ -1263,7 +1263,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 			       DixReadAccess) == Success)
 	    *dst = (DMX_GET_PIXMAP_PRIV (pPixmap))->pixmap;
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'm':
     case 'M': {
@@ -1293,7 +1293,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 			       DixReadAccess) == Success)
 	    *dst = (DMX_GET_COLORMAP_PRIV (pColormap))->cmap;
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'c':
     case 'C': {
@@ -1308,7 +1308,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 			       DixReadAccess) == Success)
 	    *dst = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'd':
     case 'D': {
@@ -1351,7 +1351,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 	    }
 	}
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'f':
     case 'F': {
@@ -1371,7 +1371,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 	    *dst = pFontPriv->font[pScreen->myNum]->fid;
 	}
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'v':
     case 'V': {
@@ -1383,7 +1383,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 	if (visual)
 	    *dst = XVisualIDFromVisual (visual);
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     case 'w':
     case 'W': {
@@ -1413,7 +1413,7 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
 			       DixReadAccess) == Success)
 	    *dst = (DMX_GET_WINDOW_PRIV (pWin))->window;
 	else
-	    *dst = *src;
+	    *dst = 0;
     } break;
     default:
 	*((CARD32 *) output) = *((CARD32 *) data);
