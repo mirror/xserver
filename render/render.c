@@ -2733,6 +2733,8 @@ PanoramiXRenderCreatePicture (ClientPtr client)
     else
 	newPict->u.pict.root = FALSE;
 
+    newPict->u.pict.sourcePict = FALSE;
+
     for(j = 1; j < PanoramiXNumScreens; j++)
 	newPict->info[j].id = FakeClientID(client->index);
     
@@ -2763,10 +2765,18 @@ PanoramiXRenderChangePicture (ClientPtr client)
     VERIFY_XIN_PICTURE(pict, stuff->picture, client, DixWriteAccess,
 		       RenderErrBase + BadPicture);
     
-    FOR_NSCREENS_BACKWARD(j) {
-        stuff->picture = pict->info[j].id;
-        result = (*PanoramiXSaveRenderVector[X_RenderChangePicture]) (client);
-        if(result != Success) break;
+    if (pict->u.pict.sourcePict)
+    {
+	stuff->picture = pict->info[0].id;
+	result = (*PanoramiXSaveRenderVector[X_RenderChangePicture]) (client);
+    }
+    else
+    {
+	FOR_NSCREENS_BACKWARD(j) {
+	    stuff->picture = pict->info[j].id;
+	    result = (*PanoramiXSaveRenderVector[X_RenderChangePicture]) (client);
+	    if(result != Success) break;
+	}
     }
 
     return (result);
@@ -2804,11 +2814,19 @@ PanoramiXRenderSetPictureTransform (ClientPtr client)
     
     VERIFY_XIN_PICTURE(pict, stuff->picture, client, DixWriteAccess,
 		       RenderErrBase + BadPicture);
-    
-    FOR_NSCREENS_BACKWARD(j) {
-        stuff->picture = pict->info[j].id;
-        result = (*PanoramiXSaveRenderVector[X_RenderSetPictureTransform]) (client);
-        if(result != Success) break;
+
+    if (pict->u.pict.sourcePict)
+    {
+	stuff->picture = pict->info[0].id;
+	result = (*PanoramiXSaveRenderVector[X_RenderSetPictureTransform]) (client);
+    }
+    else
+    {
+	FOR_NSCREENS_BACKWARD(j) {
+	    stuff->picture = pict->info[j].id;
+	    result = (*PanoramiXSaveRenderVector[X_RenderSetPictureTransform]) (client);
+	    if(result != Success) break;
+	}
     }
 
     return (result);
@@ -2827,9 +2845,9 @@ PanoramiXRenderSetPictureFilter (ClientPtr client)
 		       RenderErrBase + BadPicture);
     
     FOR_NSCREENS_BACKWARD(j) {
-        stuff->picture = pict->info[j].id;
-        result = (*PanoramiXSaveRenderVector[X_RenderSetPictureFilter]) (client);
-        if(result != Success) break;
+	stuff->picture = pict->info[j].id;
+	result = (*PanoramiXSaveRenderVector[X_RenderSetPictureFilter]) (client);
+	if(result != Success) break;
     }
 
     return (result);
@@ -2850,10 +2868,18 @@ PanoramiXRenderFreePicture (ClientPtr client)
 		       RenderErrBase + BadPicture);
     
 
-    FOR_NSCREENS_BACKWARD(j) {
-	stuff->picture = pict->info[j].id;
+    if (pict->u.pict.sourcePict)
+    {
+	stuff->picture = pict->info[0].id;
 	result = (*PanoramiXSaveRenderVector[X_RenderFreePicture]) (client);
-	if(result != Success) break;
+    }
+    else
+    {
+	FOR_NSCREENS_BACKWARD(j) {
+	    stuff->picture = pict->info[j].id;
+	    result = (*PanoramiXSaveRenderVector[X_RenderFreePicture]) (client);
+	    if(result != Success) break;
+	}
     }
 
     /* Since ProcRenderFreePicture is using FreeResource, it will free
@@ -3277,17 +3303,13 @@ PanoramiXRenderCreateSolidFill (ClientPtr client)
 	return BadAlloc;
 
     newPict->type = XRT_PICTURE;
-    newPict->info[0].id = stuff->pid;
+    for (j = 0; j < PanoramiXNumScreens; j++)
+	newPict->info[j].id = stuff->pid;
 
-    for (j = 1; j < PanoramiXNumScreens; j++)
-	newPict->info[j].id = FakeClientID (client->index);
+    newPict->u.pict.root       = FALSE;
+    newPict->u.pict.sourcePict = TRUE;
 
-    FOR_NSCREENS_BACKWARD(j) {
-	stuff->pid = newPict->info[j].id;
-	result = (*PanoramiXSaveRenderVector[X_RenderCreateSolidFill]) (client);
-	if (result != Success) break;
-    }
-
+    result = (*PanoramiXSaveRenderVector[X_RenderCreateSolidFill]) (client);
     if (result == Success)
 	AddResource (newPict->info[0].id, XRT_PICTURE, newPict);
     else
@@ -3308,17 +3330,13 @@ PanoramiXRenderCreateLinearGradient (ClientPtr client)
 	return BadAlloc;
 
     newPict->type = XRT_PICTURE;
-    newPict->info[0].id = stuff->pid;
+    for (j = 0; j < PanoramiXNumScreens; j++)
+	newPict->info[j].id = stuff->pid;
 
-    for (j = 1; j < PanoramiXNumScreens; j++)
-	newPict->info[j].id = FakeClientID (client->index);
+    newPict->u.pict.root       = FALSE;
+    newPict->u.pict.sourcePict = TRUE;
 
-    FOR_NSCREENS_BACKWARD(j) {
-	stuff->pid = newPict->info[j].id;
-	result = (*PanoramiXSaveRenderVector[X_RenderCreateLinearGradient]) (client);
-	if (result != Success) break;
-    }
-
+    result = (*PanoramiXSaveRenderVector[X_RenderCreateLinearGradient]) (client);
     if (result == Success)
 	AddResource (newPict->info[0].id, XRT_PICTURE, newPict);
     else
@@ -3339,17 +3357,13 @@ PanoramiXRenderCreateRadialGradient (ClientPtr client)
 	return BadAlloc;
 
     newPict->type = XRT_PICTURE;
-    newPict->info[0].id = stuff->pid;
+    for (j = 0; j < PanoramiXNumScreens; j++)
+	newPict->info[j].id = stuff->pid;
 
-    for (j = 1; j < PanoramiXNumScreens; j++)
-	newPict->info[j].id = FakeClientID (client->index);
+    newPict->u.pict.root       = FALSE;
+    newPict->u.pict.sourcePict = TRUE;
 
-    FOR_NSCREENS_BACKWARD(j) {
-	stuff->pid = newPict->info[j].id;
-	result = (*PanoramiXSaveRenderVector[X_RenderCreateRadialGradient]) (client);
-	if (result != Success) break;
-    }
-
+    result = (*PanoramiXSaveRenderVector[X_RenderCreateRadialGradient]) (client);
     if (result == Success)
 	AddResource (newPict->info[0].id, XRT_PICTURE, newPict);
     else
@@ -3370,17 +3384,13 @@ PanoramiXRenderCreateConicalGradient (ClientPtr client)
 	return BadAlloc;
 
     newPict->type = XRT_PICTURE;
-    newPict->info[0].id = stuff->pid;
+    for (j = 0; j < PanoramiXNumScreens; j++)
+	newPict->info[j].id = stuff->pid;
 
-    for (j = 1; j < PanoramiXNumScreens; j++)
-	newPict->info[j].id = FakeClientID (client->index);
+    newPict->u.pict.root       = FALSE;
+    newPict->u.pict.sourcePict = TRUE;
 
-    FOR_NSCREENS_BACKWARD(j) {
-	stuff->pid = newPict->info[j].id;
-	result = (*PanoramiXSaveRenderVector[X_RenderCreateConicalGradient]) (client);
-	if (result != Success) break;
-    }
-
+    result = (*PanoramiXSaveRenderVector[X_RenderCreateConicalGradient]) (client);
     if (result == Success)
 	AddResource (newPict->info[0].id, XRT_PICTURE, newPict);
     else

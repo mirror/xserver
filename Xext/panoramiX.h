@@ -69,7 +69,8 @@ typedef struct {
 	} pix;
 #ifdef RENDER
 	struct {
-	    Bool root;
+	    char root;
+	    char sourcePict;
 	} pict;
 #endif
 	char raw_data[4];
