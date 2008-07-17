@@ -414,7 +414,7 @@ dmxDeleteProperty (WindowPtr pWin,
     DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
 
-    if (!dmxScreen->beDisplay)
+    if (!pWinPriv->window)
 	return;
 
     XLIB_PROLOGUE (dmxScreen);
@@ -482,7 +482,7 @@ dmxRotateProperties (WindowPtr pWin,
     dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
     int		  i;
 
-    if (!dmxScreen->beDisplay)
+    if (!pWinPriv->window)
 	return;
 
     XLIB_PROLOGUE (dmxScreen);

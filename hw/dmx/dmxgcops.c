@@ -68,10 +68,10 @@ do {									\
 
 #define DMX_GCOPS_OFFSCREEN(_pDraw)					\
     (!dmxScreens[(_pDraw)->pScreen->myNum].beDisplay ||			\
-     (dmxOffScreenOpt &&						\
-      (_pDraw)->type == DRAWABLE_WINDOW &&				\
-      (DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->offscreen ||		\
-       !DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->window)))
+    ((_pDraw)->type == DRAWABLE_WINDOW &&				\
+     (!DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->window ||		\
+      (dmxOffScreenOpt &&						\
+       DMX_GET_WINDOW_PRIV((WindowPtr)(_pDraw))->offscreen))))
 
 /** Transfer \a pBits image to back-end server associated with \a
  *  pDrawable's screen.  If primitive subdivision optimization is

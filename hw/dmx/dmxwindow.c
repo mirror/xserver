@@ -98,6 +98,10 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     dmxColormapPrivPtr    pCmapPriv;
     Window                win = None;
 
+    /* Avoid to create windows on back-end servers with virtual framebuffer */
+    if (dmxScreen->virtualFb)
+	return None;
+
     mask = CWEventMask;
     attribs.event_mask = ExposureMask | SubstructureRedirectMask;
 
@@ -185,6 +189,9 @@ void dmxResizeRootWindow(WindowPtr pRoot,
     unsigned int    m;
     XWindowChanges  c;
 
+    if (!pWinPriv->window)
+	return;
+
     /* Handle resizing on back-end server */
     if (dmxScreen->beDisplay && !dmxScreen->beUseRoot) {
 	m = CWX | CWY | CWWidth | CWHeight;
@@ -267,6 +274,10 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     dmxWinPrivPtr         pParentPriv = DMX_GET_WINDOW_PRIV(pWindow->parent);
     Window                win = None;
 
+    /* Avoid to create windows on back-end servers with virtual framebuffer */
+    if (dmxScreen->virtualFb)
+	return None;
+
     /* Create window on back-end server */
 
     parent = pParentPriv->window;
@@ -343,23 +354,29 @@ void dmxCreateAndRealizeWindow(WindowPtr pWindow, Bool doSync)
 
     if (!dmxScreen->beDisplay) return;
 
-    pWinPriv->window = dmxCreateNonRootWindow(pWindow);
-    if (pWinPriv->redirected) dmxDoRedirectWindow(pWindow);
-    if (pWinPriv->restacked) dmxDoRestackWindow(pWindow);
-    if (pWinPriv->isShaped) dmxDoSetShape(pWindow);
-#ifdef RENDER
-    if (pWinPriv->hasPict) dmxCreatePictureList(pWindow);
-#endif
-    if (pWinPriv->mapped)
+    if (!pWindow->parent)
+	dmxScreen->rootWin = pWinPriv->window = dmxCreateRootWindow(pWindow);
+    else
+	pWinPriv->window = dmxCreateNonRootWindow(pWindow);
+    if (pWinPriv->window)
     {
-	XLIB_PROLOGUE (dmxScreen);
-	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
-	XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
-	XLIB_EPILOGUE (dmxScreen);
+	if (pWinPriv->redirected) dmxDoRedirectWindow(pWindow);
+	if (pWinPriv->restacked) dmxDoRestackWindow(pWindow);
+	if (pWinPriv->isShaped) dmxDoSetShape(pWindow);
+#ifdef RENDER
+	if (pWinPriv->hasPict) dmxCreatePictureList(pWindow);
+#endif
+	if (pWinPriv->mapped)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
+	    XMapWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
 
-	if (pWinPriv->beRedirected) dmxDoUpdateWindowPixmap (pWindow);
+	    if (pWinPriv->beRedirected) dmxDoUpdateWindowPixmap (pWindow);
+	}
+	if (doSync) dmxSync(dmxScreen, False);
     }
-    if (doSync) dmxSync(dmxScreen, False);
 }
 
 /** Create \a pWindow on the back-end server.  If the lazy window
@@ -1187,7 +1204,7 @@ dmxDoUpdateWindowPixmap(WindowPtr pWindow)
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
-    if (pWinPriv->beRedirected)
+    if (pWinPriv->window && pWinPriv->beRedirected)
     {
 	PixmapPtr pPixmap;
 
@@ -1432,7 +1449,7 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
     const char     *format = NULL;
     int		   i;
 
-    if (!dmxScreen->beDisplay)
+    if (!pWinPriv->window)
 	return;
 
     /* only 32 bit data types can be translated */
@@ -1524,5 +1541,7 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
 
     if (data != pProp->data)
 	xfree (data);
+
+    dmxSync (dmxScreen, FALSE);
 }
 
