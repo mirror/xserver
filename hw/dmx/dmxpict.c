@@ -70,13 +70,19 @@ static int dmxProcRenderFreeGlyphs(ClientPtr client);
 static int dmxProcRenderCompositeGlyphs(ClientPtr client);
 static int dmxProcRenderSetPictureTransform(ClientPtr client);
 static int dmxProcRenderSetPictureFilter(ClientPtr client);
+static int dmxProcRenderChangePicture (ClientPtr client);
 #if 0
 /* FIXME: Not (yet) supported */
 static int dmxProcRenderCreateCursor(ClientPtr client);
 static int dmxProcRenderCreateAnimCursor(ClientPtr client);
 #endif
+static int dmxProcRenderCreateSolidFill (ClientPtr pClient);
+static int dmxProcRenderCreateLinearGradient (ClientPtr pClient);
+static int dmxProcRenderCreateRadialGradient (ClientPtr pClient);
+static int dmxProcRenderCreateConicalGradient (ClientPtr pClient);
 
 unsigned long DMX_GLYPHSET;
+unsigned long DMX_SOURCEPICT;
 
 static int
 dmxFreeGlyphSet (pointer value,
@@ -101,6 +107,29 @@ dmxFreeGlyphSet (pointer value,
     }
 
     return FreeGlyphSet (value, gid);
+}
+
+static int
+dmxFreeSourcePict (pointer value,
+		   XID     gid)
+{
+    PicturePtr pPicture = (PicturePtr) value;
+
+    if (pPicture->refcnt <= 2) {
+	dmxPictPrivPtr pPictPriv = DMX_GET_PICT_PRIV(pPicture);
+	int            i;
+
+	for (i = 0; i < dmxNumScreens; i++) {
+	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	    if (dmxScreen->beDisplay)
+		dmxBEFreePicture (screenInfo.screens[i], pPicture);
+	}
+
+        MAXSCREENSFREE(pPictPriv->sourcePict);
+    }
+
+    return FreePicture (value, gid);
 }
 
 static Bool
@@ -154,6 +183,7 @@ void dmxInitRender(void)
     int i;
 
     DMX_GLYPHSET = CreateNewResourceType (dmxFreeGlyphSet);
+    DMX_SOURCEPICT = CreateNewResourceType (dmxFreeSourcePict);
 
     for (i = 0; i < RenderNumberRequests; i++)
         dmxSaveRenderVector[i] = ProcRenderVector[i];
@@ -176,6 +206,16 @@ void dmxInitRender(void)
 	= dmxProcRenderSetPictureTransform;
     ProcRenderVector[X_RenderSetPictureFilter]
 	= dmxProcRenderSetPictureFilter;
+    ProcRenderVector[X_RenderChangePicture]
+	= dmxProcRenderChangePicture;
+    ProcRenderVector[X_RenderCreateSolidFill] =
+	dmxProcRenderCreateSolidFill;
+    ProcRenderVector[X_RenderCreateLinearGradient] =
+	dmxProcRenderCreateLinearGradient;
+    ProcRenderVector[X_RenderCreateRadialGradient] =
+	dmxProcRenderCreateRadialGradient;
+    ProcRenderVector[X_RenderCreateConicalGradient] =
+	dmxProcRenderCreateConicalGradient;
 }
 
 /** Reset the Proc Vector for the RENDER extension back to the original
@@ -949,31 +989,48 @@ static int dmxProcRenderSetPictureTransform(ClientPtr client)
     VERIFY_PICTURE(pPicture, stuff->picture, client, DixWriteAccess,
 		   RenderErrBase + BadPicture);
 
+    pPictPriv = DMX_GET_PICT_PRIV(pPicture);
+
+    xform.matrix[0][0] = stuff->transform.matrix11;
+    xform.matrix[0][1] = stuff->transform.matrix12;
+    xform.matrix[0][2] = stuff->transform.matrix13;
+    xform.matrix[1][0] = stuff->transform.matrix21;
+    xform.matrix[1][1] = stuff->transform.matrix22;
+    xform.matrix[1][2] = stuff->transform.matrix23;
+    xform.matrix[2][0] = stuff->transform.matrix31;
+    xform.matrix[2][1] = stuff->transform.matrix32;
+    xform.matrix[2][2] = stuff->transform.matrix33;
+
     /* For the following to work with PanoramiX, it assumes that Render
      * wraps the ProcRenderVector after dmxRenderInit has been called.
      */
     if (pPicture->pDrawable)
     {
 	dmxScreen = &dmxScreens[pPicture->pDrawable->pScreen->myNum];
-	pPictPriv = DMX_GET_PICT_PRIV(pPicture);
 
 	if (pPictPriv->pict) {
-	    xform.matrix[0][0] = stuff->transform.matrix11;
-	    xform.matrix[0][1] = stuff->transform.matrix12;
-	    xform.matrix[0][2] = stuff->transform.matrix13;
-	    xform.matrix[1][0] = stuff->transform.matrix21;
-	    xform.matrix[1][1] = stuff->transform.matrix22;
-	    xform.matrix[1][2] = stuff->transform.matrix23;
-	    xform.matrix[2][0] = stuff->transform.matrix31;
-	    xform.matrix[2][1] = stuff->transform.matrix32;
-	    xform.matrix[2][2] = stuff->transform.matrix33;
-
 	    XLIB_PROLOGUE (dmxScreen);
 	    XRenderSetPictureTransform(dmxScreen->beDisplay,
 				       pPictPriv->pict,
 				       &xform);
 	    XLIB_EPILOGUE (dmxScreen);
-	    dmxSync(dmxScreen, FALSE);
+	}
+    }
+    else if (pPictPriv->sourcePict)
+    {
+	int i;
+
+	for (i = 0; i < dmxNumScreens; i++) {
+	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	    if (pPictPriv->sourcePict[i])
+	    {
+		XLIB_PROLOGUE (dmxScreen);
+		XRenderSetPictureTransform(dmxScreen->beDisplay,
+					   pPictPriv->sourcePict[i],
+					   &xform);
+		XLIB_EPILOGUE (dmxScreen);
+	    }
 	}
     }
 
@@ -1021,61 +1078,49 @@ static int dmxProcRenderSetPictureFilter(ClientPtr client)
 				    params,
 				    nparams);
 	    XLIB_EPILOGUE (dmxScreen);
-	    dmxSync(dmxScreen, FALSE);
 	}
     }
 
     return dmxSaveRenderVector[stuff->renderReqType](client);
 }
 
-
-/** Create a picture on the appropriate screen.  This is the actual
- *  function that creates the picture.  However, if the associated
- *  window has not yet been created due to lazy window creation, then
- *  delay the picture creation until the window is mapped. */
-static Picture dmxDoCreatePicture(PicturePtr pPicture)
+static int dmxProcRenderChangePicture(ClientPtr client)
 {
-    DrawablePtr               pDraw     = pPicture->pDrawable;
-    ScreenPtr                 pScreen   = pDraw->pScreen;
-    DMXScreenInfo            *dmxScreen = &dmxScreens[pScreen->myNum];
-    XRenderPictFormat        *pFormat;
-    Drawable                 draw;
-    Picture pict = 0;
+    int ret;
+    REQUEST(xRenderChangePictureReq);
 
-    if (pDraw->type == DRAWABLE_WINDOW) {
-	dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV((WindowPtr)(pDraw));
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
 
-	if (!(draw = pWinPriv->window)) {
-	    /* Window has not been created yet due to the window
-	     * optimization.  Delay picture creation until window is
-	     * mapped.
-	     */
-	    pWinPriv->hasPict = TRUE;
-	    return 0;
-	}
-    } else {
-	dmxPixPrivPtr  pPixPriv = DMX_GET_PIXMAP_PRIV((PixmapPtr)(pDraw));
+    if (ret == Success && (stuff->mask & CPRepeat)) {
+	PicturePtr     pPicture;
+	dmxPictPrivPtr pPictPriv;
+	int            i;
 
-	if (!(draw = pPixPriv->pixmap)) {
-	    /* FIXME: Zero width/height pixmap?? */
-	    return 0;
+	pPicture = SecurityLookupIDByType(client, stuff->picture, PictureType,
+					  DixDestroyAccess);
+	pPictPriv = DMX_GET_PICT_PRIV(pPicture);
+	if (pPictPriv->sourcePict)
+	{
+	    XRenderPictureAttributes attribs;
+
+	    attribs.repeat = pPicture->repeatType;
+
+	    for (i = 0; i < dmxNumScreens; i++) {
+		DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+		if (pPictPriv->sourcePict[i])
+		{
+		    XLIB_PROLOGUE (dmxScreen);
+		    XRenderChangePicture(dmxScreen->beDisplay,
+					 pPictPriv->sourcePict[i],
+					 CPRepeat, &attribs);
+		    XLIB_EPILOGUE (dmxScreen);
+		}
+	    }
 	}
     }
 
-    /* This should not be reached if the back-end display has been
-     * detached because the pWinPriv->window or the pPixPriv->pixmap
-     * will be NULL; however, we add it here for completeness
-     */
-    if (!dmxScreen->beDisplay)
-	return 0;
-
-    pFormat = dmxFindFormat(dmxScreen, pPicture->pFormat);
-
-    XLIB_PROLOGUE (dmxScreen);
-    pict = XRenderCreatePicture(dmxScreen->beDisplay, draw, pFormat, 0, 0);
-    XLIB_EPILOGUE (dmxScreen);
-
-    return pict;
+    return ret;
 }
 
 static int
@@ -1110,10 +1155,9 @@ dmxGetSourceStops (SourcePictPtr pSourcePict,
 }
 
 static Picture
-dmxDoCreateSourcePicture (ScreenPtr  pScreen,
-			  PicturePtr pPicture)
+dmxDoCreateSourcePicture (int idx, PicturePtr pPicture)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
     Picture       pict = None;
 
     if (pPicture->pSourcePict)
@@ -1192,38 +1236,132 @@ dmxDoCreateSourcePicture (ScreenPtr  pScreen,
 	    xfree (stops);
 	    xfree (colors);
 	}
+    }
 
-	if (pict)
-	{
-	    if (pPicture->repeatType != RepeatNone)
-	    {
-		XRenderPictureAttributes attrib;
+    return pict;
+}
 
-		attrib.repeat = pPicture->repeatType;
+static int dmxCreateSourcePicture(ClientPtr client, XID pid)
+{
+    PicturePtr     pPicture;
+    dmxPictPrivPtr pPictPriv;
+    int            i;
 
-		XLIB_PROLOGUE (dmxScreen);
-		XRenderChangePicture (dmxScreen->beDisplay, pict, CPRepeat,
-				      &attrib);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
+    pPicture = SecurityLookupIDByType(client, pid, PictureType,
+				      DixDestroyAccess);
+    pPictPriv = DMX_GET_PICT_PRIV(pPicture);
+    MAXSCREENSALLOC_RETURN(pPictPriv->sourcePict, BadAlloc);
+    memset (pPictPriv->sourcePict, 0,
+	    sizeof (*pPictPriv->sourcePict) * MAXSCREENS);
+    pPictPriv->pict = (Picture) 0;
+    AddResource (pid, DMX_SOURCEPICT, pPicture);
+    pPicture->refcnt++;
 
-	    if (pPicture->transform)
-	    {
-		XTransform transform;
-		int        i, j;
+    for (i = 0; i < dmxNumScreens; i++) {
+	DMXScreenInfo *dmxScreen = &dmxScreens[i];
 
-		for (i = 0; i < 3; i++)
-		    for (j = 0; j < 3; j++)
-			transform.matrix[i][j] =
-			    pPicture->transform->matrix[i][j];
+	if (!dmxScreen->beDisplay)
+	    continue;
 
-		XLIB_PROLOGUE (dmxScreen);
-		XRenderSetPictureTransform (dmxScreen->beDisplay, pict,
-					    &transform);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
+	pPictPriv->sourcePict[i] = dmxDoCreateSourcePicture (i, pPicture);
+    }
+
+    return Success;
+}
+
+static int dmxProcRenderCreateSolidFill (ClientPtr client)
+{
+    int ret;
+    REQUEST(xRenderCreateSolidFillReq);
+
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
+    if (ret != Success)
+	return ret;
+
+    return dmxCreateSourcePicture (client, stuff->pid);
+}
+
+static int dmxProcRenderCreateLinearGradient (ClientPtr client)
+{
+    int ret;
+    REQUEST(xRenderCreateLinearGradientReq);
+
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
+    if (ret != Success)
+	return ret;
+
+    return dmxCreateSourcePicture (client, stuff->pid);
+}
+
+static int dmxProcRenderCreateRadialGradient (ClientPtr client)
+{
+    int ret;
+    REQUEST(xRenderCreateRadialGradientReq);
+
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
+    if (ret != Success)
+	return ret;
+
+    return dmxCreateSourcePicture (client, stuff->pid);
+}
+
+static int dmxProcRenderCreateConicalGradient (ClientPtr client)
+{
+    int ret;
+    REQUEST(xRenderCreateConicalGradientReq);
+
+    ret = dmxSaveRenderVector[stuff->renderReqType](client);
+    if (ret != Success)
+	return ret;
+
+    return dmxCreateSourcePicture (client, stuff->pid);
+}
+
+/** Create a picture on the appropriate screen.  This is the actual
+ *  function that creates the picture.  However, if the associated
+ *  window has not yet been created due to lazy window creation, then
+ *  delay the picture creation until the window is mapped. */
+static Picture dmxDoCreatePicture(PicturePtr pPicture)
+{
+    DrawablePtr               pDraw     = pPicture->pDrawable;
+    ScreenPtr                 pScreen   = pDraw->pScreen;
+    DMXScreenInfo            *dmxScreen = &dmxScreens[pScreen->myNum];
+    XRenderPictFormat        *pFormat;
+    Drawable                 draw;
+    Picture pict = 0;
+
+    if (pDraw->type == DRAWABLE_WINDOW) {
+	dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV((WindowPtr)(pDraw));
+
+	if (!(draw = pWinPriv->window)) {
+	    /* Window has not been created yet due to the window
+	     * optimization.  Delay picture creation until window is
+	     * mapped.
+	     */
+	    pWinPriv->hasPict = TRUE;
+	    return 0;
+	}
+    } else {
+	dmxPixPrivPtr  pPixPriv = DMX_GET_PIXMAP_PRIV((PixmapPtr)(pDraw));
+
+	if (!(draw = pPixPriv->pixmap)) {
+	    /* FIXME: Zero width/height pixmap?? */
+	    return 0;
 	}
     }
+
+    /* This should not be reached if the back-end display has been
+     * detached because the pWinPriv->window or the pPixPriv->pixmap
+     * will be NULL; however, we add it here for completeness
+     */
+    if (!dmxScreen->beDisplay)
+	return 0;
+
+    pFormat = dmxFindFormat(dmxScreen, pPicture->pFormat);
+
+    XLIB_PROLOGUE (dmxScreen);
+    pict = XRenderCreatePicture(dmxScreen->beDisplay, draw, pFormat, 0, 0);
+    XLIB_EPILOGUE (dmxScreen);
 
     return pict;
 }
@@ -1249,15 +1387,47 @@ void dmxCreatePictureList(WindowPtr pWindow)
 }
 
 /** Create \a pPicture on the backend. */
-int dmxBECreatePicture(PicturePtr pPicture)
+int dmxBECreatePicture(int idx, PicturePtr pPicture)
 {
     dmxPictPrivPtr    pPictPriv = DMX_GET_PICT_PRIV(pPicture);
 
-    /* Create picutre on BE */
-    pPictPriv->pict = dmxDoCreatePicture(pPicture);
+    /* Create picture on BE */
+    if (pPicture->pDrawable)
+    {
+	pPictPriv->pict = dmxDoCreatePicture(pPicture);
 
-    /* Flush changes to the backend server */
-    dmxValidatePicture(pPicture, (1 << (CPLastBit+1)) - 1);
+	/* Flush changes to the backend server */
+	dmxValidatePicture(pPicture, (1 << (CPLastBit+1)) - 1);
+    }
+    else
+    {
+	pPictPriv->sourcePict[idx] = dmxDoCreateSourcePicture(idx, pPicture);
+	if (pPictPriv->sourcePict[idx])
+	{
+	    DMXScreenInfo            *dmxScreen = &dmxScreens[idx];
+	    XRenderPictureAttributes attribs;
+	    XTransform		     xform;
+	    int                      i, j;
+
+	    attribs.repeat = pPicture->repeatType;
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    XRenderChangePicture(dmxScreen->beDisplay,
+				 pPictPriv->sourcePict[idx],
+				 CPRepeat, &attribs);
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    for (i = 0; i < 3; i++)
+		for (j = 0; j < 3; j++)
+		    xform.matrix[i][j] = pPicture->transform->matrix[i][j];
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    XRenderSetPictureTransform(dmxScreen->beDisplay,
+				       pPictPriv->sourcePict[idx],
+				       &xform);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
+    }
 
     return Success;
 }
@@ -1281,6 +1451,7 @@ int dmxCreatePicture(PicturePtr pPicture)
 
     /* Create picture on back-end server */
     pPictPriv->pict = dmxDoCreatePicture(pPicture);
+    pPictPriv->sourcePict = NULL;
     pPictPriv->savedMask = 0;
 
     DMX_WRAP(CreatePicture, dmxCreatePicture, dmxScreen, ps);
@@ -1289,9 +1460,8 @@ int dmxCreatePicture(PicturePtr pPicture)
 }
 
 /** Destroy \a pPicture on the back-end server. */
-Bool dmxBEFreePicture(PicturePtr pPicture)
+Bool dmxBEFreePicture(ScreenPtr pScreen, PicturePtr pPicture)
 {
-    ScreenPtr      pScreen   = pPicture->pDrawable->pScreen;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxPictPrivPtr pPictPriv = DMX_GET_PICT_PRIV(pPicture);
 
@@ -1301,6 +1471,15 @@ Bool dmxBEFreePicture(PicturePtr pPicture)
 	XLIB_EPILOGUE (dmxScreen);
 	pPictPriv->pict = (Picture)0;
 	return TRUE;
+    }
+    if (pPictPriv->sourcePict) {
+	if (pPictPriv->sourcePict[pScreen->myNum]) {
+	    XLIB_PROLOGUE (dmxScreen);
+	    XRenderFreePicture(dmxScreen->beDisplay,
+			       pPictPriv->sourcePict[pScreen->myNum]);
+	    XLIB_EPILOGUE (dmxScreen);
+	    pPictPriv->sourcePict[pScreen->myNum] = (Picture) 0;
+	}
     }
 
     return FALSE;
@@ -1315,7 +1494,7 @@ Bool dmxDestroyPictureList(WindowPtr pWindow)
     Bool        ret      = FALSE;
 
     while (pPicture) {
-	ret |= dmxBEFreePicture(pPicture);
+	ret |= dmxBEFreePicture(pWindow->drawable.pScreen, pPicture);
 	pPicture = pPicture->pNext;
     }
 
@@ -1334,7 +1513,7 @@ void dmxDestroyPicture(PicturePtr pPicture)
     DMX_UNWRAP(DestroyPicture, dmxScreen, ps);
 
     /* Destroy picture on back-end server */
-    if (dmxBEFreePicture(pPicture))
+    if (dmxBEFreePicture(pScreen, pPicture))
 	dmxSync(dmxScreen, FALSE);
 
 #if 1
@@ -1479,9 +1658,6 @@ void dmxValidatePicture(PicturePtr pPicture, Mask mask)
 
     DMX_UNWRAP(ValidatePicture, dmxScreen, ps);
 
-    if (!pPictPriv->pict && pPicture->pSourcePict)
-	pPictPriv->pict = dmxDoCreatePicture (pPicture);
-
     /* Change picture attributes on back-end server */
     if (pPictPriv->pict) {
 	XRenderPictureAttributes  attribs;
@@ -1530,7 +1706,6 @@ void dmxValidatePicture(PicturePtr pPicture, Mask mask)
 	XRenderChangePicture(dmxScreen->beDisplay, pPictPriv->pict,
 			     mask, &attribs);
 	XLIB_EPILOGUE (dmxScreen);
-	dmxSync(dmxScreen, FALSE);
     } else {
 	pPictPriv->savedMask |= mask;
     }
@@ -1565,14 +1740,14 @@ void dmxComposite(CARD8 op,
     if (pSrc->pDrawable)
 	src = (DMX_GET_PICT_PRIV (pSrc))->pict;
     else
-	src = dmxDoCreateSourcePicture (pScreen, pSrc);
+	src = (DMX_GET_PICT_PRIV (pSrc))->sourcePict[pScreen->myNum];
 
     if (pMask)
     {
 	if (pMask->pDrawable)
 	    mask = (DMX_GET_PICT_PRIV (pMask))->pict;
 	else
-	    mask = dmxDoCreateSourcePicture (pScreen, pMask);
+	    mask = (DMX_GET_PICT_PRIV (pMask))->sourcePict[pScreen->myNum];
     }
 
     DMX_UNWRAP(Composite, dmxScreen, ps);
@@ -1598,20 +1773,6 @@ void dmxComposite(CARD8 op,
 			 width, height);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
-    }
-
-    if (!pSrc->pDrawable && src)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, src);
-	XLIB_EPILOGUE (dmxScreen);
-    }
-
-    if (pMask && !pMask->pDrawable && mask)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, mask);
-	XLIB_EPILOGUE (dmxScreen);
     }
 
     DMX_WRAP(Composite, dmxComposite, dmxScreen, ps);
@@ -1705,7 +1866,7 @@ void dmxTrapezoids(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
     if (pSrc->pDrawable)
 	src = (DMX_GET_PICT_PRIV (pSrc))->pict;
     else
-	src = dmxDoCreateSourcePicture (pScreen, pSrc);
+	src = (DMX_GET_PICT_PRIV (pSrc))->sourcePict[pScreen->myNum];
 
     /* Draw trapezoids on back-end server */
     if (pDstPriv->pict) {
@@ -1727,13 +1888,6 @@ void dmxTrapezoids(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 				   ntrap);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
-    }
-
-    if (!pSrc->pDrawable && src)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, src);
-	XLIB_EPILOGUE (dmxScreen);
     }
 
     DMX_WRAP(Trapezoids, dmxTrapezoids, dmxScreen, ps);
@@ -1762,7 +1916,7 @@ void dmxTriangles(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
     if (pSrc->pDrawable)
 	src = (DMX_GET_PICT_PRIV (pSrc))->pict;
     else
-	src = dmxDoCreateSourcePicture (pScreen, pSrc);
+	src = (DMX_GET_PICT_PRIV (pSrc))->sourcePict[pScreen->myNum];
 
     /* Draw trapezoids on back-end server */
     if (pDstPriv->pict) {
@@ -1784,13 +1938,6 @@ void dmxTriangles(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 				  ntri);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
-    }
-
-    if (!pSrc->pDrawable && src)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, src);
-	XLIB_EPILOGUE (dmxScreen);
     }
 
     DMX_WRAP(Triangles, dmxTriangles, dmxScreen, ps);
@@ -1819,7 +1966,7 @@ void dmxTriStrip(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
     if (pSrc->pDrawable)
 	src = (DMX_GET_PICT_PRIV (pSrc))->pict;
     else
-	src = dmxDoCreateSourcePicture (pScreen, pSrc);
+	src = (DMX_GET_PICT_PRIV (pSrc))->sourcePict[pScreen->myNum];
 
     /* Draw trapezoids on back-end server */
     if (pDstPriv->pict) {
@@ -1841,13 +1988,6 @@ void dmxTriStrip(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 				 npoint);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
-    }
-
-    if (!pSrc->pDrawable && src)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, src);
-	XLIB_EPILOGUE (dmxScreen);
     }
 
     DMX_WRAP(TriStrip, dmxTriStrip, dmxScreen, ps);
@@ -1875,7 +2015,7 @@ void dmxTriFan(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
     if (pSrc->pDrawable)
 	src = (DMX_GET_PICT_PRIV (pSrc))->pict;
     else
-	src = dmxDoCreateSourcePicture (pScreen, pSrc);
+	src = (DMX_GET_PICT_PRIV (pSrc))->sourcePict[pScreen->myNum];
 
     /* Draw trapezoids on back-end server */
     if (pDstPriv->pict) {
@@ -1897,13 +2037,6 @@ void dmxTriFan(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 			       npoint);
 	XLIB_EPILOGUE (dmxScreen);
 	dmxSync(dmxScreen, FALSE);
-    }
-
-    if (!pSrc->pDrawable && src)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XRenderFreePicture (dmxScreen->beDisplay, src);
-	XLIB_EPILOGUE (dmxScreen);
     }
 
     DMX_WRAP(TriFan, dmxTriFan, dmxScreen, ps);

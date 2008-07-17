@@ -46,6 +46,7 @@ typedef struct _dmxPictPriv {
     Picture  pict;		/**< Picture ID from back-end server */
     Mask     savedMask;         /**< Mask of picture attributes saved for
 				 *   lazy window creation. */
+    Picture  *sourcePict;
 } dmxPictPrivRec, *dmxPictPrivPtr;
 
 
@@ -113,8 +114,8 @@ extern void dmxTriFan(CARD8 op,
 
 extern int dmxBECreateGlyphSet(int idx, GlyphSetPtr glyphSet);
 extern Bool dmxBEFreeGlyphSet(ScreenPtr pScreen, GlyphSetPtr glyphSet);
-extern int dmxBECreatePicture(PicturePtr pPicture);
-extern Bool dmxBEFreePicture(PicturePtr pPicture);
+extern int dmxBECreatePicture(int idx, PicturePtr pPicture);
+extern Bool dmxBEFreePicture(ScreenPtr pScreen, PicturePtr pPicture);
 
 extern DevPrivateKey dmxPictPrivateKey;	/**< Index for picture private data */
 extern DevPrivateKey dmxGlyphSetPrivateKey; /**< Index for glyphset private data */

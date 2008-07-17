@@ -1619,20 +1619,23 @@ static void dmxBERestoreRenderPict(pointer value, XID id, pointer n)
     DrawablePtr  pDraw    = pPicture->pDrawable; /* The picture's drawable */
     int          scrnNum  = (int)n;
 
-    if (pDraw->pScreen->myNum != scrnNum) {
-	/* Picture not on the screen we are restoring*/
-	return;
-    }
+    if (pDraw)
+    {
+	if (pDraw->pScreen->myNum != scrnNum) {
+	    /* Picture not on the screen we are restoring*/
+	    return;
+	}
 
-    if (pDraw->type == DRAWABLE_PIXMAP) {
-	PixmapPtr  pPixmap = (PixmapPtr)pDraw;
+	if (pDraw->type == DRAWABLE_PIXMAP) {
+	    PixmapPtr  pPixmap = (PixmapPtr)pDraw;
 	
-	/* Create and restore the pixmap drawable */
-	dmxBECreatePixmap(pPixmap);
-	dmxBERestorePixmap(pPixmap);
+	    /* Create and restore the pixmap drawable */
+	    dmxBECreatePixmap(pPixmap);
+	    dmxBERestorePixmap(pPixmap);
+	}
     }
 
-    dmxBECreatePicture(pPicture);
+    dmxBECreatePicture(scrnNum, pPicture);
 }
 
 /** Restore Render's glyphs */
@@ -2304,15 +2307,17 @@ static void dmxBEDestroyResources(pointer value, XID id, RESTYPE type,
 #ifdef RENDER
     } else if ((type & TypeMask) == (PictureType & TypeMask)) {
 	PicturePtr  pPict = value;
-	if (pPict->pDrawable->pScreen->myNum == scrnNum) {
-	    /* Free the pixmaps on the backend if needed */
-	    if (pPict->pDrawable->type == DRAWABLE_PIXMAP) {
-		PixmapPtr pPixmap = (PixmapPtr)(pPict->pDrawable);
-		dmxBESavePixmap(pPixmap);
-		dmxBEFreePixmap(pPixmap);
+	if (pPict->pDrawable) {
+	    if (pPict->pDrawable->pScreen->myNum == scrnNum) {
+		/* Free the pixmaps on the backend if needed */
+		if (pPict->pDrawable->type == DRAWABLE_PIXMAP) {
+		    PixmapPtr pPixmap = (PixmapPtr)(pPict->pDrawable);
+		    dmxBESavePixmap(pPixmap);
+		    dmxBEFreePixmap(pPixmap);
+		}
 	    }
-	    dmxBEFreePicture((PicturePtr)value);
 	}
+	dmxBEFreePicture(pScreen, (PicturePtr)value);
     } else if ((type & TypeMask) == (GlyphSetType & TypeMask)) {
 	dmxBEFreeGlyphSet(pScreen, (GlyphSetPtr)value);
 #endif
