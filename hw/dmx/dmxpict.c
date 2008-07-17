@@ -832,11 +832,7 @@ static int dmxProcRenderCompositeGlyphs(ClientPtr client)
 	GlyphSetPtr        glyphSet;
 	dmxGlyphPrivPtr    glyphPriv;
 
-	pSrc = SecurityLookupIDByType(client, stuff->src, PictureType,
-				      DixReadAccess);
-	pSrcPriv = DMX_GET_PICT_PRIV(pSrc);
-	if (!pSrcPriv->pict)
-	    return ret;
+	Picture	           src = None;
 
 	pDst = SecurityLookupIDByType(client, stuff->dst, PictureType,
 				      DixWriteAccess);
@@ -846,6 +842,18 @@ static int dmxProcRenderCompositeGlyphs(ClientPtr client)
 
 	scrnNum = pDst->pDrawable->pScreen->myNum;
 	dmxScreen = &dmxScreens[scrnNum];
+
+	pSrc = SecurityLookupIDByType(client, stuff->src, PictureType,
+				      DixReadAccess);
+	pSrcPriv = DMX_GET_PICT_PRIV(pSrc);
+
+	if (pSrc->pDrawable)
+	    src = pSrcPriv->pict;
+	else
+	    src = pSrcPriv->sourcePict[scrnNum];
+
+	if (!src)
+	    return ret;
 
 	/* Note: If the back-end display has been detached, then it
 	 * should not be possible to reach here since the pSrcPriv->pict
@@ -944,21 +952,21 @@ static int dmxProcRenderCompositeGlyphs(ClientPtr client)
 	switch (stuff->renderReqType) {
 	case X_RenderCompositeGlyphs8:
 	    XRenderCompositeText8(dmxScreen->beDisplay, stuff->op,
-				  pSrcPriv->pict, pDstPriv->pict,
+				  src, pDstPriv->pict,
 				  pFormat,
 				  stuff->xSrc, stuff->ySrc,
 				  0, 0, elts, nelt);
 	    break;
 	case X_RenderCompositeGlyphs16:
 	    XRenderCompositeText16(dmxScreen->beDisplay, stuff->op,
-				   pSrcPriv->pict, pDstPriv->pict,
+				   src, pDstPriv->pict,
 				   pFormat,
 				   stuff->xSrc, stuff->ySrc,
 				   0, 0, (XGlyphElt16 *)elts, nelt);
 	    break;
 	case X_RenderCompositeGlyphs32:
 	    XRenderCompositeText32(dmxScreen->beDisplay, stuff->op,
-				   pSrcPriv->pict, pDstPriv->pict,
+				   src, pDstPriv->pict,
 				   pFormat,
 				   stuff->xSrc, stuff->ySrc,
 				   0, 0, (XGlyphElt32 *)elts, nelt);
