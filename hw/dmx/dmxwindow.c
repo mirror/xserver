@@ -1496,7 +1496,7 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
 		if (format[j] == '.')
 		    j = 0;
 
-		dmxTranslateWindowProperty (pWindow, format[j], src, dst);
+		dmxTranslateWindowProperty (pWindow, format[j++], src, dst);
 
 		src += (pProp->format >> 3);
 		dst += (pProp->format >> 3);
