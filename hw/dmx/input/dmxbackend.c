@@ -475,9 +475,6 @@ void dmxBackendCollectEvents(DevicePtr pDev,
 	    }
 	    break;
 	case ButtonPress:
-	    XLIB_PROLOGUE (dmxScreen);
-	    XUngrabPointer (dmxScreen->beDisplay, CurrentTime);
-	    XLIB_EPILOGUE (dmxScreen);
 	case ButtonRelease:
 	    pButtonDev = dmxGetButtonDevice (dmxInput);
 	    if (pButtonDev)
