@@ -259,7 +259,8 @@ dmxSetupAuth (char *name, int authFd)
 			   xbeDisplay,
 			   auth.name,
 			   auth.data,
-			   auth.data_length);
+			   auth.data_length,
+			   0);
 
     return TRUE;
 }

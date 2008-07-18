@@ -142,6 +142,7 @@ typedef struct _DMXScreenInfo {
     int           authDataLen;
 
     int           beUseRoot;
+    int           virtualFb;
 
     /*---------- Screen window information ----------*/
 

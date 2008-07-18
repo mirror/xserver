@@ -1037,7 +1037,8 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     }
     
     if (!strcmp(argv[i], "-display")) {
-	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i], NULL, NULL, 0);
+	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i],
+					      NULL, NULL, 0, 0);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);

@@ -46,7 +46,8 @@ extern void dmxConfigStoreDisplay(const char *name,
 				  const char *display,
 				  const char *authType,
 				  const char *authData,
-				  int        authDataLen);
+				  int        authDataLen,
+				  int        virtualFb);
 extern void dmxConfigStoreNumDetached(const char *num);
 extern void dmxConfigStoreInput(const char *input); /* Core devices */
 extern void dmxConfigStoreXInput(const char *input); /* Non-core devices */

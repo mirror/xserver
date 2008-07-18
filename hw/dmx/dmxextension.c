@@ -1810,6 +1810,7 @@ dmxAttachScreen (int                    idx,
     oldDMXScreen = *dmxScreen;
 
     dmxScreen->beUseRoot = useRoot;
+    dmxScreen->virtualFb = FALSE;
 
     /* Copy the display name to the new screen */
     dmxScreen->display = strdup(attr->displayName);
