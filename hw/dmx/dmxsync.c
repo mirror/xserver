@@ -59,42 +59,72 @@
 
 static int        dmxSyncInterval = 100; /* Default interval in milliseconds */
 static OsTimerPtr dmxSyncTimer;
-static int        dmxSyncPending;
+static int        dmxSyncPending = 0;
+static int        dmxSyncCookie = 0;
+
+static void dmxWaitSync(DMXScreenInfo *dmxScreen)
+{
+    if (dmxScreen->syncCookie.sequence)
+    {
+	if (dmxScreen->beDisplay)
+	{
+	    if (!dmxStatInterval) {
+		XLIB_PROLOGUE (dmxScreen);
+		free (xcb_get_input_focus_reply (dmxScreen->connection,
+						 dmxScreen->syncCookie,
+						 NULL));
+		XLIB_EPILOGUE (dmxScreen);
+	    } else {
+		struct timeval start, stop;
+
+		gettimeofday(&start, 0);
+		XLIB_PROLOGUE (dmxScreen);
+		free (xcb_get_input_focus_reply (dmxScreen->connection,
+						 dmxScreen->syncCookie,
+						 NULL));
+		XLIB_EPILOGUE (dmxScreen);
+		gettimeofday(&stop, 0);
+		dmxStatSync(dmxScreen, &stop, &start, dmxSyncPending);
+	    }
+	}
+
+	dmxScreen->syncCookie.sequence = 0;
+    }
+}
 
 static void dmxDoSync(DMXScreenInfo *dmxScreen)
 {
     dmxScreen->needsSync = FALSE;
 
     if (!dmxScreen->beDisplay)
+    {
+	dmxScreen->syncCookie.sequence = 0;
 	return; /* FIXME: Is this correct behavior for sync stats? */
-
-    if (!dmxStatInterval) {
-	XLIB_PROLOGUE (dmxScreen);
-	XSync (dmxScreen->beDisplay, False);
-	XLIB_EPILOGUE (dmxScreen);
-    } else {
-        struct timeval start, stop;
-        
-        gettimeofday(&start, 0);
-	XLIB_PROLOGUE (dmxScreen);
-        XSync(dmxScreen->beDisplay, False);
-	XLIB_EPILOGUE (dmxScreen);
-        gettimeofday(&stop, 0);
-        dmxStatSync(dmxScreen, &stop, &start, dmxSyncPending);
     }
+
+    dmxScreen->syncCookie =
+	xcb_get_input_focus_unchecked (dmxScreen->connection);
+
+    dmxSyncCookie++;
 }
 
 static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 {
     int i;
 
-    if (dmxSyncPending) {
-        for (i = 0; i < dmxNumScreens; i++) {
-            DMXScreenInfo *dmxScreen = &dmxScreens[i];
-            if (dmxScreen->needsSync) dmxDoSync(dmxScreen);
-        }
+    if (dmxSyncCookie) {
+	for (i = 0; i < dmxNumScreens; i++)
+	    if (dmxScreens[i].syncCookie.sequence) dmxWaitSync(&dmxScreens[i]);
+	dmxSyncCookie = 0;
     }
-    dmxSyncPending = 0;
+
+    if (dmxSyncPending) {
+	for (i = 0; i < dmxNumScreens; i++)
+	    if (dmxScreens[i].needsSync) dmxDoSync(&dmxScreens[i]);
+	dmxSyncPending = 0;
+	if (dmxSyncCookie)
+	    return dmxSyncInterval;
+    }
     return 0;                   /* Do not place on queue again */
 }
 
@@ -205,14 +235,14 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
                                 /* Do sync or set time for later */
         if (now || !dmxScreen) {
             if (!TimerForce(dmxSyncTimer)) dmxSyncCallback(NULL, 0, NULL);
+
             /* At this point, dmxSyncPending == 0 because
              * dmxSyncCallback must have been called. */
             if (dmxSyncPending)
                 dmxLog(dmxFatal, "dmxSync(%s,%d): dmxSyncPending = %d\n",
                        dmxScreen ? dmxScreen->display : "", now, dmxSyncPending);
         } else {
-            dmxScreen->needsSync = TRUE;
-            if (dmxSyncPending == 1)
+            if (dmxSyncCookie == 0 && dmxSyncPending == 1)
                 dmxSyncTimer = TimerSet(dmxSyncTimer, 0, dmxSyncInterval,
                                         dmxSyncCallback, NULL);
         }
@@ -220,6 +250,10 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
                                 /* If dmxSyncInterval is not being used,
                                  * then all the backends are already
                                  * up-to-date. */
-        if (dmxScreen) dmxDoSync(dmxScreen);
+        if (dmxScreen)
+	{
+	    dmxDoSync(dmxScreen);
+	    dmxWaitSync(dmxScreen);
+	}
     }
 }

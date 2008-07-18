@@ -288,10 +288,9 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->display)))
 	return FALSE;
 
-    /* XSynchronize (dmxScreen->beDisplay, TRUE); */
-
-    dmxScreen->alive = 1;
-    dmxScreen->fd = XConnectionNumber (dmxScreen->beDisplay);
+    dmxScreen->alive      = 1;
+    dmxScreen->fd         = XConnectionNumber (dmxScreen->beDisplay);
+    dmxScreen->connection = XGetXCBConnection (dmxScreen->beDisplay);
 
     dmxPropertyDisplay(dmxScreen);
     return TRUE;

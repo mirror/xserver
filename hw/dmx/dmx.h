@@ -71,6 +71,8 @@
 #include <GL/glxint.h>
 #endif
 
+#include <X11/Xlib-xcb.h>
+
 #include "dmxxlibio.h"
 
 typedef enum {
@@ -111,6 +113,9 @@ typedef struct _DMXScreenInfo {
     /*---------- Back-end X server information ----------*/
 
     int fd;
+
+    xcb_connection_t             *connection;
+    xcb_get_input_focus_cookie_t syncCookie;
 
     Display      *beDisplay;      /**< Back-end X server's display */
     int           beWidth;        /**< Width of BE display */
