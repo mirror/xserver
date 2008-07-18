@@ -122,8 +122,11 @@ static void dmxCheckScreens (void)
 static void dmxSyncBlockHandler(pointer blockData, OSTimePtr pTimeout,
                                 pointer pReadMask)
 {
-    if (dmxSyncInterval)
-	TimerForce(dmxSyncTimer);
+    int i;
+
+    for (i = 0; i < dmxNumScreens; i++)
+	if (dmxScreens[i].beDisplay)
+	    XFlush (dmxScreens[i].beDisplay);
 }
 
 static void dmxSyncWakeupHandler(pointer blockData, int result,
