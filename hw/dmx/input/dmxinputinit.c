@@ -851,7 +851,7 @@ static XID dmxGetMasterDevice(XDeviceInfo *device)
     XAttachInfoPtr ai;
     int            i;
 
-    for (i = 0, ai = device->inputclassinfo;
+    for (i = 0, ai = (XAttachInfoPtr) device->inputclassinfo;
 	 i < device->num_classes;
 	 ai = (XAttachInfoPtr) ((char *) ai + ai->length), i++)
 	if (ai->class == AttachClass)
@@ -877,93 +877,103 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
     ext     = XQueryInputVersion(display, XI_2_Major, XI_2_Minor);
     XSetExtensionErrorHandler(handler);
     
-    if (!ext || ext == (XExtensionVersion *)NoSuchExtension) {
+    if (!ext || ext == (XExtensionVersion *)NoSuchExtension)
+    {
         dmxLogInput(dmxInput, "%s is not available\n", INAME);
-    } else {
-        dmxLogInput(dmxInput, "Locating devices on %s (%s version %d.%d)\n",
-                    dmxInput->name, INAME,
-                    ext->major_version, ext->minor_version);
-        devices = XListInputDevices(display, &num);
-
-        XFree(ext);
-        ext = NULL;
-
-                                /* Print a list of all devices */
-        for (i = 0; i < num; i++) {
-            const char *use = "Unknown";
-            switch (devices[i].use) {
-            case IsXPointer:           use = "XPointer";         break;
-            case IsXKeyboard:          use = "XKeyboard";        break;
-            case IsXExtensionDevice:   use = "XExtensionDevice"; break;
-            case IsXExtensionPointer:  use = "XExtensionPointer"; break;
-            case IsXExtensionKeyboard: use = "XExtensionKeyboard"; break;
-            }
-            dmxLogInput(dmxInput, "  %2d %-10.10s %-16.16s\n",
-                        devices[i].id,
-                        devices[i].name ? devices[i].name : "",
-                        use);
-        }
-
-                                /* Search for extensions */
-        for (i = 0; i < num; i++) {
-            switch (devices[i].use) {
-            case IsXKeyboard:
-                for (j = 0; j < dmxInput->numDevs; j++) {
-                    DMXLocalInputInfoPtr dmxL = dmxInput->devs[j];
-                    if (dmxL->type == DMX_LOCAL_KEYBOARD
-                        && dmxL->deviceId < 0) {
-                        dmxL->deviceId   = devices[i].id;
-                        dmxL->deviceName = (devices[i].name
-                                            ? xstrdup(devices[i].name)
-                                            : NULL);
-			dmxL->attached   = dmxGetMasterDevice (&devices[i]);
-			break;
-                    }
-                }
-
-		if (j == dmxInput->numDevs)
-		{
-		    dmxLocal             = dmxInputCopyLocal(dmxInput,
-							     &DMXBackendKbd);
-		    dmxLocal->isCore     = FALSE;
-		    dmxLocal->sendsCore  = FALSE;
-		    dmxLocal->deviceId   = devices[i].id;
-		    dmxLocal->deviceName = (devices[i].name
-					    ? xstrdup(devices[i].name)
-					    : NULL);
-		    dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
-		}
-                break;
-            case IsXPointer:
-                for (j = 0; j < dmxInput->numDevs; j++) {
-                    DMXLocalInputInfoPtr dmxL = dmxInput->devs[j];
-                    if (dmxL->type == DMX_LOCAL_MOUSE && dmxL->deviceId < 0) {
-                        dmxL->deviceId   = devices[i].id;
-                        dmxL->deviceName = (devices[i].name
-                                            ? xstrdup(devices[i].name)
-                                            : NULL);
-			dmxL->attached   = dmxGetMasterDevice (&devices[i]);
-			break;
-                    }
-                }
-
-		if (j == dmxInput->numDevs)
-		{
-		    dmxLocal             = dmxInputCopyLocal(dmxInput,
-							     &DMXBackendMou);
-		    dmxLocal->isCore     = FALSE;
-		    dmxLocal->sendsCore  = FALSE;
-		    dmxLocal->deviceId   = devices[i].id;
-		    dmxLocal->deviceName = (devices[i].name
-					    ? xstrdup(devices[i].name)
-					    : NULL);
-		    dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
-		}
-                break;
-            }
-	}
-        XFreeDeviceList(devices);
+	return;
     }
+
+    /* Only use XInput Extension if 2.0 or greater */
+    if (ext->major_version < 2)
+    {
+        dmxLogInput(dmxInput, "%s version %d.%d is too old\n",
+		    INAME, ext->major_version, ext->minor_version);
+	return;
+    }
+    
+    dmxLogInput(dmxInput, "Locating devices on %s (%s version %d.%d)\n",
+		dmxInput->name, INAME,
+		ext->major_version, ext->minor_version);
+    devices = XListInputDevices(display, &num);
+
+    XFree(ext);
+    ext = NULL;
+
+    /* Print a list of all devices */
+    for (i = 0; i < num; i++) {
+	const char *use = "Unknown";
+	switch (devices[i].use) {
+	case IsXPointer:           use = "XPointer";         break;
+	case IsXKeyboard:          use = "XKeyboard";        break;
+	case IsXExtensionDevice:   use = "XExtensionDevice"; break;
+	case IsXExtensionPointer:  use = "XExtensionPointer"; break;
+	case IsXExtensionKeyboard: use = "XExtensionKeyboard"; break;
+	}
+	dmxLogInput(dmxInput, "  %2d %-10.10s %-16.16s\n",
+		    devices[i].id,
+		    devices[i].name ? devices[i].name : "",
+		    use);
+    }
+
+    /* Search for extensions */
+    for (i = 0; i < num; i++) {
+	switch (devices[i].use) {
+	case IsXKeyboard:
+	    for (j = 0; j < dmxInput->numDevs; j++) {
+		DMXLocalInputInfoPtr dmxL = dmxInput->devs[j];
+		if (dmxL->type == DMX_LOCAL_KEYBOARD
+		    && dmxL->deviceId < 0) {
+		    dmxL->deviceId   = devices[i].id;
+		    dmxL->deviceName = (devices[i].name
+					? xstrdup(devices[i].name)
+					: NULL);
+		    dmxL->attached   = dmxGetMasterDevice (&devices[i]);
+		    break;
+		}
+	    }
+
+	    if (j == dmxInput->numDevs)
+	    {
+		dmxLocal             = dmxInputCopyLocal(dmxInput,
+							 &DMXBackendKbd);
+		dmxLocal->isCore     = FALSE;
+		dmxLocal->sendsCore  = FALSE;
+		dmxLocal->deviceId   = devices[i].id;
+		dmxLocal->deviceName = (devices[i].name
+					? xstrdup(devices[i].name)
+					: NULL);
+		dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
+	    }
+	    break;
+	case IsXPointer:
+	    for (j = 0; j < dmxInput->numDevs; j++) {
+		DMXLocalInputInfoPtr dmxL = dmxInput->devs[j];
+		if (dmxL->type == DMX_LOCAL_MOUSE && dmxL->deviceId < 0) {
+		    dmxL->deviceId   = devices[i].id;
+		    dmxL->deviceName = (devices[i].name
+					? xstrdup(devices[i].name)
+					: NULL);
+		    dmxL->attached   = dmxGetMasterDevice (&devices[i]);
+		    break;
+		}
+	    }
+
+	    if (j == dmxInput->numDevs)
+	    {
+		dmxLocal             = dmxInputCopyLocal(dmxInput,
+							 &DMXBackendMou);
+		dmxLocal->isCore     = FALSE;
+		dmxLocal->sendsCore  = FALSE;
+		dmxLocal->deviceId   = devices[i].id;
+		dmxLocal->deviceName = (devices[i].name
+					? xstrdup(devices[i].name)
+					: NULL);
+		dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
+	    }
+	    break;
+	}
+    }
+    XFreeDeviceList(devices);
 }
 
 /** Re-initialize all the devices described in \a dmxInput.  Called from
@@ -1050,8 +1060,9 @@ void dmxInputInit(DMXInputInfo *dmxInput)
         int found;
 
         for (found = 0, i = 0; i < dmxNumScreens; i++) {
-            if ((dmxInput->scrnIdx != -1 && dmxInput->scrnIdx == i) ||
-		dmxPropertySameDisplay(&dmxScreens[i], name)) {
+	    if ((dmxInput->scrnIdx == -1 &&
+		 dmxPropertySameDisplay (&dmxScreens[i], dmxInput->name)) ||
+		dmxInput->scrnIdx == i) {
                 if (dmxScreens[i].shared)
 		{
                     dmxLog(dmxFatal,
