@@ -2310,9 +2310,14 @@ static void dmxBEDestroyResources(pointer value, XID id, RESTYPE type,
 		    dmxBESavePixmap(pPixmap);
 		    dmxBEFreePixmap(pPixmap);
 		}
+
+		dmxBEFreePicture(pScreen, (PicturePtr)value);
 	    }
 	}
-	dmxBEFreePicture(pScreen, (PicturePtr)value);
+	else
+	{
+	    dmxBEFreePicture(pScreen, (PicturePtr)value);
+	}
     } else if ((type & TypeMask) == (GlyphSetType & TypeMask)) {
 	dmxBEFreeGlyphSet(pScreen, (GlyphSetPtr)value);
 #endif
