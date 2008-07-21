@@ -40,6 +40,7 @@
 #include "scrnintstr.h"
 
 extern Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen);
+extern void dmxCloseDisplay(DMXScreenInfo *dmxScreen);
 extern void dmxSetErrorHandler(DMXScreenInfo *dmxScreen);
 extern void dmxCheckForWM(DMXScreenInfo *dmxScreen);
 extern void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen);

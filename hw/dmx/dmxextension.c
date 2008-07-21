@@ -1847,6 +1847,7 @@ dmxAttachScreen (int                    idx,
 			"WM running. cannot use back-end server "
 			"root window\n");
 
+	dmxCloseDisplay (dmxScreen);
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
 	return 1;
@@ -1918,9 +1919,7 @@ dmxAttachScreen (int                    idx,
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
 			"No matching visuals found");
 	XFree(dmxScreen->beVisuals);
-	XLIB_PROLOGUE (dmxScreen);
-	XCloseDisplay(dmxScreen->beDisplay);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxCloseDisplay (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1945,9 +1944,7 @@ dmxAttachScreen (int                    idx,
 	XFree(dmxScreen->beVisuals);
 	XFree(dmxScreen->beDepths);
 	XFree(dmxScreen->bePixmapFormats);
-	XLIB_PROLOGUE (dmxScreen);
-	XCloseDisplay(dmxScreen->beDisplay);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxCloseDisplay (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1961,9 +1958,7 @@ dmxAttachScreen (int                    idx,
 	XFree(dmxScreen->beVisuals);
 	XFree(dmxScreen->beDepths);
 	XFree(dmxScreen->bePixmapFormats);
-	XLIB_PROLOGUE (dmxScreen);
-	XCloseDisplay(dmxScreen->beDisplay);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxCloseDisplay (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;

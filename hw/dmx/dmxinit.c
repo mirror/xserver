@@ -292,8 +292,21 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     dmxScreen->fd         = XConnectionNumber (dmxScreen->beDisplay);
     dmxScreen->connection = XGetXCBConnection (dmxScreen->beDisplay);
 
+    dmxScreen->syncCookie.sequence = 0;
+
+    AddEnabledDevice (dmxScreen->fd);
+
     dmxPropertyDisplay(dmxScreen);
     return TRUE;
+}
+
+void dmxCloseDisplay(DMXScreenInfo *dmxScreen)
+{
+    RemoveEnabledDevice (dmxScreen->fd);
+
+    XLIB_PROLOGUE (dmxScreen);
+    XCloseDisplay (dmxScreen->beDisplay);
+    XLIB_EPILOGUE (dmxScreen);
 }
 
 void dmxSetErrorHandler(DMXScreenInfo *dmxScreen)

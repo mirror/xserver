@@ -55,6 +55,7 @@
 #include "dmxdpms.h"
 #include "dmxlog.h"
 #include "dmxcb.h"
+#include "dmxinit.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -2374,9 +2375,7 @@ void dmxBECloseScreen(ScreenPtr pScreen)
 #endif
 
     /* Close display */
-    XLIB_PROLOGUE (dmxScreen);
-    XCloseDisplay(dmxScreen->beDisplay);
-    XLIB_EPILOGUE (dmxScreen);
+    dmxCloseDisplay (dmxScreen);
     dmxScreen->beDisplay = NULL;
 }
 
