@@ -66,9 +66,6 @@ void InitInput(int argc, char **argv)
     int          i;
     DMXInputInfo *dmxInput;
 
-    if (!dmxNumInputs)
-        dmxLog(dmxFatal, "InitInput: no inputs specified\n");
-    
     for (i = 0, dmxInput = &dmxInputs[0]; i < dmxNumInputs; i++, dmxInput++)
         dmxInputInit(dmxInput);
 

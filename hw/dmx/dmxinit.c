@@ -802,8 +802,6 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     dmxConfigConfigure();
     if (!dmxNumScreens)
         dmxLog(dmxFatal, "InitOutput: no back-end displays found\n");
-    if (!dmxNumInputs)
-        dmxLog(dmxInfo, "InitOutput: no inputs found\n");
     
     /* Disable lazy window creation optimization if offscreen
      * optimization is disabled */
