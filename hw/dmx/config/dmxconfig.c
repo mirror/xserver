@@ -467,9 +467,13 @@ static void dmxConfigConfigInputs(void)
             dmxConfigAddInput(pt->name, TRUE);
     } else if (dmxNumScreens) { /* Use first display */
 	DMXInputInfo *dmxInput;
-	dmxInput = dmxConfigAddInput(xstrdup (dmxScreens[0].name), TRUE);
-	dmxInput->freename = TRUE;
-	dmxInput->scrnIdx = 0;
+
+	if (!dmxScreens[0].virtualFb)
+	{
+	    dmxInput = dmxConfigAddInput(xstrdup (dmxScreens[0].name), TRUE);
+	    dmxInput->freename = TRUE;
+	    dmxInput->scrnIdx = 0;
+	}
     } else {                     /* Use dummy */
         dmxConfigAddInput("dummy", TRUE);
     }
