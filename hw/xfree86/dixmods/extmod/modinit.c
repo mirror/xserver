@@ -119,15 +119,6 @@ static ExtensionModule extensionModules[] = {
 	NULL
     },
 #endif
-#ifdef XF86MISC
-    {
-	XFree86MiscExtensionInit,
-	XF86MISCNAME,
-	&noXFree86MiscExtension,
-	NULL,
-	NULL
-    },
-#endif
 #ifdef XFreeXDGA
     {
 	XFree86DGAExtensionInit,
@@ -142,15 +133,6 @@ static ExtensionModule extensionModules[] = {
 	DPMSExtensionInit,
 	DPMSExtensionName,
 	&noDPMSExtension,
-	NULL,
-	NULL
-    },
-#endif
-#ifdef FONTCACHE
-    {
-	FontCacheExtensionInit,
-	FONTCACHENAME,
-	&noFontCacheExtension,
 	NULL,
 	NULL
     },

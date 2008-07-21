@@ -57,13 +57,6 @@ extern void	XFree86VidModeExtensionInit(INITARGS);
 #include <X11/extensions/xf86vmstr.h>
 #endif
 
-#ifdef XF86MISC
-extern void XFree86MiscExtensionInit(INITARGS);
-#define _XF86MISC_SERVER_
-#define _XF86MISC_SAVER_COMPAT_
-#include <X11/extensions/xf86mscstr.h>
-#endif
-
 #ifdef XFreeXDGA
 extern void XFree86DGAExtensionInit(INITARGS);
 extern void XFree86DGARegister(INITARGS);
@@ -74,13 +67,6 @@ extern void XFree86DGARegister(INITARGS);
 #ifdef DPMSExtension
 extern void DPMSExtensionInit(INITARGS);
 #include <X11/extensions/dpmsstr.h>
-#endif
-
-#ifdef FONTCACHE
-extern void FontCacheExtensionInit(INITARGS);
-#define _FONTCACHE_SERVER_
-#include "fontcacheP.h"
-#include "fontcachstr.h"
 #endif
 
 #ifdef XV
@@ -110,6 +96,10 @@ extern void ShmRegisterFuncs(
 #ifdef XSELINUX
 extern void SELinuxExtensionInit(INITARGS);
 #include "xselinux.h"
+#endif
+
+#ifdef XEVIE
+extern void XevieExtensionInit(INITARGS);
 #endif
 
 #if 1

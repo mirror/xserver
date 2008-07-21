@@ -57,13 +57,16 @@ SOFTWARE.
 #include "privates.h"
 
 #define BitIsOn(ptr, bit) (((BYTE *) (ptr))[(bit)>>3] & (1 << ((bit) & 7)))
+/* If byte[i] in src is non-zero, set bit i in dst, otherwise set bit to 0 */
+#define SetBitIf(dst, src, i) \
+    (src[i]) ? (dst[i/8] |= (1 << (i % 8))) : (dst[i/8] &= ~(1 << (i % 8)));
 
 #define SameClient(obj,client) \
 	(CLIENT_BITS((obj)->resource) == (client)->clientAsMask)
 
 #define MAX_DEVICES	20
 
-#define EMASKSIZE	MAX_DEVICES
+#define EMASKSIZE	MAX_DEVICES + 1
 
 extern DevPrivateKey CoreDevicePrivateKey;
 
@@ -163,6 +166,13 @@ typedef struct _AxisInfo {
     int		max_value;
 } AxisInfo, *AxisInfoPtr;
 
+typedef struct _ValuatorAccelerationRec {
+    int                         number;
+    PointerAccelSchemeProc      AccelSchemeProc;
+    void                       *accelData; /* at disposal of AccelScheme */
+    DeviceCallbackProc          AccelCleanupProc;
+} ValuatorAccelerationRec, *ValuatorAccelerationPtr;
+
 typedef struct _ValuatorClassRec {
     int		 	  numMotionEvents;
     int                   first_motion;
@@ -174,8 +184,8 @@ typedef struct _ValuatorClassRec {
     AxisInfoPtr 	  axes;
     unsigned short	  numAxes;
     int			  *axisVal; /* always absolute, but device-coord system */
-    float                 dxremaind, dyremaind; /* for acceleration */
     CARD8	 	  mode;
+    ValuatorAccelerationRec	accelScheme;
 } ValuatorClassRec, *ValuatorClassPtr;
 
 typedef struct _ButtonClassRec {
@@ -183,7 +193,7 @@ typedef struct _ButtonClassRec {
     CARD8		buttonsDown;	/* number of buttons currently down */
     unsigned short	state;
     Mask		motionMask;
-    CARD8		down[MAP_LENGTH];
+    CARD8		down[DOWN_LENGTH];
     CARD8		map[MAP_LENGTH];
 #ifdef XKB
     union _XkbAction    *xkb_acts;
@@ -332,6 +342,46 @@ typedef struct {
 
 } SpriteRec, *SpritePtr;
 
+/* Device properties */
+typedef struct _XIPropertyValue
+{
+    Atom                type;           /* ignored by server */
+    short               format;         /* format of data for swapping - 8,16,32 */
+    long                size;           /* size of data in (format/8) bytes */
+    pointer             data;           /* private to client */
+} XIPropertyValueRec;
+
+typedef struct _XIProperty
+{
+    struct _XIProperty   *next;
+    Atom                  propertyName;
+    Bool                  is_pending;
+    Bool                  range;
+    Bool                  immutable;
+    Bool                  fromClient;       /* created by client or driver/server */
+    int                   num_valid;
+    INT32                 *valid_values;
+    XIPropertyValueRec    current,
+                          pending;
+} XIPropertyRec;
+
+
+
+typedef XIPropertyRec      *XIPropertyPtr;
+typedef XIPropertyValueRec *XIPropertyValuePtr;
+
+
+typedef struct _XIPropertyHandler
+{
+    struct _XIPropertyHandler* next;
+    long id;
+    Bool (*SetProperty) (DeviceIntPtr dev,
+                         Atom property,
+                         XIPropertyValuePtr prop);
+    Bool (*GetProperty) (DeviceIntPtr dev,
+                         Atom property);
+} XIPropertyHandler, *XIPropertyHandlerPtr;
+
 /* states for devices */
 
 #define NOT_GRABBED		0
@@ -344,8 +394,9 @@ typedef struct {
 #define FROZEN_WITH_EVENT	6
 #define THAW_OTHERS		7
 
+
 typedef struct _GrabInfoRec {
-    TimeStamp	    grabTime;           
+    TimeStamp	    grabTime;
     Bool            fromPassiveGrab;    /* true if from passive grab */
     Bool            implicitGrab;       /* implicit from ButtonPress */
     GrabRec         activeGrab;
@@ -423,11 +474,21 @@ typedef struct _DeviceIntRec {
     /* last valuator values recorded, not posted to client;
      * for slave devices, valuators is in device coordinates
      * for master devices, valuators is in screen coordinates
-     * see dix/getevents.c */
+     * see dix/getevents.c
+     * remainder supports acceleration
+     */
     struct {
         int             valuators[MAX_VALUATORS];
+        float           remainder[MAX_VALUATORS];
         int             numValuators;
     } last;
+
+    /* Input device property handling. */
+    struct {
+        XIPropertyPtr   properties;
+        Bool            pendingProperties;
+        XIPropertyHandlerPtr handlers; /* NULL-terminated */
+    } properties;
 } DeviceIntRec;
 
 typedef struct {

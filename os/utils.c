@@ -83,7 +83,7 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #include <signal.h>
 #undef _POSIX_C_SOURCE
 #else
-#if defined(X_NOT_POSIX) || defined(_POSIX_SOURCE)
+#if defined(_POSIX_SOURCE)
 #include <signal.h>
 #else
 #define _POSIX_SOURCE
@@ -94,17 +94,12 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #ifndef WIN32
 #include <sys/wait.h>
 #endif
-#if !defined(SYSV) && !defined(WIN32) && !defined(Lynx) && !defined(QNX4)
+#if !defined(SYSV) && !defined(WIN32) && !defined(QNX4)
 #include <sys/resource.h>
 #endif
 #include <sys/stat.h>
 #include <ctype.h>    /* for isspace */
 #include <stdarg.h>
-
-#if defined(DGUX)
-#include <sys/resource.h>
-#include <netdb.h>
-#endif
 
 #include <stdlib.h>	/* for malloc() */
 
@@ -144,9 +139,6 @@ _X_EXPORT Bool noDbeExtension = FALSE;
 #endif
 #ifdef DPMSExtension
 _X_EXPORT Bool noDPMSExtension = FALSE;
-#endif
-#ifdef FONTCACHE
-_X_EXPORT Bool noFontCacheExtension = FALSE;
 #endif
 #ifdef GLXEXT
 _X_EXPORT Bool noGlxExtension = FALSE;
@@ -195,9 +187,6 @@ _X_EXPORT Bool noXFree86DGAExtension = FALSE;
 #endif
 #ifdef XF86DRI
 _X_EXPORT Bool noXFree86DRIExtension = FALSE;
-#endif
-#ifdef XF86MISC
-_X_EXPORT Bool noXFree86MiscExtension = FALSE;
 #endif
 #ifdef XF86VIDMODE
 _X_EXPORT Bool noXFree86VidModeExtension = FALSE;
@@ -264,9 +253,6 @@ OsSignal(sig, handler)
     int sig;
     OsSigHandlerPtr handler;
 {
-#ifdef X_NOT_POSIX
-    return signal(sig, handler);
-#else
     struct sigaction act, oact;
 
     sigemptyset(&act.sa_mask);
@@ -277,10 +263,8 @@ OsSignal(sig, handler)
     if (sigaction(sig, &act, &oact))
       perror("sigaction");
     return oact.sa_handler;
-#endif
 }
-	
-#ifdef SERVER_LOCK
+
 /*
  * Explicit support for a server lock file like the ones used for UUCP.
  * For architectures with virtual terminals that can run more than one
@@ -292,17 +276,8 @@ OsSignal(sig, handler)
 #define LOCK_PREFIX "/.X"
 #define LOCK_SUFFIX "-lock"
 
-#if defined(DGUX)
-#include <limits.h>
-#include <sys/param.h>
-#endif
-
 #ifndef PATH_MAX
-#ifndef Lynx
 #include <sys/param.h>
-#else
-#include <param.h>
-#endif
 #ifndef PATH_MAX
 #ifdef MAXPATHLEN
 #define PATH_MAX MAXPATHLEN
@@ -376,11 +351,7 @@ LockServer(void)
     FatalError("Could not create lock file in %s\n", tmp);
   (void) sprintf(pid_str, "%10ld\n", (long)getpid());
   (void) write(lfd, pid_str, 11);
-#ifndef USE_CHMOD
-  (void) fchmod(lfd, 0444);
-#else
   (void) chmod(tmp, 0444);
-#endif
   (void) close(lfd);
 
   /*
@@ -462,7 +433,6 @@ UnlockServer(void)
   (void) unlink(LockFile);
   }
 }
-#endif /* SERVER_LOCK */
 
 /* Force connections to close on SIGHUP from init */
 
@@ -474,13 +444,6 @@ AutoResetServer (int sig)
 
     dispatchException |= DE_RESET;
     isItTimeToYield = TRUE;
-#ifdef GPROF
-    chdir ("/tmp");
-    exit (0);
-#endif
-#if defined(SYSV) && defined(X_NOT_POSIX)
-    OsSignal (SIGHUP, AutoResetServer);
-#endif
     errno = olderrno;
 }
 
@@ -494,10 +457,6 @@ GiveUp(int sig)
 
     dispatchException |= DE_TERMINATE;
     isItTimeToYield = TRUE;
-#if defined(SYSV) && defined(X_NOT_POSIX)
-    if (sig)
-	OsSignal(sig, SIG_IGN);
-#endif
     errno = olderrno;
 }
 
@@ -565,9 +524,6 @@ void UseMsg(void)
     ErrorF("-c                     turns off key-click\n");
     ErrorF("c #                    key-click volume (0-100)\n");
     ErrorF("-cc int                default color visual class\n");
-#ifdef COMMANDLINE_CHALLENGED_OPERATING_SYSTEMS
-    ErrorF("-config file           read options from file\n");
-#endif
     ErrorF("-core                  generate core dump on fatal error\n");
     ErrorF("-dpi int               screen resolution in dots per inch\n");
 #ifdef DPMSExtension
@@ -1091,118 +1047,6 @@ ProcessCommandLine(int argc, char *argv[])
         }
     }
 }
-
-#ifdef COMMANDLINE_CHALLENGED_OPERATING_SYSTEMS
-static void
-InsertFileIntoCommandLine(
-    int *resargc, char ***resargv, 
-    int prefix_argc, char **prefix_argv,
-    char *filename, 
-    int suffix_argc, char **suffix_argv)
-{
-    struct stat     st;
-    FILE           *f;
-    char           *p;
-    char           *q;
-    int             insert_argc;
-    char           *buf;
-    int             len;
-    int             i;
-
-    f = fopen(filename, "r");
-    if (!f)
-	FatalError("Can't open option file %s\n", filename);
-
-    fstat(fileno(f), &st);
-
-    buf = (char *) xalloc((unsigned) st.st_size + 1);
-    if (!buf)
-	FatalError("Out of Memory\n");
-
-    len = fread(buf, 1, (unsigned) st.st_size, f);
-
-    fclose(f);
-
-    if (len < 0)
-	FatalError("Error reading option file %s\n", filename);
-
-    buf[len] = '\0';
-
-    p = buf;
-    q = buf;
-    insert_argc = 0;
-
-    while (*p)
-    {
-	while (isspace(*p))
-	    p++;
-	if (!*p)
-	    break;
-	if (*p == '#')
-	{
-	    while (*p && *p != '\n')
-		p++;
-	} else
-	{
-	    while (*p && !isspace(*p))
-		*q++ = *p++;
-	    /* Since p and q might still be pointing at the same place, we	 */
-	    /* need to step p over the whitespace now before we add the null.	 */
-	    if (*p)
-		p++;
-	    *q++ = '\0';
-	    insert_argc++;
-	}
-    }
-
-    buf = (char *) xrealloc(buf, q - buf);
-    if (!buf)
-	FatalError("Out of memory reallocing option buf\n");
-
-    *resargc = prefix_argc + insert_argc + suffix_argc;
-    *resargv = (char **) xalloc((*resargc + 1) * sizeof(char *));
-    if (!*resargv)
-	FatalError("Out of Memory\n");
-
-    memcpy(*resargv, prefix_argv, prefix_argc * sizeof(char *));
-
-    p = buf;
-    for (i = 0; i < insert_argc; i++)
-    {
-	(*resargv)[prefix_argc + i] = p;
-	p += strlen(p) + 1;
-    }
-
-    memcpy(*resargv + prefix_argc + insert_argc,
-	   suffix_argv, suffix_argc * sizeof(char *));
-
-    (*resargv)[*resargc] = NULL;
-} /* end InsertFileIntoCommandLine */
-
-
-void
-ExpandCommandLine(int *pargc, char ***pargv)
-{
-    int i;
-
-#if !defined(WIN32) && !defined(__CYGWIN__)
-    if (getuid() != geteuid())
-	return;
-#endif
-
-    for (i = 1; i < *pargc; i++)
-    {
-	if ( (0 == strcmp((*pargv)[i], "-config")) && (i < (*pargc - 1)) )
-	{
-	    InsertFileIntoCommandLine(pargc, pargv,
-					  i, *pargv,
-					  (*pargv)[i+1], /* filename */
-					  *pargc - i - 2, *pargv + i + 2);
-	    i--;
-	}
-    }
-} /* end ExpandCommandLine */
-#endif
 
 /* Implement a simple-minded font authorization scheme.  The authorization
    name is "hp-hostname-1", the contents are simply the host name. */

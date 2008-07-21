@@ -57,11 +57,13 @@ SOFTWARE.
 #define NEED_EVENTS
 #define NEED_REPLIES
 #include <X11/Xproto.h>
+#include <X11/Xatom.h>
 #include "windowstr.h"
 #include "inputstr.h"
 #include "scrnintstr.h"
 #include "cursorstr.h"
 #include "dixstruct.h"
+#include "ptrveloc.h"
 #include "site.h"
 #ifndef XKB_IN_SERVER
 #define	XKB_IN_SERVER
@@ -76,12 +78,14 @@ SOFTWARE.
 #include "dispatch.h"
 #include "swaprep.h"
 #include "dixevents.h"
+#include "mipointer.h"
 
 #include <X11/extensions/XI.h>
 #include <X11/extensions/XIproto.h>
 #include "exglobals.h"
 #include "exevents.h"
 #include "listdev.h" /* for CopySwapXXXClass */
+#include "xiproperty.h"
 
 /** @file
  * This file handles input device-related stuff.
@@ -90,6 +94,30 @@ SOFTWARE.
 DevPrivateKey CoreDevicePrivateKey = &CoreDevicePrivateKey;
 /* Used to sture classes currently not in use by an MD */
 DevPrivateKey UnusedClassesPrivateKey = &UnusedClassesPrivateKey;
+
+
+/**
+ * DIX property handler.
+ */
+static Bool
+DeviceSetProperty(DeviceIntPtr dev, Atom property, XIPropertyValuePtr prop)
+{
+    if (property == XIGetKnownProperty(XI_PROP_ENABLED))
+    {
+        if (prop->format != 8 || prop->type != XA_INTEGER || prop->size != 1)
+            return FALSE;
+
+        if ((*((CARD8*)prop->data)) && !dev->enabled)
+            EnableDevice(dev);
+        else if (!(*((CARD8*)prop->data)) && dev->enabled)
+            DisableDevice(dev);
+        return TRUE;
+    }
+
+    return TRUE;
+}
+
+
 
 /**
  * Create a new input device and init it to sane values. The device is added
@@ -170,7 +198,13 @@ AddInputDevice(ClientPtr client, DeviceProc deviceProc, Bool autoStart)
 
     /* last valuators */
     memset(dev->last.valuators, 0, sizeof(dev->last.valuators));
+    memset(dev->last.remainder, 0, sizeof(dev->last.remainder));
     dev->last.numValuators = 0;
+
+    /* device properties */
+    dev->properties.properties = NULL;
+    dev->properties.pendingProperties = FALSE;
+    dev->properties.handlers = NULL;
 
     /*  security creation/labeling check
      */
@@ -185,6 +219,11 @@ AddInputDevice(ClientPtr client, DeviceProc deviceProc, Bool autoStart)
         ;
     *prev = dev;
     dev->next = NULL;
+
+    XIChangeDeviceProperty(dev, XIGetKnownProperty(XI_PROP_ENABLED),
+                           XA_INTEGER, 8, PropModeReplace, 1, &dev->enabled,
+                           FALSE, FALSE, FALSE);
+    XIRegisterPropertyHandler(dev, DeviceSetProperty, NULL);
 
     return dev;
 }
@@ -257,6 +296,7 @@ EnableDevice(DeviceIntPtr dev)
     mieqResizeEvents(evsize);
     OsReleaseSignals();
 
+
     if ((*prev != dev) || !dev->inited ||
 	((ret = (*dev->deviceProc)(dev, DEVICE_ON)) != Success)) {
         ErrorF("[dix] couldn't enable device %d\n", dev->id);
@@ -270,11 +310,15 @@ EnableDevice(DeviceIntPtr dev)
     *prev = dev;
     dev->next = NULL;
 
+    XIChangeDeviceProperty(dev, XIGetKnownProperty(XI_PROP_ENABLED),
+                           XA_INTEGER, 8, PropModeReplace, 1, &dev->enabled,
+                           TRUE, FALSE, FALSE);
+
     ev.type = DevicePresenceNotify;
     ev.time = currentTime.milliseconds;
     ev.devchange = DeviceEnabled;
     ev.deviceid = dev->id;
-    dummyDev.id = 0;
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -334,11 +378,15 @@ DisableDevice(DeviceIntPtr dev)
     dev->next = inputInfo.off_devices;
     inputInfo.off_devices = dev;
 
+    XIChangeDeviceProperty(dev, XIGetKnownProperty(XI_PROP_ENABLED),
+                           XA_INTEGER, 8, PropModeReplace, 1, &dev->enabled,
+                           TRUE, FALSE, FALSE);
+
     ev.type = DevicePresenceNotify;
     ev.time = currentTime.milliseconds;
     ev.devchange = DeviceDisabled;
     ev.deviceid = dev->id;
-    dummyDev.id = 0;
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -378,6 +426,7 @@ ActivateDevice(DeviceIntPtr dev)
     ev.deviceid = dev->id;
 
     memset(&dummyDev, 0, sizeof(DeviceIntRec));
+    dummyDev.id = MAX_DEVICES;
     SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                           (xEvent *) &ev, 1);
 
@@ -768,12 +817,18 @@ CloseDevice(DeviceIntPtr dev)
     if (!dev)
         return;
 
+    XIDeleteAllDeviceProperties(dev);
+
     if (dev->inited)
 	(void)(*dev->deviceProc)(dev, DEVICE_CLOSE);
 
     /* free sprite memory */
     if (dev->isMaster && dev->spriteInfo->sprite)
         screen->DeviceCursorCleanup(dev, screen);
+
+    /* free acceleration info */
+    if(dev->valuator && dev->valuator->accelScheme.AccelCleanupProc)
+	dev->valuator->accelScheme.AccelCleanupProc(dev);
 
     xfree(dev->name);
 
@@ -936,7 +991,7 @@ RemoveDevice(DeviceIntPtr dev)
         ev.time = currentTime.milliseconds;
         ev.devchange = DeviceRemoved;
         ev.deviceid = deviceid;
-        dummyDev.id = 0;
+        dummyDev.id = MAX_DEVICES;
         SendEventToAllWindows(&dummyDev, DevicePresenceNotifyMask,
                               (xEvent *) &ev, 1);
     }
@@ -1152,7 +1207,7 @@ InitButtonClassDeviceStruct(DeviceIntPtr dev, int numButtons,
     butc->buttonsDown = 0;
     butc->state = 0;
     butc->motionMask = 0;
-    bzero((char *)butc->down, MAP_LENGTH);
+    bzero((char *)butc->down, sizeof(butc->down));
 #ifdef XKB
     butc->xkb_acts=	NULL;
 #endif
@@ -1186,8 +1241,6 @@ InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes,
     valc->mode = mode;
     valc->axes = (AxisInfoPtr)(valc + 1);
     valc->axisVal = (int *)(valc->axes + numAxes);
-    valc->dxremaind = 0;
-    valc->dyremaind = 0;
     dev->valuator = valc;
 
     AllocateMotionHistory(dev);
@@ -1199,6 +1252,59 @@ InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes,
     }
 
     dev->last.numValuators = numAxes;
+    if(!dev->isMaster) /* master devs do not accelerate */
+	InitPointerAccelerationScheme(dev, PtrAccelDefault);
+    return TRUE;
+}
+
+/* global list of acceleration schemes */
+ValuatorAccelerationRec pointerAccelerationScheme[] = {
+    {PtrAccelNoOp,        NULL, NULL, NULL},
+    {PtrAccelPredictable, acceleratePointerPredictable, NULL, AccelerationDefaultCleanup},
+    {PtrAccelClassic,     acceleratePointerClassic, NULL, NULL},
+    {-1, NULL, NULL, NULL} /* terminator */
+};
+
+_X_EXPORT Bool
+InitPointerAccelerationScheme(DeviceIntPtr dev,
+                              int scheme)
+{
+    int x, i = -1;
+    void* data = NULL;
+    ValuatorClassPtr val;
+
+    if(dev->isMaster) /* bail out if called for master devs */
+	return FALSE;
+
+    for(x = 0; pointerAccelerationScheme[x].number >= 0; x++) {
+        if(pointerAccelerationScheme[x].number == scheme){
+            i = x;
+            break;
+        }
+    }
+
+    if(-1 == i)
+        return FALSE;
+
+
+    /* init scheme-specific data */
+    switch(scheme){
+        case PtrAccelPredictable:
+        {
+            DeviceVelocityPtr s;
+            s = (DeviceVelocityPtr)xalloc(sizeof(DeviceVelocityRec));
+            InitVelocityData(s);
+            data = s;
+            break;
+        }
+        default:
+            break;
+    }
+
+    val = dev->valuator;
+    val->accelScheme = pointerAccelerationScheme[i];
+    val->accelScheme.accelData = data;
+
     return TRUE;
 }
 
@@ -1478,13 +1584,15 @@ SendMappingNotify(DeviceIntPtr pDev, unsigned request, unsigned firstKeyCode,
 }
 
 /*
- * n-squared algorithm. n < 255 and don't want to copy the whole thing and
- * sort it to do the checking. How often is it called? Just being lazy?
+ * Check if the given buffer contains elements between low (inclusive) and
+ * high (inclusive) only.
+ *
+ * @return TRUE if the device map is invalid, FALSE otherwise.
  */
 Bool
 BadDeviceMap(BYTE *buff, int length, unsigned low, unsigned high, XID *errval)
 {
-    int i, j;
+    int i;
 
     for (i = 0; i < length; i++)
 	if (buff[i])		       /* only check non-zero elements */
@@ -1494,12 +1602,6 @@ BadDeviceMap(BYTE *buff, int length, unsigned low, unsigned high, XID *errval)
 		*errval = buff[i];
 		return TRUE;
 	    }
-	    for (j = i + 1; j < length; j++)
-		if (buff[i] == buff[j])
-		{
-		    *errval = buff[i];
-		    return TRUE;
-		}
 	}
     return FALSE;
 }
@@ -1733,7 +1835,7 @@ DoSetPointerMapping(ClientPtr client, DeviceIntPtr device, BYTE *map, int n)
         if ((dev->coreEvents || dev == inputInfo.pointer) && dev->button) {
             for (i = 0; i < n; i++) {
                 if ((device->button->map[i + 1] != map[i]) &&
-                    BitIsOn(device->button->down, i + 1)) {
+                        device->button->down[i + 1]) {
                     return MappingBusy;
                 }
             }
@@ -1755,6 +1857,7 @@ ProcSetPointerMapping(ClientPtr client)
 {
     BYTE *map;
     int ret;
+    int i, j;
     DeviceIntPtr ptr = PickPointer(client);
     xSetPointerMappingReply rep;
     REQUEST(xSetPointerMappingReq);
@@ -1780,6 +1883,19 @@ ProcSetPointerMapping(ClientPtr client)
     }
     if (BadDeviceMap(&map[0], (int)stuff->nElts, 1, 255, &client->errorValue))
 	return BadValue;
+
+    /* core protocol specs don't allow for duplicate mappings. */
+    for (i = 0; i < stuff->nElts; i++)
+    {
+        for (j = i + 1; j < stuff->nElts; j++)
+        {
+            if (map[i] && map[i] == map[j])
+            {
+                client->errorValue = map[i];
+                return BadValue;
+            }
+        }
+    }
 
     ret = DoSetPointerMapping(client, ptr, map, stuff->nElts);
     if (ret != Success) {

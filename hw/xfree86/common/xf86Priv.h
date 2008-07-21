@@ -51,10 +51,6 @@ extern Bool xf86AllowMouseOpenFail;
 extern Bool xf86VidModeDisabled;
 extern Bool xf86VidModeAllowNonLocal; 
 #endif 
-#ifdef XF86MISC
-extern Bool xf86MiscModInDevDisabled;
-extern Bool xf86MiscModInDevAllowNonLocal;
-#endif 
 extern Bool xf86fpFlag;
 extern Bool xf86coFlag;
 extern Bool xf86sFlag;
@@ -163,8 +159,6 @@ void DoConfigure(void);
 
 /* xf86Events.c */
 
-void xf86PostKbdEvent(unsigned key);
-void xf86PostMseEvent(DeviceIntPtr device, int buttons, int dx, int dy);
 void xf86Wakeup(pointer blockData, int err, pointer pReadmask);
 void xf86SigHandler(int signo);
 void xf86HandlePMEvents(int fd, pointer data);
@@ -181,16 +175,6 @@ Bool xf86LoadModules(char **list, pointer *optlist);
 int xf86SetVerbosity(int verb);
 int xf86SetLogVerbosity(int verb);
 Bool xf86CallDriverProbe( struct _DriverRec * drv, Bool detect_only );
-
-/* xf86Lock.c */
-
-#ifdef USE_XF86_SERVERLOCK
-void xf86UnlockServer(void);
-#endif
-
-/* xf86XKB.c */
-
-void xf86InitXkb(void);
 
 /* xf86Xinput.c */
 extern EventList *xf86Events;

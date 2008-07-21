@@ -93,7 +93,6 @@ typedef struct _NewClientRec *NewClientPtr;
 #define SIGVAL void
 #endif
 
-extern Bool OsDelayInitColors;
 extern void (*OsVendorVErrorFProc)(const char *, va_list args);
 
 extern int WaitForSomething(
@@ -246,10 +245,8 @@ extern OsSigHandlerPtr OsSignal(int /* sig */, OsSigHandlerPtr /* handler */);
 
 extern int auditTrailLevel;
 
-#ifdef SERVER_LOCK
 extern void LockServer(void);
 extern void UnlockServer(void);
-#endif
 
 extern int OsLookupColor(
     int	/*screen*/,
@@ -266,8 +263,6 @@ extern void OsCleanup(Bool);
 extern void OsVendorFatalError(void);
 
 extern void OsVendorInit(void);
-
-extern int OsInitColors(void);
 
 void OsBlockSignals (void);
 
@@ -404,10 +399,6 @@ extern XID GenerateAuthorization(
     char	*  /* data */,
     unsigned int * /* data_length_return */,
     char	** /* data_return */);
-
-#ifdef COMMANDLINE_CHALLENGED_OPERATING_SYSTEMS
-extern void ExpandCommandLine(int * /*pargc*/, char *** /*pargv*/);
-#endif
 
 extern int ddxProcessArgument(int /*argc*/, char * /*argv*/ [], int /*i*/);
 

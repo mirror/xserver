@@ -82,11 +82,11 @@ typedef enum {
  * changed.  The minor revision mask is 0x0000FFFF and the major revision
  * mask is 0xFFFF0000.
  */
-#define ABI_ANSIC_VERSION	SET_ABI_VERSION(0, 3)
-#define ABI_VIDEODRV_VERSION	SET_ABI_VERSION(4, 0)
-#define ABI_XINPUT_VERSION	SET_ABI_VERSION(3, 0)
-#define ABI_EXTENSION_VERSION	SET_ABI_VERSION(1, 0)
-#define ABI_FONT_VERSION	SET_ABI_VERSION(0, 5)
+#define ABI_ANSIC_VERSION	SET_ABI_VERSION(0, 4)
+#define ABI_VIDEODRV_VERSION	SET_ABI_VERSION(4, 1)
+#define ABI_XINPUT_VERSION	SET_ABI_VERSION(3, 1)
+#define ABI_EXTENSION_VERSION	SET_ABI_VERSION(1, 1)
+#define ABI_FONT_VERSION	SET_ABI_VERSION(0, 6)
 
 #define MODINFOSTRING1	0xef23fdc5
 #define MODINFOSTRING2	0x10dc023a
@@ -194,7 +194,6 @@ pointer LoadSubModuleLocal(pointer, const char *, const char **,
 			   const char **, pointer, const XF86ModReqInfo *,
 			   int *, int *);
 void UnloadSubModule(pointer);
-void LoadFont(pointer);
 void UnloadModule (pointer);
 #endif
 pointer LoaderSymbol(const char *);
@@ -209,6 +208,7 @@ void LoaderReqSymLists(const char **, ...);
 void LoaderReqSymbols(const char *, ...);
 int LoaderCheckUnresolved(int);
 void LoaderGetOS(const char **name, int *major, int *minor, int *teeny);
+Bool LoaderShouldIgnoreABI(void);
 int LoaderGetABIVersion(const char *abiclass);
 
 typedef pointer (*ModuleSetupProc)(pointer, pointer, int *, int *);

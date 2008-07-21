@@ -55,6 +55,8 @@ xf86RandRModeRefresh (DisplayModePtr mode)
 {
     if (mode->VRefresh)
 	return (int) (mode->VRefresh + 0.5);
+    else if (mode->Clock == 0)
+	return 0;
     else
 	return (int) (mode->Clock * 1000.0 / mode->HTotal / mode->VTotal + 0.5);
 }
@@ -171,6 +173,25 @@ xf86RandRSetMode (ScreenPtr	    pScreen,
 	scrp->virtualX = mode->HDisplay;
 	scrp->virtualY = mode->VDisplay;
     }
+
+    /*
+     * The DIX forgets the physical dimensions we passed into RRRegisterSize, so
+     * reconstruct them if possible.
+     */
+    if(scrp->DriverFunc) {
+	xorgRRModeMM RRModeMM;
+
+	RRModeMM.mode = mode;
+	RRModeMM.virtX = scrp->virtualX;
+	RRModeMM.virtY = scrp->virtualY;
+	RRModeMM.mmWidth = mmWidth;
+	RRModeMM.mmHeight = mmHeight;
+
+	(*scrp->DriverFunc)(scrp, RR_GET_MODE_MM, &RRModeMM);
+
+	mmWidth = RRModeMM.mmWidth;
+	mmHeight = RRModeMM.mmHeight;
+    }
     if(randrp->rotation & (RR_Rotate_90 | RR_Rotate_270))
     {
 	/* If the screen is rotated 90 or 270 degrees, swap the sizes. */
@@ -224,7 +245,7 @@ xf86RandRSetConfig (ScreenPtr		pScreen,
     Bool		    useVirtual = FALSE;
     Rotation		    oldRotation = randrp->rotation;
 
-    miPointerPosition (&px, &py);
+    miPointerGetPosition(inputInfo.pointer, &px, &py);
     for (mode = scrp->modes; ; mode = mode->next)
     {
 	if (mode->HDisplay == pSize->width &&

@@ -240,7 +240,7 @@ int dix_main(int argc, char *argv[], char *envp[])
 int main(int argc, char *argv[], char *envp[])
 #endif
 {
-    int		i, j, k;
+    int		i;
     char	*xauthfile;
     HWEventQueueType	alwaysCheckForInput[2];
 
@@ -251,10 +251,6 @@ int main(int argc, char *argv[], char *envp[])
     CheckUserParameters(argc, argv, envp);
 
     CheckUserAuthorization();
-
-#ifdef COMMANDLINE_CHALLENGED_OPERATING_SYSTEMS
-    ExpandCommandLine(&argc, &argv);
-#endif
 
     InitConnectionLimits();
 
@@ -309,21 +305,9 @@ int main(int argc, char *argv[], char *envp[])
 	SetInputCheck(&alwaysCheckForInput[0], &alwaysCheckForInput[1]);
 	screenInfo.arraySize = MAXSCREENS;
 	screenInfo.numScreens = 0;
-	screenInfo.numVideoScreens = -1;
 	WindowTable = (WindowPtr *)xalloc(MAXSCREENS * sizeof(WindowPtr));
 	if (!WindowTable)
 	    FatalError("couldn't create root window table");
-
-	/*
-	 * Just in case the ddx doesnt supply a format for depth 1 (like qvss).
-	 */
-	j = indexForBitsPerPixel[ 1 ];
-	k = indexForScanlinePad[ BITMAP_SCANLINE_PAD ];
-	PixmapWidthPaddingInfo[1].padRoundUp = BITMAP_SCANLINE_PAD-1;
-	PixmapWidthPaddingInfo[1].padPixelsLog2 = answer[j][k];
- 	j = indexForBitsPerPixel[8]; /* bits per byte */
- 	PixmapWidthPaddingInfo[1].padBytesLog2 = answer[j][k];
-	PixmapWidthPaddingInfo[1].bitsPerPixel = 1;
 
 	InitAtoms();
 	InitEvents();
@@ -339,8 +323,6 @@ int main(int argc, char *argv[], char *envp[])
 
 	if (screenInfo.numScreens < 1)
 	    FatalError("no screens found");
-	if (screenInfo.numVideoScreens < 0)
-	    screenInfo.numVideoScreens = screenInfo.numScreens;
 	InitExtensions(argc, argv);
 	for (i = 0; i < screenInfo.numScreens; i++)
 	{
@@ -437,6 +419,7 @@ int main(int argc, char *argv[], char *envp[])
 
         memset(WindowTable, 0, MAXSCREENS * sizeof(WindowPtr));
 	CloseDownDevices();
+	CloseDownEvents();
 
 	for (i = screenInfo.numScreens - 1; i >= 0; i--)
 	{

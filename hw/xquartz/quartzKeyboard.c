@@ -891,6 +891,7 @@ void DarwinKeyboardInit(DeviceIntPtr pDev) {
 #ifdef XQUARTZ_USE_XKB
 	XkbComponentNamesRec names;
 	bzero(&names, sizeof(names));
+    /* We need to really have rules... or something... */
     XkbSetRulesDflts("base", "pc105", "us", NULL, NULL);
     assert(XkbInitKeyboardDeviceStruct(pDev, &names, &keySyms, keyInfo.modMap,
                                         QuartzBell, DarwinChangeKeyboardControl));
@@ -1086,14 +1087,25 @@ Bool LegalModifier(unsigned int key, DeviceIntPtr pDev)
     return 1;
 }
 
+/* TODO: Not thread safe */
 unsigned int QuartzSystemKeymapSeed(void) {
-    static unsigned int seed;
-    static KeyboardLayoutRef last_key_layout;
-    KeyboardLayoutRef key_layout;
+    static unsigned int seed = 0;
+    static TISInputSourceRef last_key_layout = NULL;
+    TISInputSourceRef key_layout;
 
-    KLGetCurrentKeyboardLayout (&key_layout);
-    if (key_layout != last_key_layout) seed++;
-    last_key_layout = key_layout;
+    key_layout = TISCopyCurrentKeyboardLayoutInputSource();
+
+    if(last_key_layout) {
+        if (CFEqual(key_layout, last_key_layout)) {
+            CFRelease(key_layout);
+        } else {
+            seed++;
+            CFRelease(last_key_layout);
+            last_key_layout = key_layout;
+        }
+    } else {
+        last_key_layout = key_layout;
+    }
 
     return seed;
 }
@@ -1136,7 +1148,6 @@ static KeySym make_dead_key(KeySym in) {
 }
 
 Bool QuartzReadSystemKeymap(darwinKeyboardInfo *info) {
-    KeyboardLayoutRef key_layout;
     const void *chr_data = NULL;
     int num_keycodes = NUM_KEYCODES;
     UInt32 keyboard_type = 0;
@@ -1150,18 +1161,7 @@ Bool QuartzReadSystemKeymap(darwinKeyboardInfo *info) {
       CFDataRef currentKeyLayoutDataRef = (CFDataRef )TISGetInputSourceProperty(currentKeyLayoutRef, kTISPropertyUnicodeKeyLayoutData);
       if (currentKeyLayoutDataRef) chr_data = CFDataGetBytePtr(currentKeyLayoutDataRef);
     }
-    
-    if (chr_data == NULL) {
-      KLGetCurrentKeyboardLayout (&key_layout);
-      KLGetKeyboardLayoutProperty (key_layout, kKLuchrData, &chr_data);
-    }
-    
-    if (chr_data == NULL) {
-      KLGetKeyboardLayoutProperty (key_layout, kKLKCHRData, &chr_data);
-      is_uchr = 0;
-      num_keycodes = 128;
-    }
-    
+
     if (chr_data == NULL) {
       ErrorF ( "Couldn't get uchr or kchr resource\n");
       return FALSE;

@@ -122,6 +122,8 @@ SOFTWARE.
 #include "ungrdevk.h"
 #include "warpdevp.h"
 #include "xiselev.h"
+#include "xiproperty.c"
+#include "xiproperty.h"
 
 
 static Mask lastExtEventMask = 1;
@@ -217,7 +219,13 @@ static int (*ProcIVector[])(ClientPtr) = {
         ProcXSetClientPointer,                  /* 42 */
         ProcXGetClientPointer,                  /* 43 */
         ProcXiSelectEvent,                      /* 44 */
-        ProcXExtendedGrabDevice                 /* 45 */
+        ProcXExtendedGrabDevice,                /* 45 */
+        ProcXListDeviceProperties,              /* 46 */
+        ProcXQueryDeviceProperty,               /* 47 */
+        ProcXConfigureDeviceProperty,           /* 48 */
+        ProcXChangeDeviceProperty,              /* 49 */
+        ProcXDeleteDeviceProperty,              /* 50 */
+        ProcXGetDeviceProperty                  /* 51 */
 };
 
 /* For swapped clients */
@@ -267,7 +275,13 @@ static int (*SProcIVector[])(ClientPtr) = {
         SProcXSetClientPointer,                  /* 42 */
         SProcXGetClientPointer,                  /* 43 */
         SProcXiSelectEvent,                      /* 44 */
-        SProcXExtendedGrabDevice                 /* 45 */
+        SProcXExtendedGrabDevice,                /* 45 */
+        SProcXListDeviceProperties,              /* 46 */
+        SProcXQueryDeviceProperty,               /* 47 */
+        SProcXConfigureDeviceProperty,           /* 48 */
+        SProcXChangeDeviceProperty,              /* 49 */
+        SProcXDeleteDeviceProperty,              /* 50 */
+        SProcXGetDeviceProperty                  /* 51 */
 };
 
 /*****************************************************************
@@ -1127,6 +1141,7 @@ XInputExtensionInit(void)
 	IEventBase = extEntry->eventBase;
 	AllExtensionVersions[IReqCode - 128] = thisversion;
 	MakeDeviceTypeAtoms();
+	XIInitKnownProperties();
 	RT_INPUTCLIENT = CreateNewResourceType((DeleteType) InputClientGone);
 	RegisterResourceName(RT_INPUTCLIENT, "INPUTCLIENT");
 	FixExtensionEvents(extEntry);

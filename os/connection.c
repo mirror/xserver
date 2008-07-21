@@ -83,28 +83,12 @@ SOFTWARE.
 #include <stdlib.h>
 
 #ifndef WIN32
-#if defined(Lynx)
-#include <socket.h>
-#else
 #include <sys/socket.h>
-#endif
 
 #ifdef hpux
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
 #endif
-
-#if defined(DGUX)
-#include <sys/ioctl.h>
-#include <sys/utsname.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/param.h>
-#include <unistd.h>
-#endif
-
 
 #ifdef AIXV3
 #include <sys/ioctl.h>
@@ -128,11 +112,8 @@ SOFTWARE.
 # include <arpa/inet.h>
 #endif
 
-#ifndef Lynx
 #include <sys/uio.h>
-#else
-#include <uio.h>
-#endif
+
 #endif /* WIN32 */
 #include "misc.h"		/* for typedef of pointer */
 #include "osdep.h"
@@ -141,11 +122,7 @@ SOFTWARE.
 #include "dixstruct.h"
 #include "xace.h"
 
-#ifdef X_NOT_POSIX
-#define Pid_t int
-#else
 #define Pid_t pid_t
-#endif
 
 #ifdef DNETCONN
 #include <netdnet/dn.h>
@@ -757,7 +734,9 @@ ClientAuthorized(ClientPtr client,
 	}
     }
     priv->auth_id = auth_id;
+#ifdef HAVE_LAUNCHD
  done:
+#endif
     priv->conn_time = 0;
 
 #ifdef XDMCP

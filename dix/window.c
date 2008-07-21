@@ -823,6 +823,8 @@ CreateWindow(Window wid, WindowPtr pParent, int x, int y, unsigned w,
 static void
 DisposeWindowOptional (WindowPtr pWin)
 {
+    GenericMaskPtr gmask = NULL, next = NULL;
+
     if (!pWin->optional)
 	return;
     /*
@@ -855,6 +857,17 @@ DisposeWindowOptional (WindowPtr pWin)
 
     xfree(pWin->optional->access.perm);
     xfree(pWin->optional->access.deny);
+
+    /* Remove generic event mask allocations */
+    if (pWin->optional->geMasks)
+        gmask = pWin->optional->geMasks->geClients;
+    while(gmask)
+    {
+        next = gmask->next;
+        xfree(gmask);
+        gmask = next;
+    }
+    xfree (pWin->optional->geMasks);
 
     xfree (pWin->optional);
     pWin->optional = NULL;
@@ -930,6 +943,7 @@ CrushTree(WindowPtr pWin)
 		(*UnrealizeWindow)(pChild);
 	    }
 	    FreeWindowResources(pChild);
+	    dixFreePrivates(pChild->devPrivates);
 	    xfree(pChild);
 	    if ( (pChild = pSib) )
 		break;
@@ -979,6 +993,7 @@ DeleteWindow(pointer value, XID wid)
 	if (pWin->prevSib)
 	    pWin->prevSib->nextSib = pWin->nextSib;
     }
+    xfree(dixLookupPrivate(&pWin->devPrivates, FocusPrivatesKey));
     dixFreePrivates(pWin->devPrivates);
     xfree(pWin);
     return Success;

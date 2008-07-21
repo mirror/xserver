@@ -422,7 +422,7 @@ static Mask* generic_filters[MAXEXTENSIONS];
 
 static CARD8 criticalEvents[32] =
 {
-    0x7c				/* key and button events */
+    0x7c, 0x30, 0x40			/* key, button, expose, and configure events */
 };
 
 #ifdef PANORAMIX
@@ -2118,7 +2118,7 @@ DeliverEventsToWindow(DeviceIntPtr pDev, WindowPtr pWin, xEvent
         /* Handle generic events */
         if (type == GenericEvent)
         {
-            GenericMaskPtr pClient;
+            GenericMaskPtr gmask;
             /* We don't do more than one GenericEvent at a time. */
             if (count > 1)
             {
@@ -2132,16 +2132,16 @@ DeliverEventsToWindow(DeviceIntPtr pDev, WindowPtr pWin, xEvent
                 return 0;
 
             /* run through all clients, deliver event */
-            for (pClient = GECLIENT(pWin); pClient; pClient = pClient->next)
+            for (gmask = GECLIENT(pWin); gmask; gmask = gmask->next)
             {
-                if (pClient->eventMask[GEEXTIDX(pEvents)] & filter)
+                if (gmask->eventMask[GEEXTIDX(pEvents)] & filter)
                 {
-                    if (XaceHook(XACE_RECEIVE_ACCESS, pClient->client, pWin,
+                    if (XaceHook(XACE_RECEIVE_ACCESS, rClient(gmask), pWin,
                                 pEvents, count))
                         /* do nothing */;
-                    else if (TryClientEvents(pClient->client, pDev,
+                    else if (TryClientEvents(rClient(gmask), pDev,
                              pEvents, count,
-                             pClient->eventMask[GEEXTIDX(pEvents)],
+                             gmask->eventMask[GEEXTIDX(pEvents)],
                              filter, grab) > 0)
                     {
                         deliveries++;
@@ -2223,7 +2223,7 @@ DeliverEventsToWindow(DeviceIntPtr pDev, WindowPtr pWin, xEvent
         {
             GenericClientMasksPtr gemasks = pWin->optional->geMasks;
             GenericMaskPtr geclient = gemasks->geClients;
-            while(geclient && geclient->client != client)
+            while(geclient && rClient(geclient) != client)
                 geclient = geclient->next;
             if (geclient)
             {
@@ -3389,7 +3389,7 @@ CheckPassiveGrabsOnWindow(
             else
                 gdev = device;
         }
-        if (gdev)
+        if (gdev && gdev->key)
             xkbi= gdev->key->xkbInfo;
 #endif
 	tempGrab.modifierDevice = grab->modifierDevice;
@@ -4077,15 +4077,11 @@ ProcessPointerEvent (xEvent *xE, DeviceIntPtr mouse, int count)
     if (xE->u.u.type != MotionNotify)
     {
 	int  key;
-	BYTE *kptr;
-	int           bit;
 
 	XE_KBPTR.rootX = pSprite->hot.x;
 	XE_KBPTR.rootY = pSprite->hot.y;
 
 	key = xE->u.u.detail;
-	kptr = &butc->down[key >> 3];
-	bit = 1 << (key & 7);
 	switch (xE->u.u.type)
 	{
 	case ButtonPress:
@@ -4587,6 +4583,9 @@ DoEnterLeaveEvents(DeviceIntPtr pDev,
         WindowPtr toWin,
         int mode)
 {
+    if (!IsPointerDevice(pDev))
+        return;
+
     if (fromWin == toWin)
 	return;
     if (IsParent(fromWin, toWin))
@@ -5521,14 +5520,15 @@ InitEvents(void)
         FatalError("[dix] Failed to allocate input event list.\n");
 }
 
-/**
- * This function is deprecated! It shouldn't be used anymore. It used to free
- * the spriteTraces, but now they are freed when the SpriteRec is freed.
- */
-_X_DEPRECATED void
+void
 CloseDownEvents(void)
 {
+    int len;
+    EventListPtr list;
 
+    len = GetEventList(&list);
+    while(len--)
+        xfree(list[len].event);
 }
 
 /**
@@ -6172,6 +6172,10 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
     if (events->u.u.type == GenericEvent)
     {
         eventlength += ((xGenericEvent*)events)->length * 4;
+    }
+
+    if(pClient->swapped)
+    {
         if (eventlength > swapEventLen)
         {
             swapEventLen = eventlength;
@@ -6182,10 +6186,7 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
                 return;
             }
         }
-    }
 
-    if(pClient->swapped)
-    {
 	for(i = 0; i < count; i++)
 	{
 	    eventFrom = &events[i];
@@ -6196,7 +6197,7 @@ WriteEventsToClient(ClientPtr pClient, int count, xEvent *events)
 	    (*EventSwapVector[eventFrom->u.u.type & 0177])
 		(eventFrom, eventTo);
 
-	    (void)WriteToClient(pClient, eventlength, (char *)&eventTo);
+	    (void)WriteToClient(pClient, eventlength, (char *)eventTo);
 	}
     }
     else

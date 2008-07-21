@@ -214,12 +214,6 @@
 #  define VT_SYSREQ_DEFAULT TRUE
 # endif
 
-# ifdef SYSV
-#  if !defined(ISC) || defined(ISC202) || defined(ISC22)
-#   define NEED_STRERROR
-#  endif
-# endif
-
 #endif /* (SYSV || SVR4) && !DGUX */
 
 
@@ -299,10 +293,6 @@
 # include <sys/types.h>
 # include <assert.h>
 
-#ifdef __GNU__ /* GNU/Hurd */
-# define USE_OSMOUSE
-#endif
-
 # ifdef __linux__
 #  include <termio.h>
 # else /* __GLIBC__ */
@@ -331,46 +321,6 @@
 # define POSIX_TTY
 
 #endif /* __linux__ || __GLIBC__ */
-
-/**************************************************************************/
-/* LynxOS AT                                                              */
-/**************************************************************************/
-#if defined(Lynx)
- 
-# include <termio.h>
-# include <sys/ioctl.h>
-# include <param.h>
-# include <signal.h>
-# include <kd.h>
-# include <vt.h>
-# include <sys/stat.h>
-
-# include <errno.h>
-extern int errno;
- 
-/* smem_create et.al. to access physical memory */ 
-# include <smem.h>
- 
-/* keyboard types */
-# define KB_84		1
-# define KB_101 	2
-# define KB_OTHER	3
-
-/* atc drivers ignores argument to VT_RELDISP ioctl */
-# define VT_ACKACQ	2
-
-# include <termios.h>
-# define POSIX_TTY
-# define CLEARDTR_SUPPORT
-
-/* LynxOS 2.5.1 has these */
-# ifdef LED_NUMLOCK
-#  define LED_CAP	LED_CAPSLOCK
-#  define LED_NUM	LED_NUMLOCK
-#  define LED_SCR	LED_SCROLLOCK
-# endif
-
-#endif /* Lynx */
 
 /**************************************************************************/
 /* 386BSD and derivatives,  BSD/386                                       */
@@ -553,8 +503,6 @@ extern int errno;
 #  define LED_SCR 0x01
 
 # define POSIX_TTY
-# define OSMOUSE_ONLY
-# define MOUSE_PROTOCOL_IN_KERNEL
 
 #define TIOCM_DTR       0x0001            /* data terminal ready */
 #define TIOCM_RTS       0x0002            /* request to send */
@@ -624,15 +572,14 @@ extern int errno;
 # define MAXHOSTNAMELEN 32
 #endif /* !MAXHOSTNAMELEN */
 
-#if !defined(X_NOT_POSIX)
-# if defined(_POSIX_SOURCE)
-#  include <limits.h>
-# else
-#  define _POSIX_SOURCE
-#  include <limits.h>
-#  undef _POSIX_SOURCE
-# endif /* _POSIX_SOURCE */
-#endif /* !X_NOT_POSIX */
+#if defined(_POSIX_SOURCE)
+# include <limits.h>
+#else
+# define _POSIX_SOURCE
+# include <limits.h>
+# undef _POSIX_SOURCE
+#endif /* _POSIX_SOURCE */
+
 #if !defined(PATH_MAX)
 # if defined(MAXPATHLEN)
 #  define PATH_MAX MAXPATHLEN
@@ -641,16 +588,7 @@ extern int errno;
 # endif /* MAXPATHLEN */
 #endif /* !PATH_MAX */
 
-#ifdef NEED_STRERROR
-# ifndef strerror
-extern char *sys_errlist[];
-extern int sys_nerr;
-#  define strerror(n) \
-     ((n) >= 0 && (n) < sys_nerr) ? sys_errlist[n] : "unknown error"
-# endif /* !strerror */
-#endif /* NEED_STRERROR */
-
-#if defined(ISC) || defined(Lynx)
+#if defined(ISC)
 #define rint(x) RInt(x)
 double RInt(
 	double x
@@ -663,12 +601,6 @@ double RInt(
 
 #ifndef VT_SYSREQ_DEFAULT
 #define VT_SYSREQ_DEFAULT FALSE
-#endif
-
-#ifdef OSMOUSE_ONLY
-# ifndef MOUSE_PROTOCOL_IN_KERNEL
-#  define MOUSE_PROTOCOL_IN_KERNEL
-# endif
 #endif
 
 #define SYSCALL(call) while(((call) == -1) && (errno == EINTR))

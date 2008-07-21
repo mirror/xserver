@@ -126,8 +126,10 @@ miPointerInitialize (ScreenPtr                  pScreen,
 static Bool
 miPointerCloseScreen (int index, ScreenPtr pScreen)
 {
+#if 0
     miPointerPtr pPointer;
     DeviceIntPtr pDev;
+#endif
 
     SetupScreen(pScreen);
 
@@ -555,12 +557,6 @@ miPointerSetPosition(DeviceIntPtr pDev, int *x, int *y, unsigned long time)
         return;
 
     miPointerMoved(pDev, pScreen, *x, *y, time);
-}
-
-_X_EXPORT void
-miPointerPosition (int *x, int *y)
-{
-    miPointerGetPosition(inputInfo.pointer, x, y);
 }
 
 _X_EXPORT void

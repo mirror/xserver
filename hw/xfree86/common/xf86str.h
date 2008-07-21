@@ -851,7 +851,6 @@ typedef int  xf86SetDGAModeProc           (int, int, DGADevicePtr);
 typedef int  xf86ChangeGammaProc          (int, Gamma);
 typedef void xf86PointerMovedProc         (int, int, int);
 typedef Bool xf86PMEventProc              (int, pmEvent, Bool);
-typedef int  xf86HandleMessageProc     (int, const char*, const char*, char**);
 typedef void xf86DPMSSetProc		  (ScrnInfoPtr, int, int);
 typedef void xf86LoadPaletteProc   (ScrnInfoPtr, int, int *, LOCO *, VisualPtr);
 typedef void xf86SetOverscanProc          (ScrnInfoPtr, int);
@@ -1006,7 +1005,6 @@ typedef struct _ScrnInfoRec {
     xf86ChangeGammaProc			*ChangeGamma;
     xf86PointerMovedProc		*PointerMoved;
     xf86PMEventProc			*PMEvent;
-    xf86HandleMessageProc		*HandleMessage;
     xf86DPMSSetProc			*DPMSSet;
     xf86LoadPaletteProc			*LoadPalette;
     xf86SetOverscanProc			*SetOverscan;
@@ -1090,14 +1088,6 @@ typedef void (*InputHandlerProc)(int fd, pointer data);
 #define CLK_REG_SAVE		-1
 #define CLK_REG_RESTORE		-2
 
-/* xf86Debug.c */
-#ifdef BUILDDEBUG
-typedef struct {
-    long sec;
-    long usec;
-} xf86TsRec, *xf86TsPtr;
-#endif
-
 /*
  * misc constants
  */
@@ -1110,13 +1100,6 @@ typedef struct {
 #define OVERLAY_8_24_DUALFB	0x00000002
 #define OVERLAY_8_16_DUALFB	0x00000004
 #define OVERLAY_8_32_PLANAR	0x00000008
-
-#if 0
-#define LD_RESOLV_IFDONE		0	/* only check if no more
-						   delays pending */
-#define LD_RESOLV_NOW			1	/* finish one delay step */
-#define LD_RESOLV_FORCE			2	/* force checking... */
-#endif
 
 /* Values of xf86Info.mouseFlags */
 #define MF_CLEAR_DTR       1
@@ -1132,31 +1115,6 @@ typedef enum {
     ACTION_SWITCHSCREEN		= 100,	/* VT switch */
     ACTION_SWITCHSCREEN_NEXT,
     ACTION_SWITCHSCREEN_PREV,
-    ACTION_MESSAGE		= 9999  /* Generic message passing */
 } ActionEvent;
-
-/* xf86Versions.c */
-/*
- * Never change existing values, and always assign values explicitly.
- * NUM_BUILTIN_IFS must always be the last entry.
- */
-typedef enum {
-    BUILTIN_IF_OSMOUSE = 0,
-    BUILTIN_IF_OSKBD = 1,
-    NUM_BUILTIN_IFS
-} BuiltinInterface;
-
-/*
- * These are intentionally the same as the module version macros.
- * It is possible to register a module as providing a specific interface,
- * in which case the module's version is used.  This feature isn't
- * really ready for use yet though.
- */
-
-#define BUILTIN_INTERFACE_VERSION_NUMERIC(maj, min, patch) \
-	((((maj) & 0xFF) << 24) | (((min) & 0xFF) << 16) | (patch & 0xFFFF))
-#define GET_BUILTIN_INTERFACE_MAJOR_VERSION(vers)	(((vers) >> 24) & 0xFF)
-#define GET_BUILTIN_INTERFACE_MINOR_VERSION(vers)	(((vers) >> 16) & 0xFF)
-#define GET_BUILTIN_INTERFACE_PATCH_VERSION(vers)	((vers) & 0xFFFF)
 
 #endif /* _XF86STR_H */

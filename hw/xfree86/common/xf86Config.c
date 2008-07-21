@@ -116,12 +116,13 @@ static ModuleDefault ModuleDefaults[] = {
     {.name = "extmod",   .toLoad = TRUE,    .load_opt=NULL},
     {.name = "dbe",      .toLoad = TRUE,    .load_opt=NULL},
     {.name = "glx",      .toLoad = TRUE,    .load_opt=NULL},
-    {.name = "freetype", .toLoad = TRUE,    .load_opt=NULL},
 #ifdef XRECORD
     {.name = "record",   .toLoad = TRUE,    .load_opt=NULL},
 #endif
     {.name = "dri",      .toLoad = TRUE,    .load_opt=NULL},
+#ifdef DRI2
     {.name = "dri2",     .toLoad = TRUE,    .load_opt=NULL},
+#endif
     {.name = NULL,       .toLoad = FALSE,   .load_opt=NULL}
 };
 
@@ -305,7 +306,7 @@ xf86ModulelistFromConfig(pointer **optlist)
                 }
             }
             if (found == FALSE) {
-	            XF86ConfModulePtr ptr = xf86configptr->conf_modules;
+		XF86LoadPtr ptr = (XF86LoadPtr)xf86configptr->conf_modules;
 	            ptr = xf86addNewLoadDirective(ptr, ModuleDefaults[i].name, XF86_LOAD_MODULE, ModuleDefaults[i].load_opt);
                 xf86Msg(X_INFO, "\"%s\" will be loaded by default.\n", ModuleDefaults[i].name);
             }
@@ -314,7 +315,7 @@ xf86ModulelistFromConfig(pointer **optlist)
 	xf86configptr->conf_modules = xnfcalloc(1, sizeof(XF86ConfModuleRec));
 	for (i=0 ; ModuleDefaults[i].name != NULL ; i++) {
 	    if (ModuleDefaults[i].toLoad == TRUE) {
-		XF86ConfModulePtr ptr = xf86configptr->conf_modules;
+		XF86LoadPtr ptr = (XF86LoadPtr)xf86configptr->conf_modules;
 		ptr = xf86addNewLoadDirective(ptr, ModuleDefaults[i].name, XF86_LOAD_MODULE, ModuleDefaults[i].load_opt);
 	    }
 	}
@@ -599,8 +600,9 @@ configFiles(XF86ConfFilesPtr fileconf)
       pathFrom = X_CONFIG;
       if (*f) {
         if (xf86Info.useDefaultFontPath) {
+          char *g;
           xf86Msg(X_DEFAULT, "Including the default font path %s.\n", defaultFontPath);
-          char *g = xnfalloc(strlen(defaultFontPath) + strlen(f) + 3);
+	  g = xnfalloc(strlen(defaultFontPath) + strlen(f) + 3);
           strcpy(g, f);
           strcat(g, ",");
           defaultFontPath = strcat(g, defaultFontPath);
@@ -948,13 +950,6 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
 	xf86Info.vidModeAllowNonLocal = value;
 #endif
 
-#ifdef XF86MISC
-    if (xf86GetOptValBool(FlagOptions, FLAG_DISABLEMODINDEV, &value))
-	xf86Info.miscModInDevEnabled = !value;
-    if (xf86GetOptValBool(FlagOptions, FLAG_MODINDEVALLOWNONLOCAL, &value))
-	xf86Info.miscModInDevAllowNonLocal = value;
-#endif
-
     if (xf86GetOptValBool(FlagOptions, FLAG_ALLOWMOUSEOPENFAIL, &value))
 	xf86Info.allowMouseOpenFail = value;
 
@@ -1084,9 +1079,9 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     }
 #endif
 
-    xf86Info.allowEmptyInput = FALSE;
-    if (xf86GetOptValBool(FlagOptions, FLAG_ALLOW_EMPTY_INPUT, &value))
-        xf86Info.allowEmptyInput = TRUE;
+    /* AllowEmptyInput is automatically true if we're hotplugging */
+    xf86Info.allowEmptyInput = (xf86Info.autoAddDevices && xf86Info.autoEnableDevices);
+    xf86GetOptValBool(FlagOptions, FLAG_ALLOW_EMPTY_INPUT, &xf86Info.allowEmptyInput);
 
     xf86Info.useDefaultFontPath = TRUE;
     xf86Info.useDefaultFontPathFrom = X_DEFAULT;
@@ -1233,8 +1228,8 @@ checkCoreInputDevices(serverLayoutPtr servlayoutp, Bool implicitLayout)
      * remove the core attribute from the later ones.
      */
     for (devs = servlayoutp->inputs; devs && *devs; devs++) {
-        indp = *devs;
 	pointer opt1 = NULL, opt2 = NULL;
+        indp = *devs;
 	if (indp->commonOptions &&
 	    xf86CheckBoolOption(indp->commonOptions, "CorePointer", FALSE)) {
 	    opt1 = indp->commonOptions;
@@ -1605,10 +1600,14 @@ configLayout(serverLayoutPtr servlayoutp, XF86ConfLayoutPtr conf_layout,
         count++;
         adjp = (XF86ConfAdjacencyPtr)adjp->list.next;
     }
+
 #ifdef DEBUG
     ErrorF("Found %d screens in the layout section %s",
            count, conf_layout->lay_identifier);
 #endif
+    if (!count) /* alloc enough storage even if no screen is specified */
+        count = 1;
+
     slp = xnfcalloc(1, (count + 1) * sizeof(screenLayoutRec));
     slp[count].screen = NULL;
     /*
@@ -1661,6 +1660,20 @@ configLayout(serverLayoutPtr servlayoutp, XF86ConfLayoutPtr conf_layout,
 	}
         count++;
         adjp = (XF86ConfAdjacencyPtr)adjp->list.next;
+    }
+
+    /* No screen was specified in the layout. take the first one from the
+     * config file, or - if it is NULL - configScreen autogenerates one for
+     * us */
+    if (!count)
+    {
+        slp[0].screen = xnfcalloc(1, sizeof(confScreenRec));
+	if (!configScreen(slp[0].screen, xf86configptr->conf_screen_lst,
+                          0, X_CONFIG)) {
+	    xfree(slp[0].screen);
+	    xfree(slp);
+	    return FALSE;
+	}
     }
 
     /* XXX Need to tie down the upper left screen. */
@@ -1853,9 +1866,7 @@ configImpliedLayout(serverLayoutPtr servlayoutp, XF86ConfScreenPtr conf_screen)
     indp = xnfalloc(sizeof(IDevPtr));
     *indp = NULL;
     servlayoutp->inputs = indp;
-    if (!xf86Info.allowEmptyInput && !checkCoreInputDevices(servlayoutp, TRUE))
-	return FALSE;
-    
+
     return TRUE;
 }
 
@@ -2040,6 +2051,7 @@ configMonitor(MonPtr monitorp, XF86ConfMonitorPtr conf_monitor)
     XF86ConfModesLinkPtr modeslnk = conf_monitor->mon_modes_sect_lst;
     Gamma zeros = {0.0, 0.0, 0.0};
     float badgamma = 0.0;
+    double maxPixClock;
     
     xf86Msg(X_CONFIG, "|   |-->Monitor \"%s\"\n",
 	    conf_monitor->mon_identifier);
@@ -2174,8 +2186,11 @@ configMonitor(MonPtr monitorp, XF86ConfMonitorPtr conf_monitor)
     xf86ProcessOptions(-1, monitorp->options, MonitorOptions);
     xf86GetOptValBool(MonitorOptions, MON_REDUCEDBLANKING,
                       &monitorp->reducedblanking);
-    xf86GetOptValFreq(MonitorOptions, MON_MAX_PIX_CLOCK, OPTUNITS_KHZ,
-		      &monitorp->maxPixClock);
+    if (xf86GetOptValFreq(MonitorOptions, MON_MAX_PIX_CLOCK, OPTUNITS_KHZ,
+			  &maxPixClock) == TRUE) {
+	monitorp->maxPixClock = (int) maxPixClock;
+    }
+	
     return TRUE;
 }
 
@@ -2416,14 +2431,14 @@ configInput(IDevPtr inputp, XF86ConfInputPtr conf_input, MessageType from)
 }
 
 static Bool
-modeIsPresent(char * modename,MonPtr monitorp)
+modeIsPresent(DisplayModePtr mode, MonPtr monitorp)
 {
     DisplayModePtr knownmodes = monitorp->Modes;
 
     /* all I can think of is a linear search... */
     while(knownmodes != NULL)
     {
-	if(!strcmp(modename,knownmodes->name) &&
+	if(!strcmp(mode->name, knownmodes->name) &&
 	   !(knownmodes->type & M_T_DEFAULT))
 	    return TRUE;
 	knownmodes = knownmodes->next;
@@ -2452,6 +2467,12 @@ addDefaultModes(MonPtr monitorp)
     monitorp->Last = last;
 
     return TRUE;
+}
+
+static void
+checkInput(serverLayoutPtr layout) {
+    if (!xf86Info.allowEmptyInput)
+        checkCoreInputDevices(layout, FALSE);
 }
 
 /*
@@ -2574,6 +2595,8 @@ xf86HandleConfigFile(Bool autoconfig)
     configDRI(xf86configptr->conf_dri);
 #endif
 
+    checkInput(&xf86ConfigLayout);
+
     /*
      * Handle some command line options that can override some of the
      * ServerFlags settings.
@@ -2583,13 +2606,6 @@ xf86HandleConfigFile(Bool autoconfig)
 	xf86Info.vidModeEnabled = FALSE;
     if (xf86VidModeAllowNonLocal)
 	xf86Info.vidModeAllowNonLocal = TRUE;
-#endif
-
-#ifdef XF86MISC
-    if (xf86MiscModInDevDisabled)
-	xf86Info.miscModInDevEnabled = FALSE;
-    if (xf86MiscModInDevAllowNonLocal)
-	xf86Info.miscModInDevAllowNonLocal = TRUE;
 #endif
 
     if (xf86AllowMouseOpenFail)

@@ -308,12 +308,11 @@ xf86AllocateScrnInfoPrivateIndex(void)
     return idx;
 }
 
-/* Allocate a new InputInfoRec and add it to the head xf86InputDevs. */
-
+/* Allocate a new InputInfoRec and append it to the tail of xf86InputDevs. */
 _X_EXPORT InputInfoPtr
 xf86AllocateInput(InputDriverPtr drv, int flags)
 {
-    InputInfoPtr new;
+    InputInfoPtr new, *prev = NULL;
 
     if (!(new = xcalloc(sizeof(InputInfoRec), 1)))
 	return NULL;
@@ -321,8 +320,13 @@ xf86AllocateInput(InputDriverPtr drv, int flags)
     new->drv = drv;
     drv->refCount++;
     new->module = DuplicateModule(drv->module, NULL);
-    new->next = xf86InputDevs;
-    xf86InputDevs = new;
+
+    for (prev = &xf86InputDevs; *prev; prev = &(*prev)->next)
+        ;
+
+    *prev = new;
+    new->next = NULL;
+
     return new;
 }
 
@@ -2936,18 +2940,4 @@ xf86GetMotionEvents(DeviceIntPtr pDev, xTimecoord *buff, unsigned long start,
                     unsigned long stop, ScreenPtr pScreen, BOOL core)
 {
     return GetMotionHistory(pDev, buff, start, stop, pScreen, core);
-}
-
-_X_EXPORT void
-xf86getsecs(long * secs, long * usecs)
-{
-    struct timeval tv;
-
-    X_GETTIMEOFDAY(&tv);
-    if (secs)
-	*secs = tv.tv_sec;
-    if (usecs)
-	*usecs= tv.tv_usec;
-
-    return;
 }

@@ -28,6 +28,7 @@ libdix_la_SOURCES = 	\
 	pixmap.c	\
 	privates.c	\
 	property.c	\
+	ptrveloc.c	\
 	registry.c	\
 	resource.c	\
 	selection.c	\
@@ -35,7 +36,8 @@ libdix_la_SOURCES = 	\
 	swapreq.c	\
 	tables.c	\
 	window.c	\
-	strcasecmp.c
+	strcasecmp.c	\
+	strcasestr.c
 
 EXTRA_DIST = buildatoms BuiltInAtoms CHANGES Xserver.d Xserver-dtrace.h.in
 

@@ -39,7 +39,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <X11/keysym.h>
 #include "inputstr.h"
 #include <xkbsrv.h>
-#if !defined(WIN32) && !defined(Lynx)
+#if !defined(WIN32)
 #include <sys/time.h>
 #endif
 
@@ -309,15 +309,14 @@ AccessXRepeatKeyExpire(OsTimerPtr timer,CARD32 now,pointer arg)
 DeviceIntPtr    dev = (DeviceIntPtr) arg;
 XkbSrvInfoPtr	xkbi = dev->key->xkbInfo;
 KeyCode		key;
-BOOL            is_core;
 
     if (xkbi->repeatKey == 0)
 	return 0;
 
-    is_core = (dev == inputInfo.keyboard);
     key = xkbi->repeatKey;
     AccessXKeyboardEvent(dev, DeviceKeyRelease, key, True);
     AccessXKeyboardEvent(dev, DeviceKeyPress, key, True);
+
     return xkbi->desc->ctrls->repeat_interval;
 }
 

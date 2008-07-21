@@ -587,8 +587,6 @@ DeepCopyDeviceClasses(DeviceIntPtr from, DeviceIntPtr to)
 
     if (from->button)
     {
-        int i;
-        DeviceIntPtr sd;
         if (!to->button)
         {
             classes = dixLookupPrivate(&to->devPrivates,
@@ -603,20 +601,6 @@ DeepCopyDeviceClasses(DeviceIntPtr from, DeviceIntPtr to)
                 classes->button = NULL;
         }
 
-        to->button->buttonsDown = 0;
-        memset(to->button->down, 0, MAP_LENGTH);
-        /* merge button states from all attached devices */
-        for (sd = inputInfo.devices; sd; sd = sd->next)
-        {
-            if (sd->isMaster || sd->u.master != to)
-                continue;
-
-            for (i = 0; i < MAP_LENGTH; i++)
-            {
-                to->button->down[i] += sd->button->down[i];
-                to->button->buttonsDown++;
-            }
-        }
 #ifdef XKB
         if (from->button->xkb_acts)
         {
@@ -923,8 +907,10 @@ UpdateDeviceState(DeviceIntPtr device, xEvent* xE, int count)
         if (!b)
             return DONT_PROCESS;
 
-        if (b->down[key]++ > 0)
+        kptr = &b->down[key >> 3];
+        if ((*kptr & bit) != 0)
             return DONT_PROCESS;
+        *kptr |= bit;
 	if (device->valuator)
 	    device->valuator->motionHintWindow = NullWindow;
         b->buttonsDown++;
@@ -938,10 +924,25 @@ UpdateDeviceState(DeviceIntPtr device, xEvent* xE, int count)
         if (!b)
             return DONT_PROCESS;
 
-        if (b->down[key] == 0)
+        kptr = &b->down[key>>3];
+        if (!(*kptr & bit))
             return DONT_PROCESS;
-        if (--b->down[key] > 0)
-            return DONT_PROCESS;
+        if (device->isMaster) {
+            DeviceIntPtr sd;
+
+            /*
+             * Leave the button down if any slave has the
+             * button still down. Note that this depends on the
+             * event being delivered through the slave first
+             */
+            for (sd = inputInfo.devices; sd; sd = sd->next) {
+                if (sd->isMaster || sd->u.master != device)
+                    continue;
+                if ((sd->button->down[key>>3] & bit) != 0)
+                    return DONT_PROCESS;
+            }
+        }
+        *kptr &= ~bit;
 	if (device->valuator)
 	    device->valuator->motionHintWindow = NullWindow;
         if (b->buttonsDown >= 1 && !--b->buttonsDown)
@@ -1066,9 +1067,11 @@ ProcessOtherEvent(xEventPtr xE, DeviceIntPtr device, int count)
             (key == device->deviceGrab.activatingKey))
 	    deactivateDeviceGrab = TRUE;
     } else if (xE->u.u.type == DeviceButtonPress) {
-	xE->u.u.detail = key;
-	if (xE->u.u.detail == 0)
+	xE->u.u.detail = b->map[key];
+	if (xE->u.u.detail == 0) {
+	    xE->u.u.detail = key;
 	    return;
+	}
         if (!grab && CheckDeviceGrabs(device, xE, 0, count))
         {
             /* if a passive grab was activated, the event has been sent
@@ -1077,9 +1080,11 @@ ProcessOtherEvent(xEventPtr xE, DeviceIntPtr device, int count)
         }
 
     } else if (xE->u.u.type == DeviceButtonRelease) {
-	xE->u.u.detail = key;
-	if (xE->u.u.detail == 0)
+	xE->u.u.detail = b->map[key];
+	if (xE->u.u.detail == 0) {
+	    xE->u.u.detail = key;
 	    return;
+	}
         if (!b->state && device->deviceGrab.fromPassiveGrab)
             deactivateDeviceGrab = TRUE;
     }
@@ -1094,6 +1099,7 @@ ProcessOtherEvent(xEventPtr xE, DeviceIntPtr device, int count)
 
     if (deactivateDeviceGrab == TRUE)
 	(*device->deviceGrab.DeactivateGrab) (device);
+    xE->u.u.detail = key;
 }
 
 _X_EXPORT int
@@ -1148,9 +1154,11 @@ FixDeviceStateNotify(DeviceIntPtr dev, deviceStateNotify * ev, KeyClassPtr k,
     ev->num_valuators = 0;
 
     if (b) {
+	int i;
 	ev->classes_reported |= (1 << ButtonClass);
 	ev->num_buttons = b->numButtons;
-	memmove((char *)&ev->buttons[0], (char *)b->down, 4);
+	for (i = 0; i < 32; i++)
+	    SetBitIf(ev->buttons, b->down, i);
     } else if (k) {
 	ev->classes_reported |= (1 << KeyClass);
 	ev->num_keys = k->curKeySyms.maxKeyCode - k->curKeySyms.minKeyCode;
@@ -1265,11 +1273,13 @@ DeviceFocusEvent(DeviceIntPtr dev, int type, int mode, int detail,
 	    first += 3;
 	    nval -= 3;
 	    if (nbuttons > 32) {
+		int i;
 		(ev - 1)->deviceid |= MORE_EVENTS;
 		bev = (deviceButtonStateNotify *) ev++;
 		bev->type = DeviceButtonStateNotify;
 		bev->deviceid = dev->id;
-		memmove((char *)&bev->buttons[0], (char *)&b->down[4], 28);
+		for (i = 32; i < MAP_LENGTH; i++)
+		    SetBitIf(bev->buttons, b->down, i);
 	    }
 	    if (nval > 0) {
 		(ev - 1)->deviceid |= MORE_EVENTS;
@@ -1687,7 +1697,7 @@ SetButtonMapping(ClientPtr client, DeviceIntPtr dev, int nElts, BYTE * map)
     if (BadDeviceMap(&map[0], nElts, 1, 255, &client->errorValue))
 	return BadValue;
     for (i = 0; i < nElts; i++)
-	if ((b->map[i + 1] != map[i]) && BitIsOn(b->down, i + 1))
+	if ((b->map[i + 1] != map[i]) && (b->down[i + 1]))
 	    return MappingBusy;
     for (i = 0; i < nElts; i++)
 	b->map[i + 1] = map[i];

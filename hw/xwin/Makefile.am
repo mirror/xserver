@@ -46,7 +46,6 @@ SRCS_NATIVEGDI = \
 	winnativegdi.c \
 	winpixmap.c \
 	winpolyline.c \
-	winpushpxl.c \
 	winrop.c \
 	winsetsp.c
 DEFS_NATIVEGDI = -DXWIN_NATIVEGDI
@@ -168,10 +167,10 @@ AM_CFLAGS = -DHAVE_XWIN_CONFIG_H $(DIX_CFLAGS) \
 dist_man1_MANS = XWin.man XWinrc.man
 
 GLX_EXTRAS = \
-	windows/ChangeLog \
-	windows/glwindows.h \
-	windows/glwrap.c \
-	windows/indirect.c
+	glx/ChangeLog \
+	glx/glwindows.h \
+	glx/glwrap.c \
+	glx/indirect.c
 
 EXTRA_DIST = \
 	$(GLX_EXTRAS) \

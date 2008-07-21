@@ -647,8 +647,7 @@ Note that the options
 and
 .B AllowClosedownGrabs
 will allow users to remove the grab used by screen saver/locker programs.
-An API was written to such cases.
-If you enable this option, make sure your screen saver/locker is updated.
+Do not use them if you rely on the screen saver for security.
 Default: off.
 .TP 7
 .BI "Option \*qHandleSpecialKeys\*q \*q" when \*q
@@ -696,7 +695,8 @@ the X server to load. Disabled by default.
 .TP 7
 .BI "Option \*qAllowEmptyInput\*q \*q" boolean \*q
 If enabled, don't add the standard keyboard and mouse drivers, if there are no
-input devices in the config file.  Disabled by default.
+input devices in the config file.  Enabled by default if AutoAddDevices and
+AutoEnableDevices is enabled, otherwise disabled.
 .TP 7
 .BI "Option \*qAutoAddDevices\*q \*q" boolean \*q
 If this option is disabled, then no devices will be added from HAL events.

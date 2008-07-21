@@ -65,7 +65,6 @@
 #include "xf86Parser.h"
 #include "xf86Config.h"
 # include "xf86Xinput.h"
-#include "xf86OSmouse.h"
 #ifdef XV
 #include "xf86xv.h"
 #include "xf86xvmc.h"
@@ -77,7 +76,6 @@
 #include "dpmsproc.h"
 #endif
 #include "vidmodeproc.h"
-#include "xf86miscproc.h"
 #include "loader.h"
 #include "xisb.h"
 #include "vbe.h"
@@ -189,7 +187,7 @@ extern long __umodsi3(long, long);
 #include <sys/io.h>
 #endif
 
-#if defined(__powerpc__) && (defined(Lynx) || defined(linux))
+#if defined(__powerpc__) && defined(linux)
 void _restf14();
 void _restf17();
 void _restf18();
@@ -278,7 +276,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86SerialModemSetBits)
     SYMFUNC(xf86SerialModemClearBits)
     SYMFUNC(xf86LoadKernelModule)
-    SYMFUNC(xf86OSMouseInit)
     SYMFUNC(xf86AgpGARTSupported)
     SYMFUNC(xf86GetAGPInfo)
     SYMFUNC(xf86AcquireGART)
@@ -644,27 +641,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(VidModeGetGammaRampSize)
 #endif
 
-    /* xf86Versions.c */
-    SYMFUNC(xf86GetBuiltinInterfaceVersion)
-    SYMFUNC(xf86RegisterBuiltinInterfaceVersion)
-
-    /* xf86MiscExt.c */
-#ifdef XF86MISC
-    SYMFUNC(MiscExtGetMouseSettings)
-    SYMFUNC(MiscExtGetMouseValue)
-    SYMFUNC(MiscExtSetMouseValue)
-    SYMFUNC(MiscExtSetMouseDevice)
-    SYMFUNC(MiscExtGetKbdSettings)
-    SYMFUNC(MiscExtGetKbdValue)
-    SYMFUNC(MiscExtSetKbdValue)
-    SYMFUNC(MiscExtSetGrabKeysState)
-    SYMFUNC(MiscExtCreateStruct)
-    SYMFUNC(MiscExtDestroyStruct)
-    SYMFUNC(MiscExtApply)
-    SYMFUNC(MiscExtGetFilePaths)
-    SYMFUNC(MiscExtPassMessage)
-#endif
-
     /* Misc */
     SYMFUNC(GetTimeInMillis)
 
@@ -684,14 +660,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(DPMSSet)
     SYMFUNC(DPMSSupported)
 #endif
-/* xf86Debug.c */
-#ifdef BUILDDEBUG
-    SYMFUNC(xf86Break1)
-    SYMFUNC(xf86Break2)
-    SYMFUNC(xf86Break3)
-    SYMFUNC(xf86SPTimestamp)
-    SYMFUNC(xf86STimestamp)
-#endif
 
     SYMFUNC(pciTag)
     SYMFUNC(pciBusAddrToHostAddr)
@@ -703,7 +671,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(LoaderErrorMsg)
     SYMFUNC(LoaderCheckUnresolved)
     SYMFUNC(LoadExtension)
-    SYMFUNC(LoadFont)
     SYMFUNC(LoaderReqSymbols)
     SYMFUNC(LoaderReqSymLists)
     SYMFUNC(LoaderRefSymbols)
@@ -713,6 +680,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(LoaderListDirs)
     SYMFUNC(LoaderFreeDirList)
     SYMFUNC(LoaderGetOS)
+    SYMFUNC(LoaderShouldIgnoreABI)
     SYMFUNC(LoaderGetABIVersion)
 
 #ifdef XF86DRI
@@ -786,7 +754,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(outb)
     SYMFUNC(outw)
     SYMFUNC(outl)
-# if defined(NO_INLINE) || defined(Lynx)
+# if defined(NO_INLINE)
     SYMFUNC(mem_barrier)
     SYMFUNC(ldl_u)
     SYMFUNC(eieio)
@@ -801,34 +769,6 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(stw_u)
     SYMFUNC(write_mem_barrier)
 # endif
-# if defined(Lynx)
-    SYMFUNC(_restf14)
-    SYMFUNC(_restf17)
-    SYMFUNC(_restf18)
-    SYMFUNC(_restf19)
-    SYMFUNC(_restf20)
-    SYMFUNC(_restf22)
-    SYMFUNC(_restf23)
-    SYMFUNC(_restf24)
-    SYMFUNC(_restf25)
-    SYMFUNC(_restf26)
-    SYMFUNC(_restf27)
-    SYMFUNC(_restf28)
-    SYMFUNC(_restf29)
-    SYMFUNC(_savef14)
-    SYMFUNC(_savef17)
-    SYMFUNC(_savef18)
-    SYMFUNC(_savef19)
-    SYMFUNC(_savef20)
-    SYMFUNC(_savef22)
-    SYMFUNC(_savef23)
-    SYMFUNC(_savef24)
-    SYMFUNC(_savef25)
-    SYMFUNC(_savef26)
-    SYMFUNC(_savef27)
-    SYMFUNC(_savef28)
-    SYMFUNC(_savef29)
-# endif
 # if PPCIO_DEBUG
     SYMFUNC(debug_inb)
     SYMFUNC(debug_inw)
@@ -839,38 +779,22 @@ _X_HIDDEN void *xfree86LookupTab[] = {
 # endif
 #endif
 #if defined(__GNUC__)
-#if !defined(Lynx)
     SYMFUNC(__div64)
-#endif
-#if !defined(Lynx)	/* FIXME: test on others than x86 and !3.1.0a/x86 */
     SYMFUNC(__divdf3)
-#endif
     SYMFUNC(__divdi3)
-#if !defined(Lynx)
     SYMFUNC(__divsf3)
     SYMFUNC(__divsi3)
-#endif
     SYMFUNC(__moddi3)
-#if !defined(Lynx)
     SYMFUNC(__modsi3)
-#endif
-#if !defined(Lynx)
     SYMFUNC(__mul64)
-#endif
-#if !defined(Lynx)
     SYMFUNC(__muldf3)
-#endif
     SYMFUNC(__muldi3)
-#if !defined(Lynx)
     SYMFUNC(__mulsf3)
     SYMFUNC(__mulsi3)
     SYMFUNC(__udivdi3)
     SYMFUNC(__udivsi3)
-#endif
     SYMFUNC(__umoddi3)
-#if !defined(Lynx)
     SYMFUNC(__umodsi3)
-#endif
 #endif
 #if defined(__ia64__)
     SYMFUNC(outw)
@@ -918,7 +842,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMVAR(res8514Exclusive)
     SYMVAR(res8514Shared)
 
-#if defined(__powerpc__) && (!defined(NO_INLINE) || defined(Lynx))
+#if defined(__powerpc__) && !defined(NO_INLINE)
     SYMVAR(ioBase)
 #endif
 
@@ -1007,6 +931,7 @@ _X_HIDDEN void *xfree86LookupTab[] = {
     SYMFUNC(xf86DoEDID_DDC2)
     SYMFUNC(xf86InterpretEDID)
     SYMFUNC(xf86PrintEDID)
+    SYMFUNC(xf86DoEEDID)
     SYMFUNC(xf86DDCMonitorSet)
     SYMFUNC(xf86SetDDCproperties)
 

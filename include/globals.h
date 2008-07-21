@@ -65,10 +65,6 @@ extern Bool noDbeExtension;
 extern Bool noDPMSExtension;
 #endif
 
-#ifdef FONTCACHE
-extern Bool noFontCacheExtension;
-#endif
-
 #ifdef GLXEXT
 extern Bool noGlxExtension;
 #endif
@@ -127,10 +123,6 @@ extern Bool noXFree86DGAExtension;
 
 #ifdef XF86DRI
 extern Bool noXFree86DRIExtension;
-#endif
-
-#ifdef XF86MISC
-extern Bool noXFree86MiscExtension;
 #endif
 
 #ifdef XF86VIDMODE

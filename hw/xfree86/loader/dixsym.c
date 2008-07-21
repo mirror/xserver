@@ -57,7 +57,6 @@
 #include "cursorstr.h"
 #include "dix.h"
 #include "dixevents.h"
-#include "dixfont.h"
 #include "dixstruct.h"
 #include "misc.h"
 #include "globals.h"
@@ -99,6 +98,7 @@ _X_HIDDEN void *dixLookupTab[] = {
     /* dix */
     /* atom.c */
     SYMFUNC(MakeAtom)
+    SYMFUNC(NameForAtom)
     SYMFUNC(ValidAtom)
     /* colormap.c */
     SYMFUNC(AllocColor)
@@ -147,11 +147,6 @@ _X_HIDDEN void *dixLookupTab[] = {
     SYMVAR(isItTimeToYield)
     SYMVAR(ClientStateCallback)
     SYMVAR(ServerGrabCallback)
-    /* dixfonts.c */
-    SYMFUNC(CloseFont)
-    SYMFUNC(FontToXError)
-    SYMFUNC(LoadGlyphs)
-    SYMVAR(fpe_functions)
     /* dixutils.c */
     SYMFUNC(AddCallback)
     SYMFUNC(ClientSleep)
@@ -265,6 +260,9 @@ _X_HIDDEN void *dixLookupTab[] = {
     SYMFUNC(dixRegisterPrivateInitFunc)
     SYMFUNC(dixRegisterPrivateDeleteFunc)
     SYMFUNC(dixAllocatePrivate)
+    SYMFUNC(dixLookupPrivate)
+    SYMFUNC(dixLookupPrivateAddr)
+    SYMFUNC(dixSetPrivate)
     SYMFUNC(dixFreePrivates)
     SYMFUNC(dixRegisterPrivateOffset)
     SYMFUNC(dixLookupPrivateOffset)
@@ -358,9 +356,6 @@ _X_HIDDEN void *dixLookupTab[] = {
 #ifdef DPMSExtension
     SYMVAR(noDPMSExtension)
 #endif
-#ifdef FONTCACHE
-    SYMVAR(noFontCacheExtension)
-#endif
 #ifdef GLXEXT
     SYMVAR(noGlxExtension)
 #endif
@@ -405,9 +400,6 @@ _X_HIDDEN void *dixLookupTab[] = {
 #endif
 #ifdef XF86DRI
     SYMVAR(noXFree86DRIExtension)
-#endif
-#ifdef XF86MISC
-    SYMVAR(noXFree86MiscExtension)
 #endif
 #ifdef XF86VIDMODE
     SYMVAR(noXFree86VidModeExtension)

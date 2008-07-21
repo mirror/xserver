@@ -66,7 +66,6 @@ SOFTWARE.
 #ifdef HAVE_KDRIVE_CONFIG_H
 #include <kdrive-config.h>
 /* there must be a better way... */
-#undef XF86MISC
 #undef XFreeXDGA
 #undef XF86DRI
 #undef XF86VIDMODE
@@ -74,7 +73,6 @@ SOFTWARE.
 
 #ifdef HAVE_XGL_CONFIG_H
 #include <xgl-config.h>
-#undef XF86MISC
 #undef XFreeXDGA
 #undef XF86DRI
 #undef XF86VIDMODE
@@ -102,9 +100,6 @@ extern Bool noDbeExtension;
 #endif
 #ifdef DPMSExtension
 extern Bool noDPMSExtension;
-#endif
-#ifdef FONTCACHE
-extern Bool noFontCacheExtension;
 #endif
 #ifdef GLXEXT
 extern Bool noGlxExtension;
@@ -150,9 +145,6 @@ extern Bool noXFree86DGAExtension;
 #endif
 #ifdef XF86DRI
 extern Bool noXFree86DRIExtension;
-#endif
-#ifdef XF86MISC
-extern Bool noXFree86MiscExtension;
 #endif
 #ifdef XF86VIDMODE
 extern Bool noXFree86VidModeExtension;
@@ -240,9 +232,6 @@ extern void BigReqExtensionInit(INITARGS);
 #ifdef XIDLE
 extern void XIdleExtensionInit(INITARGS);
 #endif
-#ifdef XTRAP
-extern void DEC_XTRAPInit(INITARGS);
-#endif
 #ifdef SCREENSAVER
 extern void ScreenSaverExtensionInit (INITARGS);
 #endif
@@ -277,9 +266,6 @@ extern void XFree86BigfontExtensionInit(INITARGS);
 #ifdef XF86VIDMODE
 extern void XFree86VidModeExtensionInit(INITARGS);
 #endif
-#ifdef XF86MISC
-extern void XFree86MiscExtensionInit(INITARGS);
-#endif
 #ifdef XFreeXDGA
 extern void XFree86DGAExtensionInit(INITARGS);
 #endif
@@ -294,9 +280,6 @@ extern void XFree86DRIExtensionInit(INITARGS);
 #endif
 #ifdef DPMSExtension
 extern void DPMSExtensionInit(INITARGS);
-#endif
-#ifdef FONTCACHE
-extern void FontCacheExtensionInit(INITARGS);
 #endif
 #ifdef RENDER
 extern void RenderExtensionInit(INITARGS);
@@ -351,9 +334,6 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef DPMSExtension
     { "DPMS", &noDPMSExtension },
 #endif
-#ifdef FONTCACHE
-    { "FontCache", &noFontCacheExtension },
-#endif
 #ifdef GLXEXT
     { "GLX", &noGlxExtension },
 #endif
@@ -398,9 +378,6 @@ static ExtensionToggle ExtensionToggleList[] =
 #endif
 #ifdef XF86DRI
     { "XFree86-DRI", &noXFree86DRIExtension },
-#endif
-#ifdef XF86MISC
-    { "XFree86-Misc", &noXFree86MiscExtension },
 #endif
 #ifdef XF86VIDMODE
     { "XFree86-VidModeExtension", &noXFree86VidModeExtension },
@@ -485,9 +462,6 @@ InitExtensions(int argc, char *argv[])
 #ifdef XIDLE
     if (!noXIdleExtension) XIdleExtensionInit();
 #endif
-#ifdef XTRAP
-    if (!noTestExtensions) DEC_XTRAPInit();
-#endif
 #if defined(SCREENSAVER)
     if (!noScreenSaverExtension) ScreenSaverExtensionInit ();
 #endif
@@ -521,18 +495,12 @@ InitExtensions(int argc, char *argv[])
 #if defined(DPMSExtension) && !defined(NO_HW_ONLY_EXTS)
     if (!noDPMSExtension) DPMSExtensionInit();
 #endif
-#ifdef FONTCACHE
-    if (!noFontCacheExtension) FontCacheExtensionInit();
-#endif
 #ifdef XF86BIGFONT
     if (!noXFree86BigfontExtension) XFree86BigfontExtensionInit();
 #endif
 #if !defined(NO_HW_ONLY_EXTS)
 #if defined(XF86VIDMODE)
     if (!noXFree86VidModeExtension) XFree86VidModeExtensionInit();
-#endif
-#if defined(XF86MISC)
-    if (!noXFree86MiscExtension) XFree86MiscExtensionInit();
 #endif
 #if defined(XFreeXDGA)
     if (!noXFree86DGAExtension) XFree86DGAExtensionInit();

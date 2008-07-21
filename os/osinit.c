@@ -67,11 +67,11 @@ SOFTWARE.
 #endif
 #endif
 
-#if defined(Lynx) || defined(__SCO__)
+#if defined(__SCO__)
 #include <sys/wait.h>
 #endif
 
-#if !defined(SYSV) && !defined(WIN32) && !defined(Lynx) && !defined(QNX4)
+#if !defined(SYSV) && !defined(WIN32) && !defined(QNX4)
 #include <sys/resource.h>
 #endif
 
@@ -89,8 +89,6 @@ int limitStackSpace = -1;
 #ifdef RLIMIT_NOFILE
 int limitNoFile = -1;
 #endif
-
-Bool OsDelayInitColors = FALSE;
 
 void
 OsInit(void)
@@ -143,15 +141,8 @@ OsInit(void)
 #endif
 	}
 
-#ifndef X_NOT_POSIX
 	if (getpgrp () == 0)
 	    setpgid (0, 0);
-#else
-#if !defined(SYSV) && !defined(WIN32)
-	if (getpgrp (0) == 0)
-	    setpgrp (0, getpid ());
-#endif
-#endif
 
 #ifdef RLIMIT_DATA
 	if (limitDataSpace >= 0)
@@ -198,15 +189,11 @@ OsInit(void)
 	    }
 	}
 #endif
-#ifdef SERVER_LOCK
 	LockServer();
-#endif
 	been_here = TRUE;
     }
     TimerInit();
-#ifdef DDXOSINIT
     OsVendorInit();
-#endif
     /*
      * No log file by default.  OsVendorInit() should call LogInit() with the
      * log file name if logging to a file is desired.
@@ -218,16 +205,13 @@ OsInit(void)
 	    SmartScheduleDisable = TRUE;
 #endif
     OsInitAllocator();
-    if (!OsDelayInitColors) OsInitColors();
 }
 
 void
 OsCleanup(Bool terminating)
 {
-#ifdef SERVER_LOCK
     if (terminating)
     {
 	UnlockServer();
     }
-#endif
 }

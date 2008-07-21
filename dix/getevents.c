@@ -277,7 +277,7 @@ GetMotionHistory(DeviceIntPtr pDev, xTimecoord **buff, unsigned long start,
     int size;
     int dflt;
     AxisInfo from, *to; /* for scaling */
-    CARD32 *ocbuf, *icbuf; /* pointer to coordinates for copying */
+    INT32 *ocbuf, *icbuf; /* pointer to coordinates for copying */
     INT16 *corebuf;
     AxisInfo core_axis = {0};
 
@@ -295,7 +295,7 @@ GetMotionHistory(DeviceIntPtr pDev, xTimecoord **buff, unsigned long start,
     *buff = xalloc(size * pDev->valuator->numMotionEvents);
     if (!(*buff))
         return 0;
-    obuff = *buff;
+    obuff = (char *)*buff;
 
     for (i = pDev->valuator->first_motion;
          i != pDev->valuator->last_motion;
@@ -487,80 +487,6 @@ GetMaximumEventsNum(void) {
 }
 
 
-/* Originally a part of xf86PostMotionEvent; modifies valuators
- * in-place. */
-static void
-acceleratePointer(DeviceIntPtr pDev, int first_valuator, int num_valuators,
-                  int *valuators)
-{
-    float mult = 0.0;
-    int dx = 0, dy = 0;
-    int *px = NULL, *py = NULL;
-
-    if (!num_valuators || !valuators)
-        return;
-
-    if (first_valuator == 0) {
-        dx = valuators[0];
-        px = &valuators[0];
-    }
-    if (first_valuator <= 1 && num_valuators >= (2 - first_valuator)) {
-        dy = valuators[1 - first_valuator];
-        py = &valuators[1 - first_valuator];
-    }
-
-    if (!dx && !dy)
-        return;
-
-    if (pDev->ptrfeed && pDev->ptrfeed->ctrl.num) {
-        /* modeled from xf86Events.c */
-        if (pDev->ptrfeed->ctrl.threshold) {
-            if ((abs(dx) + abs(dy)) >= pDev->ptrfeed->ctrl.threshold) {
-                pDev->valuator->dxremaind = ((float)dx *
-                                             (float)(pDev->ptrfeed->ctrl.num)) /
-                                             (float)(pDev->ptrfeed->ctrl.den) +
-                                            pDev->valuator->dxremaind;
-                if (px) {
-                    *px = (int)pDev->valuator->dxremaind;
-                    pDev->valuator->dxremaind = pDev->valuator->dxremaind -
-                                                (float)(*px);
-                }
-
-                pDev->valuator->dyremaind = ((float)dy *
-                                             (float)(pDev->ptrfeed->ctrl.num)) /
-                                             (float)(pDev->ptrfeed->ctrl.den) +
-                                            pDev->valuator->dyremaind;
-                if (py) {
-                    *py = (int)pDev->valuator->dyremaind;
-                    pDev->valuator->dyremaind = pDev->valuator->dyremaind -
-                                                (float)(*py);
-                }
-            }
-        }
-        else {
-	    mult = pow((float)dx * (float)dx + (float)dy * (float)dy,
-                       ((float)(pDev->ptrfeed->ctrl.num) /
-                        (float)(pDev->ptrfeed->ctrl.den) - 1.0) /
-                       2.0) / 2.0;
-            if (dx) {
-                pDev->valuator->dxremaind = mult * (float)dx +
-                                            pDev->valuator->dxremaind;
-                *px = (int)pDev->valuator->dxremaind;
-                pDev->valuator->dxremaind = pDev->valuator->dxremaind -
-                                            (float)(*px);
-            }
-            if (dy) {
-                pDev->valuator->dyremaind = mult * (float)dy +
-                                            pDev->valuator->dyremaind;
-                *py = (int)pDev->valuator->dyremaind;
-                pDev->valuator->dyremaind = pDev->valuator->dyremaind -
-                                            (float)(*py);
-            }
-        }
-    }
-}
-
-
 /**
  * Clip an axis to its bounds, which are declared in the call to
  * InitValuatorAxisClassStruct.
@@ -696,7 +622,8 @@ GetKeyboardValuatorEvents(EventList *events, DeviceIntPtr pDev, int type,
         return 0;
 
     map = pDev->key->curKeySyms.map;
-    sym = map[key_code * pDev->key->curKeySyms.mapWidth];
+    sym = map[(key_code - pDev->key->curKeySyms.minKeyCode)
+              * pDev->key->curKeySyms.mapWidth];
 
     master = pDev->u.master;
     if (master && master->u.lastSlave != pDev)
@@ -787,7 +714,7 @@ GetKeyboardValuatorEvents(EventList *events, DeviceIntPtr pDev, int type,
  *
  * @param num_events Number of elements in list.
  */
-_X_EXPORT EventListPtr
+EventListPtr
 InitEventList(int num_events)
 {
     EventListPtr events;
@@ -888,6 +815,8 @@ GetPointerEvents(EventList *events, DeviceIntPtr pDev, int type, int buttons,
     int *v0 = NULL, *v1 = NULL;
     int i;
 
+    ms = GetTimeInMillis(); /* before pointer update to help precision */
+
     /* Sanity checks. */
     if (type != MotionNotify && type != ButtonPress && type != ButtonRelease)
         return 0;
@@ -899,8 +828,6 @@ GetPointerEvents(EventList *events, DeviceIntPtr pDev, int type, int buttons,
         return 0;
     if (type == MotionNotify && num_valuators <= 0)
         return 0;
-
-    ms = GetTimeInMillis();
 
     /* Do we need to send a DeviceValuator event? */
     if (num_valuators) {
@@ -951,9 +878,11 @@ GetPointerEvents(EventList *events, DeviceIntPtr pDev, int type, int buttons,
         }
     }
     else {
-        if (flags & POINTER_ACCELERATE)
-            acceleratePointer(pDev, first_valuator, num_valuators,
-                              valuators);
+        if (flags & POINTER_ACCELERATE &&
+            pDev->valuator->accelScheme.AccelSchemeProc){
+            pDev->valuator->accelScheme.AccelSchemeProc(
+                      pDev, first_valuator, num_valuators, valuators, ms);
+        }
 
         if(v0) x += *v0;
         if(v1) y += *v1;
@@ -1030,7 +959,7 @@ GetPointerEvents(EventList *events, DeviceIntPtr pDev, int type, int buttons,
             kbp->type = DeviceButtonPress;
         else if (type == ButtonRelease)
             kbp->type = DeviceButtonRelease;
-        kbp->detail = pDev->button->map[buttons];
+        kbp->detail = buttons;
     }
 
     kbp->root_x = cx; /* root_x/y always in screen coords */
