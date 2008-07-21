@@ -294,7 +294,7 @@ int dmxCommonKbdOn(DevicePtr pDev)
     if (priv->be) dmxCommonSaveState(priv);
     if (priv->be && dmxLocal->deviceId >= 0)
     {
-	XEventClass cls[2];
+	XEventClass cls[3];
 
 	if (!(priv->xi = XOpenDevice (priv->display, dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
@@ -306,9 +306,12 @@ int dmxCommonKbdOn(DevicePtr pDev)
 	DeviceKeyPress (priv->xi, dmxInput->event[XI_DeviceKeyPress], cls[0]);
 	DeviceKeyRelease (priv->xi, dmxInput->event[XI_DeviceKeyRelease],
 			  cls[1]);
+	DeviceStateNotify (priv->xi,
+			   dmxInput->event[XI_DeviceStateNotify],
+			   cls[2]);
 
 	XLIB_PROLOGUE (priv->be);
-	XSelectExtensionEvent(priv->display, priv->window, cls, 2);
+	XSelectExtensionEvent(priv->display, priv->window, cls, 3);
 	XLIB_EPILOGUE (priv->be);
 
 	XLIB_PROLOGUE (priv->be);
@@ -528,7 +531,7 @@ int dmxCommonMouOn(DevicePtr pDev)
 
     if (priv->be && dmxLocal->deviceId >= 0)
     {
-	XEventClass cls[3];
+	XEventClass cls[4];
 
 	if (!(priv->xi = XOpenDevice (priv->display, dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
@@ -543,9 +546,12 @@ int dmxCommonMouOn(DevicePtr pDev)
 			   cls[1]);
 	DeviceButtonRelease (priv->xi, dmxInput->event[XI_DeviceButtonRelease],
 			     cls[2]);
+	DeviceStateNotify (priv->xi,
+			   dmxInput->event[XI_DeviceStateNotify],
+			   cls[3]);
 
 	XLIB_PROLOGUE (priv->be);
-	XSelectExtensionEvent(priv->display, priv->window, cls, 3);
+	XSelectExtensionEvent(priv->display, priv->window, cls, 4);
 	XLIB_EPILOGUE (priv->be);
     }
     else

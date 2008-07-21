@@ -268,8 +268,7 @@ typedef struct _DMXLocalInputInfo {
     long                     attached;    /**< the master device this device
 					   * is attached to */
 
-
-    unsigned int             state;       /**< Modifier/Button state */
+    char		     state[32];   /**< Key/Button state */
 } DMXLocalInputInfoRec;
 
 extern DMXLocalInputInfoPtr dmxLocalCorePointer, dmxLocalCoreKeyboard;

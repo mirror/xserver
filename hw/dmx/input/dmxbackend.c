@@ -373,21 +373,21 @@ dmxButtonEvent (DeviceIntPtr pDevice,
     for (i = 0; i < nEvents; i++)
 	mieqEnqueue (pDevice, dmxEvents[i].event);
 
-    if (button <= 5)
+    if (button > 0 && button <= 255)
     {
 	GETDMXLOCALFROMPDEVICE;
 
 	switch (type) {
 	case ButtonPress:
-	    dmxLocal->state |= (Button1Mask >> 1) << button;
+	    dmxLocal->state[button >> 3] |= 1 << (button & 7);
 	    break;
 	case ButtonRelease:
-	    dmxLocal->state &= ~((Button1Mask >> 1) << button);
+	    dmxLocal->state[button >> 3] &= ~(1 << (button & 7));
 	default:
 	    break;
 	}
     }
-
+	
     return nEvents;
 }
 
@@ -403,18 +403,16 @@ dmxKeyEvent (DeviceIntPtr pDevice,
     for (i = 0; i < nEvents; i++)
 	mieqEnqueue (pDevice, dmxEvents[i].event);
 
-    if (key >= 8 && key <= 255)
+    if (key > 0 && key <= 255)
     {
-	KeyClassPtr keyc = pDevice->key;
-
 	GETDMXLOCALFROMPDEVICE;
 
 	switch (type) {
 	case KeyPress:
-	    dmxLocal->state |= keyc->modifierMap[key];
+	    dmxLocal->state[key >> 3] |= 1 << (key & 7);
 	    break;
 	case KeyRelease:
-	    dmxLocal->state &= ~keyc->modifierMap[key];
+	    dmxLocal->state[key >> 3] &= ~(1 << (key & 7));
 	default:
 	    break;
 	}
@@ -423,69 +421,131 @@ dmxKeyEvent (DeviceIntPtr pDevice,
     return nEvents;
 }
 
-/*
- * Port of Mark McLoughlin's Xnest fix for focus in + modifier bug.
- * See https://bugs.freedesktop.org/show_bug.cgi?id=3030
- */
 static int
-dmxUpdateModifierState (DeviceIntPtr pDevice,
-			unsigned int state)
+dmxUpdateButtonState (DeviceIntPtr pDevice,
+		      const char   *buttons)
 {
-    KeyClassPtr keyc = pDevice->key;
-    int		i, nEvents = 0;
-    CARD8	mask;
+    int i, j, nEvents = 0;
 
     GETDMXLOCALFROMPDEVICE;
 
-    state = state & 0xff;
-
-    if ((dmxLocal->state & 0xff) == state)
-	return 0;
-
-    for (i = 0, mask = 1; i < 8; i++, mask <<= 1)
+    for (i = 0; i < 32; i++)
     {
-	int key;
-
-	/* Modifier is down, but shouldn't be */
-	if ((dmxLocal->state & mask) && !(state & mask))
+	if (!(dmxLocal->state[i] ^ buttons[i]))
+	    continue;
+	
+	for (j = 0; j < 8; j++)
 	{
-	    int count = keyc->modifierKeyCount[i];
+	    /* button is down, but shouldn't be */
+	    if ((dmxLocal->state[i] & (1 << j)) && !(buttons[i] & (1 << j)))
+		nEvents += dmxButtonEvent (pDevice,
+					   (i << 3) + j,
+					   pDevice->last.valuators[0],
+					   pDevice->last.valuators[1],
+					   ButtonRelease);
 
-	    for (key = 0; key < MAP_LENGTH; key++)
-	    {
-		if (keyc->modifierMap[key] & mask)
-		{
-		    int bit;
-		    BYTE *kptr;
+	    /* button should be down, but isn't */
+	    if (!(dmxLocal->state[i] & (1 << j)) && (buttons[i] & (1 << j)))
+		nEvents += dmxButtonEvent (pDevice,
+					   (i << 3) + j,
+					   pDevice->last.valuators[0],
+					   pDevice->last.valuators[1],
+					   ButtonPress);
+	}
+    }
 
-		    kptr = &keyc->down[key >> 3];
-		    bit = 1 << (key & 7);
+    return nEvents;
+}
 
-		    if (*kptr & bit)
-		    {
-			nEvents += dmxKeyEvent (pDevice, key, KeyRelease);
+static int
+dmxUpdateKeyState (DeviceIntPtr pDevice,
+		   const char   *keys)
+{
+    int i, j, nEvents = 0;
 
-			if (--count == 0)
-			    break;
-		    }
-		}
-	    }
+    GETDMXLOCALFROMPDEVICE;
+
+    for (i = 0; i < 32; i++)
+    {
+	if (!(dmxLocal->state[i] ^ keys[i]))
+	    continue;
+
+	for (j = 0; j < 8; j++)
+	{
+	    /* key is down, but shouldn't be */
+	    if ((dmxLocal->state[i] & (1 << j)) && !(keys[i] & (1 << j)))
+		nEvents += dmxKeyEvent (pDevice,
+					(i << 3) + j,
+					KeyRelease);
+
+	    /* key should be down, but isn't */
+	    if (!(dmxLocal->state[i] & (1 << j)) && (keys[i] & (1 << j)))
+		nEvents += dmxKeyEvent (pDevice,
+					(i << 3) + j,
+					KeyPress);
+	}
+    }
+
+    return nEvents;
+}
+
+static int
+dmxChangeButtonState (DeviceIntPtr pDevice,
+		      int          button,
+		      int          how)
+{
+    int nEvents = 0;
+
+    if (button > 0 && button <= 255)
+    {
+	char buttons[32];
+
+	GETDMXLOCALFROMPDEVICE;
+
+	memcpy (buttons, dmxLocal->state, sizeof (buttons));
+
+	switch (how) {
+	case ButtonPress:
+	    buttons[button >> 3] |= 1 << (button & 7);
+	    break;
+	case ButtonRelease:
+	    buttons[button >> 3] &= ~(1 << (button & 7));
+	default:
+	    break;
 	}
 
-	/* Modifier should be down, but isn't */
-	if (!(dmxLocal->state & mask) && (state & mask))
-	{
-	    for (key = 0; key < MAP_LENGTH; key++)
-	    {
-		if (keyc->modifierMap[key] & mask)
-		{
-		    if (keyc->modifierMap[key] & mask)
-			nEvents += dmxKeyEvent (pDevice, key, KeyPress);
+	dmxUpdateButtonState (pDevice, buttons);
+    }
 
-		    break;
-		}
-	    }
+    return nEvents;
+}
+
+static int
+dmxChangeKeyState (DeviceIntPtr pDevice,
+		   int          key,
+		   int          how)
+{
+    int nEvents = 0;
+
+    if (key > 0 && key <= 255)
+    {
+	char keys[32];
+
+	GETDMXLOCALFROMPDEVICE;
+
+	memcpy (keys, dmxLocal->state, sizeof (keys));
+
+	switch (how) {
+	case KeyPress:
+	    keys[key >> 3] |= 1 << (key & 7);
+	    break;
+	case KeyRelease:
+	    keys[key >> 3] &= ~(1 << (key & 7));
+	default:
+	    break;
 	}
+
+	dmxUpdateKeyState (pDevice, keys);
     }
 
     return nEvents;
@@ -500,41 +560,6 @@ dmxUpdateSpritePosition (DeviceIntPtr pDevice,
 	return 0;
 
     return dmxButtonEvent (pDevice, 0, x, y, MotionNotify);
-}
-
-static int
-dmxUpdateButtonState (DeviceIntPtr pDevice,
-		      unsigned int state)
-{
-    int i, mask, nEvents = 0;
-
-    GETDMXLOCALFROMPDEVICE;
-
-    state = state & 0x1f00;
-
-    if ((dmxLocal->state & 0x1f00) == state)
-	return 0;
-
-    for (i = 0, mask = Button1Mask; i < 5; i++, mask <<= 1)
-    {
-	/* Button is down, but shouldn't be */
-	if ((dmxLocal->state & mask) && !(state & mask))
-	    nEvents += dmxButtonEvent (pDevice,
-				       i + 1,
-				       pDevice->last.valuators[0],
-				       pDevice->last.valuators[1],
-				       ButtonRelease);
-
-	/* Button should be down, but isn't */
-	if (!(dmxLocal->state & mask) && (state & mask))
-	    nEvents += dmxButtonEvent (pDevice,
-				       i + 1,
-				       pDevice->last.valuators[0],
-				       pDevice->last.valuators[1],
-				       ButtonPress);
-    }
-
-    return nEvents;
 }
 
 /** Get events from the X queue on the backend servers and put the
@@ -558,14 +583,7 @@ void dmxBackendCollectEvents(DevicePtr pDev,
 	case MotionNotify:
 	    pButtonDev = dmxGetButtonDevice (dmxInput, data.deviceId);
 	    if (pButtonDev)
-	    {
-		pKeyDev = dmxGetPairedKeyboardDevice (dmxInput, pButtonDev);
-		if (pKeyDev)
-		    dmxUpdateModifierState (pKeyDev, X.xmotion.state);
-
-		dmxUpdateButtonState (pButtonDev, X.xmotion.state);
 		dmxUpdateSpritePosition (pButtonDev, X.xmotion.x, X.xmotion.y);
-	    }
 	    break;
 	case ButtonPress:
 	case ButtonRelease:
@@ -573,16 +591,9 @@ void dmxBackendCollectEvents(DevicePtr pDev,
 	    if (pButtonDev)
 	    {
 		dmxUpdateSpritePosition (pButtonDev, X.xbutton.x, X.xbutton.y);
-		dmxUpdateButtonState (pButtonDev, X.xbutton.state);
-
-		pKeyDev = dmxGetPairedKeyboardDevice (dmxInput, pButtonDev);
-		if (pKeyDev)
-		    dmxUpdateModifierState (pKeyDev, X.xbutton.state);
-
-		dmxButtonEvent (pButtonDev,
-				X.xbutton.button,
-				X.xbutton.x, X.xbutton.y,
-				X.type);
+		dmxChangeButtonState (pButtonDev,
+				      X.xbutton.button,
+				      X.type);
 	    }
 	    break;
 	case KeyPress:
@@ -592,19 +603,54 @@ void dmxBackendCollectEvents(DevicePtr pDev,
 	    {
 		pButtonDev = dmxGetPairedButtonDevice (dmxInput, pKeyDev);
 		if (pButtonDev)
-		{
 		    dmxUpdateSpritePosition (pButtonDev, X.xkey.x, X.xkey.y);
-		    dmxUpdateButtonState (pButtonDev, X.xkey.state);
-		}
 
-		dmxUpdateModifierState (pKeyDev, X.xkey.state);
-		dmxKeyEvent (pKeyDev,
-			     X.xkey.keycode,
-			     X.type);
+		dmxChangeKeyState (pKeyDev,
+				   X.xkey.keycode,
+				   X.type);
 	    }
 	    break;
 	case KeymapNotify:
+	    pKeyDev = dmxGetKeyboardDevice (dmxInput, data.deviceId);
+	    if (pKeyDev)
+		dmxUpdateKeyState (pKeyDev, X.xkeymap.key_vector);
+	    break;
 	default:
+	    if (X.type == dmxInput->event[XI_DeviceStateNotify])
+	    {
+		XDeviceStateNotifyEvent *dsn = (XDeviceStateNotifyEvent *) &X;
+		XInputClass		*ic;
+		int			i;
+
+		for (i = 0, ic = (XInputClass *) dsn->data;
+		     i < dsn->num_classes;
+		     ic = (XInputClass *) ((char *) ic + ic->length), i++)
+		{
+		    if (ic->class & (1 << ButtonClass))
+		    {
+			pButtonDev = dmxGetButtonDevice (dmxInput,
+							 data.deviceId);
+			if (pButtonDev)
+			{
+			    XButtonStatus *bs = (XButtonStatus *) ic;
+
+			    dmxUpdateButtonState (pButtonDev, bs->buttons);
+			}
+		    }
+
+		    if (ic->class & (1 << KeyClass))
+		    {
+			pKeyDev = dmxGetKeyboardDevice (dmxInput,
+							data.deviceId);
+			if (pKeyDev)
+			{
+			    XKeyStatus *ks = (XKeyStatus *) ic;
+
+			    dmxUpdateButtonState (pKeyDev, ks->keys);
+			}
+		    }
+		}
+	    }
 	    break;
 	}
     }
@@ -664,8 +710,9 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
 
     /* Fill in myPrivate */
     for (i = 0,dmxScreen = &dmxScreens[0]; i<dmxNumScreens; i++,dmxScreen++) {
-        if ((dmxInput->scrnIdx != -1 && dmxInput->scrnIdx == i) ||
-	    dmxPropertySameDisplay(dmxScreen, dmxInput->name)) {
+        if ((dmxInput->scrnIdx == -1 &&
+	     dmxPropertySameDisplay (dmxScreen, dmxInput->name)) ||
+	    dmxInput->scrnIdx == i) {
             priv->display  = dmxScreen->beDisplay;
             priv->window   = dmxScreen->scrnWin;
             priv->be       = dmxScreen;
@@ -767,6 +814,12 @@ int dmxBackendFunctions(pointer private, DMXFunctionType function)
 
 void dmxBackendKbdOff(DevicePtr pDev)
 {
-    dmxUpdateModifierState ((DeviceIntPtr) pDev, 0);
+    char state[32];
+
+    memset (state, 0, sizeof (state));
+    
+    dmxUpdateKeyState ((DeviceIntPtr) pDev, state);
+    dmxUpdateButtonState ((DeviceIntPtr) pDev, state);
+    
     dmxCommonKbdOff (pDev);
 }
