@@ -690,6 +690,17 @@ static char *dmxMakeUniqueDeviceName(DMXLocalInputInfoPtr dmxLocal)
     DMXInputInfo *dmxInput = &dmxInputs[dmxLocal->inputIdx];
     char         *buf;
 
+    if (dmxLocal->deviceName)
+    {
+	buf = xalloc (strlen (dmxInput->name) +
+		      strlen (dmxLocal->deviceName) + 4);
+	if (buf)
+	{
+	    sprintf (buf, "%s's %s", dmxInput->name, dmxLocal->deviceName);
+	    return buf;
+	}
+    }
+
 #define LEN 32
 
     buf = xalloc (strlen (dmxInput->name) + LEN);
@@ -788,6 +799,7 @@ DMXLocalInputInfoPtr dmxInputCopyLocal(DMXInputInfo *dmxInput,
     dmxLocal->sendsCore      = dmxInput->core;
     dmxLocal->savedSendsCore = dmxInput->core;
     dmxLocal->deviceId       = -1;
+    dmxLocal->attached       = -1;
 
     ++dmxInput->numDevs;
     dmxInput->devs = xrealloc(dmxInput->devs,
@@ -834,6 +846,20 @@ int dmxInputExtensionErrorHandler(Display *dsp, char *name, char *reason)
     return 0;
 }
 
+static XID dmxGetMasterDevice(XDeviceInfo *device)
+{
+    XAttachInfoPtr ai;
+    int            i;
+
+    for (i = 0, ai = device->inputclassinfo;
+	 i < device->num_classes;
+	 ai = (XAttachInfoPtr) ((char *) ai + ai->length), i++)
+	if (ai->class == AttachClass)
+	    return ai->attached;
+
+    return -1;
+}
+
 static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
 {
     XExtensionVersion    *ext;
@@ -844,7 +870,7 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
     DMXLocalInputInfoPtr dmxLocal;
     int                  (*handler)(Display *, char *, char *);
 
-    if (!(display = XOpenDisplay(dmxInput->name))) return;
+    display = dmxScreens[dmxInput->scrnIdx].beDisplay;
     
     /* Print out information about the XInput Extension. */
     handler = XSetExtensionErrorHandler(dmxInputExtensionErrorHandler);
@@ -890,8 +916,23 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
                         dmxL->deviceName = (devices[i].name
                                             ? xstrdup(devices[i].name)
                                             : NULL);
+			dmxL->attached   = dmxGetMasterDevice (&devices[i]);
+			break;
                     }
                 }
+
+		if (j == dmxInput->numDevs)
+		{
+		    dmxLocal             = dmxInputCopyLocal(dmxInput,
+							     &DMXBackendKbd);
+		    dmxLocal->isCore     = FALSE;
+		    dmxLocal->sendsCore  = FALSE;
+		    dmxLocal->deviceId   = devices[i].id;
+		    dmxLocal->deviceName = (devices[i].name
+					    ? xstrdup(devices[i].name)
+					    : NULL);
+		    dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
+		}
                 break;
             case IsXPointer:
                 for (j = 0; j < dmxInput->numDevs; j++) {
@@ -901,37 +942,28 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
                         dmxL->deviceName = (devices[i].name
                                             ? xstrdup(devices[i].name)
                                             : NULL);
+			dmxL->attached   = dmxGetMasterDevice (&devices[i]);
+			break;
                     }
                 }
+
+		if (j == dmxInput->numDevs)
+		{
+		    dmxLocal             = dmxInputCopyLocal(dmxInput,
+							     &DMXBackendMou);
+		    dmxLocal->isCore     = FALSE;
+		    dmxLocal->sendsCore  = FALSE;
+		    dmxLocal->deviceId   = devices[i].id;
+		    dmxLocal->deviceName = (devices[i].name
+					    ? xstrdup(devices[i].name)
+					    : NULL);
+		    dmxLocal->attached   = dmxGetMasterDevice (&devices[i]);
+		}
                 break;
-#if 0
-            case IsXExtensionDevice:
-            case IsXExtensionKeyboard:
-            case IsXExtensionPointer:
-                if (doXI) {
-                    if (!dmxInput->numDevs) {
-                        dmxLog(dmxWarning,
-                               "Cannot use remote (%s) XInput devices if"
-                               " not also using core devices\n",
-                               dmxInput->name);
-                    } else {
-                        dmxLocal             = dmxInputCopyLocal(dmxInput,
-                                                                &DMXCommonOth);
-                        dmxLocal->isCore     = FALSE;
-                        dmxLocal->sendsCore  = FALSE;
-                        dmxLocal->deviceId   = devices[i].id;
-                        dmxLocal->deviceName = (devices[i].name
-                                                ? xstrdup(devices[i].name)
-                                                : NULL);
-                    }
-                }
-                break;
-#endif
             }
-        }
+	}
         XFreeDeviceList(devices);
     }
-    XCloseDisplay(display);
 }
 
 /** Re-initialize all the devices described in \a dmxInput.  Called from
@@ -970,6 +1002,8 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     int                  forceConsole       = 0;
     int                  doWindows          = 1; /* On by default */
     int                  hasXkb             = 0;
+
+    memset (dmxInput->event, 0, sizeof (dmxInput->event));
 
     dmxInput->k = dmxInput->m = dmxInput->o = 0;
 
@@ -1019,14 +1053,13 @@ void dmxInputInit(DMXInputInfo *dmxInput)
             if ((dmxInput->scrnIdx != -1 && dmxInput->scrnIdx == i) ||
 		dmxPropertySameDisplay(&dmxScreens[i], name)) {
                 if (dmxScreens[i].shared)
+		{
                     dmxLog(dmxFatal,
                            "Cannot take input from shared backend (%s)\n",
                            name);
-                if (0 && !dmxInput->core) {
-                    dmxLog(dmxWarning,
-                           "Cannot use core devices on a backend (%s)"
-                           " as XInput devices\n", name);
-                } else {
+		}
+		else
+                {
                     char *pt;
                     for (pt = (char *)dmxInput->name; pt && *pt; pt++)
                         if (*pt == ',') *pt = '\0';
@@ -1163,6 +1196,8 @@ void dmxInputLogDevices(void)
                            dmxInput->inputIdx, len, len, dmxInput->name);
                 if (dmxInput->devs[i]->deviceId >= 0)
                     dmxLogCont(dmxInfo, "/id%d", dmxInput->devs[i]->deviceId);
+		if (dmxInput->devs[i]->attached >= 0)
+                    dmxLogCont(dmxInfo, "/a%d", dmxInput->devs[i]->attached);
                 if (dmxInput->devs[i]->deviceName)
                     dmxLogCont(dmxInfo, "=%s", dmxInput->devs[i]->deviceName);
                 dmxLogCont(dmxInfo, "] %s\n",

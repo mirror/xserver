@@ -47,6 +47,8 @@
 #ifndef DMXINPUT_H
 #define DMXINPUT_H
 
+#define DMX_XINPUT_EVENT_NUM 18
+
 /** Maximum number of file descriptors for SIGIO handling */
 #define DMX_MAX_SIGIO_FDS 4
 
@@ -129,6 +131,8 @@ struct _DMXInputInfo {
     char                    *geometry; /**< XKB geometry from command line */
 
     int                     k, m, o;
+
+    int                     event[DMX_XINPUT_EVENT_NUM];
 };
 
 extern int                  dmxNumInputs; /**< Number of #dmxInputs */

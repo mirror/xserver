@@ -265,6 +265,8 @@ typedef struct _DMXLocalInputInfo {
                                            * if any */
     const char               *deviceName; /**< devive name on remote
                                            * side, if any */
+    long                     attached;    /**< the master device this device
+					   * is attached to */
 
 
     unsigned int             state;       /**< Modifier/Button state */
