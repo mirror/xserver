@@ -74,7 +74,6 @@
 
 /* Disable the extensions that are not currently supported */
 #undef MULTIBUFFER
-#undef XV
 #undef DBE
 #undef XF86VIDMODE
 #undef XFreeXDGA

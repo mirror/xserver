@@ -1561,7 +1561,7 @@ AM_CONDITIONAL(INTEGRATED_XPBPROXY, [test "x$INTEGRATED_XPBPROXY" = xyes])
 
 dnl DMX DDX
 
-PKG_CHECK_MODULES([DMXMODULES], [xmuu xext x11 xrender xfixes xfont xi dmxproto xau xcomposite xrandr x11-xcb $XDMCP_MODULES], [have_dmx=yes], [have_dmx=no])
+PKG_CHECK_MODULES([DMXMODULES], [xmuu xext x11 xrender xfixes xfont xi dmxproto xau xcomposite xrandr xv x11-xcb $XDMCP_MODULES], [have_dmx=yes], [have_dmx=no])
 if test "x$DMX" = xauto; then
 	DMX="$have_dmx"
 	case $host_os in

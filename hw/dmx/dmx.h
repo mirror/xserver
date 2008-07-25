@@ -369,6 +369,11 @@ extern int             xRRCrtcsPerScreen;
 extern DMXPropTrans     *dmxPropTrans;
 extern int              dmxPropTransNum;
 
+#ifdef XV
+extern char             **dmxXvImageFormats;
+extern int              dmxXvImageFormatsNum;
+#endif
+
 /** Wrap screen or GC function pointer */
 #define DMX_WRAP(_entry, _newfunc, _saved, _actual)			\
 do {									\

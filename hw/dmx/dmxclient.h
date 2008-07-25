@@ -105,6 +105,10 @@ typedef XID           KeySym64;
 #include <X11/extensions/XKBstr.h>
 #endif
 
+#ifdef XV
+#include <X11/extensions/Xvlib.h>
+#endif
+
 #include <X11/extensions/XI.h>
 
 /* Always include these, since we query them even if we don't export XINPUT. */

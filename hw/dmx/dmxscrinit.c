@@ -70,6 +70,10 @@
 #include "randrstr.h"
 #endif
 
+#ifdef XV
+#include "dmxxv.h"
+#endif
+
 #include "fb.h"
 #include "mipointer.h"
 #include "micmap.h"
@@ -1492,6 +1496,10 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 			RROutputPropertyNotifyMask);
 #endif
 
+#ifdef XV
+    dmxBEXvScreenInit (pScreen);
+#endif
+
     if (!dmxScreen->beUseRoot)
 	XMapWindow (dmxScreen->beDisplay, dmxScreen->scrnWin);
 
@@ -2213,6 +2221,11 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     }
 
     if (!dmxRRInit (pScreen))
+	return FALSE;
+#endif
+
+#ifdef XV
+    if (!dmxXvScreenInit (pScreen))
 	return FALSE;
 #endif
 

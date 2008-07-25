@@ -138,6 +138,11 @@ int xRRCrtcsPerScreen = 2;
 DMXPropTrans    *dmxPropTrans = NULL;
 int             dmxPropTransNum = 0;
 
+#ifdef XV
+char            **dmxXvImageFormats = NULL;
+int             dmxXvImageFormatsNum = 0;
+#endif
+
 #include <execinfo.h>
 
 static void
@@ -1052,11 +1057,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	noPanoramiXExtension = FALSE;
 	PanoramiXExtensionDisabledHack = TRUE;
 #endif
-	dmxPropTrans = xalloc (sizeof (DMXPropTrans));
-	dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
-	dmxPropTrans->format = "xP";
-	dmxPropTrans->type = 0;
-	dmxPropTransNum = 1;
     }
     
     if (!strcmp(argv[i], "-display")) {
@@ -1186,6 +1186,27 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	}
         retval = 3;
     }
+#ifdef XV
+    else if (!strcmp (argv[i], "-xvimage"))
+    {
+	if (++i < argc)
+	{
+	    char **formats;
+
+	    formats = xrealloc (dmxXvImageFormats,
+				sizeof (char *) *
+				(dmxXvImageFormatsNum + 1));
+	    if (formats)
+	    {
+		formats[dmxXvImageFormatsNum] = argv[i];
+
+		dmxXvImageFormatsNum++;
+		dmxXvImageFormats = formats;
+	    }
+	}
+        retval = 2;
+    }
+#endif
     else if ((argv[i][0] == 'v') && (argv[i][1] == 't'))
     {
         dmxLaunchVT = argv[i];
@@ -1194,6 +1215,29 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     else if (!strcmp(argv[i], "--")) {
         dmxLaunchIndex = i + 1;
         retval = argc - i;
+    }
+
+    if (i == (argc - 1))
+    {
+	if (!dmxPropTrans)
+	{
+	    dmxPropTrans = xalloc (sizeof (DMXPropTrans));
+	    dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
+	    dmxPropTrans->format = "xP";
+	    dmxPropTrans->type = 0;
+	    dmxPropTransNum = 1;
+	}
+
+#ifdef XV
+	if (!dmxXvImageFormats)
+	{
+	    dmxXvImageFormats = xalloc (sizeof (char *) * 2);
+	    dmxXvImageFormats[0] = "YV12";
+	    dmxXvImageFormats[1] = "YUY2";
+	    dmxXvImageFormatsNum = 2;
+	}
+#endif
+
     }
 
     if (!serverGeneration) dmxConfigSetMaxScreens();
@@ -1241,6 +1285,9 @@ void ddxUseMsg(void)
     ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
     ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");
     ErrorF("-prop name format    Specify property translation\n");
+#ifdef XV
+    ErrorF("-xvimage fourcc      Enable XVideo image format\n");
+#endif
     ErrorF("\n");
     ErrorF("    If the -input string matches a -display string, then input\n"
            "    is taken from that backend display.  (XInput cannot be taken\n"

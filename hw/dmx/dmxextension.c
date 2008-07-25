@@ -61,6 +61,9 @@
 #include "dmxsync.h"
 #include "dmxscrinit.h"
 #include "input/dmxinputinit.h"
+#ifdef XV
+#include "dmxxv.h"
+#endif
 
 #include "windowstr.h"
 #include "inputstr.h"                 /* For DeviceIntRec */
@@ -2432,6 +2435,10 @@ int dmxDetachScreen(int idx)
     }
 
     dmxLogOutput(dmxScreen, "Detaching screen #%d\n", idx);
+
+#ifdef XV
+    dmxBEXvScreenFini (screenInfo.screens[idx]);
+#endif
 
     /* Detach input */
     dmxInputDetachAll(dmxScreen);
