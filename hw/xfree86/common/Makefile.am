@@ -41,12 +41,13 @@ nodist_libinit_a_SOURCES = xf86Build.h
 INCLUDES = $(XORG_INCS) -I$(srcdir)/../ddc -I$(srcdir)/../i2c \
 	   -I$(srcdir)/../loader -I$(srcdir)/../rac -I$(srcdir)/../parser \
            -I$(srcdir)/../vbe -I$(srcdir)/../int10 \
-	   -I$(srcdir)/../vgahw -I$(srcdir)/../dixmods/extmod
+	   -I$(srcdir)/../vgahw -I$(srcdir)/../dixmods/extmod \
+	   -I$(srcdir)/../modes
 
 sdk_HEADERS = compiler.h fourcc.h xf86.h xf86Module.h xf86Opt.h \
               xf86PciInfo.h xf86Priv.h xf86Privstr.h xf86Resources.h \
               xf86cmap.h xf86fbman.h xf86str.h xf86RAC.h xf86Xinput.h xisb.h \
-              $(XVSDKINCS) atKeynames.h xf86Version.h xorgVersion.h \
+              $(XVSDKINCS) xf86Version.h xorgVersion.h \
               xf86sbusBus.h xf86xv.h xf86xvmc.h xf86xvpriv.h
 
 DISTCLEANFILES = xf86Build.h

@@ -47,15 +47,6 @@ static ExtensionModule extensionModules[] = {
 	NULL
     },
 #endif
-#ifdef SHAPE
-    {
-	ShapeExtensionInit,
-	SHAPENAME,
-	&noShapeExtension,
-	NULL,
-	NULL
-    },
-#endif
 #ifdef MULTIBUFFER
     {
 	MultibufferExtensionInit,
@@ -74,38 +65,11 @@ static ExtensionModule extensionModules[] = {
 	NULL
     },
 #endif
-#ifdef BIGREQS
-     {
-	BigReqExtensionInit,
-	XBigReqExtensionName,
-	&noBigReqExtension,
-	NULL,
-	NULL
-     },
-#endif
-#ifdef XSYNC
-    {
-	SyncExtensionInit,
-	SYNC_NAME,
-	&noSyncExtension,
-	NULL,
-	NULL
-    },
-#endif
 #ifdef SCREENSAVER
     {
 	ScreenSaverExtensionInit,
 	ScreenSaverName,
 	&noScreenSaverExtension,
-	NULL,
-	NULL
-    },
-#endif
-#ifdef XCMISC
-    {
-	XCMiscExtensionInit,
-	XCMiscExtensionName,
-	&noXCMiscExtension,
 	NULL,
 	NULL
     },

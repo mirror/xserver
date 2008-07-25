@@ -51,16 +51,9 @@ enum {
 
 struct __GLXdrawable {
     void (*destroy)(__GLXdrawable *private);
-    GLboolean (*resize)(__GLXdrawable *private);
     GLboolean (*swapBuffers)(__GLXdrawable *);
     void      (*copySubBuffer)(__GLXdrawable *drawable,
 			       int x, int y, int w, int h);
-
-    /*
-    ** list of drawable private structs
-    */
-    __GLXdrawable *last;
-    __GLXdrawable *next;
 
     DrawablePtr pDraw;
     XID drawId;
@@ -75,15 +68,6 @@ struct __GLXdrawable {
     ** Configuration of the visual to which this drawable was created.
     */
     __GLXconfig *config;
-
-    /*
-    ** Lists of contexts bound to this drawable.  There are two lists here.
-    ** One list is of the contexts that have this drawable bound for drawing,
-    ** and the other is the list of contexts that have this drawable bound
-    ** for reading.
-    */
-    __GLXcontext *drawGlxc;
-    __GLXcontext *readGlxc;
 
     /*
     ** reference count

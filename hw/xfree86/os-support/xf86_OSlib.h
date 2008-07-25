@@ -84,7 +84,6 @@
 /* SYSV386 (SVR3, SVR4), including Solaris                                */
 /**************************************************************************/
 #if (defined(SYSV) || defined(SVR4)) && \
-    !defined(DGUX) && !defined(sgi) && \
     (defined(sun) || defined(__i386__))
 # ifdef SCO325
 #  ifndef _SVID3
@@ -214,74 +213,7 @@
 #  define VT_SYSREQ_DEFAULT TRUE
 # endif
 
-#endif /* (SYSV || SVR4) && !DGUX */
-
-
-
-/**************************************************************************/
-/* DG/ux R4.20MU03 Intel AViion Machines                                  */
-/**************************************************************************/
-#if defined(DGUX) && defined(SVR4)
-#include <sys/ioctl.h>
-#include <signal.h>
-#include <ctype.h>
-#include <termios.h>      /* Use termios for BSD Flavor ttys */
-#include <sys/termios.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#include <errno.h>
-#include <sys/sysi86.h>
-#include <unistd.h>
-#include <sys/proc.h>
-#include <sys/map.h>
-#include <sys/sysmacros.h>
-#include <sys/mman.h>       /* Memory handling */
-#include <sys/kd.h>       /* definitios for KDENABIO KDDISABIO needed for IOPL s */
-#include <sys/kbd.h>
-#include <fcntl.h>
-#include <time.h>
-#include <sys/stream.h>
-#include <sys/ptms.h>
-
-#include <sys/socket.h>
-#include <sys/utsname.h>
-#include <sys/stropts.h>
-#include <sys/sockio.h>
-
-
-#define POSIX_TTY
-
-#undef HAS_USL_VTS
-#undef USE_VT_SYSREQ
-#undef VT_ACKACQ
-
-#define LED_CAP KBD_LED_CAPS_LOCK
-#define LED_NUM KBD_LED_NUM_LOCK
-#define LED_SCR KBD_LED_SCROLL_LOCK
-
-#define KDGKBTYPE KBD_GET_LANGUAGE
-
-
-/* General keyboard types */
-# define KB_84          2
-# define KB_101         1  /* Because ioctl(dgkeybdFd,KBD_GET_LANGUAGE,&type) gives 1=US keyboard */
-# define KB_OTHER       3
-
-#define KDSETLED KBD_SET_LED
-#define KDGETLED KBD_GET_STATE
-#undef KDMKTONE
-#define KDMKTONE KBD_TONE_HIGH
-
-
-#undef DEV_MEM
-#define DEV_MEM "/dev/mem"
-#define CLEARDTR_SUPPORT
-
-#undef  VT_SYSREQ_DEFAULT
-#define VT_SYSREQ_DEFAULT FALSE        /* Make sure that we dont define any VTs since DG/ux has none */
-
-#endif /* DGUX && SVR4 */
+#endif /* (SYSV || SVR4) */
 
 /**************************************************************************/
 /* Linux or Glibc-based system                                            */
@@ -477,82 +409,8 @@
 /* __FreeBSD_kernel__ || __NetBSD__ || __OpenBSD__ || __bsdi__ */
 
 /**************************************************************************/
-/* QNX4                                                                   */
-/**************************************************************************/
-/* This is the QNX code for Watcom 10.6 and QNX 4.x */
-#if defined(QNX4)
-#include <signal.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <termios.h>
-#include <ioctl.h>
-#include <sys/param.h>
-
-/* Warning: by default, the fd_set size is 32 in QNX!  */
-#define FD_SETSIZE 256
-#include <sys/select.h>
-
-  /* keyboard types */
-# define KB_84                   1
-# define KB_101                  2
-# define KB_OTHER                3
-
-  /* LEDs */
-#  define LED_CAP 0x04
-#  define LED_NUM 0x02
-#  define LED_SCR 0x01
-
-# define POSIX_TTY
-
-#define TIOCM_DTR       0x0001            /* data terminal ready */
-#define TIOCM_RTS       0x0002            /* request to send */
-#define TIOCM_CTS       0x1000            /* clear to send */
-#define TIOCM_DSR       0x2000            /* data set ready */
-#define TIOCM_RI        0x4000            /* ring */
-#define TIOCM_RNG       TIOCM_RI
-#define TIOCM_CD        0x8000            /* carrier detect */
-#define TIOCM_CAR       TIOCM_CD
-#define TIOCM_LE        0x0100            /* line enable */
-#define TIOCM_ST        0x0200            /* secondary transmit */
-#define TIOCM_SR        0x0400            /* secondary receive */
-
-#endif
-
-/**************************************************************************/
-/* QNX/Neutrino                                                           */
-/**************************************************************************/
-/* This is the Neutrino code for for NTO2.0 and GCC */
-#if defined(__QNXNTO__)
-#include <signal.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <termios.h>
-#include <ioctl.h>
-#include <sys/param.h>
-
-/* Warning: by default, the fd_set size is 32 in NTO!  */
-#define FD_SETSIZE 256
-#include <sys/select.h>
-
-  /* keyboard types */
-# define KB_84                   1
-# define KB_101                  2
-# define KB_OTHER                3
-
-# define POSIX_TTY
-
-#endif
-
-/**************************************************************************/
 /* IRIX                                                                   */
 /**************************************************************************/
-#if defined(sgi)
-
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#endif
 
 /**************************************************************************/
 /* Generic                                                                */

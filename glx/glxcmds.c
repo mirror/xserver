@@ -147,8 +147,10 @@ validGlxFBConfigForWindow(ClientPtr client, __GLXconfig *config,
 void
 __glXContextDestroy(__GLXcontext *context)
 {
-    if (!context->isDirect)
-	__glXDeassociateContext(context);
+    if (!context->isDirect) {
+	__glXUnrefDrawable(context->drawPriv);
+	__glXUnrefDrawable(context->readPriv);
+    }
     __glXFlushContextCache();
 }
 
@@ -618,7 +620,10 @@ DoMakeCurrent(__GLXclientState *cl,
 	    return __glXError(GLXBadContext);
 	}
 	__glXFlushContextCache();
-	__glXDeassociateContext(prevglxc);
+	if (!glxc->isDirect) {
+	    __glXUnrefDrawable(glxc->drawPriv);
+	    __glXUnrefDrawable(glxc->readPriv);
+	}
     }
 	
 
@@ -634,19 +639,9 @@ DoMakeCurrent(__GLXclientState *cl,
 	    return __glXError(GLXBadContext);
 	}
 
-	/* resize the buffers */
-	if (!(*drawPriv->resize)(drawPriv)) {
-	    /* could not do initial resize.  make current failed */
-	    (*glxc->loseCurrent)(glxc);
-	    glxc->drawPriv = NULL;
-	    glxc->readPriv = NULL;
-	    return __glXError(GLXBadContext);
-	}
-
 	glxc->isCurrent = GL_TRUE;
-	__glXAssociateContext(glxc);
-	assert(drawPriv->drawGlxc == glxc);
-	assert(readPriv->readGlxc == glxc);
+	__glXRefDrawable(glxc->drawPriv);
+	__glXRefDrawable(glxc->readPriv);
     }
 
     if (prevglxc) {
@@ -1224,10 +1219,6 @@ static int DoDestroyDrawable(__GLXclientState *cl, XID glxdrawable, int type)
 	case GLX_DRAWABLE_PBUFFER:
 	    return __glXError(GLXBadPbuffer);
 	}
-    }
-
-    if (type == GLX_DRAWABLE_PIXMAP) {
-	((PixmapPtr) pGlxDraw->pDraw)->refcnt--;
     }
 
     FreeResource(glxdrawable, FALSE);

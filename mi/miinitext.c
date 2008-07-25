@@ -83,15 +83,9 @@ SOFTWARE.
 #include "micmap.h"
 #include "globals.h"
 
-#if defined(QNX4) /* sleaze for Watcom on QNX4 ... */
-#undef GLXEXT
-#endif
 
 extern Bool noTestExtensions;
 
-#ifdef BIGREQS
-extern Bool noBigReqExtension;
-#endif
 #ifdef COMPOSITE
 extern Bool noCompositeExtension;
 #endif
@@ -119,20 +113,11 @@ extern Bool noRRExtension;
 #ifdef RENDER
 extern Bool noRenderExtension;
 #endif
-#ifdef SHAPE
-extern Bool noShapeExtension;
-#endif
 #ifdef XCSECURITY
 extern Bool noSecurityExtension;
 #endif
-#ifdef XSYNC
-extern Bool noSyncExtension;
-#endif
 #ifdef RES
 extern Bool noResExtension;
-#endif
-#ifdef XCMISC
-extern Bool noXCMiscExtension;
 #endif
 #ifdef XEVIE
 extern Bool noXevieExtension;
@@ -226,9 +211,7 @@ extern void XInputExtensionInit(INITARGS);
 #ifdef XTEST
 extern void XTestExtensionInit(INITARGS);
 #endif
-#ifdef BIGREQS
 extern void BigReqExtensionInit(INITARGS);
-#endif
 #ifdef XIDLE
 extern void XIdleExtensionInit(INITARGS);
 #endif
@@ -239,15 +222,11 @@ extern void ScreenSaverExtensionInit (INITARGS);
 extern void XvExtensionInit(INITARGS);
 extern void XvMCExtensionInit(INITARGS);
 #endif
-#ifdef XSYNC
 extern void SyncExtensionInit(INITARGS);
-#endif
 #ifdef XKB
 extern void XkbExtensionInit(INITARGS);
 #endif
-#ifdef XCMISC
 extern void XCMiscExtensionInit(INITARGS);
-#endif
 #ifdef XRECORD
 extern void RecordExtensionInit(INITARGS);
 #endif
@@ -319,9 +298,6 @@ static ExtensionToggle ExtensionToggleList[] =
 {
     /* sort order is extension name string as shown in xdpyinfo */
     { "Generic Events", &noGEExtension },
-#ifdef BIGREQS
-    { "BIG-REQUESTS", &noBigReqExtension },
-#endif
 #ifdef COMPOSITE
     { "Composite", &noCompositeExtension },
 #endif
@@ -352,20 +328,11 @@ static ExtensionToggle ExtensionToggleList[] =
 #ifdef RENDER
     { "RENDER", &noRenderExtension },
 #endif
-#ifdef SHAPE
-    { "SHAPE", &noShapeExtension },
-#endif
 #ifdef XCSECURITY
     { "SECURITY", &noSecurityExtension },
 #endif
-#ifdef XSYNC
-    { "SYNC", &noSyncExtension },
-#endif
 #ifdef RES
     { "X-Resource", &noResExtension },
-#endif
-#ifdef XCMISC
-    { "XC-MISC", &noXCMiscExtension },
 #endif
 #ifdef XEVIE
     { "XEVIE", &noXevieExtension },
@@ -443,9 +410,7 @@ InitExtensions(int argc, char *argv[])
 #ifdef INXQUARTZ
     if(!noPseudoramiXExtension) PseudoramiXExtensionInit();
 #endif
-#ifdef SHAPE
-    if (!noShapeExtension) ShapeExtensionInit();
-#endif
+    ShapeExtensionInit();
 #ifdef MITSHM
     if (!noMITShmExtension) ShmExtensionInit();
 #endif
@@ -456,9 +421,7 @@ InitExtensions(int argc, char *argv[])
 #ifdef XTEST
     if (!noTestExtensions) XTestExtensionInit();
 #endif
-#ifdef BIGREQS
-    if (!noBigReqExtension) BigReqExtensionInit();
-#endif
+    BigReqExtensionInit();
 #ifdef XIDLE
     if (!noXIdleExtension) XIdleExtensionInit();
 #endif
@@ -471,15 +434,11 @@ InitExtensions(int argc, char *argv[])
       XvMCExtensionInit();
     }
 #endif
-#ifdef XSYNC
-    if (!noSyncExtension) SyncExtensionInit();
-#endif
+    SyncExtensionInit();
 #if defined(XKB)
     if (!noXkbExtension) XkbExtensionInit();
 #endif
-#ifdef XCMISC
-    if (!noXCMiscExtension) XCMiscExtensionInit();
-#endif
+    XCMiscExtensionInit();
 #ifdef XRECORD
     if (!noTestExtensions) RecordExtensionInit();
 #endif
@@ -551,6 +510,7 @@ InitVisualWrap()
 /* List of built-in (statically linked) extensions */
 static ExtensionModule staticExtensions[] = {
     { GEExtensionInit, "Generic Event Extension", &noGEExtension, NULL, NULL},
+    { ShapeExtensionInit, "SHAPE", NULL, NULL, NULL },
 #ifdef MITSHM
     { ShmExtensionInit, SHMNAME, &noMITShmExtension, NULL, NULL },
 #endif
@@ -558,12 +518,15 @@ static ExtensionModule staticExtensions[] = {
 #ifdef XTEST
     { XTestExtensionInit, XTestExtensionName, &noTestExtensions, NULL, NULL },
 #endif
+    { BigReqExtensionInit, "BIG-REQUESTS", NULL, NULL, NULL },
 #ifdef XIDLE
     { XIdleExtensionInit, "XIDLE", &noXIdleExtension, NULL, NULL },
 #endif
+    { SyncExtensionInit, "SYNC", NULL, NULL, NULL },
 #ifdef XKB
     { XkbExtensionInit, XkbName, &noXkbExtension, NULL, NULL },
 #endif
+    { XCMiscExtensionInit, "XC-MISC", NULL, NULL, NULL },
 #ifdef XCSECURITY
     { SecurityExtensionInit, SECURITY_EXTENSION_NAME, &noSecurityExtension, NULL, NULL },
 #endif

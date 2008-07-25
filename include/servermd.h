@@ -84,7 +84,7 @@ SOFTWARE.
 
 #endif /* __arm32__ */
 
-#if defined (hpux) || defined __hppa__
+#if defined __hppa__
 
 #define IMAGE_BYTE_ORDER	MSBFirst
 #define BITMAP_BIT_ORDER	MSBFirst
@@ -150,13 +150,6 @@ SOFTWARE.
 
 #endif /* sun && !(i386 && SVR4) */
 
-#if defined(AIXV3)
-
-#define IMAGE_BYTE_ORDER        MSBFirst        /* Values for the RISC/6000 */
-#define BITMAP_BIT_ORDER        MSBFirst
-#define GLYPHPADBYTES           4
-
-#endif /* AIXV3 */
 
 #if defined(ibm032) || defined (ibm)
 
@@ -175,7 +168,7 @@ SOFTWARE.
 
 #endif /* ibm */
 
-#if (defined(mips) || defined(__mips)) && !defined(sgi)
+#if (defined(mips) || defined(__mips)) 
 
 #if defined(MIPSEL) || defined(__MIPSEL__)
 # define IMAGE_BYTE_ORDER	LSBFirst        /* Values for the PMAX only */
@@ -234,9 +227,9 @@ SOFTWARE.
 /* ???? */
 #endif /* AMD64 */
 
-#if	(defined(SVR4) && (defined(__i386__) || (defined(__i386)))) ||	\
+#if	defined(SVR4) && (defined(__i386__) || defined(__i386) ) ||	\
 	defined(__alpha__) || defined(__alpha) || \
-	defined(__i386__) || defined(__QNX__) || \
+	defined(__i386__) || \
 	defined(__s390x__) || defined(__s390__)
   
 #ifndef IMAGE_BYTE_ORDER
@@ -261,13 +254,6 @@ SOFTWARE.
 
 #endif /* linux/m68k */
 
-#ifdef sgi
-
-#define IMAGE_BYTE_ORDER	MSBFirst
-#define BITMAP_BIT_ORDER	MSBFirst
-#define GLYPHPADBYTES		4
-
-#endif
 
 /* linux on ARM */
 #if defined(linux) && defined(__arm__)

@@ -7,10 +7,8 @@
 #define INITARGS void
 #endif
 
-#ifdef SHAPE
 #define _SHAPE_SERVER_  /* don't want Xlib structures */
 #include <X11/extensions/shapestr.h>
-#endif
 
 #ifdef MULTIBUFFER
 extern void MultibufferExtensionInit(INITARGS);
@@ -29,26 +27,9 @@ extern void XTestExtensionInit(INITARGS);
 extern void XTestExtension1Init(INITARGS);
 #endif
 
-#ifdef BIGREQS
-extern void BigReqExtensionInit(INITARGS);
-#include <X11/extensions/bigreqstr.h>
-#endif
-
-#ifdef XSYNC
-extern void SyncExtensionInit(INITARGS);
-#define _SYNC_SERVER
-#include <X11/extensions/sync.h>
-#include <X11/extensions/syncstr.h>
-#endif
-
 #ifdef SCREENSAVER
 extern void ScreenSaverExtensionInit (INITARGS);
 #include <X11/extensions/saver.h>
-#endif
-
-#ifdef XCMISC
-extern void XCMiscExtensionInit(INITARGS);
-#include <X11/extensions/xcmiscstr.h>
 #endif
 
 #ifdef XF86VIDMODE

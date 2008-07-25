@@ -94,7 +94,7 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #ifndef WIN32
 #include <sys/wait.h>
 #endif
-#if !defined(SYSV) && !defined(WIN32) && !defined(QNX4)
+#if !defined(SYSV) && !defined(WIN32) 
 #include <sys/resource.h>
 #endif
 #include <sys/stat.h>
@@ -124,9 +124,6 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #endif
 
 _X_EXPORT Bool noTestExtensions;
-#ifdef BIGREQS
-_X_EXPORT Bool noBigReqExtension = FALSE;
-#endif
 #ifdef COMPOSITE
 _X_EXPORT Bool noCompositeExtension = FALSE;
 #endif
@@ -159,20 +156,11 @@ _X_EXPORT Bool noRRExtension = FALSE;
 #ifdef RENDER
 _X_EXPORT Bool noRenderExtension = FALSE;
 #endif
-#ifdef SHAPE
-_X_EXPORT Bool noShapeExtension = FALSE;
-#endif
 #ifdef XCSECURITY
 _X_EXPORT Bool noSecurityExtension = FALSE;
 #endif
-#ifdef XSYNC
-_X_EXPORT Bool noSyncExtension = FALSE;
-#endif
 #ifdef RES
 _X_EXPORT Bool noResExtension = FALSE;
-#endif
-#ifdef XCMISC
-_X_EXPORT Bool noXCMiscExtension = FALSE;
 #endif
 #ifdef XEVIE
 /* Xevie is disabled by default for now until the
@@ -231,19 +219,9 @@ int auditTrailLevel = 1;
 
 _X_EXPORT Bool Must_have_memory = FALSE;
 
-#ifdef AIXV3
-int SyncOn  = 0;
-extern int SelectWaitTime;
-#endif
 
 #if defined(SVR4) || defined(__linux__) || defined(CSRG_BASED)
 #define HAS_SAVED_IDS_AND_SETEUID
-#endif
-
-#ifdef MEMBUG
-#define MEM_FAIL_SCALE 100000
-long Memory_fail = 0;
-#include <stdlib.h>  /* for random() */
 #endif
 
 static char *dev_tty_from_init = NULL;	/* since we need to parse it anyway */
@@ -509,13 +487,9 @@ AdjustWaitForDelay (pointer waitTime, unsigned long newdelay)
 
 void UseMsg(void)
 {
-#if !defined(AIXrt) && !defined(AIX386)
     ErrorF("use: X [:<display>] [option]\n");
     ErrorF("-a #                   mouse acceleration (pixels)\n");
     ErrorF("-ac                    disable access control restrictions\n");
-#ifdef MEMBUG
-    ErrorF("-alloc int             chance alloc should fail\n");
-#endif
     ErrorF("-audit int             set audit trail level\n");	
     ErrorF("-auth file             select authorization file\n");	
     ErrorF("-br                    create root window with black background\n");
@@ -590,7 +564,6 @@ void UseMsg(void)
 #ifdef XDMCP
     XdmcpUseMsg();
 #endif
-#endif /* !AIXrt && ! AIX386 */
 #ifdef XKB
     XkbUseMsg();
 #endif
@@ -662,15 +635,6 @@ ProcessCommandLine(int argc, char *argv[])
 	{
 	    defeatAccessControl = TRUE;
 	}
-#ifdef MEMBUG
-	else if ( strcmp( argv[i], "-alloc") == 0)
-	{
-	    if(++i < argc)
-	        Memory_fail = atoi(argv[i]);
-	    else
-		UseMsg();
-	}
-#endif
 	else if ( strcmp( argv[i], "-audit") == 0)
 	{
 	    if(++i < argc)
@@ -965,19 +929,6 @@ ProcessCommandLine(int argc, char *argv[])
 	    i = skip - 1;
 	}
 #endif
-#ifdef AIXV3
-        else if ( strcmp( argv[i], "-timeout") == 0)
-        {
-            if(++i < argc)
-                SelectWaitTime = atoi(argv[i]);
-            else
-                UseMsg();
-        }
-        else if ( strcmp( argv[i], "-sync") == 0)
-        {
-            SyncOn++;
-        }
-#endif
 #ifdef SMART_SCHEDULE
 	else if ( strcmp( argv[i], "-dumbSched") == 0)
 	{
@@ -1139,11 +1090,6 @@ Xalloc(unsigned long amount)
     }
     /* aligned extra on long word boundary */
     amount = (amount + (sizeof(long) - 1)) & ~(sizeof(long) - 1);
-#ifdef MEMBUG
-    if (!Must_have_memory && Memory_fail &&
-	((random() % MEM_FAIL_SCALE) < Memory_fail))
-	return (unsigned long *)NULL;
-#endif
     if ((ptr = (pointer)malloc(amount))) {
 	return (unsigned long *)ptr;
     }
@@ -1215,11 +1161,6 @@ XNFcalloc(unsigned long amount)
 _X_EXPORT void *
 Xrealloc(pointer ptr, unsigned long amount)
 {
-#ifdef MEMBUG
-    if (!Must_have_memory && Memory_fail &&
-	((random() % MEM_FAIL_SCALE) < Memory_fail))
-	return (unsigned long *)NULL;
-#endif
     if ((long)amount <= 0)
     {
 	if (ptr && !amount)
@@ -1264,20 +1205,6 @@ Xfree(pointer ptr)
 {
     if (ptr)
 	free((char *)ptr); 
-}
-
-void
-OsInitAllocator (void)
-{
-#ifdef MEMBUG
-    static int	been_here;
-
-    /* Check the memory system after each generation */
-    if (been_here)
-	CheckMemory ();
-    else
-	been_here = 1;
-#endif
 }
 #endif /* !INTERNAL_MALLOC */
 
@@ -1823,9 +1750,6 @@ CheckUserParameters(int argc, char **argv, char **envp)
     enum BadCode bad = NotBad;
     int i = 0, j;
     char *a, *e = NULL;
-#if defined(__QNX__) && !defined(__QNXNTO__)
-    char cmd_name[64];
-#endif
 
 #if CHECK_EUID
     if (geteuid() == 0 && getuid() != geteuid())

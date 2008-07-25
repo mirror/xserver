@@ -321,7 +321,6 @@ case $host_cpu in
 	esac
 	;;
   sparc*)
-	xorg_loader_sparcmuldiv="yes"
 	SPARC64_VIDEO=yes
 	BSD_ARCH_SOURCES="sparc64_video.c ioperm_noop.c"
 	GLX_ARCH_DEFINES="-D__GLX_ALIGN64"
@@ -1537,7 +1536,6 @@ AM_CONDITIONAL([XORG_BUS_IX86PCI], [test "x$xorg_bus_ix86pci" = xyes])
 AM_CONDITIONAL([XORG_BUS_PPCPCI], [test "x$xorg_bus_ppcpci" = xyes])
 AM_CONDITIONAL([XORG_BUS_SPARCPCI], [test "x$xorg_bus_sparcpci" = xyes])
 AM_CONDITIONAL([XORG_BUS_SPARC], [test "x$xorg_bus_sparc" = xyes])
-AM_CONDITIONAL([XORG_LOADER_SPARC], [test "x$xorg_loader_sparcmuldiv" = xyes])
 AM_CONDITIONAL([LINUX_IA64], [test "x$linux_ia64" = xyes])
 AM_CONDITIONAL([LINUX_ALPHA], [test "x$linux_alpha" = xyes])
 AM_CONDITIONAL([LNXACPI], [test "x$linux_acpi" = xyes])
@@ -1856,51 +1854,6 @@ AC_TRY_COMPILE([
 
 AC_DEFINE_DIR(PROJECTROOT, prefix, [Overall prefix])
 
-dnl xorgcfg GUI configuration utility
-AC_ARG_ENABLE(xorgcfg, AS_HELP_STRING([--enable-xorgcfg], 
-	[Build xorgcfg GUI configuration utility (default: no)]),
-	[XORGCFG=$enableval],[XORGCFG=no])
-if test x$XORGCFG = xyes ; then
-	PKG_CHECK_MODULES([XORGCFG_DEP], 
-	    [xkbui >= 1.0.2 xkbfile xxf86vm xaw7 xmu xt xpm xext x11])
-	XORGCFG_DEP_CFLAGS="$XORGCFG_DEP_CFLAGS"
-	AC_CHECK_LIB([curses],[waddstr],
-	    [XORGCFG_DEP_LIBS="$XORGCFG_DEP_LIBS -lcurses"; CURSES=yes],
-	    AC_CHECK_LIB([ncurses],[waddstr],
-		[XORGCFG_DEP_LIBS="$XORGCFG_DEP_LIBS -lncurses" ; CURSES=yes],
-		[CURSES=no]))
-	AC_SUBST(XORGCFG_DEP_CFLAGS)
-	AC_SUBST(XORGCFG_DEP_LIBS)
-
-	APPDEFAULTDIR=$(pkg-config --variable=appdefaultdir xt)
-	AC_SUBST(APPDEFAULTDIR)
-fi
-AM_CONDITIONAL(BUILD_XORGCFG, [test x$XORGCFG = xyes])
-AM_CONDITIONAL(USE_CURSES, [test x$CURSES = xyes])
-
-AC_ARG_ENABLE(kbd_mode, AS_HELP_STRING([--enable-kbd_mode],
-	[Build kbd_mode utility (default: auto)]),
-	[BUILD_KBD_MODE=$enable_val], [BUILD_KBD_MODE="auto"])
-if test x$BUILD_KBD_MODE != xno ; then
-	case $host_os in
-	  *bsd*)
-		KBD_MODE_TYPE="bsd"
-#		BUILD_KBD_MODE="yes"  # need to test on BSD before enabling
-				      # by default
-		;;
-	  solaris*)
-		KBD_MODE_TYPE="sun"
-		BUILD_KBD_MODE="yes"  # enabled by default
-		;;
-	  *)
-		BUILD_KBD_MODE="no"   # disabled by default
-		;;
-	esac
-fi
-AM_CONDITIONAL(BUILD_KBD_MODE, [test x$BUILD_KBD_MODE = xyes])
-AM_CONDITIONAL(BSD_KBD_MODE, [test x$KBD_MODE_TYPE = xbsd])
-AM_CONDITIONAL(SUN_KBD_MODE, [test x$KBD_MODE_TYPE = xsun])
-
 BUILD_DATE="$(date +'%Y%m%d')"
 AC_SUBST([BUILD_DATE])
 BUILD_TIME="$(date +'1%H%M%S')"
@@ -1986,9 +1939,6 @@ hw/xfree86/xf8_16bpp/Makefile
 hw/xfree86/utils/Makefile
 hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile
-hw/xfree86/utils/ioport/Makefile
-hw/xfree86/utils/kbd_mode/Makefile
-hw/xfree86/utils/xorgcfg/Makefile
 hw/dmx/config/Makefile
 hw/dmx/doc/Makefile
 hw/dmx/examples/Makefile

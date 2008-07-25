@@ -45,10 +45,6 @@ extern Bool DPMSCapableFlag;
 extern Bool PanoramiXExtensionDisabledHack;
 #endif
 
-#ifdef BIGREQS
-extern Bool noBigReqExtension;
-#endif
-
 #ifdef COMPOSITE
 extern Bool noCompositeExtension;
 #endif
@@ -89,24 +85,12 @@ extern Bool noRRExtension;
 extern Bool noRenderExtension;
 #endif
 
-#ifdef SHAPE
-extern Bool noShapeExtension;
-#endif
-
 #ifdef XCSECURITY
 extern Bool noSecurityExtension;
 #endif
 
-#ifdef XSYNC
-extern Bool noSyncExtension;
-#endif
-
 #ifdef RES
 extern Bool noResExtension;
-#endif
-
-#ifdef XCMISC
-extern Bool noXCMiscExtension;
 #endif
 
 #ifdef XEVIE

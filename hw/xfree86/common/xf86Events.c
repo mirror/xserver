@@ -64,7 +64,7 @@
 #include "xf86Priv.h"
 #define XF86_OS_PRIVS
 #include "xf86_OSlib.h"
-#include "atKeynames.h"
+#include <X11/keysym.h>
 
 
 #ifdef XFreeXDGA
@@ -277,7 +277,7 @@ xf86ProcessActionEvent(ActionEvent action, void *arg)
 	    CloseDownClient(server);
 	}
 	break;
-#if !defined(__SOL8__) && !defined(sgi) && \
+#if !defined(__SOL8__) && \
     (!defined(sun) || defined(__i386__)) && defined(VT_ACTIVATE)
     case ACTION_SWITCHSCREEN:
 	if (VTSwitchEnabled && !xf86Info.dontVTSwitch && arg) {
@@ -285,12 +285,8 @@ xf86ProcessActionEvent(ActionEvent action, void *arg)
 #if defined(__SCO__) || defined(__UNIXWARE__)
 	    vtno--;
 #endif
-#if defined(QNX4)
-	    xf86Info.vtRequestsPending = vtno;
-#else
 	    if (ioctl(xf86Info.consoleFd, VT_ACTIVATE, vtno) < 0)
 		ErrorF("Failed to switch consoles (%s)\n", strerror(errno));
-#endif
 	}
 	break;
     case ACTION_SWITCHSCREEN_NEXT:
@@ -321,49 +317,6 @@ xf86ProcessActionEvent(ActionEvent action, void *arg)
     }
 }
 
-#define ModifierIsSet(k) ((modifiers & (k)) == (k))
-
-_X_EXPORT Bool
-xf86CommonSpecialKey(int key, Bool down, int modifiers)
-{
-  if ((!ModifierIsSet(ShiftMask)) &&
-      (((ModifierIsSet(ControlMask | AltMask)) ||
-        (ModifierIsSet(ControlMask | AltLangMask))))) {
-      switch (key) {
-	
-      case KEY_BackSpace:
-	xf86ProcessActionEvent(ACTION_TERMINATE, NULL);
-	break;
-
-      /*
-       * Check grabs
-       */
-      case KEY_KP_Divide:
-	xf86ProcessActionEvent(ACTION_DISABLEGRAB, NULL);
-	break;
-      case KEY_KP_Multiply:
-	xf86ProcessActionEvent(ACTION_CLOSECLIENT, NULL);
-	break;
-	
-	/*
-	 * The idea here is to pass the scancode down to a list of
-	 * registered routines. There should be some standard conventions
-	 * for processing certain keys.
-	 */
-      case KEY_KP_Minus:   /* Keypad - */
-	if (down) xf86ProcessActionEvent(ACTION_PREV_MODE, NULL);
-	if (!xf86Info.dontZoom) return TRUE;
-	break;
-	
-      case KEY_KP_Plus:   /* Keypad + */
-	if (down) xf86ProcessActionEvent(ACTION_NEXT_MODE, NULL);
-	if (!xf86Info.dontZoom) return TRUE;
-	break;
-      }
-  }
-  return FALSE;
-}
-
 /*
  * xf86Wakeup --
  *      Os wakeup handler.
@@ -373,7 +326,6 @@ xf86CommonSpecialKey(int key, Bool down, int modifiers)
 void
 xf86Wakeup(pointer blockData, int err, pointer pReadmask)
 {
-#if !defined(__QNX__)
     fd_set* LastSelectMask = (fd_set*)pReadmask;
     fd_set devicesWithInput;
     InputInfoPtr pInfo;
@@ -400,27 +352,6 @@ xf86Wakeup(pointer blockData, int err, pointer pReadmask)
 	    }
 	}
     }
-#else   /* __QNX__ */
-
-    InputInfoPtr pInfo;
-
-    pInfo = xf86InputDevs;
-    while (pInfo) {
-		if (pInfo->read_input && pInfo->fd >= 0) {
-		    int sigstate = xf86BlockSIGIO();
-
-		    pInfo->read_input(pInfo);
-		    xf86UnblockSIGIO(sigstate);
-		    /*
-		     * Must break here because more than one device may share
-		     * the same file descriptor.
-		     */
-		    break;
-		}
-		pInfo = pInfo->next;
-    }
-
-#endif  /* __QNX__ */
 
     if (err >= 0) { /* we don't want the handlers called if select() */
 	IHPtr ih;   /* returned with an error condition, do we?      */
@@ -700,6 +631,9 @@ xf86SigHandler(int signo)
 
   FatalError("Caught signal %d.  Server aborting\n", signo);
 }
+
+#define KeyPressed(k) (keyc->postdown[k >> 3] & (1 << (k & 7)))
+#define ModifierDown(k) ((keyc->state & (k)) == (k))
 
 static void
 xf86ReleaseKeys(DeviceIntPtr pDev)
