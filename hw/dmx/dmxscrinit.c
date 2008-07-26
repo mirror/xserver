@@ -56,6 +56,7 @@
 #include "dmxlog.h"
 #include "dmxcb.h"
 #include "dmxinit.h"
+#include "dmxgrab.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -64,6 +65,10 @@
 
 #ifdef RENDER
 #include "dmxpict.h"
+#endif
+
+#ifdef COMPOSITE
+#include "dmxcomp.h"
 #endif
 
 #ifdef RANDR
@@ -1143,9 +1148,16 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 
     /* Reset the proc vectors */
     if (idx == 0) {
-#ifdef RENDER
-	dmxResetRender();
+#ifdef COMPOSITE
+	if (!noCompositeExtension)
+	    dmxResetComposite();
 #endif
+#ifdef RENDER
+	if (!noRenderExtension)
+	    dmxResetRender();
+#endif
+	dmxResetGrabs();
+	dmxResetProps();
 	dmxResetFonts();
     }
 

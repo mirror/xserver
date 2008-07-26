@@ -88,6 +88,8 @@ Xdmx_SOURCES = dmx.c \
                dmxrandr.h \
                dmxxv.c \
                dmxxv.h \
+               dmxgrab.c \
+               dmxgrab.h \
                $(top_srcdir)/mi/miinitext.c \
                $(top_srcdir)/fb/fbcmap_mi.c \
                $(GLX_SRCS) \

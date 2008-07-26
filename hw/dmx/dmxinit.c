@@ -54,6 +54,7 @@
 #include "dmxprop.h"
 #include "dmxstat.h"
 #include "dmxlaunch.h"
+#include "dmxgrab.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -963,6 +964,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 
     dmxInitFonts();
     dmxInitProps();
+    dmxInitGrabs();
 
 #ifdef RENDER
     /* Initialize the render extension */
