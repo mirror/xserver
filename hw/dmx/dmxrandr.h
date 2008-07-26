@@ -23,11 +23,14 @@
  * Author: David Reveman <davidr@novell.com>
  */
 
-#ifndef DMXXV_H
-#define DMXXV_H
+#ifndef DMXRANDR_H
+#define DMXRANDR_H
 
-extern Bool dmxXvScreenInit (ScreenPtr pScreen);
-extern void dmxBEXvScreenInit (ScreenPtr pScreen);
-extern void dmxBEXvScreenFini (ScreenPtr pScreen);
+#include "randrstr.h"
 
-#endif /* DMXXV_H */
+extern Bool dmxRRScreenInit (ScreenPtr pScreen);
+extern void dmxRRCheckScreen (ScreenPtr pScreen);
+extern Bool dmxBERRScreenInit (ScreenPtr pScreen);
+extern void dmxBERRScreenFini (ScreenPtr pScreen);
+
+#endif /* DMXRANDR_H */

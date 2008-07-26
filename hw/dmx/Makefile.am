@@ -84,6 +84,8 @@ Xdmx_SOURCES = dmx.c \
                dmxlaunch.h \
                dmxcomp.c \
                dmxcomp.h \
+               dmxrandr.c \
+               dmxrandr.h \
                dmxxv.c \
                dmxxv.h \
                $(top_srcdir)/mi/miinitext.c \

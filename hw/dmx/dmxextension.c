@@ -55,7 +55,7 @@
 #include "dmxpict.h"
 #endif
 #ifdef RANDR
-#include "randrstr.h"
+#include "dmxrandr.h"
 #endif
 #include "dmxinput.h"
 #include "dmxsync.h"
@@ -2438,6 +2438,10 @@ int dmxDetachScreen(int idx)
 
 #ifdef XV
     dmxBEXvScreenFini (screenInfo.screens[idx]);
+#endif
+
+#ifdef RANDR
+    dmxBERRScreenFini (screenInfo.screens[idx]);
 #endif
 
     /* Detach input */
