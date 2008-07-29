@@ -315,6 +315,14 @@ DisableDevice(DeviceIntPtr dev)
                 AttachDevice(NULL, other, NULL);
         }
     }
+    else
+    {
+        for (other = inputInfo.devices; other; other = other->next)
+        {
+	    if (other->isMaster && other->u.lastSlave == dev)
+		other->u.lastSlave = NULL;
+	}
+    }
 
     if (dev->isMaster && dev->spriteInfo->sprite)
     {
