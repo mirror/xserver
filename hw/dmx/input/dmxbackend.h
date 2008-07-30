@@ -52,6 +52,24 @@ extern void    dmxBackendCollectEvents(DevicePtr pDev,
 extern void    dmxBackendProcessInput(pointer private);
 extern int     dmxBackendFunctions(pointer private, DMXFunctionType function);
 extern void    dmxBackendUpdatePosition(pointer private, int x, int y);
+extern void    dmxBackendGrabButton(DevicePtr pDev,
+				    DevicePtr pModDev,
+				    WindowPtr pWindow,
+				    WindowPtr pConfineTo,
+				    int	      button,
+				    int	      modifiers,
+				    CursorPtr pCursor);
+extern void    dmxBackendUngrabButton(DevicePtr pDev,
+				      DevicePtr pModDev,
+				      WindowPtr pWindow,
+				      int       button,
+				      int       modifiers);
+extern void    dmxBackendGrabPointer(DevicePtr pDevice,
+				     WindowPtr pWindow,
+				     WindowPtr pConfineTo,
+				     CursorPtr pCursor);
+extern void    dmxBackendUngrabPointer(DevicePtr pDevice,
+				       WindowPtr pWindow);
 extern void    dmxBackendKbdOff(DevicePtr pDev);
 
 #endif

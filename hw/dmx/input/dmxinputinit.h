@@ -165,6 +165,24 @@ typedef void    (*dmxCollectEventsProcPtr)(DevicePtr,
 typedef void    (*dmxProcessInputProcPtr)(pointer);
 typedef void    (*dmxUpdateInfoProcPtr)(pointer, DMXUpdateType, WindowPtr);
 typedef int     (*dmxFunctionsProcPtr)(pointer, DMXFunctionType);
+typedef void    (*dmxGrabButtonProcPtr)(DevicePtr,
+					DevicePtr,
+					WindowPtr,
+					WindowPtr,
+					int,
+					int,
+					CursorPtr);
+typedef void    (*dmxUngrabButtonProcPtr)(DevicePtr,
+					  DevicePtr,
+					  WindowPtr,
+					  int,
+					  int);
+typedef void    (*dmxGrabPointerProcPtr) (DevicePtr,
+					  WindowPtr,
+					  WindowPtr,
+					  CursorPtr);
+typedef void    (*dmxUngrabPointerProcPtr) (DevicePtr,
+					    WindowPtr);
                 
 typedef void    (*dmxKBCtrlProcPtr)(DevicePtr, KeybdCtrl *ctrl);
 typedef void    (*dmxMCtrlProcPtr)(DevicePtr, PtrCtrl *ctrl);
@@ -223,6 +241,10 @@ typedef struct _DMXLocalInputInfo {
     dmxFunctionsProcPtr      functions;
     dmxUpdateInfoProcPtr     update_info;     /**< Update window layout
                                                * information */
+    dmxGrabButtonProcPtr     grab_button;     /**< Grab button */
+    dmxUngrabButtonProcPtr   ungrab_button;   /**< Ungrab button */
+    dmxGrabPointerProcPtr    grab_pointer;    /**< Grab pointer */
+    dmxUngrabPointerProcPtr  ungrab_pointer;  /**< Ungrab pointer */
 
     dmxMCtrlProcPtr          mCtrl;           /**< Pointer control */
     dmxKBCtrlProcPtr         kCtrl;           /**< Keyboard control */
@@ -268,6 +290,7 @@ typedef struct _DMXLocalInputInfo {
     long                     attached;    /**< the master device this device
 					   * is attached to */
 
+    XDevice                  *device;
     char		     state[32];   /**< Key/Button state */
 } DMXLocalInputInfoRec;
 

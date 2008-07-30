@@ -296,17 +296,21 @@ int dmxCommonKbdOn(DevicePtr pDev)
     {
 	XEventClass cls[3];
 
-	if (!(priv->xi = XOpenDevice (priv->display, dmxLocal->deviceId))) {
+	if (!(dmxLocal->device = XOpenDevice (priv->display,
+					      dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
 		   dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
 		   dmxLocal->deviceId, dmxInput->name);
 	    return -1;
 	}
 
-	DeviceKeyPress (priv->xi, dmxInput->event[XI_DeviceKeyPress], cls[0]);
-	DeviceKeyRelease (priv->xi, dmxInput->event[XI_DeviceKeyRelease],
+	DeviceKeyPress (dmxLocal->device,
+			dmxInput->event[XI_DeviceKeyPress],
+			cls[0]);
+	DeviceKeyRelease (dmxLocal->device,
+			  dmxInput->event[XI_DeviceKeyRelease],
 			  cls[1]);
-	DeviceStateNotify (priv->xi,
+	DeviceStateNotify (dmxLocal->device,
 			   dmxInput->event[XI_DeviceStateNotify],
 			   cls[2]);
 
@@ -315,8 +319,8 @@ int dmxCommonKbdOn(DevicePtr pDev)
 	XLIB_EPILOGUE (priv->be);
 
 	XLIB_PROLOGUE (priv->be);
-	XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
-		       CurrentTime);
+	XSetDeviceFocus(priv->display, dmxLocal->device, priv->window,
+			RevertToPointerRoot, CurrentTime);
 	XLIB_EPILOGUE (priv->be);
     }
     else
@@ -338,10 +342,10 @@ int dmxCommonKbdOn(DevicePtr pDev)
 void dmxCommonKbdOff(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
-    if (priv->xi)
+    if (dmxLocal->device)
     {
-	XCloseDevice(priv->display, priv->xi);
-	priv->xi = NULL;
+	XCloseDevice(priv->display, dmxLocal->device);
+	dmxLocal->device = NULL;
     }
     else
     {
@@ -531,27 +535,32 @@ int dmxCommonMouOn(DevicePtr pDev)
 
     if (priv->be && dmxLocal->deviceId >= 0)
     {
-	XEventClass cls[4];
+	XEventClass cls[5];
 
-	if (!(priv->xi = XOpenDevice (priv->display, dmxLocal->deviceId))) {
+	if (!(dmxLocal->device = XOpenDevice (priv->display,
+					      dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
 		   dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
 		   dmxLocal->deviceId, dmxInput->name);
 	    return -1;
 	}
 
-	DeviceMotionNotify (priv->xi, dmxInput->event[XI_DeviceMotionNotify],
+	DeviceMotionNotify (dmxLocal->device,
+			    dmxInput->event[XI_DeviceMotionNotify],
 			    cls[0]);
-	DeviceButtonPress (priv->xi, dmxInput->event[XI_DeviceButtonPress],
+	DeviceButtonPress (dmxLocal->device,
+			   dmxInput->event[XI_DeviceButtonPress],
 			   cls[1]);
-	DeviceButtonRelease (priv->xi, dmxInput->event[XI_DeviceButtonRelease],
+	DeviceButtonRelease (dmxLocal->device,
+			     dmxInput->event[XI_DeviceButtonRelease],
 			     cls[2]);
-	DeviceStateNotify (priv->xi,
+	DeviceButtonPressGrab (dmxLocal->device, 0, cls[3]);
+	DeviceStateNotify (dmxLocal->device,
 			   dmxInput->event[XI_DeviceStateNotify],
-			   cls[3]);
+			   cls[4]);
 
 	XLIB_PROLOGUE (priv->be);
-	XSelectExtensionEvent(priv->display, priv->window, cls, 4);
+	XSelectExtensionEvent(priv->display, priv->window, cls, 5);
 	XLIB_EPILOGUE (priv->be);
     }
     else
@@ -585,10 +594,10 @@ void dmxCommonMouOff(DevicePtr pDev)
     GETPRIVFROMPDEV;
     GETDMXINPUTFROMPRIV;
 
-    if (priv->xi)
+    if (dmxLocal->device)
     {
-	XCloseDevice(priv->display, priv->xi);
-	priv->xi = NULL;
+	XCloseDevice(priv->display, dmxLocal->device);
+	dmxLocal->device = NULL;
     }
     else
     {

@@ -47,6 +47,7 @@
 #include "dmxcommon.h"
 #include "dmxconsole.h"
 #include "dmxcursor.h"
+#include "dmxwindow.h"
 #include "dmxprop.h"
 #include "dmxsync.h"
 #include "dmxxlibio.h"
@@ -193,10 +194,11 @@ static Bool inputEventPredicate (Display  *xdisplay,
 		    XDeviceMotionEvent *dmev = (XDeviceMotionEvent *) X;
 		    XMotionEvent       *mev = (XMotionEvent *) data->X;
 
-		    mev->type  = MotionNotify;
-		    mev->x     = dmev->x;
-		    mev->y     = dmev->y;
-		    mev->state = dmev->state;
+		    mev->type   = MotionNotify;
+		    mev->x      = dmev->x;
+		    mev->y      = dmev->y;
+		    mev->state  = dmev->state;
+		    mev->window = dmev->window;
 		} break;
 		case XI_DeviceButtonPress: {
 		    XDeviceButtonEvent *dbev = (XDeviceButtonEvent *) X;
@@ -207,6 +209,7 @@ static Bool inputEventPredicate (Display  *xdisplay,
 		    bev->x      = dbev->x;
 		    bev->y      = dbev->y;
 		    bev->state  = dbev->state;
+		    bev->window = dbev->window;
 		} break;
 		case XI_DeviceButtonRelease: {
 		    XDeviceButtonEvent *dbev = (XDeviceButtonEvent *) X;
@@ -217,6 +220,7 @@ static Bool inputEventPredicate (Display  *xdisplay,
 		    bev->x      = dbev->x;
 		    bev->y      = dbev->y;
 		    bev->state  = dbev->state;
+		    bev->window = dbev->window;
 		} break;
 		case XI_DeviceKeyPress: {
 		    XDeviceKeyEvent *dkev = (XDeviceKeyEvent *) X;
@@ -681,6 +685,177 @@ void dmxBackendProcessInput(pointer private)
                      0, 0, 0, 0, priv->lastX, priv->lastY);
 	XLIB_EPILOGUE (&dmxScreens[priv->myScreen]);
         dmxSync(&dmxScreens[priv->myScreen], TRUE);
+    }
+}
+
+void dmxBackendGrabButton(DevicePtr pDev,
+			  DevicePtr pModDev,
+			  WindowPtr pWindow,
+			  WindowPtr pConfineTo,
+			  int	    button,
+			  int	    modifiers,
+			  CursorPtr pCursor)
+{
+    GETPRIVFROMPDEV;
+    GETDMXINPUTFROMPRIV;
+    ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        confineTo = None;
+    Cursor        cursor = None;
+
+    if (pConfineTo)
+	confineTo = (DMX_GET_WINDOW_PRIV (pConfineTo))->window;
+
+    if (pCursor)
+	cursor = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
+
+    if (dmxLocal->deviceId >= 0)
+    {
+	XDevice *modDev = NULL;
+
+	if (pModDev)
+	    modDev = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->device;
+
+	/* this is really useless as XGrabDeviceButton doesn't allow us
+	   to specify a confineTo window or cursor */
+	XLIB_PROLOGUE (dmxScreen);
+	XGrabDeviceButton (dmxScreen->beDisplay,
+			   dmxLocal->device,
+			   button,
+			   modifiers,
+			   modDev,
+			   (DMX_GET_WINDOW_PRIV (pWindow))->window,
+			   TRUE,
+			   0,
+			   NULL,
+			   GrabModeAsync,
+			   GrabModeAsync);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+    else
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XGrabButton (dmxScreen->beDisplay,
+		     button,
+		     modifiers,
+		     (DMX_GET_WINDOW_PRIV (pWindow))->window,
+		     TRUE,
+		     0,
+		     GrabModeAsync,
+		     GrabModeAsync,
+		     confineTo,
+		     cursor);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+}
+
+void dmxBackendUngrabButton(DevicePtr pDev,
+			    DevicePtr pModDev,
+			    WindowPtr pWindow,
+			    int	      button,
+			    int	      modifiers)
+{
+    GETPRIVFROMPDEV;
+    GETDMXINPUTFROMPRIV;
+    ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxLocal->deviceId >= 0)
+    {
+	XDevice *modDev = NULL;
+
+	if (pModDev)
+	    modDev = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->device;
+
+	XLIB_PROLOGUE (dmxScreen);
+	XUngrabDeviceButton (dmxScreen->beDisplay,
+			     dmxLocal->device,
+			     button,
+			     modifiers,
+			     modDev,
+			     (DMX_GET_WINDOW_PRIV (pWindow))->window);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+    else
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XUngrabButton (dmxScreen->beDisplay,
+		       button,
+		       modifiers,
+		       (DMX_GET_WINDOW_PRIV (pWindow))->window);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+}
+
+void dmxBackendGrabPointer(DevicePtr pDev,
+			   WindowPtr pWindow,
+			   WindowPtr pConfineTo,
+			   CursorPtr pCursor)
+{
+    GETPRIVFROMPDEV;
+    GETDMXINPUTFROMPRIV;
+    ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        confineTo = None;
+    Cursor        cursor = None;
+
+    if (pConfineTo)
+	confineTo = (DMX_GET_WINDOW_PRIV (pConfineTo))->window;
+
+    if (pCursor)
+	cursor = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
+
+    if (dmxLocal->deviceId >= 0)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XExtendedGrabDevice (dmxScreen->beDisplay,
+			     dmxLocal->device,
+			     (DMX_GET_WINDOW_PRIV (pWindow))->window,
+			     GrabModeAsync,
+			     TRUE,
+			     confineTo,
+			     cursor,
+			     0,
+			     NULL,
+			     0,
+			     NULL);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+    else
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XGrabPointer (dmxScreen->beDisplay,
+		      (DMX_GET_WINDOW_PRIV (pWindow))->window,
+		      TRUE,
+		      0,
+		      GrabModeAsync,
+		      GrabModeAsync,
+		      confineTo,
+		      cursor,
+		      CurrentTime);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+}
+
+void dmxBackendUngrabPointer(DevicePtr pDev,
+			     WindowPtr pWindow)
+{
+    GETPRIVFROMPDEV;
+    GETDMXINPUTFROMPRIV;
+    ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxLocal->deviceId >= 0)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XUngrabDevice (dmxScreen->beDisplay, dmxLocal->device, CurrentTime);
+	XLIB_EPILOGUE (dmxScreen);
+    }
+    else
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	XUngrabPointer (dmxScreen->beDisplay, CurrentTime);
+	XLIB_EPILOGUE (dmxScreen);
     }
 }
 

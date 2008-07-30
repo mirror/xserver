@@ -106,6 +106,8 @@ static DMXLocalInputInfoRec DMXBackendMou = {
     dmxCommonMouOn, dmxCommonMouOff, dmxBackendUpdatePosition,
     NULL, NULL, NULL,
     dmxBackendCollectEvents, dmxBackendProcessInput, dmxBackendFunctions, NULL,
+    dmxBackendGrabButton, dmxBackendUngrabButton,
+    dmxBackendGrabPointer, dmxBackendUngrabPointer,
     dmxCommonMouCtrl
 };
 
@@ -117,6 +119,8 @@ static DMXLocalInputInfoRec DMXBackendKbd = {
     dmxCommonKbdOn, dmxBackendKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL,
+    NULL, NULL,
+    NULL, NULL,
     NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
 };
 
@@ -126,7 +130,10 @@ static DMXLocalInputInfoRec DMXConsoleMou = {
     dmxConsoleInit, dmxConsoleReInit, NULL, dmxConsoleMouGetInfo,
     dmxCommonMouOn, dmxCommonMouOff, dmxConsoleUpdatePosition,
     NULL, NULL, NULL,
-    dmxConsoleCollectEvents, NULL, dmxConsoleFunctions, dmxConsoleUpdateInfo,
+    dmxConsoleCollectEvents, NULL,
+    dmxConsoleFunctions, dmxConsoleUpdateInfo,
+    NULL, NULL,
+    NULL, NULL,
     dmxCommonMouCtrl
 };
 
@@ -137,8 +144,10 @@ static DMXLocalInputInfoRec DMXConsoleKbd = {
     dmxConsoleInit, dmxConsoleReInit, NULL, dmxConsoleKbdGetInfo,
     dmxCommonKbdOn, dmxCommonKbdOff, NULL,
     NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL,
-    NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
+    NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL,
+    NULL, NULL,
+    dmxCommonKbdCtrl, dmxCommonKbdBell
 };
 
 static DMXLocalInputInfoRec DMXCommonOth = {
@@ -159,8 +168,10 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdLinuxInit, NULL, NULL, kbdLinuxGetInfo,
         kbdLinuxOn, kbdLinuxOff, NULL,
         kbdLinuxVTPreSwitch, kbdLinuxVTPostSwitch, kbdLinuxVTSwitch,
-        kbdLinuxRead, NULL, NULL, NULL,
-        NULL, kbdLinuxCtrl, kbdLinuxBell
+        kbdLinuxRead, NULL, NULL, NULL, NULL,
+	NULL, NULL,
+	NULL, NULL,
+	kbdLinuxCtrl, kbdLinuxBell
     },
     {
         "ms", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
@@ -189,8 +200,10 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdUSBInit, NULL, NULL, kbdUSBGetInfo,
         kbdUSBOn, usbOff, NULL,
         NULL, NULL, NULL,
-        kbdUSBRead, NULL, NULL, NULL,
-        NULL, kbdUSBCtrl
+        kbdUSBRead, NULL, NULL, NULL, NULL,
+	NULL, NULL,
+	NULL, NULL,
+	kbdUSBCtrl
     },
     {
         "usb-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
@@ -573,6 +586,145 @@ static void dmxProcessInputEvents(DMXInputInfo *dmxInput)
 #endif
             dmxInput->devs[i]->process_input(dmxInput->devs[i]->private);
         }
+}
+
+static void dmxGrabButton(DMXInputInfo *dmxInput,
+			  DeviceIntPtr pDevice,
+			  DeviceIntPtr pModDevice,
+			  WindowPtr    pWindow,
+			  WindowPtr    pConfineTo,
+			  int	       button,
+			  int	       modifiers,
+			  CursorPtr    pCursor)
+{
+    int i, j;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+	if (dmxInput->devs[i]->pDevice->u.master != pDevice)
+	    continue;
+
+	if (!dmxInput->devs[i]->grab_button)
+	    continue;
+
+	if (modifiers & AnyModifier)
+	{
+	    (*dmxInput->devs[i]->grab_button) (pDev,
+					       NULL,
+					       pWindow,
+					       pConfineTo,
+					       button,
+					       modifiers,
+					       pCursor);
+	}
+	else
+	{
+	    for (j = 0; j < dmxInput->numDevs; j++)
+	    {
+		DevicePtr pModDev = &dmxInput->devs[j]->pDevice->public;
+
+		if (dmxInput->devs[j]->pDevice->u.master == pModDevice)
+		    (*dmxInput->devs[i]->grab_button) (pDev,
+						       pModDev,
+						       pWindow,
+						       pConfineTo,
+						       button,
+						       modifiers,
+						       pCursor);
+	    }
+	}
+    }
+}
+
+static void dmxUngrabButton(DMXInputInfo *dmxInput,
+			    DeviceIntPtr pDevice,
+			    DeviceIntPtr pModDevice,
+			    WindowPtr    pWindow,
+			    int	         button,
+			    int	         modifiers)
+{
+    int i, j;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+	if (dmxInput->devs[i]->pDevice->u.master != pDevice)
+	    continue;
+
+	if (!dmxInput->devs[i]->ungrab_button)
+	    continue;
+
+	if (modifiers == AnyModifier)
+	{
+	    (*dmxInput->devs[i]->ungrab_button) (pDev,
+						 NULL,
+						 pWindow,
+						 button,
+						 modifiers);
+	}
+	else
+	{
+	    for (j = 0; j < dmxInput->numDevs; j++)
+	    {
+		DevicePtr pModDev = &dmxInput->devs[j]->pDevice->public;
+
+		if (dmxInput->devs[j]->pDevice->u.master == pModDevice)
+		    (*dmxInput->devs[i]->ungrab_button) (pDev,
+							 pModDev,
+							 pWindow,
+							 button,
+							 modifiers);
+	    }
+	}
+    }
+}
+
+static void dmxGrabPointer (DMXInputInfo *dmxInput,
+			    DeviceIntPtr pDevice,
+			    WindowPtr    pWindow,
+			    WindowPtr    pConfineTo,
+			    CursorPtr    pCursor)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+	if (dmxInput->devs[i]->pDevice->u.master != pDevice)
+	    continue;
+
+	if (!dmxInput->devs[i]->grab_pointer)
+	    continue;
+
+	(*dmxInput->devs[i]->grab_pointer) (pDev,
+					    pWindow,
+					    pConfineTo,
+					    pCursor);
+    }
+}
+
+static void dmxUngrabPointer (DMXInputInfo *dmxInput,
+			      DeviceIntPtr pDevice,
+			      WindowPtr    pWindow)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+	if (dmxInput->devs[i]->pDevice->u.master != pDevice)
+	    continue;
+
+	if (!dmxInput->devs[i]->ungrab_pointer)
+	    continue;
+
+	(*dmxInput->devs[i]->ungrab_pointer) (pDev, pWindow);
+    }
 }
 
 static void dmxUpdateWindowInformation(DMXInputInfo *dmxInput,
@@ -1112,6 +1264,10 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     }
     
     dmxInput->processInputEvents    = dmxProcessInputEvents;
+    dmxInput->grabButton            = dmxGrabButton;
+    dmxInput->ungrabButton          = dmxUngrabButton;
+    dmxInput->grabPointer           = dmxGrabPointer;
+    dmxInput->ungrabPointer         = dmxUngrabPointer;
     dmxInput->detached              = False;
 
     RegisterBlockAndWakeupHandlers(dmxBlockHandler,
@@ -1290,28 +1446,7 @@ DMXInputInfo *dmxInputLocateId(int id)
     return NULL;
 }
 
-static int dmxInputAttachNew(DMXInputInfo *dmxInput, int *id)
-{
-    int i;
-
-    dmxInputInit(dmxInput);
-
-    for (i = 0; i < dmxInput->numDevs; i++) {
-        DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
-
-	if (ActivateDevice(dmxLocal->pDevice) != Success ||
-            EnableDevice(dmxLocal->pDevice) != TRUE) {
-            ErrorF ("[dmx] couldn't add or enable device\n");
-            return BadImplementation;
-        }
-    }
-
-    if (id && dmxInput->devs) *id = dmxInput->devs[0]->pDevice->id;
-    dmxInputLogDevices();
-    return 0;
-}
-
-static int dmxInputAttachOld(DMXInputInfo *dmxInput, int *id)
+static int dmxInputAttach(DMXInputInfo *dmxInput, int *id)
 {
     int i;
     
@@ -1344,7 +1479,7 @@ int dmxInputAttachConsole(const char *name, int isCore, int *id)
             && !strcmp(dmxInput->name, name)) {
                                 /* Found match */
             dmxLogInput(dmxInput, "Reattaching detached console input\n");
-            return dmxInputAttachOld(dmxInput, id);
+            return dmxInputAttach(dmxInput, id);
         }
     }
 
@@ -1352,7 +1487,7 @@ int dmxInputAttachConsole(const char *name, int isCore, int *id)
     dmxInput = dmxConfigAddInput(xstrdup(name), isCore);
     dmxInput->freename = TRUE;
     dmxLogInput(dmxInput, "Attaching new console input\n");
-    return dmxInputAttachNew(dmxInput, id);
+    return dmxInputAttach(dmxInput, id);
 }
 
 int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
@@ -1370,7 +1505,7 @@ int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
             dmxScreen = &dmxScreens[physicalScreen];
             if (!dmxScreen->beDisplay) return BadAccess; /* Screen detached */
             dmxLogInput(dmxInput, "Reattaching detached backend input\n");
-            return dmxInputAttachOld(dmxInput, id);
+            return dmxInputAttach(dmxInput, id);
         }
     }
                                 /* No match found */
@@ -1380,5 +1515,5 @@ int dmxInputAttachBackend(int physicalScreen, int isCore, int *id)
     dmxInput->freename = TRUE;
     dmxInput->scrnIdx = physicalScreen;
     dmxLogInput(dmxInput, "Attaching new backend input\n");
-    return dmxInputAttachNew(dmxInput, id);
+    return dmxInputAttach(dmxInput, id);
 }

@@ -26,6 +26,17 @@
 #ifndef DMXGRAB_H
 #define DMXGRAB_H
 
+#include "dmxinput.h"
+
+extern void dmxBEAddPassiveGrab (DMXInputInfo *dmxInput,
+				 GrabPtr      pGrab);
+
+extern void dmxActivatePointerGrab (DeviceIntPtr pDev,
+				    GrabPtr      pGrab,
+				    TimeStamp    time,
+				    Bool         autoGrab);
+extern void dmxDeactivatePointerGrab (DeviceIntPtr pDev);
+
 extern void dmxInitGrabs (void);
 extern void dmxResetGrabs (void);
 

@@ -47,6 +47,18 @@
 #ifndef DMXINPUT_H
 #define DMXINPUT_H
 
+extern DevPrivateKey dmxDevicePrivateKey;
+
+/** Device private area. */
+typedef struct _dmxDevicePriv {
+    void (*ActivateGrab)   (DeviceIntPtr, GrabPtr, TimeStamp, Bool);
+    void (*DeactivateGrab) (DeviceIntPtr);
+} dmxDevicePrivRec, *dmxDevicePrivPtr;
+
+#define DMX_GET_DEVICE_PRIV(_pDev)				\
+    ((dmxDevicePrivPtr)dixLookupPrivate(&(_pDev)->devPrivates,	\
+					dmxDevicePrivateKey))
+
 #define DMX_XINPUT_EVENT_NUM 18
 
 /** Maximum number of file descriptors for SIGIO handling */
@@ -67,6 +79,28 @@ typedef enum {
 typedef void (*ProcessInputEventsProc)(struct _DMXInputInfo *);
 typedef void (*UpdateWindowInfoProc)(struct _DMXInputInfo *,
                                      DMXUpdateType, WindowPtr);
+typedef void (*GrabButtonProc)(struct _DMXInputInfo *,
+			       DeviceIntPtr         pDevice,
+			       DeviceIntPtr         pModDevice,
+			       WindowPtr            pWindow,
+			       WindowPtr            pConfineTo,
+			       int	            button,
+			       int	            modifiers,
+			       CursorPtr            pCursor);
+typedef void (*UngrabButtonProc)(struct _DMXInputInfo *,
+				 DeviceIntPtr         pDevice,
+				 DeviceIntPtr         pModDevice,
+				 WindowPtr            pWindow,
+				 int	              button,
+				 int	              modifiers);
+typedef void (*GrabPointerProc) (struct _DMXInputInfo *,
+				 DeviceIntPtr         pDevice,
+				 WindowPtr            pWindow,
+				 WindowPtr            pConfineTo,
+				 CursorPtr            pCursor);
+typedef void (*UngrabPointerProc) (struct _DMXInputInfo *,
+				   DeviceIntPtr         pDevice,
+				   WindowPtr            pWindow);
 
 /** An opaque structure that is only exposed in the dmx/input layer. */
 typedef struct _DMXLocalInputInfo *DMXLocalInputInfoPtr;
@@ -103,6 +137,10 @@ struct _DMXInputInfo {
 
     ProcessInputEventsProc  processInputEvents;
     UpdateWindowInfoProc    updateWindowInfo;
+    GrabButtonProc          grabButton;
+    UngrabButtonProc        ungrabButton;
+    GrabPointerProc         grabPointer;
+    UngrabPointerProc       ungrabPointer;
 
                                 /* Local input information */
     dmxSigioState           sigioState;    /**< Current stat */

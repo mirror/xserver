@@ -61,6 +61,7 @@ extern void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor);
 extern Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor);
 
 #define DMX_GET_CURSOR_PRIV(_pCursor, _pScreen) ((dmxCursorPrivPtr) \
-    dixLookupPrivate(&(_pCursor)->devPrivates, CursorScreenKey(_pScreen)))
+    ((dmxCursorPrivPtr)dixLookupPrivate(&(_pCursor)->devPrivates,   \
+					CursorScreenKey(_pScreen))))
 
 #endif /* DMXCURSOR_H */

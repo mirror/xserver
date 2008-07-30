@@ -146,6 +146,8 @@ static int dmxScreenPrivateKeyIndex;
 DevPrivateKey dmxScreenPrivateKey = &dmxScreenPrivateKeyIndex; /**< Private index for Screens   */
 static int dmxColormapPrivateKeyIndex;
 DevPrivateKey dmxColormapPrivateKey = &dmxColormapPrivateKeyIndex; /**< Private index for Colormaps */
+static int dmxDevicePrivateKeyIndex;
+DevPrivateKey dmxDevicePrivateKey = &dmxDevicePrivateKeyIndex; /**< Private index for Devices */
 #ifdef RENDER
 static int dmxPictPrivateKeyIndex;
 DevPrivateKey dmxPictPrivateKey = &dmxPictPrivateKeyIndex; /**< Private index for Picts     */

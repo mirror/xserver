@@ -58,6 +58,7 @@
 #include "dmxrandr.h"
 #endif
 #include "dmxinput.h"
+#include "dmxgrab.h"
 #include "dmxsync.h"
 #include "dmxscrinit.h"
 #include "input/dmxinputinit.h"
@@ -70,6 +71,10 @@
 #include <X11/extensions/dmxproto.h>  /* For DMX_BAD_* */
 #include "cursorstr.h"
 #include "propertyst.h"
+
+#ifdef PANORAMIX
+#include "panoramiXsrv.h"
+#endif
 
 #define dmxErrorSet(set, error, name, fmt, ...)       \
     if (set) (*set) (error, name, fmt, ##__VA_ARGS__)
@@ -324,6 +329,14 @@ static void dmxAdjustCursorBoundaries(void)
     }
 }
 
+static void dmxBERestorePassiveGrab(pointer value, XID id, pointer closure)
+{
+    DMXInputInfo *dmxInput = (DMXInputInfo *) closure;
+    GrabPtr      pGrab = value;
+
+    dmxBEAddPassiveGrab (dmxInput, pGrab);
+}
+
 /** Add an input with the specified attributes.  If the input is added,
  * the physical id is returned in \a deviceId. */
 int dmxAddInput(DMXInputAttributesPtr attr, int *id)
@@ -339,6 +352,21 @@ int dmxAddInput(DMXInputAttributesPtr attr, int *id)
     if (retcode == Success) {
         /* Adjust the cursor boundaries */
         dmxAdjustCursorBoundaries();
+
+	if (attr->inputType == 2)
+	{
+	    int i, j;
+
+	    for (i = 0; i < dmxNumInputs; i++)
+		if (attr->physicalScreen == dmxInputs[i].scrnIdx)
+		    break;
+
+	    for (j = currentMaxClients; --j >= 0; )
+		if (clients[j])
+		    FindClientResourcesByType(clients[j], RT_PASSIVEGRAB,
+					      dmxBERestorePassiveGrab,
+					      (pointer) &dmxInputs[i]);
+	}
 
         /* Force completion of the changes */
         dmxSync(NULL, TRUE);
@@ -454,8 +482,6 @@ void dmxUpdateScreenResources(ScreenPtr pScreen, int x, int y, int w, int h)
 }
 
 #ifdef PANORAMIX
-#include "panoramiXsrv.h"
-
 /** Change the "screen" window attributes by resizing the actual window
  *  on the back-end display (if necessary). */
 static void dmxConfigureScreenWindow(int idx,
