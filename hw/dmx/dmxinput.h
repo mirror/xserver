@@ -59,8 +59,6 @@ typedef struct _dmxDevicePriv {
     ((dmxDevicePrivPtr)dixLookupPrivate(&(_pDev)->devPrivates,	\
 					dmxDevicePrivateKey))
 
-#define DMX_XINPUT_EVENT_NUM 18
-
 /** Maximum number of file descriptors for SIGIO handling */
 #define DMX_MAX_SIGIO_FDS 4
 
@@ -76,6 +74,8 @@ typedef enum {
     DMX_UPDATE_REPARENT         /**< Window reparented      */
 } DMXUpdateType;
 
+typedef Bool (*ScreenEventCheckProc)(struct _DMXInputInfo *,
+				     xcb_generic_event_t  *);
 typedef void (*ProcessInputEventsProc)(struct _DMXInputInfo *);
 typedef void (*UpdateWindowInfoProc)(struct _DMXInputInfo *,
                                      DMXUpdateType, WindowPtr);
@@ -135,6 +135,7 @@ struct _DMXInputInfo {
     Bool                    windows; /**< True if window outlines are
                                       * draw in console */
 
+    ScreenEventCheckProc    screenEventCheck;
     ProcessInputEventsProc  processInputEvents;
     UpdateWindowInfoProc    updateWindowInfo;
     GrabButtonProc          grabButton;
@@ -170,7 +171,7 @@ struct _DMXInputInfo {
 
     int                     k, m, o;
 
-    int                     event[DMX_XINPUT_EVENT_NUM];
+    int                     eventBase;
 };
 
 extern int                  dmxNumInputs; /**< Number of #dmxInputs */
@@ -182,6 +183,8 @@ extern void dmxInputLateReInit(DMXInputInfo *dmxInput);
 extern void dmxInputFree(DMXInputInfo *dmxInput);
 extern void dmxInputLogDevices(void);
 extern void dmxUpdateWindowInfo(DMXUpdateType type, WindowPtr pWindow);
+extern Bool dmxScreenEventCheckInput (ScreenPtr	          pScreen,
+				      xcb_generic_event_t *event);
 
 /* These functions are defined in input/dmxeq.c */
 extern Bool dmxeqInitialized(void);

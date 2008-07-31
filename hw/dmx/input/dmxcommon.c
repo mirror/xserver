@@ -295,6 +295,7 @@ int dmxCommonKbdOn(DevicePtr pDev)
     if (priv->be && dmxLocal->deviceId >= 0)
     {
 	XEventClass cls[3];
+	int         type;
 
 	if (!(dmxLocal->device = XOpenDevice (priv->display,
 					      dmxLocal->deviceId))) {
@@ -304,15 +305,9 @@ int dmxCommonKbdOn(DevicePtr pDev)
 	    return -1;
 	}
 
-	DeviceKeyPress (dmxLocal->device,
-			dmxInput->event[XI_DeviceKeyPress],
-			cls[0]);
-	DeviceKeyRelease (dmxLocal->device,
-			  dmxInput->event[XI_DeviceKeyRelease],
-			  cls[1]);
-	DeviceStateNotify (dmxLocal->device,
-			   dmxInput->event[XI_DeviceStateNotify],
-			   cls[2]);
+	DeviceKeyPress (dmxLocal->device, type, cls[0]);
+	DeviceKeyRelease (dmxLocal->device, type, cls[1]);
+	DeviceStateNotify (dmxLocal->device, type, cls[2]);
 
 	XLIB_PROLOGUE (priv->be);
 	XSelectExtensionEvent(priv->display, priv->window, cls, 3);
@@ -326,10 +321,10 @@ int dmxCommonKbdOn(DevicePtr pDev)
     else
     {
 	priv->eventMask |= DMX_KEYBOARD_EVENT_MASK;
-	XSelectInput(priv->display, priv->window, priv->eventMask);
 	if (priv->be)
 	{
 	    XLIB_PROLOGUE (priv->be);
+	    XSelectInput(priv->display, priv->window, priv->eventMask);
 	    XSetInputFocus(priv->display, priv->window, RevertToPointerRoot,
 			   CurrentTime);
 	    XLIB_EPILOGUE (priv->be);
@@ -344,13 +339,20 @@ void dmxCommonKbdOff(DevicePtr pDev)
     GETPRIVFROMPDEV;
     if (dmxLocal->device)
     {
+	XLIB_PROLOGUE (priv->be);
 	XCloseDevice(priv->display, dmxLocal->device);
+	XLIB_EPILOGUE (priv->be);
 	dmxLocal->device = NULL;
     }
     else
     {
 	priv->eventMask &= ~DMX_KEYBOARD_EVENT_MASK;
-	XSelectInput(priv->display, priv->window, priv->eventMask);
+	if (priv->be)
+	{
+	    XLIB_PROLOGUE (priv->be);
+	    XSelectInput(priv->display, priv->window, priv->eventMask);
+	    XLIB_EPILOGUE (priv->be);
+	}
     }
     dmxCommonRestoreState(priv);
 }
@@ -536,6 +538,7 @@ int dmxCommonMouOn(DevicePtr pDev)
     if (priv->be && dmxLocal->deviceId >= 0)
     {
 	XEventClass cls[5];
+	int         type;
 
 	if (!(dmxLocal->device = XOpenDevice (priv->display,
 					      dmxLocal->deviceId))) {
@@ -545,19 +548,11 @@ int dmxCommonMouOn(DevicePtr pDev)
 	    return -1;
 	}
 
-	DeviceMotionNotify (dmxLocal->device,
-			    dmxInput->event[XI_DeviceMotionNotify],
-			    cls[0]);
-	DeviceButtonPress (dmxLocal->device,
-			   dmxInput->event[XI_DeviceButtonPress],
-			   cls[1]);
-	DeviceButtonRelease (dmxLocal->device,
-			     dmxInput->event[XI_DeviceButtonRelease],
-			     cls[2]);
-	DeviceButtonPressGrab (dmxLocal->device, 0, cls[3]);
-	DeviceStateNotify (dmxLocal->device,
-			   dmxInput->event[XI_DeviceStateNotify],
-			   cls[4]);
+	DeviceMotionNotify (dmxLocal->device, type, cls[0]);
+	DeviceButtonPress (dmxLocal->device, type, cls[1]);
+	DeviceButtonRelease (dmxLocal->device, type, cls[2]);
+	DeviceButtonPressGrab (dmxLocal->device, type, cls[3]);
+	DeviceStateNotify (dmxLocal->device, type, cls[4]);
 
 	XLIB_PROLOGUE (priv->be);
 	XSelectExtensionEvent(priv->display, priv->window, cls, 5);
@@ -596,14 +591,15 @@ void dmxCommonMouOff(DevicePtr pDev)
 
     if (dmxLocal->device)
     {
+	XLIB_PROLOGUE (priv->be);
 	XCloseDevice(priv->display, dmxLocal->device);
+	XLIB_EPILOGUE (priv->be);
 	dmxLocal->device = NULL;
     }
     else
     {
 	priv->eventMask &= ~DMX_POINTER_EVENT_MASK;
 	if (!priv->be) {
-	    RemoveEnabledDevice(XConnectionNumber(priv->display));
 	    XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
 	    XSelectInput(priv->display, priv->window, priv->eventMask);
 	    XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);

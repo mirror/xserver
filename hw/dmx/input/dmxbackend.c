@@ -58,6 +58,7 @@
 #include "inputstr.h"
 #include "input.h"
 #include <X11/keysym.h>
+#include <xcb/xinput.h>
 #include "mi.h"
 #include "mipointer.h"
 #include "scrnintstr.h"
@@ -161,134 +162,6 @@ static int dmxBackendSameDisplay(myPrivate *priv, long screen)
     return retcode;
 }
 
-typedef struct _TestEventData {
-    DMXInputInfo *dmxInput;
-    XEvent       *X;
-    long	 deviceId;
-} TestEventData;
-
-static Bool inputEventPredicate (Display  *xdisplay,
-				 XEvent   *X,
-				 XPointer arg)
-{
-    TestEventData *data = (TestEventData *) arg;
-    int		  i;
-
-    switch (X->type) {
-    case MotionNotify:
-    case ButtonPress:
-    case ButtonRelease:
-    case KeyPress:
-    case KeyRelease:
-    case KeymapNotify:
-	data->deviceId = -1;
-	*(data->X) = *X;
-	return TRUE;
-    default:
-	for (i = 0; i < DMX_XINPUT_EVENT_NUM; i++)
-	{
-	    if (data->dmxInput->event[i] == X->type)
-	    {
-		switch (i) {
-		case XI_DeviceMotionNotify: {
-		    XDeviceMotionEvent *dmev = (XDeviceMotionEvent *) X;
-		    XMotionEvent       *mev = (XMotionEvent *) data->X;
-
-		    mev->type   = MotionNotify;
-		    mev->x      = dmev->x;
-		    mev->y      = dmev->y;
-		    mev->state  = dmev->state;
-		    mev->window = dmev->window;
-		} break;
-		case XI_DeviceButtonPress: {
-		    XDeviceButtonEvent *dbev = (XDeviceButtonEvent *) X;
-		    XButtonEvent       *bev = (XButtonEvent *) data->X;
-
-		    bev->type   = ButtonPress;
-		    bev->button = dbev->button;
-		    bev->x      = dbev->x;
-		    bev->y      = dbev->y;
-		    bev->state  = dbev->state;
-		    bev->window = dbev->window;
-		} break;
-		case XI_DeviceButtonRelease: {
-		    XDeviceButtonEvent *dbev = (XDeviceButtonEvent *) X;
-		    XButtonEvent       *bev = (XButtonEvent *) data->X;
-
-		    bev->type   = ButtonRelease;
-		    bev->button = dbev->button;
-		    bev->x      = dbev->x;
-		    bev->y      = dbev->y;
-		    bev->state  = dbev->state;
-		    bev->window = dbev->window;
-		} break;
-		case XI_DeviceKeyPress: {
-		    XDeviceKeyEvent *dkev = (XDeviceKeyEvent *) X;
-		    XKeyEvent       *kev = (XKeyEvent *) data->X;
-
-		    kev->type    = KeyPress;
-		    kev->keycode = dkev->keycode;
-		    kev->x       = dkev->x;
-		    kev->y       = dkev->y;
-		    kev->state   = dkev->state;
-		} break;
-		case XI_DeviceKeyRelease: {
-		    XDeviceKeyEvent *dkev = (XDeviceKeyEvent *) X;
-		    XKeyEvent       *kev = (XKeyEvent *) data->X;
-
-		    kev->type    = KeyRelease;
-		    kev->keycode = dkev->keycode;
-		    kev->x       = dkev->x;
-		    kev->y       = dkev->y;
-		    kev->state   = dkev->state;
-		} break;
-		default:
-		    *(data->X) = *X;
-		}
-
-		data->deviceId = ((XDeviceStateNotifyEvent *) X)->deviceid;
-		return TRUE;
-	    }
-	}
-    }
-
-    return FALSE;
-}
-
-static void *dmxBackendTestEvents(DMXScreenInfo *dmxScreen, void *closure)
-{
-    XEvent X;
-    int    result = 0;
-    
-    XLIB_PROLOGUE (dmxScreen);
-    result = XCheckIfEvent (dmxScreen->beDisplay,
-			    &X,
-			    inputEventPredicate,
-			    closure);
-    XLIB_EPILOGUE (dmxScreen);
-    return (result) ? dmxScreen : NULL;
-}
-
-static void *dmxBackendTestMotionEvent(DMXScreenInfo *dmxScreen, void *closure)
-{
-    XEvent *X = (XEvent *)closure;
-    int result = 0;
-
-    XLIB_PROLOGUE (dmxScreen);
-    result = XCheckTypedEvent(dmxScreen->beDisplay, MotionNotify, X);
-    XLIB_EPILOGUE (dmxScreen);
-    return (result) ? dmxScreen : NULL;
-}
-
-static DMXScreenInfo *dmxBackendGetEvent(myPrivate *priv, XEvent *X)
-{
-    DMXScreenInfo *dmxScreen;
-
-    if ((dmxScreen = dmxPropertyIterate(priv->be, dmxBackendTestEvents, X)))
-        return dmxScreen;
-    return NULL;
-}
-
 static void *dmxBackendTestWindow(DMXScreenInfo *dmxScreen, void *closure)
 {
     Window win = (Window)(long)closure;
@@ -382,10 +255,10 @@ dmxButtonEvent (DeviceIntPtr pDevice,
 	GETDMXLOCALFROMPDEVICE;
 
 	switch (type) {
-	case ButtonPress:
+	case XCB_BUTTON_PRESS:
 	    dmxLocal->state[button >> 3] |= 1 << (button & 7);
 	    break;
-	case ButtonRelease:
+	case XCB_BUTTON_RELEASE:
 	    dmxLocal->state[button >> 3] &= ~(1 << (button & 7));
 	default:
 	    break;
@@ -412,10 +285,10 @@ dmxKeyEvent (DeviceIntPtr pDevice,
 	GETDMXLOCALFROMPDEVICE;
 
 	switch (type) {
-	case KeyPress:
+	case XCB_KEY_PRESS:
 	    dmxLocal->state[key >> 3] |= 1 << (key & 7);
 	    break;
-	case KeyRelease:
+	case XCB_KEY_RELEASE:
 	    dmxLocal->state[key >> 3] &= ~(1 << (key & 7));
 	default:
 	    break;
@@ -446,7 +319,7 @@ dmxUpdateButtonState (DeviceIntPtr pDevice,
 					   (i << 3) + j,
 					   pDevice->last.valuators[0],
 					   pDevice->last.valuators[1],
-					   ButtonRelease);
+					   XCB_BUTTON_RELEASE);
 
 	    /* button should be down, but isn't */
 	    if (!(dmxLocal->state[i] & (1 << j)) && (buttons[i] & (1 << j)))
@@ -454,7 +327,7 @@ dmxUpdateButtonState (DeviceIntPtr pDevice,
 					   (i << 3) + j,
 					   pDevice->last.valuators[0],
 					   pDevice->last.valuators[1],
-					   ButtonPress);
+					   XCB_BUTTON_PRESS);
 	}
     }
 
@@ -480,13 +353,13 @@ dmxUpdateKeyState (DeviceIntPtr pDevice,
 	    if ((dmxLocal->state[i] & (1 << j)) && !(keys[i] & (1 << j)))
 		nEvents += dmxKeyEvent (pDevice,
 					(i << 3) + j,
-					KeyRelease);
+					XCB_KEY_RELEASE);
 
 	    /* key should be down, but isn't */
 	    if (!(dmxLocal->state[i] & (1 << j)) && (keys[i] & (1 << j)))
 		nEvents += dmxKeyEvent (pDevice,
 					(i << 3) + j,
-					KeyPress);
+					XCB_KEY_PRESS);
 	}
     }
 
@@ -509,10 +382,10 @@ dmxChangeButtonState (DeviceIntPtr pDevice,
 	memcpy (buttons, dmxLocal->state, sizeof (buttons));
 
 	switch (how) {
-	case ButtonPress:
+	case XCB_BUTTON_PRESS:
 	    buttons[button >> 3] |= 1 << (button & 7);
 	    break;
-	case ButtonRelease:
+	case XCB_BUTTON_RELEASE:
 	    buttons[button >> 3] &= ~(1 << (button & 7));
 	default:
 	    break;
@@ -540,10 +413,10 @@ dmxChangeKeyState (DeviceIntPtr pDevice,
 	memcpy (keys, dmxLocal->state, sizeof (keys));
 
 	switch (how) {
-	case KeyPress:
+	case XCB_KEY_PRESS:
 	    keys[key >> 3] |= 1 << (key & 7);
 	    break;
-	case KeyRelease:
+	case XCB_KEY_RELEASE:
 	    keys[key >> 3] &= ~(1 << (key & 7));
 	default:
 	    break;
@@ -563,101 +436,227 @@ dmxUpdateSpritePosition (DeviceIntPtr pDevice,
     if (x == pDevice->last.valuators[0] && y == pDevice->last.valuators[1])
 	return 0;
 
-    return dmxButtonEvent (pDevice, 0, x, y, MotionNotify);
+    return dmxButtonEvent (pDevice, 0, x, y, XCB_MOTION_NOTIFY);
 }
 
-/** Get events from the X queue on the backend servers and put the
- * events into the DMX event queue. */
-void dmxBackendCollectEvents(DevicePtr pDev,
-                             dmxMotionProcPtr motion,
-                             dmxEnqueueProcPtr enqueue,
-                             dmxCheckSpecialProcPtr checkspecial,
-                             DMXBlockType block)
+Bool
+dmxBackendPointerEventCheck (DevicePtr           pDev,
+			     xcb_generic_event_t *event)
 {
     GETPRIVFROMPDEV;
     GETDMXINPUTFROMPRIV;
-    XEvent               X;
-    DMXScreenInfo        *dmxScreen;
-    DeviceIntPtr         pButtonDev, pKeyDev;
-    TestEventData        data = { dmxInput, &X };
+    DeviceIntPtr pButtonDev = (DeviceIntPtr) pDev;
+    int          reltype, type = event->response_type & 0x7f;
+    int          id = dmxLocal->deviceId;
 
-    while ((dmxScreen = dmxBackendGetEvent(priv, (void *) &data)))
-    {
-	switch (X.type) {
-	case MotionNotify:
-	    pButtonDev = dmxGetButtonDevice (dmxInput, data.deviceId);
-	    if (pButtonDev)
-		dmxUpdateSpritePosition (pButtonDev, X.xmotion.x, X.xmotion.y);
-	    break;
-	case ButtonPress:
-	case ButtonRelease:
-	    pButtonDev = dmxGetButtonDevice (dmxInput, data.deviceId);
-	    if (pButtonDev)
-	    {
-		dmxUpdateSpritePosition (pButtonDev, X.xbutton.x, X.xbutton.y);
-		dmxChangeButtonState (pButtonDev,
-				      X.xbutton.button,
-				      X.type);
-	    }
-	    break;
-	case KeyPress:
-	case KeyRelease:
-	    pKeyDev = dmxGetKeyboardDevice (dmxInput, data.deviceId);
-	    if (pKeyDev)
-	    {
-		pButtonDev = dmxGetPairedButtonDevice (dmxInput, pKeyDev);
-		if (pButtonDev)
-		    dmxUpdateSpritePosition (pButtonDev, X.xkey.x, X.xkey.y);
+    switch (type) {
+    case XCB_MOTION_NOTIFY: {
+	xcb_motion_notify_event_t *xmotion =
+	    (xcb_motion_notify_event_t *) event;
+		    
+	dmxUpdateSpritePosition (pButtonDev,
+				 xmotion->event_x,
+				 xmotion->event_y);
+    } break;
+    case XCB_BUTTON_PRESS:
+    case XCB_BUTTON_RELEASE: {
+	xcb_button_press_event_t *xbutton =
+	    (xcb_button_press_event_t *) event;
 
-		dmxChangeKeyState (pKeyDev,
-				   X.xkey.keycode,
-				   X.type);
+	dmxUpdateSpritePosition (pButtonDev,
+				 xbutton->event_x,
+				 xbutton->event_y);
+	dmxChangeButtonState (pButtonDev,
+			      xbutton->detail,
+			      type);
+    } break;
+    default:
+	if (id < 0)
+	    return FALSE;
+
+	reltype = type - dmxInput->eventBase;
+
+	switch (reltype) {
+	case XCB_INPUT_DEVICE_VALUATOR: {
+	    xcb_input_device_valuator_event_t *xvaluator =
+		(xcb_input_device_valuator_event_t *) event;
+
+	    if (id != (xvaluator->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    /* eat valuator events */
+	} break;
+	case XCB_INPUT_DEVICE_MOTION_NOTIFY: {
+	    xcb_input_device_button_release_event_t *xmotion =
+		(xcb_input_device_button_release_event_t *) event;
+
+	    dmxUpdateSpritePosition (pButtonDev,
+				     xmotion->event_x,
+				     xmotion->event_y);
+	} break;
+	case XCB_INPUT_DEVICE_BUTTON_RELEASE:
+	case XCB_INPUT_DEVICE_BUTTON_PRESS: {
+	    xcb_input_device_key_press_event_t *xbutton =
+		(xcb_input_device_key_press_event_t *) event;
+
+	    if (id != (xbutton->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    dmxUpdateSpritePosition (pButtonDev,
+				     xbutton->event_x,
+				     xbutton->event_y);
+	    dmxChangeButtonState (pButtonDev,
+				  xbutton->detail, XCB_BUTTON_RELEASE +
+				  (reltype -
+				   XCB_INPUT_DEVICE_BUTTON_RELEASE));
+	} break;
+	case XCB_INPUT_DEVICE_STATE_NOTIFY: {
+	    xcb_input_device_state_notify_event_t *xstate =
+		(xcb_input_device_state_notify_event_t *) event;
+
+	    if (id != (xstate->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (!(xstate->classes_reported & (1 << ButtonClass)))
+		return FALSE;
+
+	    memset (dmxLocal->keysbuttons, 0, 32);
+
+	    if (xstate->response_type & MORE_EVENTS)
+	    {
+		memcpy (dmxLocal->keysbuttons, xstate->buttons, 4);
 	    }
-	    break;
-	case KeymapNotify:
-	    pKeyDev = dmxGetKeyboardDevice (dmxInput, data.deviceId);
-	    if (pKeyDev)
-		dmxUpdateKeyState (pKeyDev, X.xkeymap.key_vector);
-	    break;
+	    else
+	    {
+		memcpy (dmxLocal->keysbuttons, xstate->buttons, 4);
+		dmxUpdateButtonState (pButtonDev,
+				      dmxLocal->keysbuttons);
+	    }
+	} break;
+	case XCB_INPUT_DEVICE_BUTTON_STATE_NOTIFY: {
+	    xcb_input_device_button_state_notify_event_t *xstate =
+		(xcb_input_device_button_state_notify_event_t *) event;
+
+	    if (id != (xstate->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    memcpy (&dmxLocal->keysbuttons[4], xstate->buttons, 28);
+	    dmxUpdateButtonState (pButtonDev, dmxLocal->keysbuttons);
+	} break;
 	default:
-	    if (X.type == dmxInput->event[XI_DeviceStateNotify])
-	    {
-		XDeviceStateNotifyEvent *dsn = (XDeviceStateNotifyEvent *) &X;
-		XInputClass		*ic;
-		int			i;
-
-		for (i = 0, ic = (XInputClass *) dsn->data;
-		     i < dsn->num_classes;
-		     ic = (XInputClass *) ((char *) ic + ic->length), i++)
-		{
-		    if (ic->class & (1 << ButtonClass))
-		    {
-			pButtonDev = dmxGetButtonDevice (dmxInput,
-							 data.deviceId);
-			if (pButtonDev)
-			{
-			    XButtonStatus *bs = (XButtonStatus *) ic;
-
-			    dmxUpdateButtonState (pButtonDev, bs->buttons);
-			}
-		    }
-
-		    if (ic->class & (1 << KeyClass))
-		    {
-			pKeyDev = dmxGetKeyboardDevice (dmxInput,
-							data.deviceId);
-			if (pKeyDev)
-			{
-			    XKeyStatus *ks = (XKeyStatus *) ic;
-
-			    dmxUpdateButtonState (pKeyDev, ks->keys);
-			}
-		    }
-		}
-	    }
-	    break;
+	    return FALSE;
 	}
     }
+
+    return TRUE;
+}
+
+Bool
+dmxBackendKeyboardEventCheck (DevicePtr           pDev,
+			      xcb_generic_event_t *event)
+{
+    GETPRIVFROMPDEV;
+    GETDMXINPUTFROMPRIV;
+    DeviceIntPtr pKeyDev = (DeviceIntPtr) pDev;
+    DeviceIntPtr pButtonDev;
+    int          reltype, type = event->response_type & 0x7f;
+    int          id = dmxLocal->deviceId;
+
+    switch (type) {
+    case XCB_KEY_PRESS:
+    case XCB_KEY_RELEASE: {
+	xcb_key_press_event_t *xkey = (xcb_key_press_event_t *) event;
+	
+	pButtonDev = dmxGetPairedButtonDevice (dmxInput, pKeyDev);
+	if (pButtonDev)
+	    dmxUpdateSpritePosition (pButtonDev, xkey->event_x, xkey->event_y);
+
+	dmxChangeKeyState (pKeyDev,
+			   xkey->detail,
+			   type);
+    } break;
+    case XCB_KEYMAP_NOTIFY: {
+	xcb_keymap_notify_event_t *xkeymap =
+	    (xcb_keymap_notify_event_t *) event;
+	char state[32];
+
+	memcpy (state, xkeymap->keys, 31);
+	state[31] = 0;
+    
+	dmxUpdateKeyState (pKeyDev, state);
+    } break;
+    default:
+	if (id < 0)
+	    return FALSE;
+
+	reltype = type - dmxInput->eventBase;
+
+	switch (reltype) {
+	case XCB_INPUT_DEVICE_VALUATOR: {
+	    xcb_input_device_valuator_event_t *xvaluator =
+		(xcb_input_device_valuator_event_t *) event;
+
+	    if (id != (xvaluator->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    /* eat valuator events */
+	} break;
+	case XCB_INPUT_DEVICE_KEY_PRESS:
+	case XCB_INPUT_DEVICE_KEY_RELEASE: {
+	    xcb_input_device_key_press_event_t *xkey =
+		(xcb_input_device_key_press_event_t *) event;
+
+	    if (id != (xkey->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    pButtonDev = dmxGetPairedButtonDevice (dmxInput, pKeyDev);
+	    if (pButtonDev)
+		dmxUpdateSpritePosition (pButtonDev,
+					 xkey->event_x,
+					 xkey->event_y);
+
+	    dmxChangeKeyState (pKeyDev,
+			       xkey->detail, XCB_KEY_PRESS +
+			       (reltype - XCB_INPUT_DEVICE_KEY_PRESS));
+	} break;
+	case XCB_INPUT_DEVICE_STATE_NOTIFY: {
+	    xcb_input_device_state_notify_event_t *xstate =
+		(xcb_input_device_state_notify_event_t *) event;
+
+	    if (id != (xstate->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (!(xstate->classes_reported & (1 << KeyClass)))
+		return FALSE;
+
+	    memset (dmxLocal->keysbuttons, 0, 32);
+
+	    if (xstate->response_type & MORE_EVENTS)
+	    {
+		memcpy (dmxLocal->keysbuttons, xstate->keys, 4);
+	    }
+	    else
+	    {
+		memcpy (dmxLocal->keysbuttons, xstate->keys, 4);
+		dmxUpdateKeyState (pKeyDev, dmxLocal->keysbuttons);
+	    }
+	} break;
+	case XCB_INPUT_DEVICE_KEY_STATE_NOTIFY: {
+	    xcb_input_device_key_state_notify_event_t *xstate =
+		(xcb_input_device_key_state_notify_event_t *) event;
+
+	    if (id != (xstate->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    memcpy (&dmxLocal->keysbuttons[4], xstate->keys, 28);
+	    dmxUpdateKeyState (pKeyDev, dmxLocal->keysbuttons);
+	} break;
+	default:
+	    return FALSE;
+	}
+    }
+
+    return TRUE;
 }
 
 /** Called after input events are processed from the DMX queue.  No

@@ -101,6 +101,32 @@ void dmxUpdateWindowInfo(DMXUpdateType type, WindowPtr pWindow)
             dmxInput->updateWindowInfo(dmxInput, type, pWindow);
 }
 
+Bool
+dmxScreenEventCheckInput (ScreenPtr	      pScreen,
+			  xcb_generic_event_t *event)
+{
+    int i;
+
+    for (i = 0; i < dmxNumInputs; i++)
+    {
+	DMXInputInfo *dmxInput = &dmxInputs[i];
+
+	if (dmxInput->scrnIdx != pScreen->myNum)
+	    continue;
+
+	if (dmxInput->detached)
+	    continue;
+
+        if (!dmxInput->screenEventCheck)
+	    continue;
+	
+	if ((*dmxInput->screenEventCheck) (dmxInput, event))
+	    return TRUE;
+    }
+
+    return FALSE;
+}
+
 int
 NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
 {

@@ -105,7 +105,8 @@ static DMXLocalInputInfoRec DMXBackendMou = {
     dmxBackendInit, NULL, dmxBackendLateReInit, dmxBackendMouGetInfo,
     dmxCommonMouOn, dmxCommonMouOff, dmxBackendUpdatePosition,
     NULL, NULL, NULL,
-    dmxBackendCollectEvents, dmxBackendProcessInput, dmxBackendFunctions, NULL,
+    NULL, dmxBackendProcessInput, dmxBackendFunctions, NULL,
+    dmxBackendPointerEventCheck,
     dmxBackendGrabButton, dmxBackendUngrabButton,
     dmxBackendGrabPointer, dmxBackendUngrabPointer,
     dmxCommonMouCtrl
@@ -119,6 +120,7 @@ static DMXLocalInputInfoRec DMXBackendKbd = {
     dmxCommonKbdOn, dmxBackendKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL,
+    dmxBackendKeyboardEventCheck,
     NULL, NULL,
     NULL, NULL,
     NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
@@ -132,6 +134,7 @@ static DMXLocalInputInfoRec DMXConsoleMou = {
     NULL, NULL, NULL,
     dmxConsoleCollectEvents, NULL,
     dmxConsoleFunctions, dmxConsoleUpdateInfo,
+    NULL,
     NULL, NULL,
     NULL, NULL,
     dmxCommonMouCtrl
@@ -145,6 +148,7 @@ static DMXLocalInputInfoRec DMXConsoleKbd = {
     dmxCommonKbdOn, dmxCommonKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL,
+    NULL,
     NULL, NULL,
     NULL, NULL,
     dmxCommonKbdCtrl, dmxCommonKbdBell
@@ -169,6 +173,7 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdLinuxOn, kbdLinuxOff, NULL,
         kbdLinuxVTPreSwitch, kbdLinuxVTPostSwitch, kbdLinuxVTSwitch,
         kbdLinuxRead, NULL, NULL, NULL, NULL,
+	NULL,
 	NULL, NULL,
 	NULL, NULL,
 	kbdLinuxCtrl, kbdLinuxBell
@@ -201,6 +206,7 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdUSBOn, usbOff, NULL,
         NULL, NULL, NULL,
         kbdUSBRead, NULL, NULL, NULL, NULL,
+	NULL,
 	NULL, NULL,
 	NULL, NULL,
 	kbdUSBCtrl
@@ -570,6 +576,25 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
     return Success;
 }
 
+static Bool dmxScreenEventCheck(DMXInputInfo        *dmxInput,
+				xcb_generic_event_t *event)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+        if (!dmxInput->devs[i]->event_check)
+	    continue;
+
+	if ((*dmxInput->devs[i]->event_check) (pDev, event))
+	    return TRUE;
+    }
+
+    return FALSE;
+}
+
 static void dmxProcessInputEvents(DMXInputInfo *dmxInput)
 {
     int i;
@@ -776,18 +801,6 @@ static void dmxCollectAll(DMXInputInfo *dmxInput)
                                               dmxCheckSpecialKeys, DMX_BLOCK);
 }
 
-static void dmxBlockHandler(pointer blockData, OSTimePtr pTimeout,
-                            pointer pReadMask)
-{
-    DMXInputInfo    *dmxInput = &dmxInputs[(int)blockData];
-    static unsigned long generation = 0;
-
-    if (generation != serverGeneration) {
-        generation = serverGeneration;
-        dmxCollectAll(dmxInput);
-    }
-}
-
 static void dmxSwitchReturn(pointer p)
 {
     DMXInputInfo *dmxInput = p;
@@ -802,39 +815,6 @@ static void dmxSwitchReturn(pointer p)
         if (dmxInput->devs[i]->vt_post_switch)
             dmxInput->devs[i]->vt_post_switch(dmxInput->devs[i]->private);
     dmxInput->vt_switched = 0;
-}
-
-#include <setjmp.h>
-
-extern jmp_buf dmx_jumpbuf;
-extern int dmx_jumpbuf_set;
-
-static void dmxWakeupHandler(pointer blockData, int result, pointer pReadMask)
-{
-    DMXInputInfo *dmxInput = &dmxInputs[(int)blockData];
-    int          i;
-
-    if (dmxInput->vt_switch_pending) {
-        dmxLog(dmxInfo, "Switching to VT %d\n", dmxInput->vt_switch_pending);
-        for (i = 0; i < dmxInput->numDevs; i++)
-            if (dmxInput->devs[i]->vt_pre_switch)
-                dmxInput->devs[i]->vt_pre_switch(dmxInput->devs[i]->private);
-        dmxInput->vt_switched       = dmxInput->vt_switch_pending;
-        dmxInput->vt_switch_pending = 0;
-        for (i = 0; i < dmxInput->numDevs; i++) {
-            if (dmxInput->devs[i]->vt_switch) {
-                dmxSigioDisableInput();
-                if (!dmxInput->devs[i]->vt_switch(dmxInput->devs[i]->private,
-                                                  dmxInput->vt_switched,
-                                                  dmxSwitchReturn,
-                                                  dmxInput))
-                    dmxSwitchReturn(dmxInput);
-                break;          /* Only call one vt_switch routine */
-            }
-        }
-    }
-
-    dmxCollectAll(dmxInput);
 }
 
 static char *dmxMakeUniqueDeviceName(DMXLocalInputInfoPtr dmxLocal)
@@ -1038,10 +1018,13 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
     /* Only use XInput Extension if 2.0 or greater */
     if (ext->major_version < 2)
     {
+	XFree(ext);
         dmxLogInput(dmxInput, "%s version %d.%d is too old\n",
 		    INAME, ext->major_version, ext->minor_version);
 	return;
     }
+
+    XQueryExtension (display, INAME, &i, &dmxInput->eventBase, &i);
     
     dmxLogInput(dmxInput, "Locating devices on %s (%s version %d.%d)\n",
 		dmxInput->name, INAME,
@@ -1165,8 +1148,6 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     int                  doWindows          = 1; /* On by default */
     int                  hasXkb             = 0;
 
-    memset (dmxInput->event, 0, sizeof (dmxInput->event));
-
     dmxInput->k = dmxInput->m = dmxInput->o = 0;
 
     a = dmxArgParse(dmxInput->name);
@@ -1262,17 +1243,14 @@ void dmxInputInit(DMXInputInfo *dmxInput)
         DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[i];
         dmxLocal->pDevice = dmxAddDevice(dmxLocal);
     }
-    
+
+    dmxInput->screenEventCheck      = dmxScreenEventCheck;
     dmxInput->processInputEvents    = dmxProcessInputEvents;
     dmxInput->grabButton            = dmxGrabButton;
     dmxInput->ungrabButton          = dmxUngrabButton;
     dmxInput->grabPointer           = dmxGrabPointer;
     dmxInput->ungrabPointer         = dmxUngrabPointer;
     dmxInput->detached              = False;
-
-    RegisterBlockAndWakeupHandlers(dmxBlockHandler,
-                                   dmxWakeupHandler,
-                                   (void *)dmxInput->inputIdx);
 }
 
 static void dmxInputFreeLocal(DMXLocalInputInfoRec *local)

@@ -40,6 +40,8 @@
 #include "panoramiXsrv.h"
 #endif
 
+#include <xcb/randr.h>
+
 static int xRROutputsForFirstScreen = 1;
 static int xRRCrtcsForFirstScreen = 1;
 
@@ -1095,106 +1097,96 @@ dmxRRModeDestroy (ScreenPtr pScreen,
     }
 }
 
-void
-dmxRRCheckScreen (ScreenPtr pScreen)
+Bool
+dmxScreenEventCheckRR (ScreenPtr           pScreen,
+		       xcb_generic_event_t *event)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    int           beWidth = dmxScreen->beWidth;
+    int           beHeight = dmxScreen->beHeight;
 
-    if (dmxScreen->beDisplay)
-    {
+    xcb_configure_notify_event_t *xconfigure =
+	(xcb_configure_notify_event_t *) event;
+    xcb_randr_screen_change_notify_event_t *scevent =
+	(xcb_randr_screen_change_notify_event_t *) event;
+
+    switch (event->response_type & ~0x80) {
+    case XCB_MAP_NOTIFY:
+	return TRUE;
+    case XCB_CONFIGURE_NOTIFY: {
 	XEvent X;
-	Bool   changed = FALSE;
 
-	for (;;)
-	{
-	    Bool status = FALSE;
+	X.xconfigure.display = dmxScreen->beDisplay;
+	X.xconfigure.window  = xconfigure->window;
+	X.xconfigure.width   = xconfigure->width;
+	X.xconfigure.height  = xconfigure->height;
 
-	    XLIB_PROLOGUE (dmxScreen);
-	    status = XCheckTypedEvent (dmxScreen->beDisplay,
-				       ConfigureNotify,
-				       &X);
-	    XLIB_EPILOGUE (dmxScreen);
+	XRRUpdateConfiguration (&X);
+    } break;
+    default:
+	if (!dmxScreen->beRandr)
+	    return FALSE;
 
-	    if (!status)
-		break;
+	switch ((event->response_type & ~0x80) - dmxScreen->beRandrEventBase) {
+	case XCB_RANDR_SCREEN_CHANGE_NOTIFY: {
+	    XRRScreenChangeNotifyEvent X;
 
-	    XRRUpdateConfiguration (&X);
-
-	    dmxScreen->beWidth =
-		DisplayWidth (dmxScreen->beDisplay,
-			      DefaultScreen (dmxScreen->beDisplay));
-	    dmxScreen->beHeight =
-		DisplayHeight (dmxScreen->beDisplay,
-			       DefaultScreen (dmxScreen->beDisplay));
-
-	    if (dmxScreen->beRandr)
-	    {
-		DMXScreenAttributesRec attr;
-		CARD32		       scrnNum = dmxScreen->index;
-
-		memset (&attr, 0, sizeof (attr));
-
-		attr.screenWindowWidth  = dmxGlobalWidth;
-		attr.screenWindowHeight = dmxGlobalHeight;
-
-		if (attr.screenWindowWidth > dmxScreen->beWidth)
-		    attr.screenWindowWidth = dmxScreen->beWidth;
-		if (attr.screenWindowHeight > dmxScreen->beHeight)
-		    attr.screenWindowHeight = dmxScreen->beHeight;
-
-		attr.rootWindowWidth  = attr.screenWindowWidth;
-		attr.rootWindowHeight = attr.screenWindowHeight;
-
-		dmxConfigureScreenWindows (1, &scrnNum, &attr, NULL);
-	    }
-
-	    changed = TRUE;
+	    X.display        = dmxScreen->beDisplay;
+	    X.root           = scevent->root;
+	    X.width          = scevent->width;
+	    X.mwidth         = scevent->mwidth;
+	    X.height         = scevent->height;
+	    X.mheight        = scevent->mheight;
+	    X.rotation       = scevent->rotation;
+	    X.subpixel_order = scevent->subpixel_order;
+	    
+	    XRRUpdateConfiguration ((XEvent *) &X);
+	} break;
+	case XCB_RANDR_NOTIFY:
+	    break;
+	default:
+	    return FALSE;
 	}
-
-	if (dmxScreen->beRandr)
-	{
-	    for (;;)
-	    {
-		Bool status = FALSE;
-
-		XLIB_PROLOGUE (dmxScreen);
-		status = XCheckTypedEvent (dmxScreen->beDisplay,
-					   dmxScreen->beRandrEventBase +
-					   RRScreenChangeNotify,
-					   &X);
-		XLIB_EPILOGUE (dmxScreen);
-
-		if (!status)
-		    break;
-
-		XRRUpdateConfiguration (&X);
-
-		changed = TRUE;
-	    }
-
-	    for (;;)
-	    {
-		Bool status = FALSE;
-
-		XLIB_PROLOGUE (dmxScreen);
-		status = XCheckTypedEvent (dmxScreen->beDisplay,
-					   dmxScreen->beRandrEventBase +
-					   RRNotify,
-					   &X);
-		XLIB_EPILOGUE (dmxScreen);
-
-		if (!status)
-		    break;
-
-		XRRUpdateConfiguration (&X);
-
-		changed = TRUE;
-	    }
-	}
-
-	if (changed)
-	    RRGetInfo (screenInfo.screens[0]);
     }
+
+    dmxScreen->beWidth =
+	DisplayWidth (dmxScreen->beDisplay,
+		      DefaultScreen (dmxScreen->beDisplay));
+    dmxScreen->beHeight =
+	DisplayHeight (dmxScreen->beDisplay,
+		       DefaultScreen (dmxScreen->beDisplay));
+
+    if (dmxScreen->beRandr)
+    {
+	if (dmxScreen->beWidth != beWidth || dmxScreen->beHeight != beHeight)
+	{
+	    DMXScreenAttributesRec attr;
+	    CARD32		   scrnNum = dmxScreen->index;
+
+	    memset (&attr, 0, sizeof (attr));
+
+	    attr.screenWindowWidth  = dmxGlobalWidth;
+	    attr.screenWindowHeight = dmxGlobalHeight;
+
+	    if (attr.screenWindowWidth > dmxScreen->beWidth)
+		attr.screenWindowWidth = dmxScreen->beWidth;
+	    if (attr.screenWindowHeight > dmxScreen->beHeight)
+		attr.screenWindowHeight = dmxScreen->beHeight;
+
+	    attr.rootWindowWidth  = attr.screenWindowWidth;
+	    attr.rootWindowHeight = attr.screenWindowHeight;
+
+	    dmxConfigureScreenWindows (1, &scrnNum, &attr, NULL);
+
+	    RRGetInfo (screenInfo.screens[0]);
+	}
+	else if ((event->response_type & ~0x80) != XCB_CONFIGURE_NOTIFY)
+	{
+	    RRGetInfo (screenInfo.screens[0]);
+	}
+    }
+
+    return TRUE;
 }
 
 Bool
@@ -1299,12 +1291,14 @@ dmxBERRScreenInit (ScreenPtr pScreen)
     if (!dmxScreen->beRandr)
 	return FALSE;
 
+    XLIB_PROLOGUE (dmxScreen);
     XRRSelectInput (dmxScreen->beDisplay,
 		    DefaultRootWindow (dmxScreen->beDisplay),
 		    RRScreenChangeNotifyMask |
 		    RRCrtcChangeNotifyMask   |
 		    RROutputChangeNotifyMask |
 		    RROutputPropertyNotifyMask);
+    XLIB_EPILOGUE (dmxScreen);
 
     return TRUE;
 }
@@ -1315,9 +1309,13 @@ dmxBERRScreenFini (ScreenPtr pScreen)
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
     if (dmxScreen->beRandr)
+    {
+	XLIB_PROLOGUE (dmxScreen);
 	XRRSelectInput (dmxScreen->beDisplay,
 			DefaultRootWindow (dmxScreen->beDisplay),
 			0);
+	XLIB_EPILOGUE (dmxScreen);
+    }
 }
 
 

@@ -315,419 +315,424 @@ dmxSetWindowPixmap (WindowPtr pWin, PixmapPtr pPixmap)
     DMX_WRAP(SetWindowPixmap, dmxSetWindowPixmap, dmxScreen, pScreen);
 }
 
-static void
-dmxScreenExpose (ScreenPtr pScreen)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    if (dmxScreen->beDisplay)
-    {
-	WindowPtr pChild0, pChildN;
-	XEvent    X;
-
-	for (;;)
-	{
-	    Bool status = FALSE;
-
-	    XLIB_PROLOGUE (dmxScreen);
-
-	    status = XCheckTypedEvent (dmxScreen->beDisplay, Expose, &X);
-
-	    XLIB_EPILOGUE (dmxScreen);
-
-	    if (!status)
-		break;
-
-	    if (dmxShouldIgnore (dmxScreen, X.xexpose.serial))
-		continue;
-
-	    pChild0 = WindowTable[0];
-	    pChildN = WindowTable[pScreen->myNum];
-
-	    for (;;)
-	    {
-		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChildN);
-
-		if (pWinPriv->window == X.xexpose.window)
-		    break;
-
-		if (pChild0->firstChild)
-		{
-		    assert (pChildN->firstChild);
-		    pChild0 = pChild0->firstChild;
-		    pChildN = pChildN->firstChild;
-		    continue;
-		}
-
-		while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
-		{
-		    assert (!pChildN->nextSib &&
-			    (pChildN != WindowTable[pScreen->myNum]));
-		    pChild0 = pChild0->parent;
-		    pChildN = pChildN->parent;
-		}
-
-		if (pChild0 == WindowTable[0])
-		{
-		    assert (pChildN == WindowTable[pScreen->myNum]);
-		    break;
-		}
-
-		pChild0 = pChild0->nextSib;
-		pChildN = pChildN->nextSib;
-	    }
-
-	    if (pChild0)
-	    {
-		RegionRec region;
-		BoxRec    box;
-
-		box.x1 = pChild0->drawable.x + X.xexpose.x;
-		box.y1 = pChild0->drawable.y + X.xexpose.y;
-		box.x2 = box.x1 + X.xexpose.width;
-		box.y2 = box.y1 + X.xexpose.height;
-
-		REGION_INIT (screenInfo.screens[0], &region, &box, 1);
-		(*pScreen->WindowExposures) (pChild0, &region, NullRegion);
-		REGION_UNINIT (screenInfo.screens[0], &region);
-	    }
-	}
-    }
-}
-
 static Bool
-dmxManagerPredicate (Display  *xdisplay,
-		     XEvent   *X,
-		     XPointer arg)
+dmxScreenEventCheckExpose (ScreenPtr           pScreen,
+			   xcb_generic_event_t *event)
 {
-    Window *xWindow = (Window *) arg;
+    DMXScreenInfo      *dmxScreen = &dmxScreens[pScreen->myNum];
+    xcb_expose_event_t *xexpose = (xcb_expose_event_t *) event;
+    WindowPtr          pChild0, pChildN;
 
-    switch (X->type) {
-    case CirculateRequest:
-	*xWindow = X->xcirculaterequest.window;
-	break;
-    case ConfigureRequest:
-	*xWindow = X->xconfigurerequest.window;
-	break;
-    case MapRequest:
-	*xWindow = X->xmaprequest.window;
-	break;
-    case ClientMessage:
-	*xWindow = X->xclient.window;
-	break;
-    default:
+    if ((event->response_type & ~0x80) != XCB_EXPOSE)
 	return FALSE;
+
+    if (dmxShouldIgnore (dmxScreen, xexpose->sequence))
+	return TRUE;
+
+    pChild0 = WindowTable[0];
+    pChildN = WindowTable[pScreen->myNum];
+
+    for (;;)
+    {
+	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChildN);
+
+	if (pWinPriv->window == xexpose->window)
+	    break;
+
+	if (pChild0->firstChild)
+	{
+	    assert (pChildN->firstChild);
+	    pChild0 = pChild0->firstChild;
+	    pChildN = pChildN->firstChild;
+	    continue;
+	}
+
+	while (!pChild0->nextSib && (pChild0 != WindowTable[0]))
+	{
+	    assert (!pChildN->nextSib &&
+		    (pChildN != WindowTable[pScreen->myNum]));
+	    pChild0 = pChild0->parent;
+	    pChildN = pChildN->parent;
+	}
+
+	if (pChild0 == WindowTable[0])
+	{
+	    assert (pChildN == WindowTable[pScreen->myNum]);
+	    break;
+	}
+
+	pChild0 = pChild0->nextSib;
+	pChildN = pChildN->nextSib;
+    }
+
+    if (pChild0)
+    {
+	RegionRec region;
+	BoxRec    box;
+
+	box.x1 = pChild0->drawable.x + xexpose->x;
+	box.y1 = pChild0->drawable.y + xexpose->y;
+	box.x2 = box.x1 + xexpose->width;
+	box.y2 = box.y1 + xexpose->height;
+
+	REGION_INIT (screenInfo.screens[0], &region, &box, 1);
+	(*pScreen->WindowExposures) (pChild0, &region, NullRegion);
+	REGION_UNINIT (screenInfo.screens[0], &region);
     }
 
     return TRUE;
 }
 
+static Bool
+dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
+				 xcb_generic_event_t *event)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    WindowPtr     pChild = WindowTable[pScreen->myNum];
+    Window        xWindow;
+
+#ifdef PANORAMIX
+    PanoramiXRes  *win = NULL;
+    WindowPtr     pWin;
+#endif
+
+    xcb_circulate_request_event_t *xcirculaterequest =
+	(xcb_circulate_request_event_t *) event;
+    xcb_configure_request_event_t *xconfigurerequest =
+	(xcb_configure_request_event_t *) event;
+    xcb_map_request_event_t *xmaprequest =
+	(xcb_map_request_event_t *) event;
+    xcb_client_message_event_t *xclient =
+	(xcb_client_message_event_t *) event;
+
+    switch (event->response_type & ~0x80) {
+    case XCB_CIRCULATE_REQUEST:
+	xWindow = xcirculaterequest->window;
+	break;
+    case XCB_CONFIGURE_REQUEST:
+	xWindow = xconfigurerequest->window;
+	break;
+    case XCB_MAP_REQUEST:
+	xWindow = xmaprequest->window;
+	break;
+    case XCB_CLIENT_MESSAGE:
+	xWindow = xclient->window;
+	break;
+    default:
+	return FALSE;
+    }
+
+    for (;;)
+    {
+	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChild);
+
+	if (pWinPriv->window == xWindow)
+	{
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+		win = PanoramiXFindIDByScrnum (XRT_WINDOW,
+					       pChild->drawable.id,
+					       pScreen->myNum);
+#endif
+
+	    break;
+	}
+
+	if (pChild->firstChild)
+	{
+	    pChild = pChild->firstChild;
+	    continue;
+	}
+
+	while (!pChild->nextSib &&
+	       (pChild != WindowTable[pScreen->myNum]))
+	    pChild = pChild->parent;
+
+	if (pChild == WindowTable[pScreen->myNum])
+	    break;
+
+	pChild = pChild->nextSib;
+    }
+
+    if (pChild
+
+#ifdef PANORAMIX
+	&& win
+#endif
+
+	)
+    {
+	XID    vlist[8];
+	char   *name = NULL;
+	Atom   type;
+	int    mask, i = 0;
+	int    status = Success;
+	xEvent x;
+
+	switch (event->response_type & ~0x80) {
+	case XCB_CIRCULATE_REQUEST:
+	    vlist[0] = None;
+
+	    if (xcirculaterequest->place == XCB_PLACE_ON_TOP)
+		vlist[1] = Above;
+	    else
+		vlist[1] = Below;
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		int j;
+
+		FOR_NSCREENS_FORWARD(j) {
+		    if (dixLookupWindow (&pWin,
+					 win->info[j].id,
+					 serverClient,
+					 DixReadAccess) == Success)
+			status |= ConfigureWindow (pWin,
+						   CWSibling |
+						   CWStackMode,
+						   vlist,
+						   serverClient);
+		}
+	    }
+	    else
+#endif
+		status = ConfigureWindow (pChild,
+					  CWSibling | CWStackMode,
+					  vlist,
+					  serverClient);
+	    break;
+	case XCB_CONFIGURE_REQUEST:
+	    mask = xconfigurerequest->value_mask;
+
+	    if (mask & (XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y))
+	    {
+		vlist[i++] = xconfigurerequest->x;
+		vlist[i++] = xconfigurerequest->y;
+	    }
+
+	    if (mask & (XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT))
+	    {
+		vlist[i++] = xconfigurerequest->width;
+		vlist[i++] = xconfigurerequest->height;
+	    }
+
+	    if (mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)
+		vlist[i++] = xconfigurerequest->border_width;
+
+	    if (mask & XCB_CONFIG_WINDOW_SIBLING)
+	    {
+		/* ignore stacking requests with sibling */
+		if (xconfigurerequest->sibling == None)
+		    vlist[i++] = None;
+		else
+		    mask &= ~(XCB_CONFIG_WINDOW_SIBLING |
+			      XCB_CONFIG_WINDOW_STACK_MODE);
+	    }
+
+	    if (mask & XCB_CONFIG_WINDOW_STACK_MODE)
+		vlist[i++] = xconfigurerequest->stack_mode;
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		int j;
+
+		FOR_NSCREENS_FORWARD(j) {
+		    if (dixLookupWindow (&pWin,
+					 win->info[j].id,
+					 serverClient,
+					 DixReadAccess) == Success)
+			status |= ConfigureWindow (pWin,
+						   mask,
+						   vlist,
+						   serverClient);
+		}
+	    }
+	    else
+#endif
+
+		status = ConfigureWindow (pChild,
+					  mask,
+					  vlist,
+					  serverClient);
+	    break;
+	case XCB_MAP_REQUEST:
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		int j;
+
+		FOR_NSCREENS_FORWARD(j) {
+		    if (dixLookupWindow (&pWin,
+					 win->info[j].id,
+					 serverClient,
+					 DixReadAccess) == Success)
+			status |= MapWindow (pWin, serverClient);
+		}
+	    }
+	    else
+#endif
+
+		status = MapWindow (pChild, serverClient);
+	    break;
+	case XCB_CLIENT_MESSAGE:
+	    x.u.u.type               = ClientMessage | 0x80;
+	    x.u.u.detail             = xclient->format;
+	    x.u.clientMessage.window = pChild->drawable.id;
+
+	    /* ROUNDTRIP: if name is not cached by xlib */
+	    XLIB_PROLOGUE (dmxScreen);
+	    name = XGetAtomName (dmxScreen->beDisplay, xclient->type);
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    if (!name)
+		break;
+
+	    type = MakeAtom (name, strlen (name), TRUE);
+
+	    switch (xclient->format) {
+	    case 8:
+		x.u.clientMessage.u.b.type = type;
+
+		for (i = 0; i < 20; i++)
+		    x.u.clientMessage.u.b.bytes[i] = xclient->data.data8[i];
+		break;
+	    case 16:
+		x.u.clientMessage.u.s.type = type;
+
+		x.u.clientMessage.u.s.shorts0 = xclient->data.data16[0];
+		x.u.clientMessage.u.s.shorts1 = xclient->data.data16[1];
+		x.u.clientMessage.u.s.shorts2 = xclient->data.data16[2];
+		x.u.clientMessage.u.s.shorts3 = xclient->data.data16[3];
+		x.u.clientMessage.u.s.shorts4 = xclient->data.data16[4];
+		x.u.clientMessage.u.s.shorts5 = xclient->data.data16[5];
+		x.u.clientMessage.u.s.shorts6 = xclient->data.data16[6];
+		x.u.clientMessage.u.s.shorts7 = xclient->data.data16[7];
+		x.u.clientMessage.u.s.shorts8 = xclient->data.data16[8];
+		x.u.clientMessage.u.s.shorts9 = xclient->data.data16[9];
+		break;
+	    case 32:
+		x.u.clientMessage.u.l.type = type;
+
+		x.u.clientMessage.u.l.longs0 = xclient->data.data32[0];
+		x.u.clientMessage.u.l.longs1 = xclient->data.data32[1];
+		x.u.clientMessage.u.l.longs2 = xclient->data.data32[2];
+		x.u.clientMessage.u.l.longs3 = xclient->data.data32[3];
+		x.u.clientMessage.u.l.longs4 = xclient->data.data32[4];
+		break;
+	    }
+
+	    /* client messages are always forwarded to the root
+	       window as there's no way for us to know which
+	       windows they were originally intended for */
+	    pWin = WindowTable[pScreen->myNum];
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		x.u.clientMessage.window = win->info[0].id;
+		pWin = WindowTable[0];
+	    }
+#endif
+
+	    DeliverEventsToWindow (PickPointer (serverClient),
+				   pWin,
+				   &x,
+				   1,
+				   SubstructureRedirectMask |
+				   SubstructureNotifyMask,
+				   NullGrab, 0);
+	    break;
+	}
+
+	if (status != Success)
+	    dmxLog (dmxWarning,
+		    "dmxScreenManage: failed to handle "
+		    "request type %d\n",
+		    event->response_type & ~0x80);
+    }
+    else
+    {
+	XWindowChanges xwc;
+
+	switch (event->response_type & ~0x80) {
+	case XCB_CIRCULATE_REQUEST:
+	    XLIB_PROLOGUE (dmxScreen);
+	    if (xcirculaterequest->place == XCB_PLACE_ON_TOP)
+		XRaiseWindow (dmxScreen->beDisplay,
+			      xcirculaterequest->window);
+	    else
+		XLowerWindow (dmxScreen->beDisplay,
+			      xcirculaterequest->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	    break;
+	case XCB_CONFIGURE_REQUEST:
+	    xwc.x	     = xconfigurerequest->x;
+	    xwc.y	     = xconfigurerequest->y;
+	    xwc.width	     = xconfigurerequest->width;
+	    xwc.height	     = xconfigurerequest->height;
+	    xwc.border_width = xconfigurerequest->border_width;
+	    xwc.sibling      = xconfigurerequest->sibling;
+	    xwc.stack_mode   = xconfigurerequest->stack_mode;
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    XConfigureWindow (dmxScreen->beDisplay,
+			      xconfigurerequest->window,
+			      xconfigurerequest->value_mask,
+			      &xwc);
+	    XLIB_EPILOGUE (dmxScreen);
+	    break;
+	case XCB_MAP_REQUEST:
+	    XLIB_PROLOGUE (dmxScreen);
+	    XMapWindow (dmxScreen->beDisplay, xmaprequest->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	    break;
+	case XCB_CLIENT_MESSAGE:
+	    break;
+	}
+    }
+
+    return TRUE;
+}
+
+static Bool
+dmxScreenEventCheckIgnore (ScreenPtr	       pScreen,
+			   xcb_generic_event_t *event)
+{
+    switch (event->response_type & ~0x80) {
+    case XCB_MAPPING_NOTIFY:
+	return TRUE;
+    default:
+	break;
+    }
+
+    return FALSE;
+}
+
 static void
-dmxScreenManage (ScreenPtr pScreen)
+dmxScreenCheckForError (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (dmxScreen->beDisplay)
+    if (xcb_connection_has_error (dmxScreen->connection))
     {
-	WindowPtr pChild;
-	Window    xWindow;
-	XEvent    X;
+	int i;
 
-	for (;;)
-	{
-	    Bool         status = FALSE;
+	dmxScreen->alive = FALSE;
 
-#ifdef PANORAMIX
-	    PanoramiXRes *win = NULL;
-	    WindowPtr    pWin;
-#endif
+	dmxLogOutput (dmxScreen, "Detect broken connection\n");
+	dmxDetachScreen (pScreen->myNum);
 
-	    XLIB_PROLOGUE (dmxScreen);
-	    status = XCheckIfEvent (dmxScreen->beDisplay,
-				    &X,
-				    dmxManagerPredicate,
-				    (XPointer) &xWindow);
-	    XLIB_EPILOGUE (dmxScreen);
-
-	    if (!status)
+	for (i = 0; i < dmxNumScreens; i++)
+	    if (i != pScreen->myNum && dmxScreens[i].beDisplay)
 		break;
 
-	    pChild = WindowTable[pScreen->myNum];
-
-	    for (;;)
-	    {
-		dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pChild);
-
-		if (pWinPriv->window == xWindow)
-		{
-
-#ifdef PANORAMIX
-		    if (!noPanoramiXExtension)
-			win = PanoramiXFindIDByScrnum (XRT_WINDOW,
-						       pChild->drawable.id,
-						       pScreen->myNum);
-#endif
-
-		    break;
-		}
-
-		if (pChild->firstChild)
-		{
-		    pChild = pChild->firstChild;
-		    continue;
-		}
-
-		while (!pChild->nextSib &&
-		       (pChild != WindowTable[pScreen->myNum]))
-		    pChild = pChild->parent;
-
-		if (pChild == WindowTable[pScreen->myNum])
-		    break;
-
-		pChild = pChild->nextSib;
-	    }
-
-	    if (pChild
-
-#ifdef PANORAMIX
-		&& win
-#endif
-
-		)
-	    {
-		XID    vlist[8];
-		char   *name = NULL;
-		Atom   type;
-		int    mask, i = 0;
-		int    status = Success;
-		xEvent x;
-
-		switch (X.type) {
-		case CirculateRequest:
-		    vlist[0] = None;
-
-		    if (X.xcirculaterequest.place == PlaceOnTop)
-			vlist[1] = Above;
-		    else
-			vlist[1] = Below;
-
-#ifdef PANORAMIX
-		    if (!noPanoramiXExtension)
-		    {
-			int j;
-
-			FOR_NSCREENS_FORWARD(j) {
-			    if (dixLookupWindow (&pWin,
-						 win->info[j].id,
-						 serverClient,
-						 DixReadAccess) == Success)
-				status |= ConfigureWindow (pWin,
-							   CWSibling |
-							   CWStackMode,
-							   vlist,
-							   serverClient);
-			}
-		    }
-		    else
-#endif
-			status = ConfigureWindow (pChild,
-						  CWSibling | CWStackMode,
-						  vlist,
-						  serverClient);
-		    break;
-		case ConfigureRequest:
-		    mask = X.xconfigurerequest.value_mask;
-
-		    if (mask & (CWX | CWY))
-		    {
-			vlist[i++] = X.xconfigurerequest.x;
-			vlist[i++] = X.xconfigurerequest.y;
-		    }
-
-		    if (mask & (CWWidth | CWHeight))
-		    {
-			vlist[i++] = X.xconfigurerequest.width;
-			vlist[i++] = X.xconfigurerequest.height;
-		    }
-
-		    if (mask & CWBorderWidth)
-			vlist[i++] = X.xconfigurerequest.border_width;
-
-		    if (mask & CWSibling)
-		    {
-			/* ignore stacking requests with sibling */
-			if (X.xconfigurerequest.above == None)
-			    vlist[i++] = None;
-			else
-			    mask &= ~(CWSibling | CWStackMode);
-		    }
-
-		    if (mask & CWStackMode)
-			vlist[i++] = X.xconfigurerequest.detail;
-
-#ifdef PANORAMIX
-		    if (!noPanoramiXExtension)
-		    {
-			int j;
-
-			FOR_NSCREENS_FORWARD(j) {
-			    if (dixLookupWindow (&pWin,
-						 win->info[j].id,
-						 serverClient,
-						 DixReadAccess) == Success)
-				status |= ConfigureWindow (pWin,
-							   mask,
-							   vlist,
-							   serverClient);
-			}
-		    }
-		    else
-#endif
-
-			status = ConfigureWindow (pChild,
-						  mask,
-						  vlist,
-						  serverClient);
-		    break;
-		case MapRequest:
-
-#ifdef PANORAMIX
-		    if (!noPanoramiXExtension)
-		    {
-			int j;
-
-			FOR_NSCREENS_FORWARD(j) {
-			    if (dixLookupWindow (&pWin,
-						 win->info[j].id,
-						 serverClient,
-						 DixReadAccess) == Success)
-				status |= MapWindow (pWin, serverClient);
-			}
-		    }
-		    else
-#endif
-
-			status = MapWindow (pChild, serverClient);
-		    break;
-		case ClientMessage:
-		    x.u.u.type               = ClientMessage | 0x80;
-		    x.u.u.detail             = X.xclient.format;
-		    x.u.clientMessage.window = pChild->drawable.id;
-
-		    /* ROUNDTRIP: if name is not cached by xlib */
-		    XLIB_PROLOGUE (dmxScreen);
-		    name = XGetAtomName (dmxScreen->beDisplay,
-					 X.xclient.message_type);
-		    XLIB_EPILOGUE (dmxScreen);
-
-		    if (!name)
-			break;
-
-		    type = MakeAtom (name, strlen (name), TRUE);
-
-		    switch (X.xclient.format) {
-		    case 8:
-			x.u.clientMessage.u.b.type = type;
-
-			for (i = 0; i < 20; i++)
-			    x.u.clientMessage.u.b.bytes[i] =
-				X.xclient.data.b[i];
-			break;
-		    case 16:
-			x.u.clientMessage.u.s.type = type;
-
-			x.u.clientMessage.u.s.shorts0 = X.xclient.data.s[0];
-			x.u.clientMessage.u.s.shorts1 = X.xclient.data.s[1];
-			x.u.clientMessage.u.s.shorts2 = X.xclient.data.s[2];
-			x.u.clientMessage.u.s.shorts3 = X.xclient.data.s[3];
-			x.u.clientMessage.u.s.shorts4 = X.xclient.data.s[4];
-			x.u.clientMessage.u.s.shorts5 = X.xclient.data.s[5];
-			x.u.clientMessage.u.s.shorts6 = X.xclient.data.s[6];
-			x.u.clientMessage.u.s.shorts7 = X.xclient.data.s[7];
-			x.u.clientMessage.u.s.shorts8 = X.xclient.data.s[8];
-			x.u.clientMessage.u.s.shorts9 = X.xclient.data.s[9];
-			break;
-		    case 32:
-			x.u.clientMessage.u.l.type = type;
-
-			x.u.clientMessage.u.l.longs0 = X.xclient.data.l[0];
-			x.u.clientMessage.u.l.longs1 = X.xclient.data.l[1];
-			x.u.clientMessage.u.l.longs2 = X.xclient.data.l[2];
-			x.u.clientMessage.u.l.longs3 = X.xclient.data.l[3];
-			x.u.clientMessage.u.l.longs4 = X.xclient.data.l[4];
-			break;
-		    }
-
-		    /* client messages are always forwarded to the root
-		       window as there's no way for us to know which
-		       windows they were originally intended for */
-		    pWin = WindowTable[pScreen->myNum];
-
-#ifdef PANORAMIX
-		    if (!noPanoramiXExtension)
-		    {
-			x.u.clientMessage.window = win->info[0].id;
-			pWin = WindowTable[0];
-		    }
-#endif
-
-		    DeliverEventsToWindow (PickPointer (serverClient),
-					   pWin,
-					   &x,
-					   1,
-					   SubstructureRedirectMask |
-					   SubstructureNotifyMask,
-					   NullGrab, 0);
-		    break;
-		}
-
-		if (status != Success)
-		    dmxLog (dmxWarning,
-			    "dmxScreenManage: failed to handle "
-			    "request type %d\n",
-			    X.type);
-	    }
-	    else
-	    {
-		XWindowChanges xwc;
-
-		switch (X.type) {
-		case CirculateRequest:
-		    XLIB_PROLOGUE (dmxScreen);
-		    if (X.xcirculaterequest.place == PlaceOnTop)
-			XRaiseWindow (dmxScreen->beDisplay,
-				      X.xcirculaterequest.window);
-		    else
-			XLowerWindow (dmxScreen->beDisplay,
-				      X.xcirculaterequest.window);
-		    XLIB_EPILOGUE (dmxScreen);
-		    break;
-		case ConfigureRequest:
-		    xwc.x	     = X.xconfigurerequest.x;
-		    xwc.y	     = X.xconfigurerequest.y;
-		    xwc.width	     = X.xconfigurerequest.width;
-		    xwc.height	     = X.xconfigurerequest.height;
-		    xwc.border_width = X.xconfigurerequest.border_width;
-		    xwc.sibling      = X.xconfigurerequest.above;
-		    xwc.stack_mode   = X.xconfigurerequest.detail;
-
-		    XLIB_PROLOGUE (dmxScreen);
-		    XConfigureWindow (dmxScreen->beDisplay,
-				      X.xconfigurerequest.window,
-				      X.xconfigurerequest.value_mask,
-				      &xwc);
-		    XLIB_EPILOGUE (dmxScreen);
-		    break;
-		case MapRequest:
-		    XLIB_PROLOGUE (dmxScreen);
-		    XMapWindow (dmxScreen->beDisplay, X.xmaprequest.window);
-		    XLIB_EPILOGUE (dmxScreen);
-		    break;
-		case ClientMessage:
-		    break;
-		}
-	    }
-	}
+	if (i == dmxNumScreens)
+	    dmxLog (dmxFatal, "No back-end server connection, "
+		    "giving up\n");
     }
 }
 
@@ -736,9 +741,14 @@ dmxScreenBlockHandler (pointer   blockData,
 		       OSTimePtr pTimeout,
 		       pointer   pReadMask)
 {
-    ScreenPtr pScreen = (ScreenPtr) blockData;
+    ScreenPtr     pScreen = (ScreenPtr) blockData;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    dmxScreenExpose (pScreen);
+    if (dmxScreen->beDisplay)
+    {
+	xcb_flush (dmxScreen->connection);
+	dmxScreenCheckForError (pScreen);
+    }
 }
 
 static void
@@ -746,13 +756,32 @@ dmxScreenWakeupHandler (pointer blockData,
 			int     result,
 			pointer pReadMask)
 {
-    ScreenPtr pScreen = (ScreenPtr) blockData;
+    ScreenPtr     pScreen = (ScreenPtr) blockData;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxScreen->beDisplay)
+    {
+	xcb_generic_event_t *event;
+
+	while ((event = xcb_poll_for_event (dmxScreen->connection)))
+	{
+	    if (!dmxScreenEventCheckInput (pScreen, event)        &&
+		!dmxScreenEventCheckManageWindow (pScreen, event) &&
+		!dmxScreenEventCheckExpose (pScreen, event)       &&
 
 #ifdef RANDR
-    dmxRRCheckScreen (pScreen);
+		!dmxScreenEventCheckRR (pScreen, event)           &&
 #endif
 
-    dmxScreenManage (pScreen);
+		!dmxScreenEventCheckIgnore (pScreen, event))
+	    {
+		dmxLogOutput (dmxScreen, "unhandled event type %d\n",
+			      event->response_type);
+	    }
+
+	    free (event);
+	}
+    }
 }
 
 static void

@@ -298,6 +298,8 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     dmxScreen->fd         = XConnectionNumber (dmxScreen->beDisplay);
     dmxScreen->connection = XGetXCBConnection (dmxScreen->beDisplay);
 
+    XSetEventQueueOwner (dmxScreen->beDisplay, XCBOwnsEventQueue);
+
     dmxScreen->syncCookie.sequence = 0;
 
     AddEnabledDevice (dmxScreen->fd);

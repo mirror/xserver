@@ -128,43 +128,6 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
     return 0;                   /* Do not place on queue again */
 }
 
-static void dmxCheckScreens (void)
-{
-    int i;
-
-    for (i = 0; i < dmxNumScreens; i++)
-    {
-	if (dmxScreens[i].beDisplay && !dmxScreens[i].alive)
-	{
-	    if (i)
-	    {
-		dmxLog (dmxInfo, "display dead, lets detach it\n");
-		dmxDetachScreen (i);
-	    }
-	    else
-	    {
-		dmxLog (dmxFatal, "Default display dead, giving up...\n");
-	    }
-	}
-    }
-}
-
-static void dmxSyncBlockHandler(pointer blockData, OSTimePtr pTimeout,
-                                pointer pReadMask)
-{
-    int i;
-
-    for (i = 0; i < dmxNumScreens; i++)
-	if (dmxScreens[i].beDisplay)
-	    XFlush (dmxScreens[i].beDisplay);
-}
-
-static void dmxSyncWakeupHandler(pointer blockData, int result,
-                                 pointer pReadMask)
-{
-    dmxCheckScreens ();
-}
-
 /** Request the XSync() batching optimization with the specified \a
  * interval (in mS).  If the \a interval is 0, 100mS is used.  If the \a
  * interval is less than 0, then the XSync() batching optimization is
@@ -184,10 +147,6 @@ void dmxSyncActivate(const char *interval)
  * #dmxSyncActivate was last called with a non-negative value. */
 void dmxSyncInit(void)
 {
-    RegisterBlockAndWakeupHandlers (dmxSyncBlockHandler,
-				    dmxSyncWakeupHandler,
-				    NULL);
-
     if (dmxSyncInterval) {
         dmxLog(dmxInfo, "XSync batching with %d ms interval\n",
                dmxSyncInterval);

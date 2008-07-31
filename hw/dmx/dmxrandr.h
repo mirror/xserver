@@ -26,10 +26,12 @@
 #ifndef DMXRANDR_H
 #define DMXRANDR_H
 
+#include "dmxscrinit.h"
 #include "randrstr.h"
 
 extern Bool dmxRRScreenInit (ScreenPtr pScreen);
-extern void dmxRRCheckScreen (ScreenPtr pScreen);
+extern Bool dmxScreenEventCheckRR (ScreenPtr           pScreen,
+				   xcb_generic_event_t *event);
 extern Bool dmxBERRScreenInit (ScreenPtr pScreen);
 extern void dmxBERRScreenFini (ScreenPtr pScreen);
 
