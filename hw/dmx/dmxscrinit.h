@@ -47,9 +47,9 @@ extern Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[]);
 
 extern void dmxBEScreenInit(int idx, ScreenPtr pScreen);
 extern void dmxBECloseScreen(ScreenPtr pScreen);
+extern void dmxBEDispatch (ScreenPtr pScreen);
 
-extern void dmxDiscardIgnore (DMXScreenInfo *dmxScreen, unsigned long sequence);
-extern void dmxSetIgnore (DMXScreenInfo *dmxScreen, unsigned long sequence);
-extern Bool dmxShouldIgnore (DMXScreenInfo *dmxScreen, unsigned long sequence);
+extern Bool dmxAddSequence (DMXQueue *q, unsigned long sequence);
+extern void dmxClearQueue (DMXQueue *q);
 
 #endif /* DMXSCRINIT_H */

@@ -40,4 +40,6 @@
 extern void dmxSyncActivate(const char *interval);
 extern void dmxSyncInit(void);
 extern void dmxSync(DMXScreenInfo *dmxScreen, Bool now);
+extern Bool dmxScreenReplyCheckSync (ScreenPtr           pScreen,
+				     xcb_generic_reply_t *reply);
 #endif

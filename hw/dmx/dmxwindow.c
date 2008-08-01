@@ -179,6 +179,11 @@ void dmxResizeScreenWindow(ScreenPtr pScreen,
     dmxSync(dmxScreen, False);
 }
 
+static void dmxSetIgnore (DMXScreenInfo *dmxScreen, unsigned int sequence)
+{
+    dmxAddSequence (&dmxScreen->ignore, sequence);
+}
+
 /** Change the location and size of the "root" window.  Called from
  *  #dmxReconfigureRootWindow(). */
 void dmxResizeRootWindow(WindowPtr pRoot,

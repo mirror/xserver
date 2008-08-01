@@ -68,8 +68,6 @@ static jmp_buf jumpbuf;
 static char **xbeArgv = 0;
 static int  nXbeArgv  = 0;
 
-static int xbePriority = 0;
-
 static int
 dmxAddXbeArguments (char **argv,
 		    int  n)

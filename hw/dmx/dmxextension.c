@@ -1192,7 +1192,7 @@ static void dmxBECreateWindowTree(int idx)
 #endif
 
     XLIB_PROLOGUE (dmxScreen);
-    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
+    dmxAddSequence (&dmxScreen->ignore, NextRequest (dmxScreen->beDisplay));
     XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
     XLIB_EPILOGUE (dmxScreen);
 
@@ -2546,8 +2546,6 @@ int dmxDetachScreen(int idx)
 #ifdef RANDR
     RRGetInfo (screenInfo.screens[0]);
 #endif
-
-    dmxDiscardIgnore (dmxScreen, ~0);
 
     return 0; /* Success */
 }

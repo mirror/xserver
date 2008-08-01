@@ -71,6 +71,9 @@
 #include <GL/glxint.h>
 #endif
 
+#include <xcb/xcb.h>
+#include <xcb/xcbext.h>
+
 #include <X11/Xlib-xcb.h>
 
 #include "dmxxlibio.h"
@@ -85,10 +88,15 @@ typedef enum {
     PosRelative
 } PositionType;
 
-typedef struct _DMXIgnore {
-    struct _DMXIgnore *next;
-    unsigned long     sequence;
-} DMXIgnore;
+typedef struct _DMXSequence {
+    struct _DMXSequence *next;
+    unsigned long       sequence;
+} DMXSequence;
+
+typedef struct _DMXQueue {
+    DMXSequence *head;
+    DMXSequence **tail;
+} DMXQueue;
 
 typedef struct _DMXPropTrans {
     const char *name;
@@ -113,9 +121,10 @@ typedef struct _DMXScreenInfo {
     /*---------- Back-end X server information ----------*/
 
     int fd;
+    int inDispatch;
 
     xcb_connection_t             *connection;
-    xcb_get_input_focus_cookie_t syncCookie;
+    xcb_get_input_focus_cookie_t sync;
 
     Display      *beDisplay;      /**< Back-end X server's display */
     int           beWidth;        /**< Width of BE display */
@@ -217,8 +226,8 @@ typedef struct _DMXScreenInfo {
     DMXStatInfo  *stat;             /**< Statistics about XSync  */
     Bool          needsSync;        /**< True if an XSync is pending  */
 
-    DMXIgnore     *ignoreHead;
-    DMXIgnore     **ignoreTail;
+    DMXQueue ignore;
+    DMXQueue request;
 
 #ifdef GLXEXT
                                   /** Visual information for glxProxy */

@@ -315,6 +315,39 @@ dmxSetWindowPixmap (WindowPtr pWin, PixmapPtr pPixmap)
     DMX_WRAP(SetWindowPixmap, dmxSetWindowPixmap, dmxScreen, pScreen);
 }
 
+static void
+dmxDiscardIgnore (DMXScreenInfo *dmxScreen,
+		  unsigned long sequence)
+{
+    while (dmxScreen->ignore.head)
+    {
+	if ((long) (sequence - dmxScreen->ignore.head->sequence) > 0)
+	{
+	    DMXSequence *next = dmxScreen->ignore.head->next;
+
+	    free (dmxScreen->ignore.head);
+
+	    dmxScreen->ignore.head = next;
+	    if (!dmxScreen->ignore.head)
+		dmxScreen->ignore.tail = &dmxScreen->ignore.head;
+	}
+	else
+	    break;
+    }
+}
+
+static Bool
+dmxShouldIgnore (DMXScreenInfo *dmxScreen,
+		 unsigned long sequence)
+{
+    dmxDiscardIgnore (dmxScreen, sequence);
+
+    if (!dmxScreen->ignore.head)
+	return FALSE;
+
+    return dmxScreen->ignore.head->sequence == sequence;
+}
+
 static Bool
 dmxScreenEventCheckExpose (ScreenPtr           pScreen,
 			   xcb_generic_event_t *event)
@@ -712,8 +745,15 @@ dmxScreenEventCheckIgnore (ScreenPtr	       pScreen,
     return FALSE;
 }
 
+static Bool
+dmxScreenReplyCheckIgnore (ScreenPtr	       pScreen,
+			   xcb_generic_reply_t *reply)
+{
+    return FALSE;
+}
+
 static void
-dmxScreenCheckForError (ScreenPtr pScreen)
+dmxScreenCheckForIOError (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
@@ -723,7 +763,7 @@ dmxScreenCheckForError (ScreenPtr pScreen)
 
 	dmxScreen->alive = FALSE;
 
-	dmxLogOutput (dmxScreen, "Detect broken connection\n");
+	dmxLogOutput (dmxScreen, "Detected broken connection\n");
 	dmxDetachScreen (pScreen->myNum);
 
 	for (i = 0; i < dmxNumScreens; i++)
@@ -734,6 +774,69 @@ dmxScreenCheckForError (ScreenPtr pScreen)
 	    dmxLog (dmxFatal, "No back-end server connection, "
 		    "giving up\n");
     }
+}
+
+void
+dmxBEDispatch (ScreenPtr pScreen)
+{
+    DMXScreenInfo       *dmxScreen = &dmxScreens[pScreen->myNum];
+    xcb_generic_event_t *event;
+    xcb_generic_reply_t *reply;
+
+    dmxScreen->inDispatch = TRUE;
+
+    while ((event = xcb_poll_for_event (dmxScreen->connection)))
+    {
+	if (!dmxScreenEventCheckInput (pScreen, event)        &&
+	    !dmxScreenEventCheckManageWindow (pScreen, event) &&
+	    !dmxScreenEventCheckExpose (pScreen, event)       &&
+
+#ifdef RANDR
+	    !dmxScreenEventCheckRR (pScreen, event)           &&
+#endif
+
+	    !dmxScreenEventCheckIgnore (pScreen, event))
+	{
+	    dmxLogOutput (dmxScreen, "unhandled event type %d\n",
+			  event->response_type);
+	}
+
+	free (event);
+    }
+
+    while (dmxScreen->request.head &&
+	   xcb_poll_for_reply (dmxScreen->connection,
+			       dmxScreen->request.head->sequence,
+			       (void *) &reply,
+			       NULL))
+    {
+	DMXSequence *head = dmxScreen->request.head;
+
+	if (reply)
+	{
+	    if (!dmxScreenReplyCheckSync (pScreen, reply) &&
+		!dmxScreenReplyCheckIgnore (pScreen, reply))
+	    {
+		dmxLogOutput (dmxScreen,
+			      "unhandled reply sequence %d\n",
+			      reply->sequence);
+	    }
+
+	    free (reply);
+	}
+	else
+	{
+	    dmxLogOutput (dmxScreen, "error sequence %d\n", head->sequence);
+	}
+
+	dmxScreen->request.head = head->next;
+	if (!dmxScreen->request.head)
+	    dmxScreen->request.tail = &dmxScreen->request.head;
+
+	free (head);
+    }
+
+    dmxScreen->inDispatch = FALSE;
 }
 
 static void
@@ -747,7 +850,7 @@ dmxScreenBlockHandler (pointer   blockData,
     if (dmxScreen->beDisplay)
     {
 	xcb_flush (dmxScreen->connection);
-	dmxScreenCheckForError (pScreen);
+	dmxScreenCheckForIOError (pScreen);
     }
 }
 
@@ -760,28 +863,7 @@ dmxScreenWakeupHandler (pointer blockData,
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
     if (dmxScreen->beDisplay)
-    {
-	xcb_generic_event_t *event;
-
-	while ((event = xcb_poll_for_event (dmxScreen->connection)))
-	{
-	    if (!dmxScreenEventCheckInput (pScreen, event)        &&
-		!dmxScreenEventCheckManageWindow (pScreen, event) &&
-		!dmxScreenEventCheckExpose (pScreen, event)       &&
-
-#ifdef RANDR
-		!dmxScreenEventCheckRR (pScreen, event)           &&
-#endif
-
-		!dmxScreenEventCheckIgnore (pScreen, event))
-	    {
-		dmxLogOutput (dmxScreen, "unhandled event type %d\n",
-			      event->response_type);
-	    }
-
-	    free (event);
-	}
-    }
+	dmxBEDispatch (pScreen);
 }
 
 static void
@@ -834,8 +916,11 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 	dmxGeneration = serverGeneration;
     }
 
-    dmxScreen->ignoreHead = NULL;
-    dmxScreen->ignoreTail = &dmxScreen->ignoreHead;
+    dmxScreen->ignore.head = NULL;
+    dmxScreen->ignore.tail = &dmxScreen->ignore.head;
+
+    dmxScreen->request.head = NULL;
+    dmxScreen->request.tail = &dmxScreen->request.head;
 
 #ifdef RANDR
     dmxScreen->beRandr = FALSE;
@@ -1170,6 +1255,9 @@ void dmxBECloseScreen(ScreenPtr pScreen)
     /* Close display */
     dmxCloseDisplay (dmxScreen);
     dmxScreen->beDisplay = NULL;
+
+    dmxClearQueue (&dmxScreen->request);
+    dmxClearQueue (&dmxScreen->ignore);
 }
 
 /** Close screen number \a idx. */
@@ -1290,52 +1378,35 @@ static Bool dmxSaveScreen(ScreenPtr pScreen, int what)
     return TRUE;
 }
 
-void
-dmxDiscardIgnore (DMXScreenInfo *dmxScreen,
-		  unsigned long sequence)
-{
-    while (dmxScreen->ignoreHead)
-    {
-	if ((long) (sequence - dmxScreen->ignoreHead->sequence) > 0)
-	{
-	    DMXIgnore *next = dmxScreen->ignoreHead->next;
-
-	    free (dmxScreen->ignoreHead);
-
-	    dmxScreen->ignoreHead = next;
-	    if (!dmxScreen->ignoreHead)
-		dmxScreen->ignoreTail = &dmxScreen->ignoreHead;
-	}
-	else
-	    break;
-    }
-}
-
-void
-dmxSetIgnore (DMXScreenInfo *dmxScreen,
-	      unsigned long sequence)
-{
-    DMXIgnore *i;
-
-    i = malloc (sizeof (DMXIgnore));
-    if (!i)
-	return;
-
-    i->sequence = sequence;
-    i->next     = 0;
-
-    *(dmxScreen->ignoreTail) = i;
-    dmxScreen->ignoreTail = &i->next;
-}
-
 Bool
-dmxShouldIgnore (DMXScreenInfo *dmxScreen,
-		 unsigned long sequence)
+dmxAddSequence (DMXQueue      *q,
+		unsigned long sequence)
 {
-    dmxDiscardIgnore (dmxScreen, sequence);
+    DMXSequence *s;
 
-    if (!dmxScreen->ignoreHead)
+    s = malloc (sizeof (DMXSequence));
+    if (!s)
 	return FALSE;
 
-    return dmxScreen->ignoreHead->sequence == sequence;
+    s->sequence = sequence;
+    s->next     = 0;
+
+    *(q->tail) = s;
+    q->tail = &s->next;
+
+    return TRUE;
+}
+
+void
+dmxClearQueue (DMXQueue *q)
+{
+    while (q->head)
+    {
+	DMXSequence *head = q->head;
+
+	q->head = head->next;
+	free (head);
+    }
+
+    q->tail = &q->head;
 }
