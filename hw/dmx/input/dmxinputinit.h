@@ -167,6 +167,9 @@ typedef void    (*dmxUpdateInfoProcPtr)(pointer, DMXUpdateType, WindowPtr);
 typedef int     (*dmxFunctionsProcPtr)(pointer, DMXFunctionType);
 typedef Bool    (*dmxEventCheckProc)(DevicePtr,
 				     xcb_generic_event_t *);
+typedef Bool    (*dmxReplyCheckProc)(DevicePtr,
+				     unsigned int,
+				     xcb_generic_reply_t *);
 typedef void    (*dmxGrabButtonProcPtr)(DevicePtr,
 					DevicePtr,
 					WindowPtr,
@@ -244,6 +247,7 @@ typedef struct _DMXLocalInputInfo {
     dmxUpdateInfoProcPtr     update_info;     /**< Update window layout
                                                * information */
     dmxEventCheckProc        event_check;     /**< Event check */
+    dmxReplyCheckProc        reply_check;     /**< Reply check */
     dmxGrabButtonProcPtr     grab_button;     /**< Grab button */
     dmxUngrabButtonProcPtr   ungrab_button;   /**< Ungrab button */
     dmxGrabPointerProcPtr    grab_pointer;    /**< Grab pointer */
@@ -296,6 +300,7 @@ typedef struct _DMXLocalInputInfo {
     XDevice                  *device;
     char		     state[32];   /**< Key/Button state */
     char		     keysbuttons[32];
+    xcb_void_cookie_t        grab;
 } DMXLocalInputInfoRec;
 
 extern DMXLocalInputInfoPtr dmxLocalCorePointer, dmxLocalCoreKeyboard;

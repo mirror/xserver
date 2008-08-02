@@ -54,6 +54,9 @@ extern int     dmxBackendFunctions(pointer private, DMXFunctionType function);
 extern void    dmxBackendUpdatePosition(pointer private, int x, int y);
 extern Bool    dmxBackendPointerEventCheck(DevicePtr           pDev,
 					   xcb_generic_event_t *event);
+extern Bool    dmxBackendPointerReplyCheck(DevicePtr           pDev,
+					   unsigned int        request,
+					   xcb_generic_reply_t *reply);
 extern Bool    dmxBackendKeyboardEventCheck(DevicePtr           pDev,
 					    xcb_generic_event_t *event);
 extern void    dmxBackendGrabButton(DevicePtr pDev,

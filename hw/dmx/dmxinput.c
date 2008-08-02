@@ -127,6 +127,33 @@ dmxScreenEventCheckInput (ScreenPtr	      pScreen,
     return FALSE;
 }
 
+Bool
+dmxScreenReplyCheckInput (ScreenPtr	      pScreen,
+			  unsigned int        request,
+			  xcb_generic_reply_t *reply)
+{
+    int i;
+
+    for (i = 0; i < dmxNumInputs; i++)
+    {
+	DMXInputInfo *dmxInput = &dmxInputs[i];
+
+	if (dmxInput->scrnIdx != pScreen->myNum)
+	    continue;
+
+	if (dmxInput->detached)
+	    continue;
+
+        if (!dmxInput->screenReplyCheck)
+	    continue;
+	
+	if ((*dmxInput->screenReplyCheck) (dmxInput, request, reply))
+	    return TRUE;
+    }
+
+    return FALSE;
+}
+
 int
 NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
 {

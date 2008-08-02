@@ -106,7 +106,7 @@ static DMXLocalInputInfoRec DMXBackendMou = {
     dmxCommonMouOn, dmxCommonMouOff, dmxBackendUpdatePosition,
     NULL, NULL, NULL,
     NULL, dmxBackendProcessInput, dmxBackendFunctions, NULL,
-    dmxBackendPointerEventCheck,
+    dmxBackendPointerEventCheck, dmxBackendPointerReplyCheck,
     dmxBackendGrabButton, dmxBackendUngrabButton,
     dmxBackendGrabPointer, dmxBackendUngrabPointer,
     dmxCommonMouCtrl
@@ -120,7 +120,7 @@ static DMXLocalInputInfoRec DMXBackendKbd = {
     dmxCommonKbdOn, dmxBackendKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL,
-    dmxBackendKeyboardEventCheck,
+    dmxBackendKeyboardEventCheck, NULL,
     NULL, NULL,
     NULL, NULL,
     NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
@@ -134,7 +134,7 @@ static DMXLocalInputInfoRec DMXConsoleMou = {
     NULL, NULL, NULL,
     dmxConsoleCollectEvents, NULL,
     dmxConsoleFunctions, dmxConsoleUpdateInfo,
-    NULL,
+    NULL, NULL,
     NULL, NULL,
     NULL, NULL,
     dmxCommonMouCtrl
@@ -148,7 +148,7 @@ static DMXLocalInputInfoRec DMXConsoleKbd = {
     dmxCommonKbdOn, dmxCommonKbdOff, NULL,
     NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL,
-    NULL,
+    NULL, NULL,
     NULL, NULL,
     NULL, NULL,
     dmxCommonKbdCtrl, dmxCommonKbdBell
@@ -173,7 +173,7 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdLinuxOn, kbdLinuxOff, NULL,
         kbdLinuxVTPreSwitch, kbdLinuxVTPostSwitch, kbdLinuxVTSwitch,
         kbdLinuxRead, NULL, NULL, NULL, NULL,
-	NULL,
+	NULL, NULL,
 	NULL, NULL,
 	NULL, NULL,
 	kbdLinuxCtrl, kbdLinuxBell
@@ -206,7 +206,7 @@ static DMXLocalInputInfoRec DMXLocalDevices[] = {
         kbdUSBOn, usbOff, NULL,
         NULL, NULL, NULL,
         kbdUSBRead, NULL, NULL, NULL, NULL,
-	NULL,
+	NULL, NULL,
 	NULL, NULL,
 	NULL, NULL,
 	kbdUSBCtrl
@@ -589,6 +589,26 @@ static Bool dmxScreenEventCheck(DMXInputInfo        *dmxInput,
 	    continue;
 
 	if ((*dmxInput->devs[i]->event_check) (pDev, event))
+	    return TRUE;
+    }
+
+    return FALSE;
+}
+
+static Bool dmxScreenReplyCheck(DMXInputInfo        *dmxInput,
+				unsigned int        request,
+				xcb_generic_reply_t *reply)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DevicePtr pDev = &dmxInput->devs[i]->pDevice->public;
+
+        if (!dmxInput->devs[i]->reply_check)
+	    continue;
+
+	if ((*dmxInput->devs[i]->reply_check) (pDev, request, reply))
 	    return TRUE;
     }
 
@@ -1245,6 +1265,7 @@ void dmxInputInit(DMXInputInfo *dmxInput)
     }
 
     dmxInput->screenEventCheck      = dmxScreenEventCheck;
+    dmxInput->screenReplyCheck      = dmxScreenReplyCheck;
     dmxInput->processInputEvents    = dmxProcessInputEvents;
     dmxInput->grabButton            = dmxGrabButton;
     dmxInput->ungrabButton          = dmxUngrabButton;

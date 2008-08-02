@@ -50,6 +50,7 @@
 #include "dmxwindow.h"
 #include "dmxprop.h"
 #include "dmxsync.h"
+#include "dmxscrinit.h"
 #include "dmxxlibio.h"
 #include "dmxcb.h"              /* For dmxGlobalWidth and dmxGlobalHeight */
 #include "dmxevents.h"          /* For dmxGetGlobalPosition */
@@ -551,6 +552,66 @@ dmxBackendPointerEventCheck (DevicePtr           pDev,
     return TRUE;
 }
 
+/* not in xcb-xinput yet */
+#define DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE 45
+
+typedef struct dmx_xcb_input_extended_grab_device_request_t {
+    uint8_t         major_opcode;
+    uint8_t         minor_opcode;
+    uint16_t        length;
+    xcb_window_t    grab_window;
+    xcb_timestamp_t time;
+    uint8_t         deviceid;
+    uint8_t         device_mode;
+    uint8_t         owner_events;
+    uint8_t         pad0;
+    xcb_window_t    confine_to;
+    xcb_cursor_t    cursor;
+    uint16_t        event_count;
+    uint16_t        generic_event_count;
+} dmx_xcb_input_extended_grab_device_request_t;
+
+Bool
+dmxBackendPointerReplyCheck (DevicePtr           pDev,
+			     unsigned int        request,
+			     xcb_generic_reply_t *reply)
+{
+    GETDMXLOCALFROMPDEV;
+
+    if (request == dmxLocal->grab.sequence)
+    {
+	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
+
+	if (reply->response_type == 1)
+	{
+	    if (dmxLocal->deviceId >= 0)
+	    {
+		xcb_input_grab_device_reply_t *xgrab =
+		    (xcb_input_grab_device_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	    else
+	    {
+		xcb_grab_pointer_reply_t *xgrab =
+		    (xcb_grab_pointer_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	}
+
+	if (status == XCB_GRAB_STATUS_SUCCESS)
+	{
+	    /* TODO: track state of grabs */
+	}
+
+	dmxLocal->grab.sequence = 0;
+	return TRUE;
+    }
+
+    return FALSE;
+}
+
 Bool
 dmxBackendKeyboardEventCheck (DevicePtr           pDev,
 			      xcb_generic_event_t *event)
@@ -580,8 +641,8 @@ dmxBackendKeyboardEventCheck (DevicePtr           pDev,
 	    (xcb_keymap_notify_event_t *) event;
 	char state[32];
 
-	memcpy (state, xkeymap->keys, 31);
-	state[31] = 0;
+	state[0] = 0;
+	memcpy (&state[1], xkeymap->keys, 31);
     
 	dmxUpdateKeyState (pKeyDev, state);
     } break;
@@ -699,6 +760,7 @@ void dmxBackendGrabButton(DevicePtr pDev,
     GETDMXINPUTFROMPRIV;
     ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
     Window        confineTo = None;
     Cursor        cursor = None;
 
@@ -710,41 +772,38 @@ void dmxBackendGrabButton(DevicePtr pDev,
 
     if (dmxLocal->deviceId >= 0)
     {
-	XDevice *modDev = NULL;
+	int id = dmxLocal->deviceId;
+	int modId = 0;
 
 	if (pModDev)
-	    modDev = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->device;
+	    modId = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->deviceId;
 
 	/* this is really useless as XGrabDeviceButton doesn't allow us
 	   to specify a confineTo window or cursor */
-	XLIB_PROLOGUE (dmxScreen);
-	XGrabDeviceButton (dmxScreen->beDisplay,
-			   dmxLocal->device,
-			   button,
-			   modifiers,
-			   modDev,
-			   (DMX_GET_WINDOW_PRIV (pWindow))->window,
-			   TRUE,
-			   0,
-			   NULL,
-			   GrabModeAsync,
-			   GrabModeAsync);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_input_grab_device_button (dmxScreen->connection,
+				      window,
+				      id,
+				      modId,
+				      0,
+				      modifiers,
+				      XCB_GRAB_MODE_ASYNC,
+				      XCB_GRAB_MODE_ASYNC,
+				      button,
+				      TRUE,
+				      NULL);
     }
     else
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XGrabButton (dmxScreen->beDisplay,
-		     button,
-		     modifiers,
-		     (DMX_GET_WINDOW_PRIV (pWindow))->window,
-		     TRUE,
-		     0,
-		     GrabModeAsync,
-		     GrabModeAsync,
-		     confineTo,
-		     cursor);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_grab_button (dmxScreen->connection,
+			 TRUE,
+			 window,
+			 0,
+			 XCB_GRAB_MODE_ASYNC,
+			 XCB_GRAB_MODE_ASYNC,
+			 confineTo,
+			 cursor,
+			 button,
+			 modifiers);
     }
 }
 
@@ -758,31 +817,29 @@ void dmxBackendUngrabButton(DevicePtr pDev,
     GETDMXINPUTFROMPRIV;
     ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
 
     if (dmxLocal->deviceId >= 0)
     {
-	XDevice *modDev = NULL;
+	int id = dmxLocal->deviceId;
+	int modId = 0;
 
 	if (pModDev)
-	    modDev = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->device;
+	    modId = ((DMXLocalInputInfoPtr) pModDev->devicePrivate)->deviceId;
 
-	XLIB_PROLOGUE (dmxScreen);
-	XUngrabDeviceButton (dmxScreen->beDisplay,
-			     dmxLocal->device,
-			     button,
-			     modifiers,
-			     modDev,
-			     (DMX_GET_WINDOW_PRIV (pWindow))->window);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_input_ungrab_device_button (dmxScreen->connection,
+					window,
+					modifiers,
+					modId,
+					button,
+					id);
     }
     else
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XUngrabButton (dmxScreen->beDisplay,
-		       button,
-		       modifiers,
-		       (DMX_GET_WINDOW_PRIV (pWindow))->window);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_ungrab_button (dmxScreen->connection,
+			   button,
+			   window,
+			   modifiers);
     }
 }
 
@@ -795,6 +852,7 @@ void dmxBackendGrabPointer(DevicePtr pDev,
     GETDMXINPUTFROMPRIV;
     ScreenPtr     pScreen = screenInfo.screens[dmxInput->scrnIdx];
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
     Window        confineTo = None;
     Cursor        cursor = None;
 
@@ -806,34 +864,43 @@ void dmxBackendGrabPointer(DevicePtr pDev,
 
     if (dmxLocal->deviceId >= 0)
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XExtendedGrabDevice (dmxScreen->beDisplay,
-			     dmxLocal->device,
-			     (DMX_GET_WINDOW_PRIV (pWindow))->window,
-			     GrabModeAsync,
-			     TRUE,
-			     confineTo,
-			     cursor,
-			     0,
-			     NULL,
-			     0,
-			     NULL);
-	XLIB_EPILOGUE (dmxScreen);
+	dmx_xcb_input_extended_grab_device_request_t grab = {
+	    .grab_window  = window,
+	    .deviceid     = dmxLocal->deviceId,
+	    .device_mode  = XCB_GRAB_MODE_ASYNC,
+	    .owner_events = TRUE,
+	    .confine_to   = confineTo,
+	    .cursor       = cursor
+	};
+	xcb_protocol_request_t request = {
+	    1,
+	    &xcb_input_id,
+	    DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE,
+	    FALSE
+	};
+	struct iovec vector = { &grab, sizeof (grab) };
+
+	dmxLocal->grab.sequence =
+	    xcb_send_request (dmxScreen->connection,
+			      0,
+			      &vector,
+			      &request);
     }
     else
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XGrabPointer (dmxScreen->beDisplay,
-		      (DMX_GET_WINDOW_PRIV (pWindow))->window,
-		      TRUE,
-		      0,
-		      GrabModeAsync,
-		      GrabModeAsync,
-		      confineTo,
-		      cursor,
-		      CurrentTime);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxLocal->grab.sequence =
+	    xcb_grab_pointer (dmxScreen->connection,
+			      TRUE,
+			      window,
+			      0,
+			      XCB_GRAB_MODE_ASYNC,
+			      XCB_GRAB_MODE_ASYNC,
+			      confineTo,
+			      cursor,
+			      0).sequence;
     }
+
+    dmxAddSequence (&dmxScreen->request, dmxLocal->grab.sequence);
 }
 
 void dmxBackendUngrabPointer(DevicePtr pDev,
@@ -846,15 +913,13 @@ void dmxBackendUngrabPointer(DevicePtr pDev,
 
     if (dmxLocal->deviceId >= 0)
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XUngrabDevice (dmxScreen->beDisplay, dmxLocal->device, CurrentTime);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_input_ungrab_device (dmxScreen->connection,
+				 0,
+				 dmxLocal->deviceId);
     }
     else
     {
-	XLIB_PROLOGUE (dmxScreen);
-	XUngrabPointer (dmxScreen->beDisplay, CurrentTime);
-	XLIB_EPILOGUE (dmxScreen);
+	xcb_ungrab_pointer (dmxScreen->connection, 0);
     }
 }
 

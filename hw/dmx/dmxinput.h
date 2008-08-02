@@ -76,6 +76,9 @@ typedef enum {
 
 typedef Bool (*ScreenEventCheckProc)(struct _DMXInputInfo *,
 				     xcb_generic_event_t  *);
+typedef Bool (*ScreenReplyCheckProc)(struct _DMXInputInfo *,
+				     unsigned int         request,
+				     xcb_generic_reply_t  *);
 typedef void (*ProcessInputEventsProc)(struct _DMXInputInfo *);
 typedef void (*UpdateWindowInfoProc)(struct _DMXInputInfo *,
                                      DMXUpdateType, WindowPtr);
@@ -136,6 +139,7 @@ struct _DMXInputInfo {
                                       * draw in console */
 
     ScreenEventCheckProc    screenEventCheck;
+    ScreenReplyCheckProc    screenReplyCheck;
     ProcessInputEventsProc  processInputEvents;
     UpdateWindowInfoProc    updateWindowInfo;
     GrabButtonProc          grabButton;
@@ -185,6 +189,9 @@ extern void dmxInputLogDevices(void);
 extern void dmxUpdateWindowInfo(DMXUpdateType type, WindowPtr pWindow);
 extern Bool dmxScreenEventCheckInput (ScreenPtr	          pScreen,
 				      xcb_generic_event_t *event);
+extern Bool dmxScreenReplyCheckInput (ScreenPtr	          pScreen,
+				      unsigned int        request,
+				      xcb_generic_reply_t *reply);
 
 /* These functions are defined in input/dmxeq.c */
 extern Bool dmxeqInitialized(void);

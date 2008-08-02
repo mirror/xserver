@@ -813,7 +813,8 @@ dmxBEDispatch (ScreenPtr pScreen)
 	if (reply)
 	    rep = (xcb_generic_reply_t *) reply;
 
-	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep))
+	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep) &&
+	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep))
 	{
 	    /* error response */
 	    if (rep->response_type == 0)
