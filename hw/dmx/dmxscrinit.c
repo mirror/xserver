@@ -777,7 +777,7 @@ dmxBEDispatch (ScreenPtr pScreen)
     xcb_generic_error_t *error;
     void                *reply;
 
-    dmxScreen->inDispatch = TRUE;
+    dmxScreen->inDispatch++;
 
     while ((event = xcb_poll_for_event (dmxScreen->connection)))
     {
@@ -813,6 +813,10 @@ dmxBEDispatch (ScreenPtr pScreen)
 	if (reply)
 	    rep = (xcb_generic_reply_t *) reply;
 
+	dmxScreen->request.head = head->next;
+	if (!dmxScreen->request.head)
+	    dmxScreen->request.tail = &dmxScreen->request.head;
+
 	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep) &&
 	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep))
 	{
@@ -828,14 +832,10 @@ dmxBEDispatch (ScreenPtr pScreen)
         if (error)
             free (error);
 
-	dmxScreen->request.head = head->next;
-	if (!dmxScreen->request.head)
-	    dmxScreen->request.tail = &dmxScreen->request.head;
-
 	free (head);
     }
 
-    dmxScreen->inDispatch = FALSE;
+    dmxScreen->inDispatch--;
 }
 
 static void
