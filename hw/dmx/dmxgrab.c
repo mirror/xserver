@@ -293,12 +293,13 @@ dmxDeactivatePointerGrab (DeviceIntPtr pDev)
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
     GrabPtr          pGrab = pDev->deviceGrab.grab;
 
+    /* DeactivateGrab might call ActivateGrab so make sure we ungrab here */
+    dmxUngrabPointer (pDev, pGrab);
+
     DMX_UNWRAP (DeactivateGrab, pDevPriv, &pDev->deviceGrab);
     (*pDev->deviceGrab.DeactivateGrab) (pDev);
     DMX_WRAP (DeactivateGrab, dmxDeactivatePointerGrab, pDevPriv,
 	      &pDev->deviceGrab);
-
-    dmxUngrabPointer (pDev, pGrab);
 }
 
 static int
