@@ -28,6 +28,7 @@
 #endif
 
 #include "dmxatom.h"
+#include "dmxsync.h"
 
 Atom
 dmxAtom (DMXScreenInfo *dmxScreen,
@@ -40,16 +41,28 @@ dmxAtom (DMXScreenInfo *dmxScreen,
 
     if (!atom)
     {
-	char *name = NULL;
+	xcb_get_atom_name_cookie_t cookie;
+	xcb_get_atom_name_reply_t  *reply = NULL;
 
-	XLIB_PROLOGUE (dmxScreen);
-	name = XGetAtomName (dmxScreen->beDisplay, beAtom);
-	XLIB_EPILOGUE (dmxScreen);
+	cookie = xcb_get_atom_name (dmxScreen->connection, beAtom);
+			
+	do {
+	    dmxDispatch ();
 
-	if (!name)
+	    if (xcb_poll_for_reply (dmxScreen->connection,
+				    cookie.sequence,
+				    (void **) &reply,
+				    NULL))
+		break;
+	} while (dmxWaitForResponse () && dmxScreen->alive);
+
+	if (!reply)
 	    return None;
 
-	atom = MakeAtom (name, strlen (name), TRUE);
+	atom = MakeAtom ((char *) (reply + 1), reply->name_len, TRUE);
+
+	free (reply);
+
 	if (!atom)
 	    return None;
 
@@ -87,15 +100,35 @@ dmxBEAtom (DMXScreenInfo *dmxScreen,
 
     if (!beAtom)
     {
-	char *name;
+	xcb_intern_atom_cookie_t cookie;
+	xcb_intern_atom_reply_t  *reply = NULL;
+	char			 *name;
 
 	name = NameForAtom (atom);
 	if (!name)
 	    return None;
 
-	XLIB_PROLOGUE (dmxScreen);
-	beAtom = XInternAtom (dmxScreen->beDisplay, name, FALSE);
-	XLIB_EPILOGUE (dmxScreen);	
+	cookie = xcb_intern_atom (dmxScreen->connection,
+				  FALSE,
+				  strlen (name),
+				  name);
+
+	do {
+	    dmxDispatch ();
+
+	    if (xcb_poll_for_reply (dmxScreen->connection,
+				    cookie.sequence,
+				    (void **) &reply,
+				    NULL))
+		break;
+	} while (dmxWaitForResponse () && dmxScreen->alive);
+
+	if (!reply)
+	    return None;
+
+	beAtom = reply->atom;
+
+	free (reply);
 
 	if (atom >= dmxScreen->atomTableSize)
 	{
