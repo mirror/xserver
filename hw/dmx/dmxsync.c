@@ -244,7 +244,7 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
 			"Immediate sync from within back-end dispatch\n");
 		free (xcb_get_input_focus_reply
 		      (dmxScreen->connection,
-		       xcb_get_input_focus_unchecked (dmxScreen->connection),
+		       xcb_get_input_focus (dmxScreen->connection),
 		       NULL));
 		return;
 	    }
