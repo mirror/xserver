@@ -23,12 +23,12 @@
  * Author: David Reveman <davidr@novell.com>
  */
 
-#ifndef DMXGRAB_H
-#define DMXGRAB_H
+#ifndef DMXATOM_H
+#define DMXATOM_H
 
 #include "dmx.h"
 
 extern Atom dmxAtom (DMXScreenInfo *dmxScreen, Atom beAtom);
 extern Atom dmxBEAtom (DMXScreenInfo *dmxScreen, Atom atom);
 
-#endif /* DMXGRAB_H */
+#endif /* DMXATOM_H */
