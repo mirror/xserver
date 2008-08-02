@@ -745,13 +745,6 @@ dmxScreenEventCheckIgnore (ScreenPtr	       pScreen,
     return FALSE;
 }
 
-static Bool
-dmxScreenReplyCheckIgnore (ScreenPtr	       pScreen,
-			   xcb_generic_reply_t *reply)
-{
-    return FALSE;
-}
-
 static void
 dmxScreenCheckForIOError (ScreenPtr pScreen)
 {
@@ -781,7 +774,8 @@ dmxBEDispatch (ScreenPtr pScreen)
 {
     DMXScreenInfo       *dmxScreen = &dmxScreens[pScreen->myNum];
     xcb_generic_event_t *event;
-    xcb_generic_reply_t *reply;
+    xcb_generic_error_t *error;
+    void                *reply;
 
     dmxScreen->inDispatch = TRUE;
 
@@ -807,27 +801,31 @@ dmxBEDispatch (ScreenPtr pScreen)
     while (dmxScreen->request.head &&
 	   xcb_poll_for_reply (dmxScreen->connection,
 			       dmxScreen->request.head->sequence,
-			       (void *) &reply,
-			       NULL))
+			       (void **) &reply,
+			       &error))
     {
-	DMXSequence *head = dmxScreen->request.head;
+	static xcb_generic_reply_t _default_rep = { 1 };
+	DMXSequence                *head = dmxScreen->request.head;
+	xcb_generic_reply_t        *rep = &_default_rep;
 
+	if (error)
+	    rep = (xcb_generic_reply_t *) error;
 	if (reply)
-	{
-	    if (!dmxScreenReplyCheckSync (pScreen, reply) &&
-		!dmxScreenReplyCheckIgnore (pScreen, reply))
-	    {
-		dmxLogOutput (dmxScreen,
-			      "unhandled reply sequence %d\n",
-			      reply->sequence);
-	    }
+	    rep = (xcb_generic_reply_t *) reply;
 
-	    free (reply);
-	}
-	else
+	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep))
 	{
-	    dmxLogOutput (dmxScreen, "error sequence %d\n", head->sequence);
+	    /* error response */
+	    if (rep->response_type == 0)
+		dmxLogOutput (dmxScreen, "error %d sequence %d\n",
+			      ((xcb_generic_error_t *) rep)->error_code,
+			      head->sequence);
 	}
+
+        if (reply)
+	    free (reply);
+        if (error)
+            free (error);
 
 	dmxScreen->request.head = head->next;
 	if (!dmxScreen->request.head)

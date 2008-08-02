@@ -37,9 +37,12 @@
 #ifndef _DMXSYNC_H_
 #define _DMXSYNC_H_
 
+extern void dmxDispatch (void);
+extern int  dmxWaitForResponse (void);
 extern void dmxSyncActivate(const char *interval);
 extern void dmxSyncInit(void);
 extern void dmxSync(DMXScreenInfo *dmxScreen, Bool now);
 extern Bool dmxScreenReplyCheckSync (ScreenPtr           pScreen,
+				     unsigned int        sequence,
 				     xcb_generic_reply_t *reply);
 #endif

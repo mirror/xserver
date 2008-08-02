@@ -63,20 +63,73 @@ static OsTimerPtr dmxSyncTimer;
 static int        dmxSyncPending = 0;
 static int        dmxSyncRequest = 0;
 
+/* dispatch all pending back-end server responses */
+void
+dmxDispatch (void)
+{
+    int i;
+
+    for (i = 0; i < dmxNumScreens; i++)
+	if (dmxScreens[i].alive)
+	    dmxBEDispatch (screenInfo.screens[i]);
+}
+
+/* non-blocking wait for back-end server response. returns 0 when no
+   more reponses can arrive */
+int
+dmxWaitForResponse (void)
+{
+    fd_set rfds;
+    int    nfd = 0;
+    int    i, ret = 0;
+
+    FD_ZERO (&rfds);
+     
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	if (dmxScreens[i].beDisplay && dmxScreens[i].alive)
+	{
+	    xcb_flush (dmxScreens[i].connection);
+
+	    if (xcb_connection_has_error (dmxScreens[i].connection))
+	    {
+		dmxScreens[i].alive = FALSE;
+		ret = -1;
+	    }
+	    else
+	    {
+		FD_SET (dmxScreens[i].fd, &rfds);
+
+		if (dmxScreens[i].fd > nfd)
+		    nfd = dmxScreens[i].fd;
+	    }
+	}
+    }
+
+    if (ret == 0 && nfd)
+    {
+	do {
+	    ret = select (nfd + 1, &rfds, 0, 0, 0);
+	} while (ret == -1 && errno == EINTR);
+
+	/* screens with broken connections are detached in the
+	   block handler */
+    }
+
+    return nfd;
+}
+
 static void dmxDoSync(DMXScreenInfo *dmxScreen)
 {
     dmxScreen->needsSync = FALSE;
 
-    if (!dmxScreen->beDisplay)
-    {
-	dmxScreen->sync.sequence = 0;
+    if (!dmxScreen->alive)
 	return; /* FIXME: Is this correct behavior for sync stats? */
-    }
 
     if (dmxScreen->sync.sequence)
 	return;
 
-    dmxScreen->sync = xcb_get_input_focus_unchecked (dmxScreen->connection);
+    dmxScreen->sync = xcb_get_input_focus (dmxScreen->connection);
     dmxAddSequence (&dmxScreen->request, dmxScreen->sync.sequence);
     dmxSyncRequest++;
 }
@@ -85,54 +138,26 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 {
     int i;
 
-    while (dmxSyncRequest)
+    /* make sure TimerFree is not called from while waiting for
+       pending replies */
+    dmxSyncTimer = NULL;
+
+    while (dmxSyncRequest && dmxWaitForResponse ())
     {
-	fd_set rfds;
-	int    ret, fd = 0;
+	dmxDispatch ();
 
-	/* timer expired and there is pending sync replies that need
-	   to be waited for before we can allow further processing
-	   of client requests */
-
-	FD_ZERO (&rfds);
-     
 	for (i = 0; i < dmxNumScreens; i++)
 	{
-	    if (dmxScreens[i].beDisplay)
+	    if (!dmxScreens[i].alive)
 	    {
-		xcb_flush (dmxScreens[i].connection);
-		if (xcb_connection_has_error (dmxScreens[i].connection))
+		/* remove pending replies from disconnected screens */
+		if (dmxScreens[i].sync.sequence)
 		{
-		    if (dmxScreens[i].sync.sequence)
-		    {
-			dmxScreens[i].sync.sequence = 0;
-			dmxSyncRequest--;
-		    }
-		}
-		else
-		{
-		    FD_SET (dmxScreens[i].fd, &rfds);
-
-		    if (dmxScreens[i].fd > fd)
-			fd = dmxScreens[i].fd;
+		    dmxScreens[i].sync.sequence = 0;
+		    dmxSyncRequest--;
 		}
 	    }
 	}
-
-	if (fd)
-	{
-	    do {
-		ret = select (fd + 1, &rfds, 0, 0, 0);
-	    } while (ret == -1 && errno == EINTR);
-	}
-
-	dmxSyncPending++;
-
-	for (i = 0; i < dmxNumScreens; i++)
-	    if (dmxScreens[i].beDisplay)
-		dmxBEDispatch (screenInfo.screens[i]);
-
-	dmxSyncPending--;
     }
 
     if (dmxSyncPending)
@@ -144,10 +169,11 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 	dmxSyncPending = 0;
 
 	if (dmxSyncRequest)
+	{
+	    dmxSyncTimer = timer;
 	    return dmxSyncInterval;
+	}
     }
-
-    dmxSyncTimer = NULL;
 
     return 0;                   /* Do not place on queue again */
 }
@@ -246,8 +272,11 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
         }
 	else if (!dmxSyncTimer)
 	{
-	    dmxSyncTimer = TimerSet(dmxSyncTimer, 0, dmxSyncInterval,
-				    dmxSyncCallback, NULL);
+	    dmxSyncTimer = TimerSet (dmxSyncTimer,
+				     0,
+				     dmxSyncInterval,
+				     dmxSyncCallback,
+				     NULL);
 	}
     }
     else
@@ -257,19 +286,22 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
 	 * up-to-date. */
         if (dmxScreen)
 	{
-	    dmxDoSync(dmxScreen);
-	    dmxSyncCallback(NULL, 0, NULL);
+	    dmxDoSync (dmxScreen);
+	    dmxSyncCallback (NULL, 0, NULL);
 	}
     }
 }
 
+/* error or reply doesn't matter, all we need is some response
+   from the back-end server */
 Bool
 dmxScreenReplyCheckSync (ScreenPtr           pScreen,
+			 unsigned int        sequence,
 			 xcb_generic_reply_t *reply)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (reply->sequence != dmxScreen->sync.sequence)
+    if (sequence != dmxScreen->sync.sequence)
 	return FALSE;
 
     dmxScreen->sync.sequence = 0;
@@ -277,7 +309,7 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
     dmxSyncRequest--;
     if (dmxSyncRequest == 0)
     {
-	if (dmxSyncPending == 0)
+	if (dmxSyncPending == 0 && dmxSyncTimer)
 	{
 	    TimerFree (dmxSyncTimer);
 	    dmxSyncTimer = NULL;
@@ -286,4 +318,3 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
 
     return TRUE;
 }
-
