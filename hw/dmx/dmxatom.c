@@ -97,7 +97,7 @@ dmxBEAtom (DMXScreenInfo *dmxScreen,
 	beAtom = XInternAtom (dmxScreen->beDisplay, name, FALSE);
 	XLIB_EPILOGUE (dmxScreen);	
 
-	if (atom >= dmxScreen->beAtomTableSize)
+	if (atom >= dmxScreen->atomTableSize)
 	{
 	    Atom *table;
 	    int  i;
@@ -114,7 +114,7 @@ dmxBEAtom (DMXScreenInfo *dmxScreen,
 	    dmxScreen->atomTableSize = atom + 1;
 	}
 
-	dmxScreen->beAtomTable[atom] = beAtom;
+	dmxScreen->atomTable[atom] = beAtom;
     }
 
     return beAtom;

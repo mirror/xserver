@@ -57,6 +57,7 @@
 #include "dmxcb.h"
 #include "dmxinit.h"
 #include "dmxgrab.h"
+#include "dmxatom.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -497,7 +498,6 @@ dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
 	)
     {
 	XID    vlist[8];
-	char   *name = NULL;
 	Atom   type;
 	int    mask, i = 0;
 	int    status = Success;
@@ -616,15 +616,7 @@ dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
 	    x.u.u.detail             = xclient->format;
 	    x.u.clientMessage.window = pChild->drawable.id;
 
-	    /* ROUNDTRIP: if name is not cached by xlib */
-	    XLIB_PROLOGUE (dmxScreen);
-	    name = XGetAtomName (dmxScreen->beDisplay, xclient->type);
-	    XLIB_EPILOGUE (dmxScreen);
-
-	    if (!name)
-		break;
-
-	    type = MakeAtom (name, strlen (name), TRUE);
+	    type = dmxAtom (dmxScreen, xclient->type);
 
 	    switch (xclient->format) {
 	    case 8:

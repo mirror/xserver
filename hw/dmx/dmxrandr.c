@@ -350,23 +350,13 @@ dmxRRUpdateOutputProperty (ScreenPtr	      pScreen,
     int		    format, status = !Success;
     unsigned long   nElements, bytesAfter;
     Atom	    type, atom;
-    char	    *name = NULL;
     INT32           *values = NULL;
 
     output = dmxRRGetOutput (pScreen, dmxScreen, xoutput);
     if (!output)
 	return TRUE; /* do nothing if the output doesn't exist */
 
-    XLIB_PROLOGUE (dmxScreen);
-    name = XGetAtomName (dmxScreen->beDisplay, xproperty);
-    XLIB_EPILOGUE (dmxScreen);
-
-    if (!name)
-	return FALSE;
-
-    atom = MakeAtom (name, strlen (name), TRUE);
-
-    XFree (name);
+    atom = dmxAtom (dmxScreen, xproperty);
 
     XLIB_PROLOGUE (dmxScreen);
     status = XRRGetOutputProperty (dmxScreen->beDisplay, xoutput, xproperty,
@@ -403,38 +393,12 @@ dmxRRUpdateOutputProperty (ScreenPtr	      pScreen,
 	int   i;
 
 	for (i = 0; i < nElements; i++)
-	{
-	    name = NULL;
-
-	    XLIB_PROLOGUE (dmxScreen);
-	    name = XGetAtomName (dmxScreen->beDisplay, atoms[i]);
-	    XLIB_EPILOGUE (dmxScreen);
-
-	    if (!name)
-		return FALSE;
-
-	    atoms[i] = MakeAtom (name, strlen (name), TRUE);
-
-	    XFree (name);
-	}
+	    atoms[i] = dmxAtom (dmxScreen, atoms[i]);
 
 	if (!info->range && info->num_values > 0)
 	{
 	    for (i = 0; i < info->num_values; i++)
-	    {
-		name = NULL;
-
-		XLIB_PROLOGUE (dmxScreen);
-		name = XGetAtomName (dmxScreen->beDisplay, values[i]);
-		XLIB_EPILOGUE (dmxScreen);
-
-		if (!name)
-		    return FALSE;
-
-		values[i] = MakeAtom (name, strlen (name), TRUE);
-
-		XFree (name);
-	    }
+		values[i] = dmxAtom (dmxScreen, values[i]);
 	}
     }
 
