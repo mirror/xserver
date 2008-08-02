@@ -1151,13 +1151,6 @@ static void dmxDoSetShape(WindowPtr pWindow)
 			   ShapeInput, 0, 0, None, ShapeSet);
 	XLIB_EPILOGUE (dmxScreen);
     }
-
-    XLIB_PROLOGUE (dmxScreen);
-    if (XShapeInputSelected(dmxScreen->beDisplay, pWinPriv->window)) {
-	ErrorF("Input selected for window %x on Screen %d\n",
-	       (unsigned int)pWinPriv->window, pScreen->myNum);
-    }
-    XLIB_EPILOGUE (dmxScreen);
 }
 
 /** Set shape of \a pWindow on the back-end server. */
