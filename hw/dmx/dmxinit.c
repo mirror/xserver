@@ -305,6 +305,12 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 
     AddEnabledDevice (dmxScreen->fd);
 
+    dmxScreen->atomTable     = NULL;
+    dmxScreen->atomTableSize = 0;
+
+    dmxScreen->beAtomTable     = NULL;
+    dmxScreen->beAtomTableSize = 0;
+
     dmxPropertyDisplay(dmxScreen);
     return TRUE;
 }
@@ -315,6 +321,11 @@ void dmxCloseDisplay(DMXScreenInfo *dmxScreen)
 
     /* make sure all pending sync replies are processed */
     dmxSync (dmxScreen, TRUE);
+
+    if (dmxScreen->atomTable)
+	xfree (dmxScreen->atomTable);
+    if (dmxScreen->beAtomTable)
+	xfree (dmxScreen->beAtomTable);
 
     XLIB_PROLOGUE (dmxScreen);
     XCloseDisplay (dmxScreen->beDisplay);

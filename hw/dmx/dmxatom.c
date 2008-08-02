@@ -33,24 +33,84 @@ Atom
 dmxAtom (DMXScreenInfo *dmxScreen,
 	 Atom	       beAtom)
 {
-    char *name;
+    Atom atom = None;
 
-    name = XGetAtomName (dmxScreen->beDisplay, beAtom);
-    if (!name)
-	return None;
+    if (beAtom < dmxScreen->beAtomTableSize)
+	atom = dmxScreen->beAtomTable[beAtom];
 
-    return MakeAtom (name, strlen (name), TRUE);
+    if (!atom)
+    {
+	char *name;
+
+	name = XGetAtomName (dmxScreen->beDisplay, beAtom);
+	if (!name)
+	    return None;
+
+	atom = MakeAtom (name, strlen (name), TRUE);
+	if (!atom)
+	    return None;
+
+	if (beAtom >= dmxScreen->beAtomTableSize)
+	{
+	    Atom *table;
+	    int  i;
+
+	    table = xrealloc (dmxScreen->beAtomTable,
+			      sizeof (Atom) * (beAtom + 1));
+	    if (!table)
+		return atom;
+
+	    for (i = dmxScreen->beAtomTableSize; i < beAtom; i++)
+		table[i] = None;
+
+	    dmxScreen->beAtomTable     = table;
+	    dmxScreen->beAtomTableSize = beAtom + 1;
+	}
+
+	dmxScreen->beAtomTable[beAtom] = atom;
+    }
+
+    return atom;
 }
 
 Atom
 dmxBEAtom (DMXScreenInfo *dmxScreen,
 	   Atom		 atom)
 {
-    char *name;
+    Atom beAtom = None;
 
-    name = NameForAtom (atom);
-    if (!name)
-	return None;
+    if (atom < dmxScreen->atomTableSize)
+	beAtom = dmxScreen->atomTable[atom];
 
-    return XInternAtom (dmxScreen->beDisplay, name, FALSE);
+    if (!beAtom)
+    {
+	char *name;
+
+	name = NameForAtom (atom);
+	if (!name)
+	    return None;
+
+	beAtom = XInternAtom (dmxScreen->beDisplay, name, FALSE);
+
+	if (atom >= dmxScreen->beAtomTableSize)
+	{
+	    Atom *table;
+	    int  i;
+
+	    table = xrealloc (dmxScreen->atomTable,
+			      sizeof (Atom) * (atom + 1));
+	    if (!table)
+		return beAtom;
+
+	    for (i = dmxScreen->atomTableSize; i < atom; i++)
+		table[i] = None;
+
+	    dmxScreen->atomTable     = table;
+	    dmxScreen->atomTableSize = atom + 1;
+	}
+
+	dmxScreen->beAtomTable[atom] = beAtom;
+    }
+
+    return beAtom;
 }

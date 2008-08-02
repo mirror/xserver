@@ -126,6 +126,11 @@ typedef struct _DMXScreenInfo {
     xcb_connection_t             *connection;
     xcb_get_input_focus_cookie_t sync;
 
+    Atom *atomTable;
+    int  atomTableSize;
+    Atom *beAtomTable;
+    int  beAtomTableSize;
+
     Display      *beDisplay;      /**< Back-end X server's display */
     int           beWidth;        /**< Width of BE display */
     int           beHeight;       /**< Height of BE display */
