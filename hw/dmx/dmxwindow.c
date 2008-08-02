@@ -49,6 +49,7 @@
 #include "dmxscrinit.h"
 #include "dmxcursor.h"
 #include "dmxfont.h"
+#include "dmxatom.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -1242,13 +1243,8 @@ dmxTranslateWindowProperty (WindowPtr     pWindow,
     case 'A': {
 	Atom *src = (Atom *) data;
 	Atom *dst = (Atom *) output;
-	char *name;
 
-	name = NameForAtom (*src);
-	if (name)
-	    *dst = XInternAtom (dmxScreen->beDisplay, name, FALSE);
-	else
-	    *dst = 0;
+	*dst = dmxBEAtom (dmxScreen, *src);
     } break;
     case 'p':
     case 'P': {
@@ -1525,12 +1521,8 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
     XLIB_PROLOGUE (dmxScreen);
     XChangeProperty (dmxScreen->beDisplay,
 		     pWinPriv->window,
-		     XInternAtom (dmxScreen->beDisplay,
-				  NameForAtom (pProp->propertyName),
-				  FALSE),
-		     XInternAtom (dmxScreen->beDisplay,
-				  NameForAtom (pProp->type),
-				  FALSE),
+		     dmxBEAtom (dmxScreen, pProp->propertyName),
+		     dmxBEAtom (dmxScreen, pProp->type),
 		     pProp->format,
 		     PropModeReplace,
 		     data,

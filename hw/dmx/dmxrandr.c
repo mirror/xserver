@@ -34,6 +34,7 @@
 #include "dmxcb.h"
 #include "dmxrandr.h"
 #include "dmxclient.h"
+#include "dmxatom.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -897,11 +898,8 @@ dmxRROutputSetProperty (ScreenPtr	   pScreen,
 
     validValues = p->valid_values;
 
-    XLIB_PROLOGUE (dmxScreen);
-    atom = XInternAtom (dmxScreen->beDisplay, NameForAtom (property), FALSE);
-    type = XInternAtom (dmxScreen->beDisplay, NameForAtom (value->type),
-			FALSE);
-    XLIB_EPILOGUE (dmxScreen);
+    atom = dmxBEAtom (dmxScreen, property);
+    type = dmxBEAtom (dmxScreen, value->type);
 
     if (type == XA_ATOM && value->format == 32)
     {
@@ -934,13 +932,7 @@ dmxRROutputSetProperty (ScreenPtr	   pScreen,
 		return FALSE;
 
 	    for (i = 0; i < p->num_valid; i++)
-	    {
-		XLIB_PROLOGUE (dmxScreen);
-		validValues[i] = XInternAtom (dmxScreen->beDisplay,
-					      NameForAtom (p->valid_values[i]),
-					      FALSE);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
+		validValues[i] = dmxBEAtom (dmxScreen, p->valid_values[i]);
 	}
 
 	if (value->size)
@@ -952,13 +944,7 @@ dmxRROutputSetProperty (ScreenPtr	   pScreen,
 		return FALSE;
 
 	    for (i = 0; i < value->size; i++)
-	    {
-		XLIB_PROLOGUE (dmxScreen);
-		values[i] = XInternAtom (dmxScreen->beDisplay,
-					 NameForAtom (atoms[i]),
-					 FALSE);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
+		values[i] = dmxBEAtom (dmxScreen, atoms[i]);
 	}
     }
     else

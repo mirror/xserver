@@ -40,9 +40,12 @@ dmxAtom (DMXScreenInfo *dmxScreen,
 
     if (!atom)
     {
-	char *name;
+	char *name = NULL;
 
+	XLIB_PROLOGUE (dmxScreen);
 	name = XGetAtomName (dmxScreen->beDisplay, beAtom);
+	XLIB_EPILOGUE (dmxScreen);
+
 	if (!name)
 	    return None;
 
@@ -90,7 +93,9 @@ dmxBEAtom (DMXScreenInfo *dmxScreen,
 	if (!name)
 	    return None;
 
+	XLIB_PROLOGUE (dmxScreen);
 	beAtom = XInternAtom (dmxScreen->beDisplay, name, FALSE);
+	XLIB_EPILOGUE (dmxScreen);	
 
 	if (atom >= dmxScreen->beAtomTableSize)
 	{

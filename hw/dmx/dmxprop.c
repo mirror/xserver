@@ -63,6 +63,7 @@
 #include "dmxprop.h"
 #include "dmxwindow.h"
 #include "dmxlog.h"
+#include "dmxatom.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -420,9 +421,7 @@ dmxDeleteProperty (WindowPtr pWin,
     XLIB_PROLOGUE (dmxScreen);
     XDeleteProperty (dmxScreen->beDisplay,
 		     pWinPriv->window,
-		     XInternAtom (dmxScreen->beDisplay,
-				  NameForAtom (property),
-				  FALSE));
+		     dmxBEAtom (dmxScreen, property));
     XLIB_EPILOGUE (dmxScreen);
 }
 
@@ -487,9 +486,7 @@ dmxRotateProperties (WindowPtr pWin,
 
     XLIB_PROLOGUE (dmxScreen);
     for (i = 0; i < nAtoms; i++)
-	buf[i] = XInternAtom (dmxScreen->beDisplay,
-			      NameForAtom (atoms[i]),
-			      FALSE);
+	buf[i] = dmxBEAtom (dmxScreen, atoms[i]);
 
     XRotateWindowProperties (dmxScreen->beDisplay,
 			     pWinPriv->window,
