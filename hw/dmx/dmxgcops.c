@@ -53,6 +53,13 @@
 
 #include "panoramiXsrv.h"
 
+#include <xcb/xcb_image.h>
+
+/* hm, conflicting definition of xcb_popcount in xcbext.h and xcb_bitops.h */
+#define xcb_popcount xcb_popcount2
+#include <xcb/xcb_bitops.h>
+#undef xcb_popcount
+
 #define DMX_GCOPS_SET_DRAWABLE(_pDraw, _draw)				\
 do {									\
     if ((_pDraw)->type == DRAWABLE_WINDOW) {				\
@@ -582,9 +589,10 @@ static DMXScreenInfo *dmxFindAlternatePixmap(DrawablePtr pDrawable, XID *draw)
 void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 		 unsigned int format, unsigned long planeMask, char *pdstLine)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
-    XImage        *img = NULL;
-    Drawable       draw;
+    DMXScreenInfo          *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
+    Drawable               draw;
+    xcb_get_image_cookie_t cookie;
+    xcb_get_image_reply_t  *reply;
 
     /* Cannot get image from unviewable window */
     if (pDrawable->type == DRAWABLE_WINDOW) {
@@ -611,15 +619,69 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
         }
     }
 
-    XLIB_PROLOGUE (dmxScreen);
-    img = XGetImage(dmxScreen->beDisplay, draw,
-		    sx, sy, w, h, planeMask, format);
-    XLIB_EPILOGUE (dmxScreen);
-    if (img) {
-	int len = img->bytes_per_line * img->height;
-	memmove(pdstLine, img->data, len);
-	XDestroyImage(img);
-    }
+    cookie = xcb_get_image (dmxScreen->connection,
+			    format,
+			    draw,
+			    sx, sy, w, h,
+			    planeMask);
 
-    dmxSync(dmxScreen, FALSE);
+    do {
+	dmxDispatch ();
+
+	if (xcb_poll_for_reply (dmxScreen->connection,
+				cookie.sequence,
+				(void **) &reply,
+				NULL))
+	    break;
+    } while (dmxWaitForResponse () && dmxScreen->alive);
+
+    if (reply)
+    {
+	const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
+	uint32_t          bytes = xcb_get_image_data_length (reply);
+	uint8_t           *data = xcb_get_image_data (reply);
+
+	/* based on code in xcb_image.c, Copyright (C) 2007 Bart Massey */
+	switch (format) {
+	case XCB_IMAGE_FORMAT_XY_PIXMAP:
+	    planeMask &= xcb_mask (reply->depth);
+	    if (planeMask != xcb_mask (reply->depth))
+	    {
+		uint32_t rpm = planeMask;
+		uint8_t  *src_plane = data;
+		uint8_t  *dst_plane = (uint8_t *) pdstLine;
+		uint32_t scanline_pad = setup->bitmap_format_scanline_pad;
+		uint32_t stride = xcb_roundup (w, scanline_pad) >> 3;
+		uint32_t size = h * stride;
+		int      i;
+
+		if (setup->image_byte_order == XCB_IMAGE_ORDER_MSB_FIRST)
+		    rpm = xcb_bit_reverse (planeMask, reply->depth);
+
+		for (i = 0; i < reply->depth; i++)
+		{
+		    if (rpm & 1)
+		    {
+			memcpy (dst_plane, src_plane, size);
+			src_plane += size;
+		    }
+		    else
+		    {
+			memset (dst_plane, 0, size);
+		    }
+
+		    dst_plane += size;
+		}
+		break;
+	    }
+
+	    /* fall through */
+	case XCB_IMAGE_FORMAT_Z_PIXMAP:
+	    memmove (pdstLine, data, bytes);
+	default:
+	    break;
+	}
+
+	free (reply);
+    }
 }
