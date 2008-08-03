@@ -1066,6 +1066,7 @@ dmxScreenEventCheckRR (ScreenPtr           pScreen,
     case XCB_CONFIGURE_NOTIFY: {
 	XEvent X;
 
+	X.xconfigure.type    = XCB_CONFIGURE_NOTIFY;
 	X.xconfigure.display = dmxScreen->beDisplay;
 	X.xconfigure.window  = xconfigure->window;
 	X.xconfigure.width   = xconfigure->width;
@@ -1081,6 +1082,7 @@ dmxScreenEventCheckRR (ScreenPtr           pScreen,
 	case XCB_RANDR_SCREEN_CHANGE_NOTIFY: {
 	    XRRScreenChangeNotifyEvent X;
 
+	    X.type           = event->response_type;
 	    X.display        = dmxScreen->beDisplay;
 	    X.root           = scevent->root;
 	    X.width          = scevent->width;
