@@ -1451,29 +1451,29 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
     {
 	switch (pProp->type) {
 	case XA_ATOM:
-	    format = "a";
+	    format = "a..";
 	    break;
 	case XA_BITMAP:
 	case XA_PIXMAP:
-	    format = "p";
+	    format = "p..";
 	    break;
 	case XA_COLORMAP:
-	    format = "m";
+	    format = "m..";
 	    break;
 	case XA_CURSOR:
-	    format = "c";
+	    format = "c..";
 	    break;
 	case XA_DRAWABLE:
-	    format = "d";
+	    format = "d..";
 	    break;
 	case XA_FONT:
-	    format = "f";
+	    format = "f..";
 	    break;
 	case XA_VISUALID:
-	    format = "v";
+	    format = "v..";
 	    break;
 	case XA_WINDOW:
-	    format = "w";
+	    format = "w..";
 	    break;
 	default:
 	    for (i = 0; i < dmxPropTransNum; i++)
