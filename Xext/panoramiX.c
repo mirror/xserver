@@ -53,6 +53,9 @@ Equipment Corporation.
 #include "globals.h"
 #include "servermd.h"
 #include "resource.h"
+#ifdef MITSHM
+#include "shmint.h"
+#endif
 #ifdef RENDER
 #include "picturestr.h"
 #endif
@@ -585,6 +588,9 @@ void PanoramiXExtensionInit(int argc, char *argv[])
     ProcVector[X_StoreColors] = PanoramiXStoreColors;    
     ProcVector[X_StoreNamedColor] = PanoramiXStoreNamedColor;    
 
+#ifdef MITSHM
+    PanoramiXShmInit ();
+#endif
 #ifdef RENDER
     PanoramiXRenderInit ();
 #endif

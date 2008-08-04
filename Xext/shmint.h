@@ -30,10 +30,19 @@
 #include "pixmap.h"
 #include "gc.h"
 
+#ifndef ShmNumberRequests
+#define ShmNumberRequests (X_ShmCreatePixmap + 1)
+#endif
+
 void
 ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
 
 void
 ShmRegisterFbFuncs(ScreenPtr pScreen);
+
+#ifdef PANORAMIX
+void PanoramiXShmInit (void);
+void PanoramiXShmReset (void);
+#endif
 
 #endif /* _SHMINT_H_ */

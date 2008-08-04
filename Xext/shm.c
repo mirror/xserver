@@ -131,6 +131,24 @@ static DISPATCH_PROC(SProcShmGetImage);
 static DISPATCH_PROC(SProcShmPutImage);
 static DISPATCH_PROC(SProcShmQueryVersion);
 
+int (*ProcShmVector[ShmNumberRequests])(ClientPtr) = {
+    ProcShmQueryVersion,
+    ProcShmAttach,
+    ProcShmDetach,
+    ProcShmPutImage,
+    ProcShmGetImage,
+    ProcShmCreatePixmap
+};
+
+int (*SProcShmVector[ShmNumberRequests])(ClientPtr) = {
+    SProcShmQueryVersion,
+    SProcShmAttach,
+    SProcShmDetach,
+    SProcShmPutImage,
+    SProcShmGetImage,
+    SProcShmCreatePixmap
+};
+
 static unsigned char ShmReqCode;
 _X_EXPORT int ShmCompletionCode;
 _X_EXPORT int BadShmSegCode;
@@ -543,7 +561,7 @@ ProcPanoramiXShmPutImage(ClientPtr client)
 	    stuff->dstX = orig_x - panoramiXdataPtr[j].x;
 	    stuff->dstY = orig_y - panoramiXdataPtr[j].y;
 	}
-	result = ProcShmPutImage(client);
+	result = (*ProcShmVector[X_ShmPutImage])(client);
 	if(result != client->noClientException) break;
     }
     return(result);
@@ -577,7 +595,7 @@ ProcPanoramiXShmGetImage(ClientPtr client)
 	return BadDrawable;
 
     if (draw->type == XRT_PIXMAP)
-	return ProcShmGetImage(client);
+	return (*ProcShmVector[X_ShmGetImage])(client);
 
     rc = dixLookupDrawable(&pDraw, stuff->drawable, client, 0,
 			   DixReadAccess);
@@ -587,7 +605,7 @@ ProcPanoramiXShmGetImage(ClientPtr client)
     /* bits for redirected windows are available on all screens */
     for (pWin = (WindowPtr) pDraw; pWin; pWin = pWin->parent)
 	if (pWin->redirectDraw != RedirectDrawNone)
-	    return ProcShmGetImage(client);
+	    return (*ProcShmVector[X_ShmGetImage])(client);
 
     VERIFY_SHMPTR(stuff->shmseg, stuff->offset, TRUE, shmdesc, client);
 
@@ -1109,35 +1127,11 @@ static int
 ProcShmDispatch (ClientPtr client)
 {
     REQUEST(xReq);
-    switch (stuff->data)
-    {
-    case X_ShmQueryVersion:
-	return ProcShmQueryVersion(client);
-    case X_ShmAttach:
-	return ProcShmAttach(client);
-    case X_ShmDetach:
-	return ProcShmDetach(client);
-    case X_ShmPutImage:
-#ifdef PANORAMIX
-        if ( !noPanoramiXExtension )
-	   return ProcPanoramiXShmPutImage(client);
-#endif
-	return ProcShmPutImage(client);
-    case X_ShmGetImage:
-#ifdef PANORAMIX
-        if ( !noPanoramiXExtension )
-	   return ProcPanoramiXShmGetImage(client);
-#endif
-	return ProcShmGetImage(client);
-    case X_ShmCreatePixmap:
-#ifdef PANORAMIX
-        if ( !noPanoramiXExtension )
-	   return ProcPanoramiXShmCreatePixmap(client);
-#endif
-	   return ProcShmCreatePixmap(client);
-    default:
+
+    if (stuff->data < ShmNumberRequests)
+	return (*ProcShmVector[stuff->data]) (client);
+    else
 	return BadRequest;
-    }
 }
 
 static void
@@ -1159,7 +1153,7 @@ SProcShmQueryVersion(ClientPtr client)
     REQUEST(xShmQueryVersionReq);
 
     swaps(&stuff->length, n);
-    return ProcShmQueryVersion(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
@@ -1171,7 +1165,7 @@ SProcShmAttach(ClientPtr client)
     REQUEST_SIZE_MATCH(xShmAttachReq);
     swapl(&stuff->shmseg, n);
     swapl(&stuff->shmid, n);
-    return ProcShmAttach(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
@@ -1182,7 +1176,7 @@ SProcShmDetach(ClientPtr client)
     swaps(&stuff->length, n);
     REQUEST_SIZE_MATCH(xShmDetachReq);
     swapl(&stuff->shmseg, n);
-    return ProcShmDetach(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
@@ -1204,7 +1198,7 @@ SProcShmPutImage(ClientPtr client)
     swaps(&stuff->dstY, n);
     swapl(&stuff->shmseg, n);
     swapl(&stuff->offset, n);
-    return ProcShmPutImage(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
@@ -1222,7 +1216,7 @@ SProcShmGetImage(ClientPtr client)
     swapl(&stuff->planeMask, n);
     swapl(&stuff->shmseg, n);
     swapl(&stuff->offset, n);
-    return ProcShmGetImage(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
@@ -1238,28 +1232,47 @@ SProcShmCreatePixmap(ClientPtr client)
     swaps(&stuff->height, n);
     swapl(&stuff->shmseg, n);
     swapl(&stuff->offset, n);
-    return ProcShmCreatePixmap(client);
+    return (*ProcShmVector[stuff->shmReqType])(client);
 }
 
 static int
 SProcShmDispatch (ClientPtr client)
 {
     REQUEST(xReq);
-    switch (stuff->data)
-    {
-    case X_ShmQueryVersion:
-	return SProcShmQueryVersion(client);
-    case X_ShmAttach:
-	return SProcShmAttach(client);
-    case X_ShmDetach:
-	return SProcShmDetach(client);
-    case X_ShmPutImage:
-	return SProcShmPutImage(client);
-    case X_ShmGetImage:
-	return SProcShmGetImage(client);
-    case X_ShmCreatePixmap:
-	return SProcShmCreatePixmap(client);
-    default:
+
+    if (stuff->data < ShmNumberRequests)
+	return (*SProcShmVector[stuff->data]) (client);
+    else
 	return BadRequest;
-    }
 }
+
+#ifdef PANORAMIX
+
+int (*PanoramiXSaveShmVector[ShmNumberRequests])(ClientPtr);
+
+void
+PanoramiXShmInit (void)
+{
+    int i;
+    
+    for (i = 0; i < ShmNumberRequests; i++)
+	PanoramiXSaveShmVector[i] = ProcShmVector[i];
+
+    /*
+     * Stuff in Xinerama aware request processing hooks
+     */
+    ProcShmVector[X_ShmPutImage]     = ProcPanoramiXShmPutImage;
+    ProcShmVector[X_ShmGetImage]     = ProcPanoramiXShmGetImage;
+    ProcShmVector[X_ShmCreatePixmap] = ProcPanoramiXShmCreatePixmap;
+}
+
+void
+PanoramiXShmReset (void)
+{
+    int i;
+
+    for (i = 0; i < ShmNumberRequests; i++)
+	ProcShmVector[i] = PanoramiXSaveShmVector[i];
+}
+
+#endif	/* PANORAMIX */
