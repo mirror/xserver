@@ -103,7 +103,22 @@ dmxShmPutImage (DrawablePtr  dst,
 		char	     *data)
 {
     PixmapPtr pmap;
-    GCPtr putGC;
+    GCPtr     putGC;
+    
+    if (dst->type == DRAWABLE_WINDOW)
+    {
+	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV ((WindowPtr) (dst));
+
+	if (!pWinPriv->window || (dmxOffScreenOpt && pWinPriv->offscreen))
+	    return;
+    }
+    else
+    {
+	dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV ((PixmapPtr) (dst));
+	
+	if (!pPixPriv->pixmap)
+	    return;
+    }
 
     putGC = GetScratchGC(depth, dst->pScreen);
     if (!putGC)
