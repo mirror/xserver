@@ -1325,6 +1325,9 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	if (!noRenderExtension)
 	    dmxResetRender();
 #endif
+#ifdef MITSHM
+	dmxResetShm();
+#endif
 	dmxResetGrabs();
 	dmxResetProps();
 	dmxResetFonts();

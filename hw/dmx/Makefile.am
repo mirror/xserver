@@ -84,6 +84,8 @@ Xdmx_SOURCES = dmx.c \
                dmxatom.h \
                dmxlaunch.c \
                dmxlaunch.h \
+               dmxshm.c \
+               dmxshm.h \
                dmxcomp.c \
                dmxcomp.h \
                dmxrandr.c \
