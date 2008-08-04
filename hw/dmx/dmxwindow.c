@@ -514,10 +514,9 @@ Bool dmxDestroyWindow(WindowPtr pWindow)
 	pWinPriv->windowDestroyed(pWindow);
 #endif
 
-#if 0
     if (pScreen->DestroyWindow)
 	ret = pScreen->DestroyWindow(pWindow);
-#endif
+
     DMX_WRAP(DestroyWindow, dmxDestroyWindow, dmxScreen, pScreen);
 
     return ret;
@@ -534,10 +533,8 @@ Bool dmxPositionWindow(WindowPtr pWindow, int x, int y)
     XWindowChanges  c;
 
     DMX_UNWRAP(PositionWindow, dmxScreen, pScreen);
-#if 0
     if (pScreen->PositionWindow)
 	ret = pScreen->PositionWindow(pWindow, x, y);
-#endif
 
     /* Determine if the window is completely off the visible portion of
        the screen */
@@ -680,15 +677,8 @@ Bool dmxChangeWindowAttributes(WindowPtr pWindow, unsigned long mask)
 {
     ScreenPtr             pScreen = pWindow->drawable.pScreen;
     DMXScreenInfo        *dmxScreen = &dmxScreens[pScreen->myNum];
-    Bool                  ret = TRUE;
     dmxWinPrivPtr         pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
     XSetWindowAttributes  attribs;
-
-    DMX_UNWRAP(ChangeWindowAttributes, dmxScreen, pScreen);
-#if 0
-    if (pScreen->ChangeWindowAttributes)
-	ret = pScreen->ChangeWindowAttributes(pWindow, mask);
-#endif
 
     /* Change window attribs on back-end server */
     dmxDoChangeWindowAttributes(pWindow, &mask, &attribs);
@@ -704,10 +694,7 @@ Bool dmxChangeWindowAttributes(WindowPtr pWindow, unsigned long mask)
 	dmxSync(dmxScreen, False);
     }
 
-    DMX_WRAP(ChangeWindowAttributes, dmxChangeWindowAttributes, dmxScreen,
-	     pScreen);
-
-    return ret;
+    return TRUE;
 }
 
 /** Realize \a pWindow on the back-end server.  If the lazy window
@@ -721,10 +708,8 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     DMX_UNWRAP(RealizeWindow, dmxScreen, pScreen);
-#if 0
     if (pScreen->RealizeWindow)
 	ret = pScreen->RealizeWindow(pWindow);
-#endif
 
     /* Determine if the window is completely off the visible portion of
        the screen */
@@ -772,10 +757,8 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
     dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     DMX_UNWRAP(UnrealizeWindow, dmxScreen, pScreen);
-#if 0
     if (pScreen->UnrealizeWindow)
 	ret = pScreen->UnrealizeWindow(pWindow);
-#endif
 
     if (pWinPriv->window) {
 	/* Unrealize window on back-end server */
@@ -878,10 +861,8 @@ void dmxRestackWindow(WindowPtr pWindow, WindowPtr pOldNextSib)
     dmxWinPrivPtr   pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     DMX_UNWRAP(RestackWindow, dmxScreen, pScreen);
-#if 0
     if (pScreen->RestackWindow)
 	pScreen->RestackWindow(pWindow, pOldNextSib);
-#endif
 
     if (pOldNextSib != pWindow->nextSib) {
 	/* Track restacking for lazy window creation optimization */
@@ -909,12 +890,6 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
     unsigned int    m;
     XWindowChanges  c;
 
-    DMX_UNWRAP(CopyWindow, dmxScreen, pScreen);
-#if 0
-    if (pScreen->CopyWindow)
-	pScreen->CopyWindow(pWindow, ptOldOrg, prgnSrc);
-#endif
-
     /* Determine if the window is completely off the visible portion of
        the screen */
     pWinPriv->offscreen = DMX_WINDOW_OFFSCREEN(pWindow);
@@ -938,7 +913,6 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 	dmxSync(dmxScreen, False);
     }
 
-    DMX_WRAP(CopyWindow, dmxCopyWindow, dmxScreen, pScreen);
     dmxUpdateWindowInfo(DMX_UPDATE_COPY, pWindow);
 }
 
@@ -959,10 +933,8 @@ void dmxResizeWindow(WindowPtr pWindow, int x, int y,
 	pSibPriv = DMX_GET_WINDOW_PRIV(pSib);
 
     DMX_UNWRAP(ResizeWindow, dmxScreen, pScreen);
-#if 1
     if (pScreen->ResizeWindow)
 	pScreen->ResizeWindow(pWindow, x, y, w, h, pSib);
-#endif
 
     /* Determine if the window is completely off the visible portion of
        the screen */
@@ -1000,10 +972,8 @@ void dmxReparentWindow(WindowPtr pWindow, WindowPtr pPriorParent)
     dmxWinPrivPtr  pParentPriv = DMX_GET_WINDOW_PRIV(pWindow->parent);
 
     DMX_UNWRAP(ReparentWindow, dmxScreen, pScreen);
-#if 0
     if (pScreen->ReparentWindow)
 	pScreen->ReparentWindow(pWindow, pPriorParent);
-#endif
 
     if (pWinPriv->window) {
 	if (!pParentPriv->window) {
@@ -1034,10 +1004,8 @@ void dmxChangeBorderWidth(WindowPtr pWindow, unsigned int width)
     XWindowChanges  c;
 
     DMX_UNWRAP(ChangeBorderWidth, dmxScreen, pScreen);
-#if 1
     if (pScreen->ChangeBorderWidth)
 	pScreen->ChangeBorderWidth(pWindow, width);
-#endif
 
     /* NOTE: Do we need to check for on/off screen here? */
 
@@ -1162,10 +1130,8 @@ void dmxSetShape(WindowPtr pWindow)
     dmxWinPrivPtr   pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     DMX_UNWRAP(SetShape, dmxScreen, pScreen);
-#if 1
     if (pScreen->SetShape)
 	pScreen->SetShape(pWindow);
-#endif
 
     if (pWinPriv->window) {
 	/* Handle setting the current shape on the back-end server */
