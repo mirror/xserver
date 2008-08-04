@@ -67,4 +67,4 @@ AM_CFLAGS = $(DIX_CFLAGS) \
             $(GLX_DEFS) \
             @DMXMODULES_CFLAGS@
 
-EXTRA_DIST = dmxdetach.c
+EXTRA_DIST = dmxdetach.c atKeynames.h
