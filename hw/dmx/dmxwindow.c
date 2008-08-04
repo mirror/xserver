@@ -884,11 +884,7 @@ void dmxRestackWindow(WindowPtr pWindow, WindowPtr pOldNextSib)
  *  lazy window creation optimization is enabled. */
 void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 {
-    ScreenPtr       pScreen = pWindow->drawable.pScreen;
-    DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxWinPrivPtr   pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
-    unsigned int    m;
-    XWindowChanges  c;
+    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
 
     /* Determine if the window is completely off the visible portion of
        the screen */
@@ -898,19 +894,6 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
        been created yet, create it and map it */
     if (!pWinPriv->window && pWinPriv->mapped && !pWinPriv->offscreen) {
 	dmxCreateAndRealizeWindow(pWindow, TRUE);
-    } else if (pWinPriv->window) {
-	/* Move window on back-end server */
-	m = CWX | CWY | CWWidth | CWHeight;
-	c.x = pWindow->origin.x - wBorderWidth(pWindow);
-	c.y = pWindow->origin.y - wBorderWidth(pWindow);
-	c.width = pWindow->drawable.width;
-	c.height = pWindow->drawable.height;
-
-	XLIB_PROLOGUE (dmxScreen);
-	dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
-	XConfigureWindow(dmxScreen->beDisplay, pWinPriv->window, m, &c);
-	XLIB_EPILOGUE (dmxScreen);
-	dmxSync(dmxScreen, False);
     }
 
     dmxUpdateWindowInfo(DMX_UPDATE_COPY, pWindow);
