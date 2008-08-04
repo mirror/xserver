@@ -555,6 +555,7 @@ ProcPanoramiXShmGetImage(ClientPtr client)
     PanoramiXRes	*draw;
     DrawablePtr 	drawables[MAXSCREENS];
     DrawablePtr 	pDraw;
+    WindowPtr		pWin;
     xShmGetImageReply	xgi;
     ShmDescPtr		shmdesc;
     int         	i, x, y, w, h, format, rc;
@@ -582,6 +583,11 @@ ProcPanoramiXShmGetImage(ClientPtr client)
 			   DixReadAccess);
     if (rc != Success)
 	return rc;
+
+    /* bits for redirected windows are available on all screens */
+    for (pWin = (WindowPtr) pDraw; pWin; pWin = pWin->parent)
+	if (pWin->redirectDraw != RedirectDrawNone)
+	    return ProcShmGetImage(client);
 
     VERIFY_SHMPTR(stuff->shmseg, stuff->offset, TRUE, shmdesc, client);
 
