@@ -981,24 +981,37 @@ int PanoramiXCopyArea(ClientPtr client)
     Bool		srcIsRoot = FALSE;
     Bool		dstIsRoot = FALSE;
     Bool		srcShared, dstShared;
+    Bool		getImageData = FALSE;
+    DrawablePtr		srcDrawables[MAXSCREENS];
     REQUEST(xCopyAreaReq);
 
     REQUEST_SIZE_MATCH(xCopyAreaReq);
 
     if(!(src = (PanoramiXRes *)SecurityLookupIDByClass(
-		client, stuff->srcDrawable, XRC_DRAWABLE, DixReadAccess)))
+	     client, stuff->srcDrawable, XRC_DRAWABLE, DixReadAccess)))
 	return BadDrawable;
 
     srcShared = IS_SHARED_PIXMAP(src);
 
     if(!(dst = (PanoramiXRes *)SecurityLookupIDByClass(
-		client, stuff->dstDrawable, XRC_DRAWABLE, DixWriteAccess)))
+	     client, stuff->dstDrawable, XRC_DRAWABLE, DixWriteAccess)))
 	return BadDrawable;
 
     dstShared = IS_SHARED_PIXMAP(dst);
 
     if(dstShared && srcShared)
 	return (* SavedProcVector[X_CopyArea])(client);
+
+    if (stuff->dstDrawable != stuff->srcDrawable) {
+	int rc;
+
+	FOR_NSCREENS(j) {
+	    rc = dixLookupDrawable(srcDrawables+j, src->info[j].id, client, 0,
+				   DixGetAttrAccess);
+	    if (rc != Success)
+		return rc;
+	}
+    }
 
     if(!(gc = (PanoramiXRes *)SecurityLookupIDByType(
 		client, stuff->gc, XRT_GC, DixReadAccess)))
@@ -1011,32 +1024,34 @@ int PanoramiXCopyArea(ClientPtr client)
 
     srcx = stuff->srcX; srcy = stuff->srcY;
     dstx = stuff->dstX; dsty = stuff->dstY;
+
     if((dst->type == XRT_PIXMAP) && (src->type == XRT_WINDOW)) {
-	DrawablePtr drawables[MAXSCREENS];
+	WindowPtr pWin = (WindowPtr) srcDrawables[0];
+
+	/* no need to use GetImageData if window is redirected */
+	for (getImageData = TRUE; pWin && getImageData; pWin = pWin->parent)
+	    if (pWin->redirectDraw != RedirectDrawNone)
+		getImageData = FALSE;
+    }
+
+    if(getImageData) {
 	DrawablePtr pDst;
 	GCPtr pGC;
         char *data;
-	int pitch, rc;
+	int pitch;
 
-	FOR_NSCREENS(j) {
-	    rc = dixLookupDrawable(drawables+j, src->info[j].id, client, 0,
-				   DixGetAttrAccess);
-	    if (rc != Success)
-		return rc;
-	}
-
-	pitch = PixmapBytePad(stuff->width, drawables[0]->depth); 
+	pitch = PixmapBytePad(stuff->width, srcDrawables[0]->depth); 
 	if(!(data = xcalloc(1, stuff->height * pitch)))
 	    return BadAlloc;
 
-	XineramaGetImageData(drawables, srcx, srcy, 
+	XineramaGetImageData(srcDrawables, srcx, srcy, 
 		stuff->width, stuff->height, ZPixmap, ~0, data, pitch, 
 		srcIsRoot);
 
 	FOR_NSCREENS_BACKWARD(j) {
 	    stuff->gc = gc->info[j].id;
 	    VALIDATE_DRAWABLE_AND_GC(dst->info[j].id, pDst, DixWriteAccess);
-	    if(drawables[0]->depth != pDst->depth) {
+	    if(srcDrawables[0]->depth != pDst->depth) {
 		client->errorValue = stuff->dstDrawable;
 		xfree(data);
 		return (BadMatch);
@@ -1056,7 +1071,6 @@ int PanoramiXCopyArea(ClientPtr client)
 	DrawablePtr pDst = NULL, pSrc = NULL;
 	GCPtr pGC = NULL;
 	RegionPtr pRgn[MAXSCREENS];
-	int rc;
 
 	FOR_NSCREENS_BACKWARD(j) {
 	    stuff->dstDrawable = dst->info[j].id;
@@ -1074,11 +1088,7 @@ int PanoramiXCopyArea(ClientPtr client)
 	    VALIDATE_DRAWABLE_AND_GC(stuff->dstDrawable, pDst, DixWriteAccess);
 
 	    if (stuff->dstDrawable != stuff->srcDrawable) {
-		rc = dixLookupDrawable(&pSrc, stuff->srcDrawable, client, 0,
-				       DixReadAccess);
-		if (rc != Success)
-		    return rc;
-
+		pSrc = srcDrawables[j];
 		if ((pDst->pScreen != pSrc->pScreen) || 
 		    (pDst->depth != pSrc->depth)) {
 			client->errorValue = stuff->dstDrawable;
@@ -1749,6 +1759,7 @@ int PanoramiXGetImage(ClientPtr client)
 {
     DrawablePtr 	drawables[MAXSCREENS];
     DrawablePtr 	pDraw;
+    WindowPtr		pWin;
     PanoramiXRes	*draw;
     xGetImageReply	xgi;
     Bool		isRoot;
@@ -1781,6 +1792,11 @@ int PanoramiXGetImage(ClientPtr client)
 
     if(!((WindowPtr)pDraw)->realized)
 	return(BadMatch);
+
+    /* bits for redirected windows are available on all screens */
+    for (pWin = (WindowPtr) pDraw; pWin; pWin = pWin->parent)
+	if (pWin->redirectDraw != RedirectDrawNone)
+	    return (*SavedProcVector[X_GetImage])(client);
 
     x = stuff->x;
     y = stuff->y;
