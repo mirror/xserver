@@ -58,6 +58,7 @@
 #include "dmxinit.h"
 #include "dmxgrab.h"
 #include "dmxatom.h"
+#include "dmxshm.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -84,110 +85,6 @@
 #include "mipointer.h"
 #include "micmap.h"
 #include "mivalidate.h"
-
-#ifdef MITSHM
-#include "shmint.h"
-static void
-dmxShmPutImage (DrawablePtr  pDraw,
-		GCPtr	     pGC,
-		int	     depth,
-		unsigned int format,
-		int	     w,
-		int	     h,
-		int	     sx,
-		int	     sy,
-		int	     sw,
-		int	     sh,
-		int	     dx,
-		int	     dy,
-		char	     *data)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pDraw->pScreen->myNum];
-    dmxGCPrivPtr  pGCPriv = DMX_GET_GC_PRIV (pGC);
-    int           vIndex = dmxScreen->beDefVisualIndex;
-    XImage        *image = NULL;
-    Drawable      draw;
-
-    if (pDraw->type == DRAWABLE_WINDOW)
-	draw = (DMX_GET_WINDOW_PRIV ((WindowPtr) (pDraw)))->window;
-    else
-	draw = (DMX_GET_PIXMAP_PRIV ((PixmapPtr) (pDraw)))->pixmap;
-
-    if (!dmxScreen->beDisplay || !draw)
-	return;
-
-    XLIB_PROLOGUE (dmxScreen);
-    image = XCreateImage (dmxScreen->beDisplay,
-			  dmxScreen->beVisuals[vIndex].visual,
-			  depth, format, 0, data, w, h,
-			  BitmapPad (dmxScreen->beDisplay),
-			  (format == ZPixmap) ?
-			  PixmapBytePad (w, depth) : BitmapBytePad (w));
-    XLIB_EPILOGUE (dmxScreen);
-
-    if (image)
-    {
-	RegionRec reg;
-	BoxRec    src, dst;
-	BoxPtr    pBox;
-	int       nBox;
-
-	src.x1 = dx - sx;
-	src.y1 = dy - sy;
-	src.x2 = src.x1 + w;
-	src.y2 = src.y1 + h;
-
-	dst.x1 = dx;
-	dst.y1 = dy;
-	dst.x2 = dst.x1 + sw;
-	dst.y2 = dst.y1 + sh;
-
-	if (src.x1 > dst.x1)
-	    dst.x1 = src.x1;
-	if (src.y1 > dst.y1)
-	    dst.y1 = src.y1;
-	if (src.x2 < dst.x2)
-	    dst.x2 = src.x2;
-	if (src.y2 < dst.y2)
-	    dst.y2 = src.y2;
-
-	REGION_INIT (pGC->pScreen, &reg, &dst, 0);
-
-	if (pGC->pCompositeClip)
-	{
-	    REGION_TRANSLATE (pGC->pScreen, pGC->pCompositeClip,
-			      -pDraw->x, -pDraw->y);
-	    REGION_INTERSECT (pGC->pScreen, &reg, &reg, pGC->pCompositeClip);
-	    REGION_TRANSLATE (pGC->pScreen, pGC->pCompositeClip,
-			      pDraw->x, pDraw->y);
-	}
-
-	nBox = REGION_NUM_RECTS (&reg);
-	pBox = REGION_RECTS (&reg);
-
-	XLIB_PROLOGUE (dmxScreen);
-	while (nBox--)
-	{
-	    XPutImage (dmxScreen->beDisplay, draw, pGCPriv->gc, image,
-		       pBox->x1 - src.x1,
-		       pBox->y1 - src.y1,
-		       pBox->x1,
-		       pBox->y1,
-		       pBox->x2 - pBox->x1,
-		       pBox->y2 - pBox->y1);
-	    pBox++;
-	}
-	XLIB_EPILOGUE (dmxScreen);
-
-	REGION_UNINIT (pGC->pScreen, &reg);
-
-	XFree (image);
-
-	dmxSync (dmxScreen, FALSE);
-    }
-}
-static ShmFuncs shmFuncs = { NULL, dmxShmPutImage };
-#endif
 
 extern Bool dmxCloseScreen(int idx, ScreenPtr pScreen);
 static Bool dmxSaveScreen(ScreenPtr pScreen, int what);
@@ -1094,7 +991,7 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		 dmxScreen->beBPP);
 
 #ifdef MITSHM
-    ShmRegisterFuncs (pScreen, &shmFuncs);
+    ShmRegisterDmxFuncs (pScreen);
 #endif
 
 #ifdef PANORAMIX

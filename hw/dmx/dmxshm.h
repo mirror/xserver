@@ -27,6 +27,8 @@
 #define DMXSHM_H
 
 #ifdef MITSHM
+extern void ShmRegisterDmxFuncs (ScreenPtr pScreen);
+
 extern void dmxInitShm (void);
 extern void dmxResetShm (void);
 #endif
