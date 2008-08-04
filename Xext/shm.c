@@ -90,6 +90,8 @@ in this Software without prior written authorization from The Open Group.
 #include "panoramiXsrv.h"
 #endif
 
+int (*PanoramiXSaveShmVector[ShmNumberRequests])(ClientPtr);
+
 #include "modinit.h"
 
 typedef struct _ShmDesc {
@@ -561,7 +563,7 @@ ProcPanoramiXShmPutImage(ClientPtr client)
 	    stuff->dstX = orig_x - panoramiXdataPtr[j].x;
 	    stuff->dstY = orig_y - panoramiXdataPtr[j].y;
 	}
-	result = (*ProcShmVector[X_ShmPutImage])(client);
+	result = (*PanoramiXSaveShmVector[X_ShmPutImage])(client);
 	if(result != client->noClientException) break;
     }
     return(result);
@@ -595,7 +597,7 @@ ProcPanoramiXShmGetImage(ClientPtr client)
 	return BadDrawable;
 
     if (draw->type == XRT_PIXMAP)
-	return (*ProcShmVector[X_ShmGetImage])(client);
+	return (*PanoramiXSaveShmVector[X_ShmGetImage])(client);
 
     rc = dixLookupDrawable(&pDraw, stuff->drawable, client, 0,
 			   DixReadAccess);
@@ -605,7 +607,7 @@ ProcPanoramiXShmGetImage(ClientPtr client)
     /* bits for redirected windows are available on all screens */
     for (pWin = (WindowPtr) pDraw; pWin; pWin = pWin->parent)
 	if (pWin->redirectDraw != RedirectDrawNone)
-	    return (*ProcShmVector[X_ShmGetImage])(client);
+	    return (*PanoramiXSaveShmVector[X_ShmGetImage])(client);
 
     VERIFY_SHMPTR(stuff->shmseg, stuff->offset, TRUE, shmdesc, client);
 
@@ -1247,8 +1249,6 @@ SProcShmDispatch (ClientPtr client)
 }
 
 #ifdef PANORAMIX
-
-int (*PanoramiXSaveShmVector[ShmNumberRequests])(ClientPtr);
 
 void
 PanoramiXShmInit (void)
