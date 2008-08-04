@@ -88,7 +88,7 @@
 #ifdef MITSHM
 #include "shmint.h"
 static void
-dmxShmPutImage (DrawablePtr  dst,
+dmxShmPutImage (DrawablePtr  pDraw,
 		GCPtr	     pGC,
 		int	     depth,
 		unsigned int format,
@@ -102,45 +102,85 @@ dmxShmPutImage (DrawablePtr  dst,
 		int	     dy,
 		char	     *data)
 {
-    PixmapPtr pmap;
-    GCPtr     putGC;
-    
-    if (dst->type == DRAWABLE_WINDOW)
-    {
-	dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV ((WindowPtr) (dst));
+    DMXScreenInfo *dmxScreen = &dmxScreens[pDraw->pScreen->myNum];
+    dmxGCPrivPtr  pGCPriv = DMX_GET_GC_PRIV (pGC);
+    int           vIndex = dmxScreen->beDefVisualIndex;
+    XImage        *image = NULL;
+    Drawable      draw;
 
-	if (!pWinPriv->window || (dmxOffScreenOpt && pWinPriv->offscreen))
-	    return;
-    }
+    if (pDraw->type == DRAWABLE_WINDOW)
+	draw = (DMX_GET_WINDOW_PRIV ((WindowPtr) (pDraw)))->window;
     else
+	draw = (DMX_GET_PIXMAP_PRIV ((PixmapPtr) (pDraw)))->pixmap;
+
+    if (!dmxScreen->beDisplay || !draw)
+	return;
+
+    XLIB_PROLOGUE (dmxScreen);
+    image = XCreateImage (dmxScreen->beDisplay,
+			  dmxScreen->beVisuals[vIndex].visual,
+			  depth, format, 0, data, sw, sh,
+			  BitmapPad (dmxScreen->beDisplay),
+			  (format == ZPixmap) ?
+			  PixmapBytePad (sw, depth) : BitmapBytePad (sw));
+    XLIB_EPILOGUE (dmxScreen);
+
+    if (image)
     {
-	dmxPixPrivPtr pPixPriv = DMX_GET_PIXMAP_PRIV ((PixmapPtr) (dst));
+	RegionRec reg, clip;
+	BoxRec    src, dst;
+	BoxPtr    pBox;
+	int       nBox;
+
+	src.x1 = dx - sx;
+	src.y1 = dy - sy;
+	src.x2 = src.x1 + sw;
+	src.y2 = src.y1 + sh;
+
+	dst.x1 = dx;
+	dst.y1 = dy;
+	dst.x2 = dst.x1 + w;
+	dst.y2 = dst.y1 + h;
+
+	if (src.x1 < dst.x1)
+	    src.x1 = dst.x1;
+	if (src.y1 < dst.y1)
+	    src.y1 = dst.y1;
+	if (src.x2 > dst.x2)
+	    src.x2 = dst.x2;
+	if (src.y2 > dst.y2)
+	    src.y2 = dst.y2;	
+
+	REGION_INIT (pGC->pScreen, &reg, &src, 0);
+	REGION_INIT (pGC->pScreen, &clip, &miEmptyBox, 0);
 	
-	if (!pPixPriv->pixmap)
-	    return;
-    }
+	REGION_COPY (pGC->pScreen, &clip, pGC->pCompositeClip);
+	REGION_TRANSLATE (pGC->pScreen, &clip, -pDraw->x, -pDraw->y);
+	REGION_INTERSECT (pGC->pScreen, &reg, &reg, &clip);
 
-    putGC = GetScratchGC(depth, dst->pScreen);
-    if (!putGC)
-	return;
-    pmap = (*dst->pScreen->CreatePixmap)(dst->pScreen, sw, sh, depth,
-					 CREATE_PIXMAP_USAGE_SCRATCH);
-    if (!pmap)
-    {
-	FreeScratchGC(putGC);
-	return;
+	nBox = REGION_NUM_RECTS (&reg);
+	pBox = REGION_RECTS (&reg);
+
+	XLIB_PROLOGUE (dmxScreen);
+	while (nBox--)
+	{
+	    XPutImage (dmxScreen->beDisplay, draw, pGCPriv->gc, image,
+		       pBox->x1 - src.x1,
+		       pBox->y1 - src.y1,
+		       pBox->x1,
+		       pBox->y1,
+		       pBox->x2 - pBox->x1,
+		       pBox->y2 - pBox->y1);
+	    pBox++;
+	}
+	XLIB_EPILOGUE (dmxScreen);
+
+	REGION_UNINIT (pGC->pScreen, &reg);
+
+	XFree (image);
+
+	dmxSync (dmxScreen, FALSE);
     }
-    ValidateGC((DrawablePtr)pmap, putGC);
-    (*putGC->ops->PutImage)((DrawablePtr)pmap, putGC, depth, -sx, -sy, w, h, 0,
-			    (format == XYPixmap) ? XYPixmap : ZPixmap, data);
-    FreeScratchGC(putGC);
-    if (format == XYBitmap)
-	(void)(*pGC->ops->CopyPlane)((DrawablePtr)pmap, dst, pGC, 0, 0, sw, sh,
-				     dx, dy, 1L);
-    else
-	(void)(*pGC->ops->CopyArea)((DrawablePtr)pmap, dst, pGC, 0, 0, sw, sh,
-				    dx, dy);
-    (*pmap->drawable.pScreen->DestroyPixmap)(pmap);
 }
 static ShmFuncs shmFuncs = { NULL, dmxShmPutImage };
 #endif
