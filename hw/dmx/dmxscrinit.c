@@ -119,44 +119,48 @@ dmxShmPutImage (DrawablePtr  pDraw,
     XLIB_PROLOGUE (dmxScreen);
     image = XCreateImage (dmxScreen->beDisplay,
 			  dmxScreen->beVisuals[vIndex].visual,
-			  depth, format, 0, data, sw, sh,
+			  depth, format, 0, data, w, h,
 			  BitmapPad (dmxScreen->beDisplay),
 			  (format == ZPixmap) ?
-			  PixmapBytePad (sw, depth) : BitmapBytePad (sw));
+			  PixmapBytePad (w, depth) : BitmapBytePad (w));
     XLIB_EPILOGUE (dmxScreen);
 
     if (image)
     {
-	RegionRec reg, clip;
+	RegionRec reg;
 	BoxRec    src, dst;
 	BoxPtr    pBox;
 	int       nBox;
 
 	src.x1 = dx - sx;
 	src.y1 = dy - sy;
-	src.x2 = src.x1 + sw;
-	src.y2 = src.y1 + sh;
+	src.x2 = src.x1 + w;
+	src.y2 = src.y1 + h;
 
 	dst.x1 = dx;
 	dst.y1 = dy;
-	dst.x2 = dst.x1 + w;
-	dst.y2 = dst.y1 + h;
+	dst.x2 = dst.x1 + sw;
+	dst.y2 = dst.y1 + sh;
 
-	if (src.x1 < dst.x1)
-	    src.x1 = dst.x1;
-	if (src.y1 < dst.y1)
-	    src.y1 = dst.y1;
-	if (src.x2 > dst.x2)
-	    src.x2 = dst.x2;
-	if (src.y2 > dst.y2)
-	    src.y2 = dst.y2;	
+	if (src.x1 > dst.x1)
+	    dst.x1 = src.x1;
+	if (src.y1 > dst.y1)
+	    dst.y1 = src.y1;
+	if (src.x2 < dst.x2)
+	    dst.x2 = src.x2;
+	if (src.y2 < dst.y2)
+	    dst.y2 = src.y2;
 
-	REGION_INIT (pGC->pScreen, &reg, &src, 0);
-	REGION_INIT (pGC->pScreen, &clip, &miEmptyBox, 0);
-	
-	REGION_COPY (pGC->pScreen, &clip, pGC->pCompositeClip);
-	REGION_TRANSLATE (pGC->pScreen, &clip, -pDraw->x, -pDraw->y);
-	REGION_INTERSECT (pGC->pScreen, &reg, &reg, &clip);
+	REGION_INIT (pGC->pScreen, &reg, &dst, 0);
+
+	if (pGC->pCompositeClip)
+	{
+	    REGION_TRANSLATE (pGC->pScreen, pGC->pCompositeClip,
+			      -pDraw->x, -pDraw->y);
+	    REGION_INTERSECT (pGC->pScreen, &reg, &reg, pGC->pCompositeClip);
+	    REGION_TRANSLATE (pGC->pScreen, pGC->pCompositeClip,
+			      pDraw->x, pDraw->y);
+	}
 
 	nBox = REGION_NUM_RECTS (&reg);
 	pBox = REGION_RECTS (&reg);
