@@ -53,6 +53,8 @@ extern void dmxBEDetachShmSeg (DMXScreenInfo    *dmxScreen,
 extern Bool dmxScreenEventCheckShm (ScreenPtr           pScreen,
 				    xcb_generic_event_t *event);
 
+extern Bool dmxShmInit (ScreenPtr pScreen);
+
 extern void dmxInitShm (void);
 extern void dmxResetShm (void);
 #endif

@@ -1045,14 +1045,12 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 #ifdef MITSHM
     ShmRegisterDmxFuncs (pScreen);
-    if (dmxScreen->beDisplay)
+    dmxScreen->beShm = dmxShmInit (pScreen);
+    if (dmxScreen->beShm)
     {
-	XLIB_PROLOGUE (dmxScreen);
-	dmxScreen->beShm = XShmQueryExtension (dmxScreen->beDisplay);
-	if (dmxScreen->beShm)
-	    dmxScreen->beShmEventBase =
-		XShmGetEventBase (dmxScreen->beDisplay);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxScreen->beShmEventBase =
+	    XShmGetEventBase (dmxScreen->beDisplay);
+	dmxLogOutput (dmxScreen, "Using MIT-SHM extension\n");
     }
 #endif
 

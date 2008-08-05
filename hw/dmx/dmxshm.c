@@ -604,6 +604,50 @@ dmxProcShmPutImage (ClientPtr client)
     return (client->noClientException);
 }
 
+Bool
+dmxShmInit (ScreenPtr pScreen)
+{
+    DMXScreenInfo       *dmxScreen = &dmxScreens[pScreen->myNum];
+    xcb_generic_error_t *error;
+    xcb_shm_seg_t       shmseg;
+    uint32_t            shmid;
+    char                *shmaddr;
+
+    if (!dmxScreen->beDisplay)
+	return FALSE;
+
+    shmid = shmget (IPC_PRIVATE, 32, IPC_CREAT | 0600);
+    if (shmid == -1)
+	return FALSE;
+
+    shmaddr = shmat (shmid, NULL, 0);
+    if (shmaddr == (char *) -1)
+    {
+	shmctl (shmid, IPC_RMID, NULL);
+	return FALSE;
+    }
+
+    shmseg = xcb_generate_id (dmxScreen->connection);
+    error  = xcb_request_check (dmxScreen->connection,
+				xcb_shm_attach_checked (dmxScreen->connection,
+							shmseg,
+							shmid,
+							FALSE));
+    if (error)
+    {
+	free (error);
+	shmdt (shmaddr);
+	shmctl (shmid, IPC_RMID, NULL);
+	return FALSE;
+    }
+
+    xcb_shm_detach (dmxScreen->connection, shmseg);
+    shmdt (shmaddr);
+    shmctl (shmid, IPC_RMID, NULL);
+
+    return TRUE;
+}
+
 void dmxInitShm (void)
 {
     int i;
