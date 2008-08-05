@@ -34,6 +34,49 @@
 #define ShmNumberRequests (X_ShmCreatePixmap + 1)
 #endif
 
+typedef struct _ShmDesc {
+    struct _ShmDesc *next;
+    int shmid;
+    int refcnt;
+    char *addr;
+    Bool writable;
+    unsigned long size;
+} ShmDescRec, *ShmDescPtr;
+
+extern int ShmCompletionCode;
+extern int BadShmSegCode;
+extern RESTYPE ShmSegType;
+
+#define VERIFY_SHMSEG(shmseg,shmdesc,client) \
+{ \
+    shmdesc = (ShmDescPtr)LookupIDByType(shmseg, ShmSegType); \
+    if (!shmdesc) \
+    { \
+	client->errorValue = shmseg; \
+	return BadShmSegCode; \
+    } \
+}
+
+#define VERIFY_SHMPTR(shmseg,offset,needwrite,shmdesc,client) \
+{ \
+    VERIFY_SHMSEG(shmseg, shmdesc, client); \
+    if ((offset & 3) || (offset > shmdesc->size)) \
+    { \
+	client->errorValue = offset; \
+	return BadValue; \
+    } \
+    if (needwrite && !shmdesc->writable) \
+	return BadAccess; \
+}
+
+#define VERIFY_SHMSIZE(shmdesc,offset,len,client) \
+{ \
+    if ((offset + len) > shmdesc->size) \
+    { \
+	return BadAccess; \
+    } \
+}
+
 void
 ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
 

@@ -94,15 +94,6 @@ int (*PanoramiXSaveShmVector[ShmNumberRequests])(ClientPtr);
 
 #include "modinit.h"
 
-typedef struct _ShmDesc {
-    struct _ShmDesc *next;
-    int shmid;
-    int refcnt;
-    char *addr;
-    Bool writable;
-    unsigned long size;
-} ShmDescRec, *ShmDescPtr;
-
 static PixmapPtr fbShmCreatePixmap(XSHM_CREATE_PIXMAP_ARGS);
 static int ShmDetachSegment(
     pointer		/* value */,
@@ -163,37 +154,6 @@ static int shmPixmapPrivateIndex;
 static DevPrivateKey shmPixmapPrivate = &shmPixmapPrivateIndex;
 static ShmFuncs miFuncs = {NULL, NULL};
 static ShmFuncs fbFuncs = {fbShmCreatePixmap, NULL};
-
-#define VERIFY_SHMSEG(shmseg,shmdesc,client) \
-{ \
-    shmdesc = (ShmDescPtr)LookupIDByType(shmseg, ShmSegType); \
-    if (!shmdesc) \
-    { \
-	client->errorValue = shmseg; \
-	return BadShmSegCode; \
-    } \
-}
-
-#define VERIFY_SHMPTR(shmseg,offset,needwrite,shmdesc,client) \
-{ \
-    VERIFY_SHMSEG(shmseg, shmdesc, client); \
-    if ((offset & 3) || (offset > shmdesc->size)) \
-    { \
-	client->errorValue = offset; \
-	return BadValue; \
-    } \
-    if (needwrite && !shmdesc->writable) \
-	return BadAccess; \
-}
-
-#define VERIFY_SHMSIZE(shmdesc,offset,len,client) \
-{ \
-    if ((offset + len) > shmdesc->size) \
-    { \
-	return BadAccess; \
-    } \
-}
-
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__CYGWIN__) || defined(__DragonFly__)
 #include <sys/signal.h>
