@@ -142,7 +142,7 @@ int (*SProcShmVector[ShmNumberRequests])(ClientPtr) = {
     SProcShmCreatePixmap
 };
 
-static unsigned char ShmReqCode;
+_X_EXPORT unsigned char ShmReqCode;
 _X_EXPORT int ShmCompletionCode;
 _X_EXPORT int BadShmSegCode;
 _X_EXPORT RESTYPE ShmSegType;

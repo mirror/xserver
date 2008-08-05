@@ -43,6 +43,7 @@ typedef struct _ShmDesc {
     unsigned long size;
 } ShmDescRec, *ShmDescPtr;
 
+extern unsigned char ShmReqCode;
 extern int ShmCompletionCode;
 extern int BadShmSegCode;
 extern RESTYPE ShmSegType;
