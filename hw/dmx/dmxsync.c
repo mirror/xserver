@@ -142,23 +142,10 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
        pending replies */
     dmxSyncTimer = NULL;
 
-    while (dmxSyncRequest && dmxWaitForResponse ())
-    {
+    /* wait for all pending sync replies */
+    do {
 	dmxDispatch ();
-
-	for (i = 0; i < dmxNumScreens; i++)
-	{
-	    if (!dmxScreens[i].alive)
-	    {
-		/* remove pending replies from disconnected screens */
-		if (dmxScreens[i].sync.sequence)
-		{
-		    dmxScreens[i].sync.sequence = 0;
-		    dmxSyncRequest--;
-		}
-	    }
-	}
-    }
+    } while (dmxSyncRequest && dmxWaitForResponse ());
 
     if (dmxSyncPending)
     {
@@ -301,20 +288,21 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (sequence != dmxScreen->sync.sequence)
-	return FALSE;
+    if (reply->response_type || reply->pad0 != DMX_DETACHED)
+	if (sequence != dmxScreen->sync.sequence)
+	    return FALSE;
 
-    dmxScreen->sync.sequence = 0;
-
-    dmxSyncRequest--;
-    if (dmxSyncRequest == 0)
+    if (dmxScreen->sync.sequence)
     {
-	if (dmxSyncPending == 0 && dmxSyncTimer)
+	dmxScreen->sync.sequence = 0;
+	dmxSyncRequest--;
+
+	if (dmxSyncRequest == 0 && dmxSyncPending == 0 && dmxSyncTimer)
 	{
 	    TimerFree (dmxSyncTimer);
 	    dmxSyncTimer = NULL;
 	}
     }
-
+    
     return TRUE;
 }

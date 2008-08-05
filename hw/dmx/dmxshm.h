@@ -27,7 +27,31 @@
 #define DMXSHM_H
 
 #ifdef MITSHM
+
+#include <X11/extensions/XShm.h>
+#include <xcb/shm.h>
+
+typedef struct _dmxShmSegInfo {
+    struct _dmxShmSegInfo *next;
+    uint32_t              shmid;
+    int                   refcnt;
+    uint8_t               readOnly;
+    uint32_t              pendingEvents;
+    xcb_shm_seg_t         shmseg[MAXSCREENS];
+    xcb_void_cookie_t     cookie[MAXSCREENS];
+} dmxShmSegInfoRec, *dmxShmSegInfoPtr;
+
+extern unsigned long DMX_SHMSEG;
+
 extern void ShmRegisterDmxFuncs (ScreenPtr pScreen);
+
+extern void dmxBEAttachShmSeg (DMXScreenInfo    *dmxScreen,
+			       dmxShmSegInfoPtr pShmInfo);
+extern void dmxBEDetachShmSeg (DMXScreenInfo    *dmxScreen,
+			       dmxShmSegInfoPtr pShmInfo);
+
+extern Bool dmxScreenEventCheckShm (ScreenPtr           pScreen,
+				    xcb_generic_event_t *event);
 
 extern void dmxInitShm (void);
 extern void dmxResetShm (void);

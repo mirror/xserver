@@ -296,6 +296,7 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 	return FALSE;
 
     dmxScreen->alive      = 1;
+    dmxScreen->broken     = 0;
     dmxScreen->inDispatch = FALSE;
     dmxScreen->fd         = XConnectionNumber (dmxScreen->beDisplay);
     dmxScreen->connection = XGetXCBConnection (dmxScreen->beDisplay);

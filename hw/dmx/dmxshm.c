@@ -44,7 +44,12 @@
 
 #ifdef MITSHM
 
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 unsigned long DMX_SHMSEG;
+
+static dmxShmSegInfoPtr shmSegs = NULL;
 
 extern int (*ProcShmVector[ShmNumberRequests])(ClientPtr);
 
@@ -160,33 +165,170 @@ dmxShmPutImage (DrawablePtr  pDraw,
     }
 }
 
+void
+dmxBEAttachShmSeg (DMXScreenInfo    *dmxScreen,
+		   dmxShmSegInfoPtr pShmInfo)
+{
+    if (!dmxScreen->beShm)
+	return;
+
+    if (!pShmInfo->shmseg[dmxScreen->index])
+    {
+	pShmInfo->shmseg[dmxScreen->index] =
+	    xcb_generate_id (dmxScreen->connection);
+
+	xcb_shm_attach (dmxScreen->connection,
+			pShmInfo->shmseg[dmxScreen->index],
+			pShmInfo->shmid,
+			pShmInfo->readOnly);
+    }
+}
+
+void
+dmxBEDetachShmSeg (DMXScreenInfo    *dmxScreen,
+		   dmxShmSegInfoPtr pShmInfo)
+{
+    if (!dmxScreen->beShm)
+	return;
+
+    if (pShmInfo->shmseg[dmxScreen->index])
+    {
+	xcb_shm_detach (dmxScreen->connection,
+			pShmInfo->shmseg[dmxScreen->index]);
+
+	pShmInfo->shmseg[dmxScreen->index] = None;
+	pShmInfo->cookie[dmxScreen->index].sequence = 0;
+    }
+}
+
+Bool
+dmxScreenEventCheckShm (ScreenPtr           pScreen,
+			xcb_generic_event_t *event)
+{
+    DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
+    dmxShmSegInfoPtr pShmInfo;
+    xcb_shm_seg_t    shmseg = 0;
+    unsigned int     sequence = 0;
+
+    if (!dmxScreen->beShm)
+	return FALSE;
+
+    if (event->response_type)
+    {
+	switch ((event->response_type & ~0x80) - dmxScreen->beShmEventBase) {
+	case XCB_SHM_COMPLETION: {
+	    /* XCB protocol description for XCB_SHM_COMPLETION is wrong */
+	    xShmCompletionEvent *xcompletion =
+		(xShmCompletionEvent *) event;
+
+	    shmseg = xcompletion->shmseg;
+	} break;
+	default:
+	    return FALSE;
+	}
+    }
+    else
+    {
+	xcb_generic_error_t *error = (xcb_generic_error_t *) event;
+
+	if (event->pad0 != DMX_DETACHED)
+	    sequence = error->sequence;
+    }
+
+    for (pShmInfo = shmSegs; pShmInfo; pShmInfo = pShmInfo->next)
+    {
+	if (shmseg && shmseg != pShmInfo->shmseg[pScreen->myNum])
+	    continue;
+
+	if (!pShmInfo->cookie[pScreen->myNum].sequence)
+	    continue;
+
+	if (sequence && sequence != pShmInfo->cookie[pScreen->myNum].sequence)
+	    continue;
+	    
+	pShmInfo->pendingEvents--;
+	pShmInfo->cookie[pScreen->myNum].sequence = 0;
+    }
+
+    return TRUE;
+}
+
 static int
 dmxFreeShmSeg (pointer value,
 	       XID     id)
 {
+    dmxShmSegInfoPtr *pPrev, pShmInfo = (dmxShmSegInfoPtr) value;
+    int		     i;
+
+    if (--pShmInfo->refcnt)
+	return TRUE;
+
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	if (!dmxScreen->beDisplay)
+	    continue;
+
+	dmxBEDetachShmSeg (dmxScreen, pShmInfo);
+    }
+
+    for (pPrev = &shmSegs; *pPrev != pShmInfo; pPrev = &(*pPrev)->next)
+	;
+    *pPrev = pShmInfo->next;
+
+    xfree (pShmInfo);
     return Success;
 }
 
 static int
 dmxProcShmAttach (ClientPtr client)
 {
-    int err;
+    dmxShmSegInfoPtr pShmInfo;
+    int		     i, err;
+    REQUEST(xShmAttachReq);
 
     err = (*dmxSaveProcVector[X_ShmAttach]) (client);
     if (err != Success)
 	return err;
 
-    return Success;
-}
+    for (pShmInfo = shmSegs;
+	 pShmInfo && (pShmInfo->shmid != stuff->shmid);
+	 pShmInfo = pShmInfo->next)
+	;
+    if (pShmInfo)
+    {
+	pShmInfo->refcnt++;
+    }
+    else
+    {
+	pShmInfo = xalloc (sizeof (dmxShmSegInfoRec));
+	if (!pShmInfo)
+	    return Success;
 
-static int
-dmxProcShmDetach (ClientPtr client)
-{
-    int err;
+	pShmInfo->refcnt        = 1;
+	pShmInfo->shmid         = stuff->shmid;
+	pShmInfo->readOnly      = stuff->readOnly;
+	pShmInfo->pendingEvents = 0;
 
-    err = (*dmxSaveProcVector[X_ShmDetach]) (client);
-    if (err != Success)
-	return err;
+	memset (pShmInfo->shmseg, 0, sizeof (pShmInfo->shmseg));
+	memset (pShmInfo->cookie, 0, sizeof (pShmInfo->cookie));
+
+	pShmInfo->next = shmSegs;
+	shmSegs = pShmInfo;
+
+	for (i = 0; i < dmxNumScreens; i++)
+	{
+	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	    if (!dmxScreen->beDisplay)
+		continue;
+
+	    dmxBEAttachShmSeg (dmxScreen, pShmInfo);
+	}
+    }
+
+    AddResource (stuff->shmseg, DMX_SHMSEG, (pointer) pShmInfo);
 
     return Success;
 }
@@ -194,25 +336,272 @@ dmxProcShmDetach (ClientPtr client)
 static int
 dmxProcShmGetImage (ClientPtr client)
 {
-    int err;
+    DrawablePtr		pDraw;
+    long		lenPer = 0, length;
+    Mask		plane = 0;
+    xShmGetImageReply	xgi;
+    ShmDescPtr		shmdesc;
+    dmxShmSegInfoPtr    pShmInfo;
+    Drawable            draw;
+    int			n, rc;
 
-    err = (*dmxSaveProcVector[X_ShmGetImage]) (client);
-    if (err != Success)
-	return err;
+    REQUEST(xShmGetImageReq);
 
-    return Success;
+    REQUEST_SIZE_MATCH(xShmGetImageReq);
+    if ((stuff->format != XYPixmap) && (stuff->format != ZPixmap))
+    {
+	client->errorValue = stuff->format;
+        return(BadValue);
+    }
+    rc = dixLookupDrawable(&pDraw, stuff->drawable, client, 0,
+			   DixReadAccess);
+    if (rc != Success)
+	return rc;
+
+    VERIFY_SHMPTR(stuff->shmseg, stuff->offset, TRUE, shmdesc, client);
+
+    for (pShmInfo = shmSegs;
+	 pShmInfo && (pShmInfo->shmid != shmdesc->shmid);
+	 pShmInfo = pShmInfo->next)
+	;
+	
+    if (!pShmInfo || !pShmInfo->shmseg[pDraw->pScreen->myNum])
+	return (*dmxSaveProcVector[X_ShmGetImage]) (client);
+
+    if (pDraw->type == DRAWABLE_WINDOW)
+    {
+      if( /* check for being viewable */
+	 !((WindowPtr) pDraw)->realized ||
+	  /* check for being on screen */
+         pDraw->x + stuff->x < 0 ||
+ 	 pDraw->x + stuff->x + (int)stuff->width > pDraw->pScreen->width ||
+         pDraw->y + stuff->y < 0 ||
+         pDraw->y + stuff->y + (int)stuff->height > pDraw->pScreen->height ||
+          /* check for being inside of border */
+         stuff->x < - wBorderWidth((WindowPtr)pDraw) ||
+         stuff->x + (int)stuff->width >
+		wBorderWidth((WindowPtr)pDraw) + (int)pDraw->width ||
+         stuff->y < -wBorderWidth((WindowPtr)pDraw) ||
+         stuff->y + (int)stuff->height >
+		wBorderWidth((WindowPtr)pDraw) + (int)pDraw->height
+        )
+	    return(BadMatch);
+	xgi.visual = wVisual(((WindowPtr)pDraw));
+	draw = (DMX_GET_WINDOW_PRIV ((WindowPtr) (pDraw)))->window;
+    }
+    else
+    {
+	if (stuff->x < 0 ||
+	    stuff->x+(int)stuff->width > pDraw->width ||
+	    stuff->y < 0 ||
+	    stuff->y+(int)stuff->height > pDraw->height
+	    )
+	    return(BadMatch);
+	xgi.visual = None;
+	draw = (DMX_GET_PIXMAP_PRIV ((PixmapPtr) (pDraw)))->pixmap;
+    }
+    xgi.type = X_Reply;
+    xgi.length = 0;
+    xgi.sequenceNumber = client->sequence;
+    xgi.depth = pDraw->depth;
+    if(stuff->format == ZPixmap)
+    {
+	length = PixmapBytePad(stuff->width, pDraw->depth) * stuff->height;
+    }
+    else 
+    {
+	lenPer = PixmapBytePad(stuff->width, 1) * stuff->height;
+	plane = ((Mask)1) << (pDraw->depth - 1);
+	/* only planes asked for */
+	length = lenPer * Ones(stuff->planeMask & (plane | (plane - 1)));
+    }
+
+    VERIFY_SHMSIZE(shmdesc, stuff->offset, length, client);
+    xgi.size = length;
+
+    if (length)
+    {
+	xcb_shm_get_image_cookie_t cookie;
+	xcb_shm_get_image_reply_t  *reply;
+	DMXScreenInfo		   *dmxScreen =
+	    &dmxScreens[pDraw->pScreen->myNum];
+
+	cookie = xcb_shm_get_image (dmxScreen->connection, draw,
+				    stuff->x, stuff->y,
+				    stuff->width, stuff->height,
+				    stuff->planeMask, stuff->format,
+				    pShmInfo->shmseg[dmxScreen->index],
+				    stuff->offset);
+	do {
+	    dmxDispatch ();
+
+	    if (xcb_poll_for_reply (dmxScreen->connection,
+				    cookie.sequence,
+				    (void **) &reply,
+				    NULL))
+		break;
+	} while (dmxWaitForResponse () && dmxScreen->alive);
+    }
+    
+    if (client->swapped) {
+    	swaps(&xgi.sequenceNumber, n);
+    	swapl(&xgi.length, n);
+	swapl(&xgi.visual, n);
+	swapl(&xgi.size, n);
+    }
+    WriteToClient(client, sizeof(xShmGetImageReply), (char *)&xgi);
+
+    return(client->noClientException);
 }
 
 static int
 dmxProcShmPutImage (ClientPtr client)
 {
-    int err;
+    GCPtr pGC;
+    DrawablePtr pDraw;
+    long length;
+    ShmDescPtr shmdesc;
+    dmxShmSegInfoPtr pShmInfo;
+    REQUEST(xShmPutImageReq);
 
-    err = (*dmxSaveProcVector[X_ShmPutImage]) (client);
-    if (err != Success)
-	return err;
+    REQUEST_SIZE_MATCH(xShmPutImageReq);
+    VALIDATE_DRAWABLE_AND_GC(stuff->drawable, pDraw, DixWriteAccess);
+    VERIFY_SHMPTR(stuff->shmseg, stuff->offset, FALSE, shmdesc, client);
+    if ((stuff->sendEvent != xTrue) && (stuff->sendEvent != xFalse))
+	return BadValue;
+    if (stuff->format == XYBitmap)
+    {
+        if (stuff->depth != 1)
+            return BadMatch;
+        length = PixmapBytePad(stuff->totalWidth, 1);
+    }
+    else if (stuff->format == XYPixmap)
+    {
+        if (pDraw->depth != stuff->depth)
+            return BadMatch;
+        length = PixmapBytePad(stuff->totalWidth, 1);
+	length *= stuff->depth;
+    }
+    else if (stuff->format == ZPixmap)
+    {
+        if (pDraw->depth != stuff->depth)
+            return BadMatch;
+        length = PixmapBytePad(stuff->totalWidth, stuff->depth);
+    }
+    else
+    {
+	client->errorValue = stuff->format;
+        return BadValue;
+    }
 
-    return Success;
+    /* 
+     * There's a potential integer overflow in this check:
+     * VERIFY_SHMSIZE(shmdesc, stuff->offset, length * stuff->totalHeight,
+     *                client);
+     * the version below ought to avoid it
+     */
+    if (stuff->totalHeight != 0 && 
+	length > (shmdesc->size - stuff->offset)/stuff->totalHeight) {
+	client->errorValue = stuff->totalWidth;
+	return BadValue;
+    }
+    if (stuff->srcX > stuff->totalWidth)
+    {
+	client->errorValue = stuff->srcX;
+	return BadValue;
+    }
+    if (stuff->srcY > stuff->totalHeight)
+    {
+	client->errorValue = stuff->srcY;
+	return BadValue;
+    }
+    if ((stuff->srcX + stuff->srcWidth) > stuff->totalWidth)
+    {
+	client->errorValue = stuff->srcWidth;
+	return BadValue;
+    }
+    if ((stuff->srcY + stuff->srcHeight) > stuff->totalHeight)
+    {
+	client->errorValue = stuff->srcHeight;
+	return BadValue;
+    }
+
+    for (pShmInfo = shmSegs;
+	 pShmInfo && (pShmInfo->shmid != shmdesc->shmid);
+	 pShmInfo = pShmInfo->next)
+	;
+	
+    if (pShmInfo && pShmInfo->shmseg[pDraw->pScreen->myNum])
+    {
+	DMXScreenInfo  *dmxScreen = &dmxScreens[pDraw->pScreen->myNum];
+	dmxGCPrivPtr   pGCPriv = DMX_GET_GC_PRIV (pGC);
+	xcb_drawable_t draw;
+
+	if (pDraw->type == DRAWABLE_WINDOW)
+	    draw = (DMX_GET_WINDOW_PRIV ((WindowPtr) (pDraw)))->window;
+	else
+	    draw = (DMX_GET_PIXMAP_PRIV ((PixmapPtr) (pDraw)))->pixmap;
+
+	if (dmxScreen->beDisplay && draw)
+	{
+	    pShmInfo->cookie[dmxScreen->index] =
+		xcb_shm_put_image (dmxScreen->connection,
+				   draw,
+				   XGContextFromGC (pGCPriv->gc),
+				   stuff->totalWidth, stuff->totalHeight,
+				   stuff->srcX, stuff->srcY,
+				   stuff->srcWidth, stuff->srcHeight,
+				   stuff->dstX, stuff->dstY,
+				   stuff->depth,
+				   stuff->format,
+				   TRUE,
+				   pShmInfo->shmseg[dmxScreen->index],
+				   stuff->offset);
+
+	    pShmInfo->pendingEvents++;
+	}
+    }
+    else
+    {
+	dmxShmPutImage (pDraw, pGC, stuff->depth, stuff->format,
+			stuff->totalWidth, stuff->totalHeight,
+			stuff->srcX, stuff->srcY,
+			stuff->srcWidth, stuff->srcHeight,
+			stuff->dstX, stuff->dstY,
+			shmdesc->addr + stuff->offset);
+    }
+
+    if (!pDraw->pScreen->myNum)
+    {
+	/* we could handle this completely asynchrounsly and continue to
+	   process client requests until all pending completion events
+	   have been collected but some clients seem to assume that
+	   the server is done using the shared memory segment once it
+	   has processed the request */
+	if (pShmInfo)
+	{
+	    /* wait for all back-end servers to complete */
+	    do {
+		dmxDispatch ();
+	    } while (pShmInfo->pendingEvents && dmxWaitForResponse ());
+	}
+    }
+
+    if (stuff->sendEvent)
+    {
+	xShmCompletionEvent ev;
+
+	ev.type = ShmCompletionCode;
+	ev.drawable = stuff->drawable;
+	ev.sequenceNumber = client->sequence;
+	ev.minorEvent = X_ShmPutImage;
+	ev.majorEvent = ShmReqCode;
+	ev.shmseg = stuff->shmseg;
+	ev.offset = stuff->offset;
+	WriteEventsToClient(client, 1, (xEvent *) &ev);
+    }
+
+    return (client->noClientException);
 }
 
 void dmxInitShm (void)
@@ -225,10 +614,8 @@ void dmxInitShm (void)
 	dmxSaveProcVector[i] = ProcShmVector[i];
 
     ProcShmVector[X_ShmAttach]   = dmxProcShmAttach;
-    ProcShmVector[X_ShmDetach]   = dmxProcShmDetach;
     ProcShmVector[X_ShmGetImage] = dmxProcShmGetImage;
     ProcShmVector[X_ShmPutImage] = dmxProcShmPutImage;
-    ProcShmVector[X_ShmGetImage] = dmxProcShmGetImage;
 }
 
 void dmxResetShm (void)

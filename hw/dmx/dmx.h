@@ -104,6 +104,9 @@ typedef struct _DMXPropTrans {
     Atom       type;
 } DMXPropTrans;
 
+/** Opcode for xcb_implementation. */
+#define DMX_DETACHED 0xff
+
 /** Provide the typedef globally, but keep the contents opaque outside
  * of the input routines.  \see dmxinput.h */
 typedef struct _DMXInputInfo DMXInputInfo;
@@ -142,6 +145,7 @@ typedef struct _DMXScreenInfo {
     int           beNumDepths;    /**< Number of depths on BE server */
     int          *beDepths;       /**< Depths from BE server */
     int           alive;
+    int           broken;
 
     int           beNumPixmapFormats; /**< Number of pixmap formats on BE */
     XPixmapFormatValues *bePixmapFormats; /**< Pixmap formats on BE */
@@ -160,6 +164,11 @@ typedef struct _DMXScreenInfo {
     Bool          beRandr;        /**< Use RANDR support on BE server */
     Bool          beRandrPending;
     int           beRandrEventBase;
+#endif
+
+#ifdef MITSHM
+    Bool          beShm;          /**< Use MIT-SHM support on BE server */
+    int           beShmEventBase;
 #endif
 
     char          *authType;

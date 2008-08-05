@@ -693,30 +693,6 @@ dmxScreenEventCheckIgnore (ScreenPtr	       pScreen,
     return FALSE;
 }
 
-static void
-dmxScreenCheckForIOError (ScreenPtr pScreen)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    if (xcb_connection_has_error (dmxScreen->connection))
-    {
-	int i;
-
-	dmxScreen->alive = FALSE;
-
-	dmxLogOutput (dmxScreen, "Detected broken connection\n");
-	dmxDetachScreen (pScreen->myNum);
-
-	for (i = 0; i < dmxNumScreens; i++)
-	    if (i != pScreen->myNum && dmxScreens[i].beDisplay)
-		break;
-
-	if (i == dmxNumScreens)
-	    dmxLog (dmxFatal, "No back-end server connection, "
-		    "giving up\n");
-    }
-}
-
 void
 dmxBEDispatch (ScreenPtr pScreen)
 {
@@ -733,14 +709,28 @@ dmxBEDispatch (ScreenPtr pScreen)
 	    !dmxScreenEventCheckManageWindow (pScreen, event) &&
 	    !dmxScreenEventCheckExpose (pScreen, event)       &&
 
+#ifdef MITSHM
+	    !dmxScreenEventCheckShm (pScreen, event)          &&
+#endif
+
 #ifdef RANDR
 	    !dmxScreenEventCheckRR (pScreen, event)           &&
 #endif
 
 	    !dmxScreenEventCheckIgnore (pScreen, event))
 	{
-	    dmxLogOutput (dmxScreen, "unhandled event type %d\n",
-			  event->response_type);
+	    if (event->response_type == 0)
+	    {
+		xcb_generic_error_t *error = (xcb_generic_error_t *) event;
+
+		dmxLogOutput (dmxScreen, "unhandled error type %d\n",
+			      error->error_code);
+	    }
+	    else
+	    {
+		dmxLogOutput (dmxScreen, "unhandled event type %d\n",
+			      event->response_type);
+	    }
 	}
 
 	free (event);
@@ -783,7 +773,66 @@ dmxBEDispatch (ScreenPtr pScreen)
 	free (head);
     }
 
+    if (xcb_connection_has_error (dmxScreen->connection))
+    {
+	if (!dmxScreen->broken)
+	{
+	    static xcb_generic_error_t detached_error = { 0, DMX_DETACHED };
+
+	    dmxScreenEventCheckInput (pScreen, (xcb_generic_event_t *)
+				      &detached_error);
+	    dmxScreenEventCheckManageWindow (pScreen, (xcb_generic_event_t *)
+					     &detached_error);
+	    dmxScreenEventCheckExpose (pScreen, (xcb_generic_event_t *)
+				       &detached_error);
+
+#ifdef MITSHM
+	    dmxScreenEventCheckShm (pScreen, (xcb_generic_event_t *)
+				    &detached_error);
+#endif
+
+#ifdef RANDR
+	    dmxScreenEventCheckRR (pScreen, (xcb_generic_event_t *)
+				   &detached_error);
+#endif
+
+	    dmxScreenReplyCheckSync (pScreen, 0, (xcb_generic_reply_t *)
+				     &detached_error);
+	    dmxScreenReplyCheckInput (pScreen, 0, (xcb_generic_reply_t *)
+				      &detached_error);
+	    
+	    dmxScreen->broken = TRUE;
+	}
+    }
+
     dmxScreen->inDispatch--;
+}
+
+static void
+dmxScreenCheckForIOError (ScreenPtr pScreen)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (xcb_connection_has_error (dmxScreen->connection))
+    {
+	int i;
+
+	dmxScreen->alive = FALSE;
+
+	if (!dmxScreen->broken)
+	    dmxBEDispatch (pScreen);
+
+	dmxLogOutput (dmxScreen, "Detected broken connection\n");
+	dmxDetachScreen (pScreen->myNum);
+
+	for (i = 0; i < dmxNumScreens; i++)
+	    if (i != pScreen->myNum && dmxScreens[i].beDisplay)
+		break;
+
+	if (i == dmxNumScreens)
+	    dmxLog (dmxFatal, "No back-end server connection, "
+		    "giving up\n");
+    }
 }
 
 static void
@@ -868,6 +917,10 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
     dmxScreen->request.head = NULL;
     dmxScreen->request.tail = &dmxScreen->request.head;
+
+#ifdef MITSHM
+    dmxScreen->beShm = FALSE;
+#endif
 
 #ifdef RANDR
     dmxScreen->beRandr = FALSE;
@@ -992,6 +1045,15 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 #ifdef MITSHM
     ShmRegisterDmxFuncs (pScreen);
+    if (dmxScreen->beDisplay)
+    {
+	XLIB_PROLOGUE (dmxScreen);
+	dmxScreen->beShm = XShmQueryExtension (dmxScreen->beDisplay);
+	if (dmxScreen->beShm)
+	    dmxScreen->beShmEventBase =
+		XShmGetEventBase (dmxScreen->beDisplay);
+	XLIB_EPILOGUE (dmxScreen);
+    }
 #endif
 
 #ifdef PANORAMIX

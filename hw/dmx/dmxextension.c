@@ -51,6 +51,7 @@
 #include "dmxgc.h"
 #include "dmxfont.h"
 #include "dmxcmap.h"
+#include "dmxshm.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -1145,6 +1146,8 @@ static void dmxBECreateResources(pointer value, XID id, RESTYPE type,
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
 	    (void)dmxBECreateColormap((ColormapPtr)value);
+    } else if ((type & TypeMask) == (DMX_SHMSEG & TypeMask)) {
+	dmxBEAttachShmSeg (&dmxScreens[scrnNum], (dmxShmSegInfoPtr) value);
 #if 0
 #ifdef RENDER
     /* TODO: Recreate Picture and GlyphSet resources */
@@ -1882,6 +1885,16 @@ dmxAttachScreen (int                    idx,
 	return 1;
     }
 
+#ifdef MITSHM
+    dmxScreen->beShm = FALSE;
+
+    XLIB_PROLOGUE (dmxScreen);
+    dmxScreen->beShm = XShmQueryExtension (dmxScreen->beDisplay);
+    if (dmxScreen->beShm)
+	dmxScreen->beShmEventBase = XShmGetEventBase (dmxScreen->beDisplay);
+    XLIB_EPILOGUE (dmxScreen);
+#endif
+
 #ifdef RANDR
     dmxScreen->beRandr = FALSE;
 #endif
@@ -2328,6 +2341,8 @@ static void dmxBEDestroyResources(pointer value, XID id, RESTYPE type,
 	ColormapPtr  pCmap = value;
 	if (pCmap->pScreen->myNum == scrnNum)
 	    dmxBEFreeColormap((ColormapPtr)value);
+    } else if ((type & TypeMask) == (DMX_SHMSEG & TypeMask)) {
+	dmxBEDetachShmSeg (&dmxScreens[scrnNum], (dmxShmSegInfoPtr) value);
 #ifdef RENDER
     } else if ((type & TypeMask) == (PictureType & TypeMask)) {
 	PicturePtr  pPict = value;
