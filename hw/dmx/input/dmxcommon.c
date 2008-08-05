@@ -159,9 +159,11 @@ void dmxCommonKbdCtrl(DevicePtr pDev, KeybdCtrl *ctrl)
 
     if (!priv->stateSaved && priv->be) dmxCommonSaveState(priv);
     if (!priv->display || !priv->stateSaved) return;
+    XLIB_PROLOGUE (priv->be);
     dmxCommonKbdSetCtrl(priv->display,
                         priv->kctrlset ? &priv->kctrl : NULL,
                         ctrl);
+    XLIB_EPILOGUE (priv->be);
     priv->kctrl    = *ctrl;
     priv->kctrlset = 1;
 }
@@ -179,9 +181,11 @@ void dmxCommonMouCtrl(DevicePtr pDev, PtrCtrl *ctrl)
                                  * window would be unexpected for the
                                  * scale of the window. */
     if (priv->be) {
+	XLIB_PROLOGUE (priv->be);
         dmxCommonMouSetCtrl(priv->display,
                             priv->mctrlset ? &priv->mctrl : NULL,
                             ctrl);
+	XLIB_EPILOGUE (priv->be);
         priv->mctrl    = *ctrl;
         priv->mctrlset = 1;
     }
@@ -200,8 +204,10 @@ void dmxCommonKbdBell(DevicePtr pDev, int percent,
     kc.bell_percent  = volume;
     kc.bell_pitch    = pitch;
     kc.bell_duration = duration;
+    XLIB_PROLOGUE (priv->be);
     XChangeKeyboardControl(priv->display, mask, &kc);
     XBell(priv->display, percent);
+    XLIB_EPILOGUE (priv->be);
     if (!priv->be) {
         kc.bell_percent  = ks.bell_percent;
         kc.bell_pitch    = ks.bell_pitch;
@@ -226,19 +232,23 @@ void dmxCommonKbdGetMap(DevicePtr pDev, KeySymsPtr pKeySyms, CARD8 *pModMap)
                                  * compiler warning on 64-bit machines.
                                  * We assume pointers to 32-bit and
                                  * 64-bit ints are the same. */
+    XLIB_PROLOGUE (priv->be);
     XDisplayKeycodes(priv->display, &min_keycode, &max_keycode);
     keyboard_mapping     = (KeySym *)XGetKeyboardMapping(priv->display,
                                                          min_keycode,
                                                          max_keycode
                                                          - min_keycode + 1,
                                                          &map_width);
+    XLIB_EPILOGUE (priv->be);
     pKeySyms->minKeyCode = min_keycode;
     pKeySyms->maxKeyCode = max_keycode;
     pKeySyms->mapWidth   = map_width;
     pKeySyms->map        = keyboard_mapping;
 
                                 /* Compute pModMap  */
+    XLIB_PROLOGUE (priv->be);
     modifier_mapping     = XGetModifierMapping(priv->display);
+    XLIB_EPILOGUE (priv->be);
     for (i = 0; i < MAP_LENGTH; i++)
         pModMap[i] = 0;
     for (j = 0; j < 8; j++) {
