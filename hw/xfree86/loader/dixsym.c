@@ -276,6 +276,8 @@ _X_HIDDEN void *dixLookupTab[] = {
     SYMFUNC(ChangeResourceValue)
     SYMFUNC(CreateNewResourceClass)
     SYMFUNC(CreateNewResourceType)
+    SYMFUNC(dixLookupResourceByType)
+    SYMFUNC(dixLookupResourceByClass)
     SYMFUNC(dixLookupResource)
     SYMFUNC(FakeClientID)
     SYMFUNC(FreeResource)

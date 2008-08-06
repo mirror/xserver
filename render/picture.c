@@ -1069,7 +1069,7 @@ ChangePicture (PicturePtr	pPicture,
 			pAlpha = 0;
 		    else
 		    {
-			error = dixLookupResource((pointer *)&pAlpha, pid,
+			error = dixLookupResourceByType((pointer *)&pAlpha, pid,
 						  PictureType, client,
 						  DixReadAccess);
 			if (error != Success)
@@ -1130,7 +1130,7 @@ ChangePicture (PicturePtr	pPicture,
 		    else
 		    {
 			clipType = CT_PIXMAP;
-			error = dixLookupResource((pointer *)&pPixmap, pid,
+			error = dixLookupResourceByType((pointer *)&pPixmap, pid,
 						  RT_PIXMAP, client,
 						  DixReadAccess);
 			if (error != Success)

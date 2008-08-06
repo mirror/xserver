@@ -1086,7 +1086,7 @@ ChangeWindowAttributes(WindowPtr pWin, Mask vmask, XID *vlist, ClientPtr client)
 	    }
 	    else
 	    {	
-		rc = dixLookupResource((pointer *)&pPixmap, pixID, RT_PIXMAP,
+		rc = dixLookupResourceByType((pointer *)&pPixmap, pixID, RT_PIXMAP,
 				       client, DixReadAccess);
 		if (rc == Success)
 		{
@@ -1146,7 +1146,7 @@ ChangeWindowAttributes(WindowPtr pWin, Mask vmask, XID *vlist, ClientPtr client)
 		    pixID = pWin->parent->border.pixmap->drawable.id;
 		}
 	    }
-	    rc = dixLookupResource((pointer *)&pPixmap, pixID, RT_PIXMAP,
+	    rc = dixLookupResourceByType((pointer *)&pPixmap, pixID, RT_PIXMAP,
 				   client, DixReadAccess);
 	    if (rc == Success)
 	    {
@@ -1348,7 +1348,7 @@ ChangeWindowAttributes(WindowPtr pWin, Mask vmask, XID *vlist, ClientPtr client)
 		error = BadMatch;
 		goto PatchUp;
 	    }
-	    rc = dixLookupResource((pointer *)&pCmap, cmap, RT_COLORMAP,
+	    rc = dixLookupResourceByType((pointer *)&pCmap, cmap, RT_COLORMAP,
 				   client, DixUseAccess);
 	    if (rc != Success)
 	    {
@@ -1424,7 +1424,7 @@ ChangeWindowAttributes(WindowPtr pWin, Mask vmask, XID *vlist, ClientPtr client)
 	    }
 	    else
 	    {
-		rc = dixLookupResource((pointer *)&pCursor, cursorID,
+		rc = dixLookupResourceByType((pointer *)&pCursor, cursorID,
 				       RT_CURSOR, client, DixUseAccess);
 		if (rc != Success)
 		{
