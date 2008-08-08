@@ -264,6 +264,7 @@ dmxSetupAuth (char *name, int authFd)
     dmxConfigStoreDisplay (basename (realProg),
 			   xbeDisplay,
 			   auth.name,
+			   auth.name_length,
 			   auth.data,
 			   auth.data_length,
 			   virtualFb);

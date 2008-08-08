@@ -45,6 +45,7 @@
 extern void dmxConfigStoreDisplay(const char *name,
 				  const char *display,
 				  const char *authType,
+				  int        authTypeLen,
 				  const char *authData,
 				  int        authDataLen,
 				  int        virtualFb);

@@ -35,24 +35,10 @@
 #include "dmxdbus.h"
 #include "dmxextension.h"
 
-#define API_VERSION 2
+#define API_VERSION 3
 
 #define MATCH_RULE "type='method_call',interface='org.x.config.dmx'"
 #define MALFORMED_MSG "[dmx/dbus] malformed message, dropping"
-
-static const unsigned int hexvalues[256] = {
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 9 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 19 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 29 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 39 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, /* 49 */
-    0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x0, 0x0, /* 59 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0xa, 0xb, 0xb, 0xd, 0xe, /* 69 */
-    0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 79 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, /* 89 */
-    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xa, 0xb, 0xc, /* 99 */
-    0xd, 0xe, 0xf, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0
-};
 
 struct connection_info {
     char           busobject[32];
@@ -69,49 +55,51 @@ reset_info (struct connection_info *info)
 }
 
 static int
-handle_attach_screen (DBusMessage *message,
-		      DBusMessage *reply,
-		      DBusError   *error,
-		      int         addInput)
+attach_screen (DBusMessage *message,
+	       DBusMessage *reply,
+	       DBusError   *error)
 {
     DMXScreenAttributesRec attr;
-    DBusMessageIter        reply_iter;
-    int                    screen, ret, size, i;
+    uint32_t               window, screen, auth_type_len, auth_data_len;
     char                   *display, *auth_type, *auth_data, *name;
-    char                   *data, *ptr;
+    int                    ret;
 
-    dbus_message_iter_init_append (reply, &reply_iter);
-
-    if (!dbus_message_get_args (message,
-				error,
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
 				DBUS_TYPE_STRING,
 				&display,
 				DBUS_TYPE_STRING,
-				&auth_type,
-				DBUS_TYPE_STRING,
-				&auth_data,
-				DBUS_TYPE_STRING,
 				&name,
+				DBUS_TYPE_UINT32,
+				&window,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_type, &auth_type_len,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_data, &auth_data_len,
 				DBUS_TYPE_INVALID))
+   { 
+       DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+       return BadValue;
+    }
+
+    if (screen >= dmxGetNumScreens ())
     {
-	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	dbus_set_error (error,
+			DMX_ERROR_INVALID_SCREEN,
+			"Screen %d does not exist", screen);
 	return BadValue;
     }
 
-    for (screen = 0; screen < dmxGetNumScreens (); screen++)
-    {
-	dmxGetScreenAttributes (screen, &attr);
+    dmxGetScreenAttributes (screen, &attr);
 
-	if (!attr.name || !*attr.name)
-	    break;
-    }
-
-    if (screen == dmxGetNumScreens ())
+    if (attr.name && *attr.name)
     {
 	dbus_set_error (error,
-			DBUS_ERROR_FAILED,
-			"Maximum number of attached screens reached");
-	return BadMatch;
+			DMX_ERROR_SCREEN_IN_USE,
+			"Back-end server already attached to screen %d",
+			screen);
+	return BadValue;
     }
 
     memset (&attr, 0, sizeof (attr));
@@ -119,32 +107,19 @@ handle_attach_screen (DBusMessage *message,
     attr.name        = name;
     attr.displayName = display;
 
-    size = strlen (auth_data) / 2;
-    data = ptr = malloc (size);
-    if (!data)
-    {
-	ErrorF ("[dmx/dbus] couldn't translate auth data\n");
-	return BadAlloc;
-    }
-
-    for (i = 0; i < size; i++)
-    {
-	*ptr++ = (char) ((hexvalues[(int) auth_data[0]] * 16) +
-			 (hexvalues[(int) auth_data[1]]));
-	auth_data += 2;
-    }
-
     ret = dmxAttachScreen (screen,
 			   &attr,
-			   TRUE,
+			   window,
 			   auth_type,
-			   data,
-			   size,
+			   auth_type_len,
+			   auth_data,
+			   auth_data_len,
 			   (dmxErrorSetProcPtr) dbus_set_error,
 			   error,
 			   DBUS_ERROR_FAILED);
 
-    free (data);
+    free (auth_type);
+    free (auth_data);
 
     if (ret != Success)
     {
@@ -152,50 +127,7 @@ handle_attach_screen (DBusMessage *message,
         return ret;
     }
 
-    if (addInput)
-    {
-	DMXInputAttributesRec attrib;
-	int                   id;
-
-	memset (&attrib, 0, sizeof (attrib));
-
-	attrib.physicalScreen = screen;
-	attrib.inputType      = 2;
-
-	ret = dmxAddInput (&attrib, &id);
-	if (ret != Success)
-	{
-	    DebugF ("[dmx/dbus] dmxAddInput failed\n");
-	    dmxDetachScreen (screen);
-	    return ret;
-	}
-    }
-
-    if (!dbus_message_iter_append_basic (&reply_iter,
-					 DBUS_TYPE_INT32,
-					 &screen))
-    {
-	ErrorF ("[dmx/dbus] couldn't append to iterator\n");
-	return BadAlloc;
-    }
-
     return Success;
-}
-
-static int
-attach_screen (DBusMessage *message,
-	       DBusMessage *reply,
-	       DBusError   *error)
-{
-    return handle_attach_screen (message, reply, error, 1);
-}
-
-static int
-attach_screen_output (DBusMessage *message,
-		      DBusMessage *reply,
-		      DBusError   *error)
-{
-    return handle_attach_screen (message, reply, error, 0);
 }
 
 static int
@@ -203,48 +135,101 @@ detach_screen (DBusMessage *message,
 	       DBusMessage *reply,
 	       DBusError   *error)
 {
-    DBusMessageIter reply_iter;
-    int             screen;
-    char	    *name;
+    uint32_t screen;
+    int      ret;
 
-    dbus_message_iter_init_append (reply, &reply_iter);
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_INVALID))
+   { 
+       DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+       return BadValue;
+    }
 
-    if (!dbus_message_get_args (message,
-				error,
-				DBUS_TYPE_STRING,
-				&name,
+    ret = dmxDetachScreen (screen);
+    if (ret != Success)
+    {
+        DebugF ("[dmx/dbus] dmxDetachScreen failed\n");
+        return ret;
+    }
+
+    return Success;
+}
+
+static int
+add_input (DBusMessage *message,
+	   DBusMessage *reply,
+	   DBusError   *error)
+{
+    DMXInputAttributesRec attr;
+    DBusMessageIter       iter;
+    uint32_t              screen, id;
+    dbus_bool_t           core;
+    int                   input_id, ret;
+
+    dbus_message_iter_init_append (reply, &iter);
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_BOOLEAN,
+				&core,
 				DBUS_TYPE_INVALID))
     {
 	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
 	return BadValue;
     }
 
-    for (screen = 0; screen < dmxGetNumScreens (); screen++)
+    memset (&attr, 0, sizeof (attr));
+
+    attr.physicalScreen = screen;
+    attr.inputType      = 2;
+
+    ret = dmxAddInput (&attr, &input_id);
+    if (ret != Success)
     {
-	DMXScreenAttributesRec attribs;
-
-	dmxGetScreenAttributes (screen, &attribs);
-
-	if (!attribs.name || !*attribs.name)
-	    continue;
-
-	if (strcmp (attribs.name, name) == 0)
-	    break;
+	DebugF ("[dmx/dbus] dmxAddInput failed\n");
+	return ret;
     }
 
-    if (screen == dmxGetNumScreens ())
+    id = input_id;
+
+    if (!dbus_message_iter_append_basic (&iter,
+					 DBUS_TYPE_UINT32,
+					 &id))
     {
-        DebugF ("[dmx/dbus] screen '%s' is not attached\n", name);
-        return BadValue;
+	ErrorF ("[dmx/dbus] couldn't append to iterator\n");
+	dmxRemoveInput (id);
+	return BadAlloc;
     }
 
-    if (dmxDetachScreen (screen) != 0)
+    return Success;
+}
+
+static int
+remove_input (DBusMessage *message,
+	      DBusMessage *reply,
+	      DBusError   *error)
+{
+    uint32_t id;
+    int      ret;
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&id,
+				DBUS_TYPE_INVALID))
     {
-        DebugF ("[dmx/dbus] failed to detach screen %d\n", screen);
-        return BadMatch;
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
     }
 
-    DebugF ("[dmx/dbus] detaching screen %d\n", screen);
+    ret = dmxRemoveInput (id);
+    if (ret != Success)
+    {
+	DebugF ("[dmx/dbus] dmxAddInput failed\n");
+	return ret;
+    }
 
     return Success;
 }
@@ -350,11 +335,12 @@ message_handler (DBusConnection *connection,
 
     if (strcmp (dbus_message_get_member (message), "attachScreen") == 0)
         err = attach_screen (message, reply, &error);
-    else if (strcmp (dbus_message_get_member (message),
-		     "attachScreenOutput") == 0)
-        err = attach_screen_output (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "detachScreen") == 0)
         err = detach_screen (message, reply, &error);
+    else if (strcmp (dbus_message_get_member (message), "addInput") == 0)
+        err = add_input (message, reply, &error);
+    else if (strcmp (dbus_message_get_member (message), "removeInput") == 0)
+        err = remove_input (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "listScreens") == 0)
         err = list_screens (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "version") == 0)

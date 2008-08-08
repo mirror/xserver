@@ -265,18 +265,18 @@ static int dmxNOPErrorHandler(Display *dpy, XErrorEvent *ev)
 #endif
 
 char *
-dmxAuthDataCopy (const char *authData,
-		 int        authDataLen)
+dmxMemDup (const char *data,
+	   int        dataLen)
 {
-    char *data;
+    char *d;
 
-    data = malloc (authDataLen);
-    if (!data)
+    d = malloc (dataLen);
+    if (!d)
 	return NULL;
 
-    memcpy (data, authData, authDataLen);
+    memcpy (d, data, dataLen);
 
-    return data;
+    return d;
 }
 
 Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
@@ -288,7 +288,7 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
 
     if (dmxScreen->authType && *dmxScreen->authType)
 	XSetAuthorization (dmxScreen->authType,
-			   strlen (dmxScreen->authType),
+			   dmxScreen->authTypeLen,
 			   dmxScreen->authData,
 			   dmxScreen->authDataLen);
 
@@ -1086,7 +1086,7 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     
     if (!strcmp(argv[i], "-display")) {
 	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i],
-					      NULL, NULL, 0, 0);
+					      NULL, 0, NULL, 0, 0);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);

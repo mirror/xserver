@@ -1789,8 +1789,9 @@ static void dmxBERestoreRenderGlyph(pointer value, XID id, pointer n)
 int
 dmxAttachScreen (int                    idx,
 		 DMXScreenAttributesPtr attr,
-		 int			useRoot,
+		 unsigned int		window,
 		 const char             *authType,
+		 int                    authTypeLen,
 		 const char             *authData,
 		 int                    authDataLen,
 		 dmxErrorSetProcPtr     errorSet,
@@ -1832,9 +1833,9 @@ dmxAttachScreen (int                    idx,
     /* Cannot attach to a screen that is already opened */
     if (dmxScreen->beDisplay) {
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
-			"Attempting to add screen #%d but a screen "
-			"already exists",
-			idx);
+			"Attempting to attach back-end server to screen #%d "
+			"but back-end server is already attached to this "
+			"screen", idx);
 	return 1;
     }
 
@@ -1843,7 +1844,7 @@ dmxAttachScreen (int                    idx,
     /* Save old info */
     oldDMXScreen = *dmxScreen;
 
-    dmxScreen->beUseRoot = useRoot;
+    dmxScreen->beUseRoot = !window;
     dmxScreen->virtualFb = FALSE;
 
     /* Copy the display name to the new screen */
@@ -1854,8 +1855,9 @@ dmxAttachScreen (int                    idx,
     else
 	dmxScreen->name = strdup(attr->displayName);
 
-    dmxScreen->authType = authType ? strdup (authType) : NULL;
-    dmxScreen->authData = dmxAuthDataCopy (authData, authDataLen);
+    dmxScreen->authType = dmxMemDup (authType, authTypeLen);
+    dmxScreen->authTypeLen = authTypeLen;
+    dmxScreen->authData = dmxMemDup (authData, authDataLen);
     dmxScreen->authDataLen = authDataLen;
 
     /* Open display and get all of the screen info */

@@ -172,6 +172,7 @@ typedef struct _DMXScreenInfo {
 #endif
 
     char          *authType;
+    int           authTypeLen;
     char          *authData;
     int           authDataLen;
 
@@ -449,6 +450,6 @@ do {									\
 #define MAXSCREENSCALLOC_FATAL(o,m)     _MAXSCREENSALLOCF(o,MAXSCREENS*(m),1)
 #endif
 
-char *dmxAuthDataCopy (const char *authData, int authDataLen);
+char *dmxMemDup (const char *data, int Len);
 
 #endif /* DMX_H */

@@ -26,6 +26,9 @@
 #ifndef DMX_DBUS_H
 #define DMX_DBUS_H
 
+#define DMX_ERROR_INVALID_SCREEN "org.x.config.dmx.InvalidScreen"
+#define DMX_ERROR_SCREEN_IN_USE  "org.x.config.dmx.ScreenInUse"
+
 #ifdef CONFIG_DBUS_API
 int  dmx_dbus_init (void);
 void dmx_dbus_fini (void);
