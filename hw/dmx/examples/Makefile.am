@@ -6,7 +6,8 @@ endif
 bin_PROGRAMS = \
 	xdmx dmxwininfo dmxreconfig dmxresize \
 	dmxaddscreen dmxrmscreen \
-	dmxaddinput dmxrminput
+	dmxaddinput dmxrminput \
+	dmxconnect
 noinst_PROGRAMS = xinput xtest evi res xled xbell $(EV_PROG)
 
 xdmx_SOURCES = xdmx.c
@@ -40,6 +41,10 @@ dmxaddinput_CFLAGS = @DMXEXAMPLES_DEP_CFLAGS@
 dmxrminput_SOURCES = dmxrminput.c
 dmxrminput_LDADD = @DMXEXAMPLES_DEP_LIBS@
 dmxrminput_CFLAGS = @DMXEXAMPLES_DEP_CFLAGS@
+
+dmxconnect_SOURCES = dmxconnect.c
+dmxconnect_LDADD = @DBUSEXAMPLES_DEP_LIBS@
+dmxconnect_CFLAGS = @DBUSEXAMPLES_DEP_CFLAGS@ -I$(top_srcdir)/hw/dmx
 
 xinput_SOURCES = xinput.c
 xinput_LDADD = @DMXXIEXAMPLES_DEP_LIBS@
