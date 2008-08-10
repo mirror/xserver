@@ -118,9 +118,6 @@ attach_screen (DBusMessage *message,
 			   error,
 			   DBUS_ERROR_FAILED);
 
-    free (auth_type);
-    free (auth_data);
-
     if (ret != Success)
     {
         DebugF ("[dmx/dbus] dmxAttachScreen failed\n");

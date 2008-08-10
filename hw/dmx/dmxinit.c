@@ -405,14 +405,6 @@ static void dmxPrintScreenInfo(DMXScreenInfo *dmxScreen)
                  (DoesBackingStore (s) == NotUseful) ? "no" :
                  ((DoesBackingStore (s) == Always) ? "yes" : "when mapped"),
                  DoesSaveUnders (s) ? "yes" : "no");
-    dmxLogOutput(dmxScreen, "Window Manager running: %s\n",
-		 (dmxScreen->WMRunningOnBE) ? "yes" : "no");
-
-    if (dmxScreen->WMRunningOnBE) {
-	dmxLogOutputWarning(dmxScreen,
-			    "Window manager running "
-			    "-- colormaps not supported\n");
-    }
     XFree(depths);
 }
 
@@ -428,37 +420,6 @@ void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen)
 
     dmxScreen->beWidth  = attribs.width;
     dmxScreen->beHeight = attribs.height;
-    
-                                /* Fill in missing geometry information */
-    if (dmxScreen->scrnXSign < 0) {
-        if (dmxScreen->scrnWidth) {
-            dmxScreen->scrnX   = (attribs.width - dmxScreen->scrnWidth
-				  - dmxScreen->scrnX);
-        } else {
-            dmxScreen->scrnWidth  = attribs.width - dmxScreen->scrnX;
-            dmxScreen->scrnX   = 0;
-        }
-    }
-    if (dmxScreen->scrnYSign < 0) {
-        if (dmxScreen->scrnHeight) {
-            dmxScreen->scrnY   = (attribs.height - dmxScreen->scrnHeight
-				  - dmxScreen->scrnY);
-        } else {
-            dmxScreen->scrnHeight = attribs.height - dmxScreen->scrnY;
-            dmxScreen->scrnY   = 0;
-        }
-    }
-    if (!dmxScreen->scrnWidth)
-        dmxScreen->scrnWidth  = attribs.width  - dmxScreen->scrnX;
-    if (!dmxScreen->scrnHeight)
-        dmxScreen->scrnHeight = attribs.height - dmxScreen->scrnY;
-
-    if (!dmxScreen->rootWidth)  dmxScreen->rootWidth  = dmxScreen->scrnWidth;
-    if (!dmxScreen->rootHeight) dmxScreen->rootHeight = dmxScreen->scrnHeight;
-    if (dmxScreen->rootWidth + dmxScreen->rootX > dmxScreen->scrnWidth)
-        dmxScreen->rootWidth = dmxScreen->scrnWidth - dmxScreen->rootX;
-    if (dmxScreen->rootHeight + dmxScreen->rootY > dmxScreen->scrnHeight)
-        dmxScreen->rootHeight = dmxScreen->scrnHeight - dmxScreen->rootY;
 
     /* FIXME: Get these from the back-end server */
     dmxScreen->beXDPI = 96;
@@ -476,6 +437,12 @@ void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen)
     else if (dmxScreen->beDepth <= 16) dmxScreen->beBPP = 16;
     else                               dmxScreen->beBPP = 32;
 
+    if (dmxScreen->scrnWin != DefaultRootWindow(dpy))
+        XGetWindowAttributes(dpy, dmxScreen->scrnWin, &attribs);
+    
+    dmxScreen->scrnWidth  = attribs.width;
+    dmxScreen->scrnHeight = attribs.height;
+
 #ifdef GLXEXT
     /* get the majorOpcode for the back-end GLX extension */
     XQueryExtension(dpy, "GLX", &dmxScreen->glxMajorOpcode,
@@ -483,9 +450,8 @@ void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen)
 #endif
 
     dmxPrintScreenInfo(dmxScreen);
-    dmxLogOutput(dmxScreen, "%dx%d+%d+%d on %dx%d at depth=%d, bpp=%d\n",
+    dmxLogOutput(dmxScreen, "%dx%d on %dx%d at depth=%d, bpp=%d\n",
                  dmxScreen->scrnWidth, dmxScreen->scrnHeight,
-                 dmxScreen->scrnX, dmxScreen->scrnY,
                  dmxScreen->beWidth, dmxScreen->beHeight,
                  dmxScreen->beDepth, dmxScreen->beBPP);
     if (dmxScreen->beDepth == 8)
@@ -607,19 +573,6 @@ static Bool dmxSetPixmapFormats(ScreenInfo *pScreenInfo,
     return TRUE;
 }
 
-void dmxCheckForWM(DMXScreenInfo *dmxScreen)
-{
-    Status status;
-    XWindowAttributes xwa;
-
-    status = XGetWindowAttributes(dmxScreen->beDisplay,
-				  DefaultRootWindow(dmxScreen->beDisplay),
-				  &xwa);
-    dmxScreen->WMRunningOnBE =
-	(status &&
-	 (xwa.all_event_masks & SubstructureRedirectMask));
-}
-
 /** Initialize the display and collect relevant information about the
  *  display properties */
 static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
@@ -633,8 +586,15 @@ static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 
 	dmxScreen->scrnWidth  = 1;
 	dmxScreen->scrnHeight = 1;
-	dmxScreen->scrnX      = 0;
-	dmxScreen->scrnY      = 0;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    dmxScreen->scrnWidth  = dmxScreens[0].scrnWidth;
+	    dmxScreen->scrnHeight = dmxScreens[0].scrnHeight;
+	}
+#endif
+
 	dmxScreen->beWidth    = 1;
 	dmxScreen->beHeight   = 1;
 	dmxScreen->beXDPI     = 96;
@@ -646,22 +606,11 @@ static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
     }
     else
     {
+	if (!dmxScreen->scrnWin)
+	    dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+	    
 	dmxSetErrorHandler(dmxScreen);
-	dmxCheckForWM(dmxScreen);
 	dmxGetScreenAttribs(dmxScreen);
-
-	if (dmxScreen->beUseRoot && dmxScreen->WMRunningOnBE)
-	{
-	    dmxLog (dmxWarning,
-		    "WM running. cannot use back-end server root window\n");
-
-	    XLIB_PROLOGUE (dmxScreen);
-	    XCloseDisplay(dmxScreen->beDisplay);
-	    XLIB_EPILOGUE (dmxScreen);
-	    dmxScreen->beDisplay = NULL;
-
-	    return FALSE;
-	}
 
 	if (!dmxGetVisualInfo(dmxScreen))
 	{
@@ -971,12 +920,6 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 
 	AddScreen(dmxScreenInit, argc, argv);
     }
-
-    /* Compute origin information. */
-    dmxInitOrigins();
-
-    /* Compute overlap information. */
-    dmxInitOverlap();
 
     /* Make sure there is a global width/height available */
     dmxComputeWidthHeight(DMX_NO_RECOMPUTE_BOUNDING_BOX);

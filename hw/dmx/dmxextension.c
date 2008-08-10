@@ -107,16 +107,16 @@ Bool dmxGetScreenAttributes(int physical, DMXScreenAttributesPtr attr)
 
     attr->screenWindowWidth   = dmxScreen->scrnWidth;
     attr->screenWindowHeight  = dmxScreen->scrnHeight;
-    attr->screenWindowXoffset = dmxScreen->scrnX;
-    attr->screenWindowYoffset = dmxScreen->scrnY;
+    attr->screenWindowXoffset = 0;
+    attr->screenWindowYoffset = 0;
 
-    attr->rootWindowWidth     = dmxScreen->rootWidth;
-    attr->rootWindowHeight    = dmxScreen->rootHeight;
+    attr->rootWindowWidth     = WindowTable[physical]->drawable.width;
+    attr->rootWindowHeight    = WindowTable[physical]->drawable.height;
     attr->rootWindowXoffset   = dmxScreen->rootX;
     attr->rootWindowYoffset   = dmxScreen->rootY;
 
-    attr->rootWindowXorigin   = dmxScreen->rootXOrigin;
-    attr->rootWindowYorigin   = dmxScreen->rootYOrigin;
+    attr->rootWindowXorigin   = 0;
+    attr->rootWindowYorigin   = 0;
 
     return TRUE;
 }
@@ -315,8 +315,6 @@ static void dmxAdjustCursorBoundaries(void)
 {
     int           i;
 
-    dmxReInitOrigins();
-    dmxInitOverlap();
     dmxComputeWidthHeight(DMX_NO_RECOMPUTE_BOUNDING_BOX);
     dmxConnectionBlockCallback();
     for (i = 0; i < dmxNumInputs; i++) {
@@ -481,348 +479,6 @@ void dmxUpdateScreenResources(ScreenPtr pScreen, int x, int y, int w, int h)
 	    pScreen->PostValidateTree(pRoot, NULL, VTBroken);
     }
 }
-
-#ifdef PANORAMIX
-/** Change the "screen" window attributes by resizing the actual window
- *  on the back-end display (if necessary). */
-static void dmxConfigureScreenWindow(int idx,
-				     int x, int y, int w, int h)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
-    ScreenPtr      pScreen   = screenInfo.screens[idx];
-
-    /* Resize "screen" window */
-    if (dmxScreen->scrnX      != x ||
-	dmxScreen->scrnY      != y ||
-	dmxScreen->scrnWidth  != w ||
-	dmxScreen->scrnHeight != h) {
-	dmxResizeScreenWindow(pScreen, x, y, w, h);
-    }
-
-    /* Change "screen" window values */
-    dmxScreen->scrnX      = x;
-    dmxScreen->scrnY      = y;
-    dmxScreen->scrnWidth  = w;
-    dmxScreen->scrnHeight = h;
-}
-				     
-/** Change the "root" window position and size by resizing the actual
- *  window on the back-end display (if necessary) and updating all of
- *  DMX's resources by calling #dmxUpdateScreenResources. */
-static void dmxConfigureRootWindow(int idx, int x, int y, int w, int h)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
-    WindowPtr      pRoot     = WindowTable[idx];
-
-    /* NOTE: Either this function or the ones that it calls must handle
-     * the case where w == 0 || h == 0.  Currently, the functions that
-     * this one calls handle that case. */
-
-    /* 1. Resize "root" window */
-    if (dmxScreen->rootX      != x ||
-	dmxScreen->rootY      != y ||
-	dmxScreen->rootWidth  != w ||
-	dmxScreen->rootHeight != h) {
-	dmxResizeRootWindow(pRoot, x, y, w, h);
-    }
-
-    /* 2. Update all of the screen's resources associated with this root
-     *    window */
-    if (dmxScreen->rootWidth  != w ||
-	dmxScreen->rootHeight != h) {
-	dmxUpdateScreenResources(screenInfo.screens[idx], x, y, w, h);
-    }
-
-    /* Change "root" window values */
-    dmxScreen->rootX      = x;
-    dmxScreen->rootY      = y;
-    dmxScreen->rootWidth  = w;
-    dmxScreen->rootHeight = h;
-}
-
-/** Change the "root" window's origin by updating DMX's internal data
- *  structures (dix and Xinerama) to use the new origin and adjust the
- *  positions of windows that overlap this "root" window. */
-static void dmxSetRootWindowOrigin(int idx, int x, int y)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
-    ScreenPtr      pScreen   = screenInfo.screens[idx];
-    WindowPtr      pRoot     = WindowTable[idx];
-    WindowPtr      pChild;
-    int            xoff;
-    int            yoff;
-
-    /* Change "root" window's origin */
-    dmxScreen->rootXOrigin = x;
-    dmxScreen->rootYOrigin = y;
-
-    /* Compute offsets here in case <x,y> has been changed above */
-    xoff = x - dixScreenOrigins[idx].x;
-    yoff = y - dixScreenOrigins[idx].y;
-
-    /* Adjust the root window's position in dixScreenOrigins */
-    dixScreenOrigins[idx].x = dmxScreen->rootXOrigin;
-    dixScreenOrigins[idx].y = dmxScreen->rootYOrigin;
-
-    /* Recalculate the Xinerama regions and data structs */
-    XineramaReinitData(pScreen);
-
-    /* Adjust each of the root window's children */
-    if (!idx) ReinitializeRootWindow(WindowTable[0], xoff, yoff);
-    pChild = pRoot->firstChild;
-    while (pChild) {
-	/* Adjust child window's position */
-	pScreen->MoveWindow(pChild,
-			    pChild->origin.x - wBorderWidth(pChild) - xoff,
-			    pChild->origin.y - wBorderWidth(pChild) - yoff,
-			    pChild->nextSib,
-			    VTMove);
-
-	/* Note that the call to MoveWindow will eventually call
-	 * dmxPositionWindow which will automatically create a
-	 * window if it is now exposed on screen (for lazy window
-	 * creation optimization) and it will properly set the
-	 * offscreen flag.
-	 */
-
-	pChild = pChild->nextSib;
-    }
-}
-
-/** Configure the attributes of each "screen" and "root" window. */
-int dmxConfigureScreenWindows(int nscreens,
-			      CARD32 *screens,
-			      DMXScreenAttributesPtr attribs,
-			      int *errorScreen)
-{
-    int           i;
-
-    for (i = 0; i < nscreens; i++) {
-	DMXScreenAttributesPtr  attr      = &attribs[i];
-	int                     idx       = screens[i];
-	DMXScreenInfo          *dmxScreen = &dmxScreens[idx];
-
-	if (errorScreen) *errorScreen = i;
-
-	if (!dmxScreen->beDisplay) return DMX_BAD_VALUE;
-
-	/* Check for illegal values */
-	if (idx < 0 || idx >= dmxNumScreens) return BadValue;
-
-	/* The "screen" and "root" windows must have valid sizes */
-	if (attr->screenWindowWidth <= 0 || attr->screenWindowHeight <= 0 ||
-	    attr->rootWindowWidth   <  0 || attr->rootWindowHeight   <  0)
-	{
-	    dmxLog(dmxWarning,
-		   "The \"screen\" and \"root\" windows must have valid "
-		   "sizes\n");
-	    return DMX_BAD_VALUE;
-	}
-
-	/* The "screen" window must fit entirely within the BE display */
-	if (attr->screenWindowXoffset < 0 ||
-	    attr->screenWindowYoffset < 0 ||
-	    attr->screenWindowXoffset
-	    + attr->screenWindowWidth  > (unsigned)dmxScreen->beWidth ||
-	    attr->screenWindowYoffset
-	    + attr->screenWindowHeight > (unsigned)dmxScreen->beHeight)
-	{
-	    dmxLog(dmxWarning,
-		   "The \"screen\" window must fit entirely within the "
-		   "BE display\n");
-	    return DMX_BAD_VALUE;
-	}
-
-	/* The "root" window must fit entirely within the "screen" window */
-	if (attr->rootWindowXoffset < 0 ||
-	    attr->rootWindowYoffset < 0 ||
-	    attr->rootWindowXoffset
-	    + attr->rootWindowWidth  > attr->screenWindowWidth ||
-	    attr->rootWindowYoffset
-	    + attr->rootWindowHeight > attr->screenWindowHeight)
-	{
-	    dmxLog(dmxWarning,
-		   "The \"root\" window must fit entirely within the "
-		   "\"screen\" window\n");
-	    return DMX_BAD_VALUE;
-	}
-
-	/* The "root" window must not expose unaddressable coordinates */
-	if (attr->rootWindowXorigin < 0 ||
-	    attr->rootWindowYorigin < 0 ||
-	    attr->rootWindowXorigin + attr->rootWindowWidth  > 32767 ||
-	    attr->rootWindowYorigin + attr->rootWindowHeight > 32767)
-	{
-	    dmxLog(dmxWarning,
-		   "The \"root\" window must not expose unaddressable "
-		   "coordinates\n");
-	    return DMX_BAD_VALUE;
-	}
-
-	/* FIXME: Handle the rest of the illegal value checking */
-    }
-
-    /* No illegal values found */
-    if (errorScreen) *errorScreen = 0;
-
-    for (i = 0; i < nscreens; i++) {
-	DMXScreenAttributesPtr  attr      = &attribs[i];
-	int                     idx       = screens[i];
-	DMXScreenInfo          *dmxScreen = &dmxScreens[idx];
-
-	dmxLog(dmxInfo, "Changing screen #%d attributes "
-	       "from %dx%d+%d+%d %dx%d+%d+%d +%d+%d "
-	       "to %dx%d+%d+%d %dx%d+%d+%d +%d+%d\n",
-	       idx,
-	       dmxScreen->scrnWidth,      dmxScreen->scrnHeight,
-	       dmxScreen->scrnX,          dmxScreen->scrnY,
-	       dmxScreen->rootWidth,      dmxScreen->rootHeight,
-	       dmxScreen->rootX,          dmxScreen->rootY,
-	       dmxScreen->rootXOrigin,    dmxScreen->rootYOrigin,
-	       attr->screenWindowWidth,   attr->screenWindowHeight,
-	       attr->screenWindowXoffset, attr->screenWindowYoffset,
-	       attr->rootWindowWidth,     attr->rootWindowHeight,
-	       attr->rootWindowXoffset,   attr->rootWindowYoffset,
-	       attr->rootWindowXorigin,   attr->rootWindowYorigin);
-
-	/* Configure "screen" window */
-	dmxConfigureScreenWindow(idx,
-				 attr->screenWindowXoffset,
-				 attr->screenWindowYoffset,
-				 attr->screenWindowWidth,
-				 attr->screenWindowHeight);
-
-	/* Configure "root" window */
-	dmxConfigureRootWindow(idx,
-			       attr->rootWindowXoffset,
-			       attr->rootWindowYoffset,
-			       attr->rootWindowWidth,
-			       attr->rootWindowHeight);
-
-
-	/* Set "root" window's origin */
-	dmxSetRootWindowOrigin(idx,
-			       attr->rootWindowXorigin,
-			       attr->rootWindowYorigin);
-    }
-
-    /* Adjust the cursor boundaries */
-    dmxAdjustCursorBoundaries();
-
-    /* Force completion of the changes */
-    dmxSync(NULL, TRUE);
-
-    return Success;
-}
-
-/** Configure the attributes of the global desktop. */
-int dmxConfigureDesktop(DMXDesktopAttributesPtr attribs)
-{
-    if (attribs->width  <= 0 || attribs->width  >= 32767 ||
-	attribs->height <= 0 || attribs->height >= 32767)
-	return DMX_BAD_VALUE;
-
-    /* If the desktop is changing size, adjust the "root" windows on each
-     * "screen" window to only show the visible desktop.  Also, handle
-     * the special case where the desktop shrinks such that the it no
-     * longer overlaps an portion of a "screen" window. */
-    if (attribs->width != dmxGlobalWidth || attribs->height != dmxGlobalHeight) {
-	int   i;
-	for (i = 0; i < dmxNumScreens; i++) {
-	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
-	    int  w, h;
-
-	    w = attribs->width;
-	    h = attribs->height;
-
-#ifdef RANDR
-	    if (dmxScreen->beRandr)
-	    {
-		if (w > dmxScreen->beWidth)  w = dmxScreen->beWidth;
-		if (h > dmxScreen->beHeight) h = dmxScreen->beHeight;
-	    }
-	    else
-#endif
-
-	    {
-		if (w > dmxScreen->scrnWidth)  w = dmxScreen->scrnWidth;
-		if (h > dmxScreen->scrnHeight) h = dmxScreen->scrnHeight;
-	    }
-
-	    dmxConfigureScreenWindow (i,
-				      dmxScreen->scrnX,
-				      dmxScreen->scrnY,
-				      w,
-				      h);
-
-	    if ((w = attribs->width  - dmxScreen->rootXOrigin) < 0) w = 0;
-	    if ((h = attribs->height - dmxScreen->rootYOrigin) < 0) h = 0;
-
-#ifdef RANDR
-	    if (dmxScreen->beRandr)
-	    {
-		if (w > dmxScreen->beWidth)  w = dmxScreen->beWidth;
-		if (h > dmxScreen->beHeight) h = dmxScreen->beHeight;
-	    }
-	    else
-#endif
-
-	    {
-		if (w > dmxScreen->rootWidth)  w = dmxScreen->rootWidth;
-		if (h > dmxScreen->rootHeight) h = dmxScreen->rootHeight;
-	    }
-
-	    dmxConfigureRootWindow (i,
-				    dmxScreen->rootX,
-				    dmxScreen->rootY,
-				    w, h);
-	}
-    }
-
-    /* Set the global width/height */
-    dmxSetWidthHeight(attribs->width, attribs->height);
-
-    /* Handle shift[XY] changes */
-    if (attribs->shiftX || attribs->shiftY) {
-	int   i;
-	for (i = 0; i < dmxNumScreens; i++) {
-	    ScreenPtr  pScreen = screenInfo.screens[i];
-	    WindowPtr  pChild  = WindowTable[i]->firstChild;
-	    while (pChild) {
-		/* Adjust child window's position */
-		pScreen->MoveWindow(pChild,
-				    pChild->origin.x - wBorderWidth(pChild)
-				    - attribs->shiftX,
-				    pChild->origin.y - wBorderWidth(pChild)
-				    - attribs->shiftY,
-				    pChild->nextSib,
-				    VTMove);
-
-		/* Note that the call to MoveWindow will eventually call
-		 * dmxPositionWindow which will automatically create a
-		 * window if it is now exposed on screen (for lazy
-		 * window creation optimization) and it will properly
-		 * set the offscreen flag.
-		 */
-
-		pChild = pChild->nextSib;
-	    }
-	}
-    }
-
-    /* Update connection block, Xinerama, etc. -- these appears to
-     * already be handled in dmxConnectionBlockCallback(), which is
-     * called from dmxAdjustCursorBoundaries() [below]. */
-
-    /* Adjust the cursor boundaries */
-    dmxAdjustCursorBoundaries();
-
-    /* Force completion of the changes */
-    dmxSync(NULL, TRUE);
-
-    return Success;
-}
-#endif
 
 /** Create the scratch GCs per depth. */
 static void dmxBECreateScratchGCs(int scrnNum)
@@ -1800,7 +1456,6 @@ dmxAttachScreen (int                    idx,
 {
     ScreenPtr      pScreen;
     DMXScreenInfo *dmxScreen;
-    CARD32         scrnNum   = idx;
     DMXScreenInfo  oldDMXScreen;
     int            i;
 
@@ -1844,7 +1499,7 @@ dmxAttachScreen (int                    idx,
     /* Save old info */
     oldDMXScreen = *dmxScreen;
 
-    dmxScreen->beUseRoot = !window;
+    dmxScreen->scrnWin   = window;
     dmxScreen->virtualFb = FALSE;
 
     /* Copy the display name to the new screen */
@@ -1871,21 +1526,11 @@ dmxAttachScreen (int                    idx,
 	return 1;
     }
 
+    if (!dmxScreen->scrnWin)
+	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+
     dmxSetErrorHandler(dmxScreen);
-    dmxCheckForWM(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
-
-    if (dmxScreen->beUseRoot && dmxScreen->WMRunningOnBE)
-    {
-	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
-			"WM running. cannot use back-end server "
-			"root window\n");
-
-	dmxCloseDisplay (dmxScreen);
-	/* Restore the old screen */
-	*dmxScreen = oldDMXScreen;
-	return 1;
-    }
 
 #ifdef MITSHM
     dmxScreen->beShm = dmxShmInit (pScreen);
@@ -1901,17 +1546,12 @@ dmxAttachScreen (int                    idx,
     dmxScreen->beRandr = FALSE;
 #endif
 
-    if (attr->screenWindowWidth  == 0 || attr->screenWindowHeight == 0)
+    if (dmxScreen->scrnWin == DefaultRootWindow (dmxScreen->beDisplay))
     {
 
 #ifdef RANDR
 	int major, minor, status = 0;
-#endif
 
-	attr->screenWindowWidth  = dmxScreen->beWidth;
-	attr->screenWindowHeight = dmxScreen->beHeight;
-
-#ifdef RANDR
 	XLIB_PROLOGUE (dmxScreen);
 	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
 	XLIB_EPILOGUE (dmxScreen);
@@ -1929,11 +1569,6 @@ dmxAttachScreen (int                    idx,
 				       &ignore);
 		XLIB_EPILOGUE (dmxScreen);
 
-		if (attr->screenWindowWidth > dmxGlobalWidth)
-		    attr->screenWindowWidth = dmxGlobalWidth;
-		if (attr->screenWindowHeight > dmxGlobalHeight)
-		    attr->screenWindowHeight = dmxGlobalHeight;
-
 		dmxLog (dmxInfo, "RandR 1.2 is present\n");
 	    }
 	    else
@@ -1947,16 +1582,6 @@ dmxAttachScreen (int                    idx,
 	}
 #endif
 
-	attr->screenWindowXoffset = 0;
-	attr->screenWindowYoffset = 0;
-
-	attr->rootWindowWidth     = attr->screenWindowWidth;
-	attr->rootWindowHeight    = attr->screenWindowHeight;
-	attr->rootWindowXoffset   = 0;
-	attr->rootWindowYoffset   = 0;
-
-	attr->rootWindowXorigin   = 0;
-	attr->rootWindowYorigin   = 0;
     }
 
     if (!dmxGetVisualInfo(dmxScreen)) {
@@ -2069,18 +1694,6 @@ dmxAttachScreen (int                    idx,
     XFree(oldDMXScreen.beDepths);
     XFree(oldDMXScreen.bePixmapFormats);
     /* TODO: should oldDMXScreen.name be freed?? */
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	if (dmxConfigureScreenWindows(1, &scrnNum, attr, NULL))
-	{
-	    dmxErrorSet (errorSet, error, errorName,
-			 "Failed to configure screen windows");
-	    return 1;
-	}
-    }
-#endif
 
 #ifdef RANDR
     RRGetInfo (screenInfo.screens[0]);
@@ -2492,14 +2105,8 @@ int dmxDetachScreen(int idx)
 
     dmxScreen->scrnWidth   = 1;
     dmxScreen->scrnHeight  = 1;
-    dmxScreen->scrnX       = 0;
-    dmxScreen->scrnY       = 0;
-    dmxScreen->rootWidth   = 0;
-    dmxScreen->rootHeight  = 0;
     dmxScreen->rootX       = 0;
     dmxScreen->rootY       = 0;
-    dmxScreen->rootXOrigin = 0;
-    dmxScreen->rootYOrigin = 0;
     dmxScreen->beWidth     = 1;
     dmxScreen->beHeight    = 1;
     dmxScreen->beXDPI      = 75;

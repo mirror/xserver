@@ -119,7 +119,6 @@ DevPrivateKey dmxGlyphPrivateKey = &dmxGlyphPrivateKeyIndex; /**< Private index 
 void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 {
     DMXScreenInfo        *dmxScreen = &dmxScreens[idx];
-    XSetWindowAttributes  attribs;
     XGCValues             gcvals;
     unsigned long         mask;
     int                   i, j;
@@ -144,61 +143,10 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     /* Handle screen savers and DPMS on the backend */
     dmxDPMSInit(dmxScreen);
 
-    /* Create root window for screen */
-    mask = CWBackPixel | CWEventMask | CWColormap | CWOverrideRedirect;
-    attribs.background_pixel = dmxScreen->beBlackPixel;
-    attribs.event_mask = StructureNotifyMask | SubstructureRedirectMask;
-    attribs.colormap = dmxScreen->beDefColormaps[dmxScreen->beDefVisualIndex];
-    attribs.override_redirect = True;
-
-    if (!dmxScreen->beUseRoot)
-    {
-	dmxScreen->scrnWin =
-	    XCreateWindow(dmxScreen->beDisplay,
-			  DefaultRootWindow(dmxScreen->beDisplay),
-			  dmxScreen->scrnX,
-			  dmxScreen->scrnY,
-			  dmxScreen->scrnWidth,
-			  dmxScreen->scrnHeight,
-			  0,
-			  pScreen->rootDepth,
-			  InputOutput,
-			  dmxScreen->beVisuals[dmxScreen->beDefVisualIndex].visual,
-			  mask,
-			  &attribs);
-    }
-    else
-    {
-	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
-	XSetWindowBackground (dmxScreen->beDisplay, dmxScreen->scrnWin,
-			      attribs.background_pixel);
-	XSelectInput (dmxScreen->beDisplay, dmxScreen->scrnWin,
-		      attribs.event_mask);
-    }
+    XSelectInput (dmxScreen->beDisplay,
+		  dmxScreen->scrnWin,
+		  StructureNotifyMask);
     dmxPropertyWindow(dmxScreen);
-
-    /*
-     * This turns off the cursor by defining a cursor with no visible
-     * components.
-     */
-    if (1) {
-	char noCursorData[] = {0, 0, 0, 0,
-			       0, 0, 0, 0};
-	Pixmap pixmap;
-	XColor color, tmp;
-
-	pixmap = XCreateBitmapFromData(dmxScreen->beDisplay, dmxScreen->scrnWin,
-				       noCursorData, 8, 8);
-	XAllocNamedColor(dmxScreen->beDisplay, dmxScreen->beDefColormaps[0],
-			 "black", &color, &tmp);
-	dmxScreen->noCursor = XCreatePixmapCursor(dmxScreen->beDisplay,
-						  pixmap, pixmap,
-						  &color, &color, 0, 0);
-	XDefineCursor(dmxScreen->beDisplay, dmxScreen->scrnWin,
-		      dmxScreen->noCursor);
-
-	XFreePixmap(dmxScreen->beDisplay, pixmap);
-    }
 
 #ifdef RANDR
     dmxBERRScreenInit (pScreen);
@@ -207,9 +155,6 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 #ifdef XV
     dmxBEXvScreenInit (pScreen);
 #endif
-
-    if (!dmxScreen->beUseRoot)
-	XMapWindow (dmxScreen->beDisplay, dmxScreen->scrnWin);
 
     if (dmxShadowFB) {
 	mask = (GCFunction
@@ -374,8 +319,33 @@ dmxScreenEventCheckExpose (ScreenPtr           pScreen,
 }
 
 static Bool
-dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
+dmxScreenEventCheckOutputWindow (ScreenPtr	     pScreen,
 				 xcb_generic_event_t *event)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    switch (event->response_type & ~0x80) {
+    case XCB_DESTROY_NOTIFY: {
+	xcb_destroy_notify_event_t *xdestroy =
+	    (xcb_destroy_notify_event_t *) event;
+	
+	if (xdestroy->window != dmxScreen->scrnWin)
+	    return FALSE;
+
+	/* output window has been destroyed, detach screen when we reach
+	   the block handler */
+	dmxScreen->scrnWin = None;
+    } break;
+    default:
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
+static Bool
+dmxScreenEventCheckManageRoot (ScreenPtr	   pScreen,
+			       xcb_generic_event_t *event)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     WindowPtr     pChild = WindowTable[pScreen->myNum];
@@ -394,6 +364,8 @@ dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
 	(xcb_map_request_event_t *) event;
     xcb_client_message_event_t *xclient =
 	(xcb_client_message_event_t *) event;
+    xcb_map_notify_event_t * xmap =
+	(xcb_map_notify_event_t *) event;
 
     switch (event->response_type & ~0x80) {
     case XCB_CIRCULATE_REQUEST:
@@ -408,6 +380,11 @@ dmxScreenEventCheckManageWindow (ScreenPtr	     pScreen,
     case XCB_CLIENT_MESSAGE:
 	xWindow = xclient->window;
 	break;
+    case XCB_MAP_NOTIFY:
+	if (xmap->window == dmxScreen->rootWin)
+	    return TRUE;
+
+	/* fall-through */
     default:
 	return FALSE;
     }
@@ -706,7 +683,8 @@ dmxBEDispatch (ScreenPtr pScreen)
     while ((event = xcb_poll_for_event (dmxScreen->connection)))
     {
 	if (!dmxScreenEventCheckInput (pScreen, event)        &&
-	    !dmxScreenEventCheckManageWindow (pScreen, event) &&
+	    !dmxScreenEventCheckOutputWindow (pScreen, event) &&
+	    !dmxScreenEventCheckManageRoot (pScreen, event)   &&
 	    !dmxScreenEventCheckExpose (pScreen, event)       &&
 
 #ifdef MITSHM
@@ -773,7 +751,8 @@ dmxBEDispatch (ScreenPtr pScreen)
 	free (head);
     }
 
-    if (xcb_connection_has_error (dmxScreen->connection))
+    if (!dmxScreen->scrnWin ||
+	xcb_connection_has_error (dmxScreen->connection))
     {
 	if (!dmxScreen->broken)
 	{
@@ -781,8 +760,10 @@ dmxBEDispatch (ScreenPtr pScreen)
 
 	    dmxScreenEventCheckInput (pScreen, (xcb_generic_event_t *)
 				      &detached_error);
-	    dmxScreenEventCheckManageWindow (pScreen, (xcb_generic_event_t *)
+	    dmxScreenEventCheckOutputWindow (pScreen, (xcb_generic_event_t *)
 					     &detached_error);
+	    dmxScreenEventCheckManageRoot (pScreen, (xcb_generic_event_t *)
+					   &detached_error);
 	    dmxScreenEventCheckExpose (pScreen, (xcb_generic_event_t *)
 				       &detached_error);
 
@@ -813,16 +794,20 @@ dmxScreenCheckForIOError (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (xcb_connection_has_error (dmxScreen->connection))
+    if (!dmxScreen->scrnWin ||
+	xcb_connection_has_error (dmxScreen->connection))
     {
 	int i;
 
-	dmxScreen->alive = FALSE;
+	if (dmxScreen->scrnWin)
+	{
+	    dmxLogOutput (dmxScreen, "Detected broken connection\n");
+	    dmxScreen->alive = FALSE;
+	}
 
 	if (!dmxScreen->broken)
 	    dmxBEDispatch (pScreen);
 
-	dmxLogOutput (dmxScreen, "Detected broken connection\n");
 	dmxDetachScreen (pScreen->myNum);
 
 	for (i = 0; i < dmxNumScreens; i++)
@@ -1043,6 +1028,9 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		 dmxScreen->scrnWidth,
 		 dmxScreen->beBPP);
 
+    if (!dmxScreen->scrnWin && dmxScreen->beDisplay)
+	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+
 #ifdef MITSHM
     ShmRegisterDmxFuncs (pScreen);
     dmxScreen->beShm = dmxShmInit (pScreen);
@@ -1068,7 +1056,8 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 #endif
 
 #ifdef RANDR
-    if (dmxScreen->beDisplay)
+    if (dmxScreen->beDisplay &&
+	dmxScreen->scrnWin == DefaultRootWindow (dmxScreen->beDisplay))
     {
 	int major, minor, status = 0;
 
@@ -1195,19 +1184,6 @@ void dmxBECloseScreen(ScreenPtr pScreen)
     dmxDPMSTerm(dmxScreen);
 
     /* Free the screen resources */
-
-    XLIB_PROLOGUE (dmxScreen);
-    XFreeCursor(dmxScreen->beDisplay, dmxScreen->noCursor);
-    XLIB_EPILOGUE (dmxScreen);
-    dmxScreen->noCursor = (Cursor)0;
-
-    if (!dmxScreen->beUseRoot)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XUnmapWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
-	XDestroyWindow(dmxScreen->beDisplay, dmxScreen->scrnWin);
-	XLIB_EPILOGUE (dmxScreen);
-    }
     dmxScreen->scrnWin = (Window)0;
 
     if (dmxShadowFB) {

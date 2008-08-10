@@ -77,10 +77,10 @@ void dmxComputeWidthHeight(DMXRecomputeFlag flag)
                                 /* Don't use root* here because this is
                                  * the global bounding box. */
         dmxScreen = &dmxScreens[i];
-        if (w < dmxScreen->scrnWidth + dmxScreen->rootXOrigin)
-            w = dmxScreen->scrnWidth + dmxScreen->rootXOrigin;
-        if (h < dmxScreen->scrnHeight + dmxScreen->rootYOrigin)
-            h = dmxScreen->scrnHeight + dmxScreen->rootYOrigin;
+        if (w < dmxScreen->scrnWidth)
+            w = dmxScreen->scrnWidth;
+        if (h < dmxScreen->scrnHeight)
+            h = dmxScreen->scrnHeight;
     }
     if (!dmxGlobalWidth && !dmxGlobalHeight) {
         dmxLog(dmxInfo, "Using %dx%d as global bounding box\n", w, h);

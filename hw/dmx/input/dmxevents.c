@@ -265,8 +265,8 @@ dmxCoreMotion(DevicePtr pDev, int x, int y, int delta, DMXBlockType block)
         dmxGlobalY = dmxGlobalHeight + delta -1;
     
     if ((dmxScreen = dmxFindFirstScreen(dmxGlobalX, dmxGlobalY))) {
-        localX = dmxGlobalX - dmxScreen->rootXOrigin;
-        localY = dmxGlobalY - dmxScreen->rootYOrigin;
+        localX = dmxGlobalX;
+        localY = dmxGlobalY;
         if ((pScreen = miPointerGetScreen(inputInfo.pointer))
             && pScreen->myNum == dmxScreen->index) {
                                 /* Screen is old screen */

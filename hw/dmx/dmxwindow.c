@@ -112,20 +112,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
 	mask |= pWinPriv->attribMask;
     }
 
-    if (dmxScreen->beUseRoot)
-    {
-	XLIB_PROLOGUE (dmxScreen);
-	XChangeWindowAttributes (dmxScreen->beDisplay,
-				 DefaultRootWindow (dmxScreen->beDisplay),
-				 mask, &attribs);
-	XLIB_EPILOGUE (dmxScreen);
-	dmxSync (dmxScreen, False);
-
-	return DefaultRootWindow (dmxScreen->beDisplay);
-    }
-
     /* Create root window */
-
     parent = dmxScreen->scrnWin; /* This is our "Screen" window */
     visual = dmxScreen->beVisuals[dmxScreen->beDefVisualIndex].visual;
 
@@ -155,31 +142,6 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     return win;
 }
 
-/** Change the location and size of the "screen" window.  Called from
- *  #dmxReconfigureScreenWindow(). */
-void dmxResizeScreenWindow(ScreenPtr pScreen,
-			   int x, int y, int w, int h)
-{
-    DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
-    unsigned int    m;
-    XWindowChanges  c;
-
-    if (!dmxScreen->beDisplay || dmxScreen->beUseRoot)
-	return;
-
-    /* Handle resizing on back-end server */
-    m = CWX | CWY | CWWidth | CWHeight;
-    c.x = x;
-    c.y = y;
-    c.width = w;
-    c.height = h;
-
-    XLIB_PROLOGUE (dmxScreen);
-    XConfigureWindow(dmxScreen->beDisplay, dmxScreen->scrnWin, m, &c);
-    XLIB_EPILOGUE (dmxScreen);
-    dmxSync(dmxScreen, False);
-}
-
 static void dmxSetIgnore (DMXScreenInfo *dmxScreen, unsigned int sequence)
 {
     dmxAddSequence (&dmxScreen->ignore, sequence);
@@ -199,7 +161,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	return;
 
     /* Handle resizing on back-end server */
-    if (dmxScreen->beDisplay && !dmxScreen->beUseRoot) {
+    if (dmxScreen->beDisplay) {
 	m = CWX | CWY | CWWidth | CWHeight;
 	c.x = x;
 	c.y = y;
@@ -214,7 +176,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 
     if (w == 0 || h == 0) {
 	if (pWinPriv->mapped) {
-	    if (dmxScreen->beDisplay && !dmxScreen->beUseRoot)
+	    if (dmxScreen->beDisplay)
 	    {
 		XLIB_PROLOGUE (dmxScreen);
 		dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
@@ -224,7 +186,7 @@ void dmxResizeRootWindow(WindowPtr pRoot,
 	    pWinPriv->mapped = FALSE;
 	}
     } else if (!pWinPriv->mapped) {
-	if (dmxScreen->beDisplay && !dmxScreen->beUseRoot)
+	if (dmxScreen->beDisplay)
 	{
 	    XLIB_PROLOGUE (dmxScreen);
 	    dmxSetIgnore (dmxScreen, NextRequest (dmxScreen->beDisplay));
@@ -423,25 +385,8 @@ Bool dmxCreateWindow(WindowPtr pWindow)
 	/* Only create the root window at this stage -- non-root windows are
 	   created when they are mapped and are on-screen */
 	if (!pWindow->parent) {
-	    dmxScreen->rootWin = pWinPriv->window
-		= dmxCreateRootWindow(pWindow);
-	    if (dmxScreen->scrnX         != dmxScreen->rootX
-		|| dmxScreen->scrnY      != dmxScreen->rootY
-		|| dmxScreen->scrnWidth  != dmxScreen->rootWidth
-		|| dmxScreen->scrnHeight != dmxScreen->rootHeight) {
-		dmxResizeRootWindow(pWindow,
-				    dmxScreen->rootX,
-				    dmxScreen->rootY,
-				    dmxScreen->rootWidth,
-				    dmxScreen->rootHeight);
-		dmxUpdateScreenResources(screenInfo.screens[dmxScreen->index],
-					 dmxScreen->rootX,
-					 dmxScreen->rootY,
-					 dmxScreen->rootWidth,
-					 dmxScreen->rootHeight);
-		pWindow->origin.x = dmxScreen->rootX;
-		pWindow->origin.y = dmxScreen->rootY;
-	    }
+	    dmxScreen->rootWin = pWinPriv->window =
+		dmxCreateRootWindow(pWindow);
 	} else {
 	    dmxGetDefaultWindowAttributes(pWindow,
 					  &pWinPriv->cmap,
@@ -476,9 +421,12 @@ Bool dmxBEDestroyWindow(WindowPtr pWindow)
     pWinPriv->beRedirected = FALSE;
 
     if (pWinPriv->window) {
-	XLIB_PROLOGUE (dmxScreen);
-	XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
-	XLIB_EPILOGUE (dmxScreen);
+	if (dmxScreen->scrnWin)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XDestroyWindow(dmxScreen->beDisplay, pWinPriv->window);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
 	pWinPriv->window = (Window)0;
 	return TRUE;
     }

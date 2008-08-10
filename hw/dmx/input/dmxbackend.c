@@ -923,23 +923,6 @@ void dmxBackendUngrabPointer(DevicePtr pDev,
     }
 }
 
-static void dmxBackendComputeCenter(myPrivate *priv)
-{
-    int centerX;
-    int centerY;
-    
-    centerX       = priv->be->rootWidth / 2 + priv->be->rootX;
-    centerY       = priv->be->rootHeight / 2 + priv->be->rootY;
-
-    if (centerX > priv->be->rootWidth)  centerX = priv->be->rootWidth  - 1;
-    if (centerY > priv->be->rootHeight) centerY = priv->be->rootHeight - 1;
-    if (centerX < 1)                    centerX = 1;
-    if (centerY < 1)                    centerY = 1;
-
-    priv->centerX = centerX;
-    priv->centerY = centerY;
-}
-
 static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
@@ -971,7 +954,6 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
  * reconfig). */
 void dmxBackendLateReInit(DevicePtr pDev)
 {
-    GETPRIVFROMPDEV;
     int               x, y;
 
     DMXDBG1("dmxBackendLateReInit miPointerCurrentScreen() = %p\n",
@@ -979,7 +961,6 @@ void dmxBackendLateReInit(DevicePtr pDev)
 
     dmxBackendSameDisplay(NULL, 0); /* Invalidate cache */
     dmxBackendInitPrivate(pDev);
-    dmxBackendComputeCenter(priv);
     dmxGetGlobalPosition(&x, &y);
     dmxInvalidateGlobalPosition(); /* To force event processing */
 }
@@ -999,11 +980,10 @@ void dmxBackendInit(DevicePtr pDev)
     dmxScreen = dmxBackendInitPrivate(pDev);
 
     /* Finish initialization using computed values or constants. */
-    dmxBackendComputeCenter(priv);
-    priv->eventMask          = StructureNotifyMask | SubstructureRedirectMask;
+    priv->eventMask          = StructureNotifyMask;
     priv->myScreen           = dmxScreen->index;
-    priv->lastX              = priv->centerX;
-    priv->lastY              = priv->centerY;
+    priv->lastX              = 0;
+    priv->lastY              = 0;
     priv->relative           = 0;
     priv->newscreen          = 0;
 }

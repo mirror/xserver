@@ -453,13 +453,6 @@ static int ProcDMXChangeScreensAttributes(ClientPtr client)
 	value_list += count;
     }
 
-#if PANORAMIX
-    status = dmxConfigureScreenWindows(stuff->screenCount,
-				       screen_list,
-				       attribs,
-				       &errorScreen);
-#endif
-
     xfree(attribs);
 
     if (status == BadValue) return status;
@@ -494,7 +487,6 @@ static int ProcDMXAddScreen(ClientPtr client)
     char                   *name;
     int                    len;
     int                    paddedLength;
-    int                    physicalScreen;
 
     REQUEST_AT_LEAST_SIZE(xDMXAddScreenReq);
     paddedLength = (stuff->displayNameLength + 3) & ~3;
@@ -512,24 +504,9 @@ static int ProcDMXAddScreen(ClientPtr client)
     memcpy(name, &value_list[count], stuff->displayNameLength);
     name[stuff->displayNameLength] = '\0';
     attr.displayName = name;
-
-    physicalScreen = stuff->physicalScreen;
-    if (physicalScreen >= dmxGetNumScreens ())
-    {
-	DMXScreenAttributesRec attribs;
-
-	for (physicalScreen = 0;
-	     physicalScreen < dmxGetNumScreens ();
-	     physicalScreen++)
-	{
-	    dmxGetScreenAttributes (physicalScreen, &attribs);
-
-	    if (!attribs.displayName || !*attribs.displayName)
-		break;
-	}
-    }
-
-    status = dmxAttachScreen(physicalScreen, &attr, 0, NULL, 0, NULL, 0, NULL,
+    
+    status = dmxAttachScreen(stuff->physicalScreen,
+			     &attr, 0, NULL, 0, NULL, 0, NULL,
 			     0, 0);
 
     xfree(name);
@@ -538,7 +515,7 @@ static int ProcDMXAddScreen(ClientPtr client)
     rep.sequenceNumber = client->sequence;
     rep.length         = 0;
     rep.status         = status;
-    rep.physicalScreen = physicalScreen;
+    rep.physicalScreen = stuff->physicalScreen;
     if (client->swapped) {
         swaps(&rep.sequenceNumber, n);
         swapl(&rep.length, n);
@@ -785,14 +762,7 @@ static int ProcDMXChangeDesktopAttributes(ClientPtr client)
     dmxGetDesktopAttributes(&attr);
     dmxFetchDesktopAttributes(stuff->valueMask, &attr, value_list);
 
-#if PANORAMIX
-    status = dmxConfigureDesktop(&attr);
-#endif
     if (status == BadValue) return status;
-
-#ifdef RANDR
-    RRScreenSizeNotify (screenInfo.screens[0]);
-#endif
 
   noxinerama:
     rep.type           = X_Reply;

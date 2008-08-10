@@ -176,18 +176,13 @@ typedef struct _DMXScreenInfo {
     char          *authData;
     int           authDataLen;
 
-    int           beUseRoot;
     int           virtualFb;
 
     /*---------- Screen window information ----------*/
 
     Window        scrnWin;        /**< "Screen" window on backend display */
-    int           scrnX;          /**< X offset of "screen" WRT BE display */
-    int           scrnY;          /**< Y offset of "screen" WRT BE display */
     int           scrnWidth;      /**< Width of "screen" */
     int           scrnHeight;     /**< Height of "screen" */
-    int           scrnXSign;      /**< X offset sign of "screen" */
-    int           scrnYSign;      /**< Y offset sign of "screen" */
 
                                   /** Default drawables for "screen" */
     Drawable      scrnDefDrawables[MAXFORMATS];
@@ -200,11 +195,6 @@ typedef struct _DMXScreenInfo {
     Window        rootWin;        /**< "Root" window on backend display */
     int           rootX;          /**< X offset of "root" window WRT "screen"*/
     int           rootY;          /**< Y offset of "root" window WRT "screen"*/
-    int           rootWidth;      /**< Width of "root" window */
-    int           rootHeight;     /**< Height of "root" window */
-
-    int           rootXOrigin;    /**< Global X origin of "root" window */
-    int           rootYOrigin;    /**< Global Y origin of "root" window */
 
     /*---------- Shadow framebuffer information ----------*/
 
@@ -215,16 +205,6 @@ typedef struct _DMXScreenInfo {
     /*---------- Other related information ----------*/
 
     int           shared;         /**< Non-zero if another Xdmx is running */
-
-    Bool          WMRunningOnBE;
-
-    Cursor        noCursor;
-    Cursor        curCursor;
-                                /* Support for cursors on overlapped
-                                 * backend displays. */
-    CursorPtr     cursor;
-    int           cursorVisible;
-    int           cursorNotShared; /* for overlapping screens on a backend */
 
     PositionType  where;            /**< Relative layout information */
     int           whereX;           /**< Relative layout information */

@@ -827,10 +827,10 @@ int __glXDisp_ReadPixels(__GLXclientState *cl, GLbyte *pc)
        for (s=from_screen; s<=to_screen; s++) {
 	  DMXScreenInfo *dmxScreen = &dmxScreens[s];
 	  Display *dpy = GetBackEndDisplay(cl,s);
-	  int scr_x1 = dmxScreen->rootXOrigin;
-	  int scr_x2 = dmxScreen->rootXOrigin + dmxScreen->scrnWidth - 1;
-	  int scr_y1 = dmxScreen->rootYOrigin;
-	  int scr_y2 = dmxScreen->rootYOrigin + dmxScreen->scrnHeight - 1;
+	  int scr_x1 = 0;
+	  int scr_x2 = dmxScreen->scrnWidth - 1;
+	  int scr_y1 = 0;
+	  int scr_y2 = dmxScreen->scrnHeight - 1;
 	  int wx1, wx2, wy1, wy2;
 	  int sx, sy, sw, sh;
 	  int npixels;

@@ -53,9 +53,6 @@ extern miPointerScreenFuncRec dmxPointerCursorFuncs;
 extern miPointerSpriteFuncRec dmxPointerSpriteFuncs;
 
 extern Bool dmxInitCursor(ScreenPtr pScreen);
-extern void dmxReInitOrigins(void);
-extern void dmxInitOrigins(void);
-extern void dmxInitOverlap(void);
 
 extern void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor);
 extern Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor);

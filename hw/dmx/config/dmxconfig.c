@@ -199,13 +199,7 @@ static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
 					  int        authTypeLen,
 					  const char *authData,
 					  int        authDataLen,
-					  int        virtualFb,
-                                          int scrnWidth,   int scrnHeight,
-                                          int scrnX,       int scrnY,
-                                          int scrnXSign,   int scrnYSign,
-                                          int rootWidth,   int rootHeight,
-                                          int rootX,       int rootY,
-                                          int rootXSign,   int rootYSign)
+					  int        virtualFb)
 {
     DMXScreenInfo *dmxScreen;
     
@@ -220,16 +214,10 @@ static DMXScreenInfo *dmxConfigAddDisplay(const char *name,
     dmxScreen->name        = strdup (name);
     dmxScreen->display     = strdup (display);
     dmxScreen->index       = dmxNumScreens;
-    dmxScreen->scrnWidth   = scrnWidth;
-    dmxScreen->scrnHeight  = scrnHeight;
-    dmxScreen->scrnX       = scrnX;
-    dmxScreen->scrnY       = scrnY;
-    dmxScreen->scrnXSign   = scrnXSign;
-    dmxScreen->scrnYSign   = scrnYSign;
-    dmxScreen->rootWidth   = rootWidth;
-    dmxScreen->rootHeight  = rootHeight;
-    dmxScreen->rootX       = rootX;
-    dmxScreen->rootY       = rootY;
+    dmxScreen->scrnWidth   = 0;
+    dmxScreen->scrnHeight  = 0;
+    dmxScreen->rootX       = 0;
+    dmxScreen->rootY       = 0;
     dmxScreen->stat        = dmxStatAlloc();
     dmxScreen->authType    = dmxMemDup (authType, authTypeLen);
     dmxScreen->authTypeLen = authTypeLen;
@@ -265,15 +253,8 @@ static void dmxConfigCopyFromDisplay(DMXConfigDisplayPtr d)
 {
     DMXScreenInfo *dmxScreen;
 
-    dmxScreen         = dmxConfigAddDisplay(d->name,
-					    d->name,
-					    NULL, 0, NULL, 0, 0,
-                                            d->scrnWidth, d->scrnHeight,
-                                            d->scrnX,     d->scrnY,
-                                            d->scrnXSign, d->scrnYSign,
-                                            d->rootWidth, d->rootHeight,
-                                            d->rootX,     d->rootY,
-                                            d->rootXSign, d->rootXSign);
+    dmxScreen         = dmxConfigAddDisplay(d->name, d->name,
+					    NULL, 0, NULL, 0, 0);
     dmxScreen->where  = PosAbsolute;
     dmxScreen->whereX = d->rootXOrigin;
     dmxScreen->whereY = d->rootYOrigin;
@@ -294,9 +275,7 @@ static void dmxConfigCopyFromWall(DMXConfigWallPtr w)
 
     for (pt = w->nameList; pt; pt = pt->next) {
         dmxScreen = dmxConfigAddDisplay(pt->string, pt->string,
-					NULL, 0, NULL, 0, 0,
-					w->width, w->height,
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+					NULL, 0, NULL, 0, 0);
         if (pt == w->nameList) { /* Upper left */
             dmxScreen->where  = PosAbsolute;
             dmxScreen->whereX = 0;
@@ -406,9 +385,7 @@ static void dmxConfigFromCommandLine(void)
 						       pt->value[2].val,
 						       pt->value[3].ptr,
 						       pt->value[4].val,
-						       pt->value[5].val,
-						       0, 0, 0, 0, 0, 0,
-						       0, 0, 0, 0, 0, 0);
+						       pt->value[5].val);
 	if (dmxNumScreens == 1) {
 	    dmxScreen->where  = PosAbsolute;
 	    dmxScreen->whereX = 0;
@@ -434,9 +411,7 @@ static void dmxConfigFromCommandLine(void)
 	{
 	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("", "",
 							    NULL, 0, NULL, 0,
-							    0,
-							    0, 0, 0, 0, 0, 0,
-							    0, 0, 0, 0, 0, 0);
+							    0);
 	    dmxScreen->where  = PosAbsolute;
 	    dmxScreen->whereX = 0;
 	    dmxScreen->whereY = 0;
