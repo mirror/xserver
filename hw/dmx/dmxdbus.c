@@ -224,7 +224,7 @@ remove_input (DBusMessage *message,
     ret = dmxRemoveInput (id);
     if (ret != Success)
     {
-	DebugF ("[dmx/dbus] dmxAddInput failed\n");
+	DebugF ("[dmx/dbus] dmxRemoveInput failed\n");
 	return ret;
     }
 
