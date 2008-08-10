@@ -59,7 +59,8 @@
 #include <sys/time.h>
 
 static int        dmxSyncInterval = 100; /* Default interval in milliseconds */
-static OsTimerPtr dmxSyncTimer;
+static OsTimerPtr dmxSyncTimer = NULL;
+static OsTimerPtr dmxActiveSyncTimer = NULL;
 static int        dmxSyncPending = 0;
 static int        dmxSyncRequest = 0;
 
@@ -140,7 +141,7 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 
     /* make sure TimerFree is not called from while waiting for
        pending replies */
-    dmxSyncTimer = NULL;
+    dmxActiveSyncTimer = NULL;
 
     /* wait for all pending sync replies */
     do {
@@ -157,7 +158,7 @@ static CARD32 dmxSyncCallback(OsTimerPtr timer, CARD32 time, pointer arg)
 
 	if (dmxSyncRequest)
 	{
-	    dmxSyncTimer = timer;
+	    dmxActiveSyncTimer = timer;
 	    return dmxSyncInterval;
 	}
     }
@@ -217,7 +218,7 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
              * 2) freed, if it was on a queue (dmxSyncPending != 0), or
              * 3) allocated, if it wasn't on a queue (dmxSyncPending == 0)
              */
-            if (dmxSyncTimer && !dmxSyncPending) xfree(dmxSyncTimer);
+            if (dmxSyncTimer && !dmxActiveSyncTimer) xfree(dmxSyncTimer);
             dmxSyncTimer  = NULL;
             now           = TRUE;
             dmxGeneration = serverGeneration;
@@ -242,28 +243,22 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
 	/* Do sync or set time for later */
         if (now || !dmxScreen)
 	{
-	    if (dmxSyncTimer)
+	    if (dmxActiveSyncTimer)
 	    {
-		TimerFree (dmxSyncTimer);
-		dmxSyncTimer = NULL;
+		TimerCancel (dmxActiveSyncTimer);
+		dmxActiveSyncTimer = NULL;
 	    }
 
 	    while (dmxSyncRequest || dmxSyncPending)
 		dmxSyncCallback (NULL, 0, NULL);
-
-            /* At this point, dmxSyncPending == 0 because
-             * dmxSyncCallback must have been called. */
-            if (dmxSyncPending)
-                dmxLog(dmxFatal, "dmxSync(%s,%d): dmxSyncPending = %d\n",
-                       dmxScreen ? dmxScreen->display : "", now, dmxSyncPending);
         }
-	else if (!dmxSyncTimer)
+	else if (!dmxActiveSyncTimer)
 	{
-	    dmxSyncTimer = TimerSet (dmxSyncTimer,
-				     0,
-				     dmxSyncInterval,
-				     dmxSyncCallback,
-				     NULL);
+	    dmxActiveSyncTimer = TimerSet (dmxSyncTimer,
+					   0,
+					   dmxSyncInterval,
+					   dmxSyncCallback,
+					   NULL);
 	}
     }
     else
@@ -297,10 +292,10 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
 	dmxScreen->sync.sequence = 0;
 	dmxSyncRequest--;
 
-	if (dmxSyncRequest == 0 && dmxSyncPending == 0 && dmxSyncTimer)
+	if (dmxSyncRequest == 0 && dmxSyncPending == 0 && dmxActiveSyncTimer)
 	{
-	    TimerFree (dmxSyncTimer);
-	    dmxSyncTimer = NULL;
+	    TimerCancel (dmxActiveSyncTimer);
+	    dmxActiveSyncTimer = NULL;
 	}
     }
     
