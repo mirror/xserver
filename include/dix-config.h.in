@@ -415,6 +415,9 @@
 /* Support HAL for hotplug */
 #undef CONFIG_HAL
 
+/* Support Avahi */
+#undef HAVE_AVAHI
+
 /* Use only built-in fonts */
 #undef BUILTIN_FONTS
 

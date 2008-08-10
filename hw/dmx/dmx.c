@@ -74,6 +74,10 @@ extern int           PanoramiXNumScreens;
 
 #include "dmxdbus.h"
 
+#ifdef HAVE_AVAHI
+#include "dmxavahi.h"
+#endif
+
 extern void DMXExtensionInit(void);
 
 static unsigned char DMXCode;
@@ -123,6 +127,10 @@ static int _DMXXineramaActive(void)
 static void DMXResetProc(ExtensionEntry *extEntry)
 {
 
+#ifdef HAVE_AVAHI
+    dmx_avahi_fini ();
+#endif
+
 #ifdef CONFIG_DBUS_API
     dmx_dbus_fini ();
 #endif
@@ -141,6 +149,10 @@ void DMXExtensionInit(void)
 
 #ifdef CONFIG_DBUS_API
     dmx_dbus_init ();
+#endif
+
+#ifdef HAVE_AVAHI
+    dmx_avahi_init ();
 #endif
 
 }

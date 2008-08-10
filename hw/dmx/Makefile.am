@@ -26,6 +26,11 @@ DBUS_INCS = -I$(top_srcdir)/config
 DBUS_DEFS = @DBUS_CFLAGS@
 endif
 
+if HAVE_AVAHI
+AVAHI_SRCS = dmxavahi.c dmxavahi.h
+AVAHI_DEFS = @AVAHI_CFLAGS@
+endif
+
 AM_CFLAGS = \
       -DHAVE_DMX_CONFIG_H \
       $(DIX_CFLAGS) \
@@ -33,6 +38,7 @@ AM_CFLAGS = \
       $(GLX_DEFS) \
       $(DBUS_INCS) \
       $(DBUS_DEFS) \
+      $(AVAHI_DEFS) \
       $(DMX_CFLAGS) \
       @DMXMODULES_CFLAGS@
 
@@ -97,7 +103,8 @@ Xdmx_SOURCES = dmx.c \
                $(top_srcdir)/mi/miinitext.c \
                $(top_srcdir)/fb/fbcmap_mi.c \
                $(GLX_SRCS) \
-               $(DBUS_SRCS)
+               $(DBUS_SRCS) \
+               $(AVAHI_SRCS)
 
 
 #if COMPOSITE
@@ -107,6 +114,7 @@ Xdmx_SOURCES = dmx.c \
 XDMX_LIBS = \
 	@XDMX_LIBS@ \
 	$(GLX_LIBS) \
+        $(AVAHI_LIBS) \
 	$(top_srcdir)/composite/libcomposite.la \
 	$(top_srcdir)/xfixes/libxfixes.la \
 	$(top_srcdir)/damageext/libdamageext.la \

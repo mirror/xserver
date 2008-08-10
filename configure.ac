@@ -540,6 +540,7 @@ AC_ARG_ENABLE(dpms,           AS_HELP_STRING([--disable-dpms], [Build DPMS exten
 AC_ARG_ENABLE(config-dbus,    AS_HELP_STRING([--enable-config-dbus], [Build D-BUS API support (default: no)]), [CONFIG_DBUS_API=$enableval], [CONFIG_DBUS_API=no])
 AC_ARG_ENABLE(config-hal,     AS_HELP_STRING([--disable-config-hal], [Build HAL support (default: auto)]), [CONFIG_HAL=$enableval], [CONFIG_HAL=auto])
 AC_ARG_ENABLE(xfree86-utils,     AS_HELP_STRING([--enable-xfree86-utils], [Build xfree86 DDX utilities (default: enabled)]), [XF86UTILS=$enableval], [XF86UTILS=yes])
+AC_ARG_ENABLE(avahi,   AS_HELP_STRING([--disable-avahi], [Build Avahi support (default: auto)]), [AVAHI=$enableval], [AVAHI=no])
 
 dnl DDXes.
 AC_ARG_ENABLE(xorg,    	      AS_HELP_STRING([--enable-xorg], [Build Xorg server (default: auto)]), [XORG=$enableval], [XORG=auto])
@@ -704,6 +705,12 @@ if test "x$CONFIG_NEED_DBUS" = xyes; then
 fi
 AM_CONDITIONAL(CONFIG_NEED_DBUS, [test "x$CONFIG_NEED_DBUS" = xyes])
 CONFIG_LIB='$(top_builddir)/config/libconfig.a'
+
+PKG_CHECK_MODULES(AVAHI, avahi-client, [HAVE_AVAHI=yes], [HAVE_AVAHI=no])
+if test "x$HAVE_AVAHI" = xyes; then
+        AC_DEFINE(HAVE_AVAHI, 1, [Have Avahi suppport])
+fi
+AM_CONDITIONAL(HAVE_AVAHI, [test "x$HAVE_AVAHI" = xyes])
 
 AC_MSG_CHECKING([for glibc...])
 AC_PREPROC_IFELSE([
