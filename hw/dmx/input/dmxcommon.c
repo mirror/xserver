@@ -223,8 +223,8 @@ void dmxCommonKbdGetMap(DevicePtr pDev, KeySymsPtr pKeySyms, CARD8 *pModMap)
     int             min_keycode;
     int             max_keycode;
     int             map_width;
-    KeySym          *keyboard_mapping;
-    XModifierKeymap *modifier_mapping;
+    KeySym          *keyboard_mapping = NULL;
+    XModifierKeymap *modifier_mapping = NULL;
     int             i, j;
 
                                 /* Compute pKeySyms.  Cast
@@ -517,35 +517,16 @@ void dmxCommonMouGetMap(DevicePtr pDev, unsigned char *map, int *nButtons)
     for (i = 0; i <= *nButtons; i++) map[i] = i;
 }
 
-static void *dmxCommonXSelect(DMXScreenInfo *dmxScreen, void *closure)
-{
-    myPrivate *priv = closure;
-    XLIB_PROLOGUE (dmxScreen);
-    XSelectInput(dmxScreen->beDisplay, dmxScreen->scrnWin, priv->eventMask);
-    XLIB_EPILOGUE (dmxScreen);
-    return NULL;
-}
-
-static void *dmxCommonAddEnabledDevice(DMXScreenInfo *dmxScreen, void *closure)
-{
-    AddEnabledDevice(XConnectionNumber(dmxScreen->beDisplay));
-    return NULL;
-}
-
-static void *dmxCommonRemoveEnabledDevice(DMXScreenInfo *dmxScreen,
-                                          void *closure)
-{
-    RemoveEnabledDevice(XConnectionNumber(dmxScreen->beDisplay));
-    return NULL;
-}
-
 /** Turn \a pDev on (i.e., take input from \a pDev). */
 int dmxCommonMouOn(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
     GETDMXINPUTFROMPRIV;
 
-    if (priv->be && dmxLocal->deviceId >= 0)
+    if (!priv->be)
+	return -1;
+
+    if (dmxLocal->deviceId >= 0)
     {
 	XEventClass cls[5];
 	int         type;
@@ -571,23 +552,9 @@ int dmxCommonMouOn(DevicePtr pDev)
     else
     {
 	priv->eventMask |= DMX_POINTER_EVENT_MASK;
-	if (dmxShadowFB) {
-	    XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
-	    XWarpPointer(priv->display, priv->window, priv->window,
-			 0, 0, 0, 0,
-			 priv->initPointerX,
-			 priv->initPointerY);
-	    XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
-	    dmxSync(&dmxScreens[dmxInput->scrnIdx], TRUE);
-	}
-	if (!priv->be) {
-	    XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
-	    XSelectInput(priv->display, priv->window, priv->eventMask);
-	    XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
-	    AddEnabledDevice(XConnectionNumber(priv->display));
-	} else {
-	    dmxPropertyIterate(priv->be, dmxCommonXSelect, priv);
-	}
+	XLIB_PROLOGUE (priv->be);
+	XSelectInput(priv->display, priv->window, priv->eventMask);
+	XLIB_EPILOGUE (priv->be);
     }
     
     return -1;
@@ -597,7 +564,6 @@ int dmxCommonMouOn(DevicePtr pDev)
 void dmxCommonMouOff(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
-    GETDMXINPUTFROMPRIV;
 
     if (dmxLocal->device)
     {
@@ -609,12 +575,10 @@ void dmxCommonMouOff(DevicePtr pDev)
     else
     {
 	priv->eventMask &= ~DMX_POINTER_EVENT_MASK;
-	if (!priv->be) {
-	    XLIB_PROLOGUE (&dmxScreens[dmxInput->scrnIdx]);
+	if (priv->be) {
+	    XLIB_PROLOGUE (priv->be);
 	    XSelectInput(priv->display, priv->window, priv->eventMask);
-	    XLIB_EPILOGUE (&dmxScreens[dmxInput->scrnIdx]);
-	} else {
-	    dmxPropertyIterate(priv->be, dmxCommonXSelect, priv);
+	    XLIB_EPILOGUE (priv->be);
 	}
     }
 }

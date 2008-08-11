@@ -124,52 +124,6 @@ void dmxBackendDestroyPrivate(pointer private)
     if (private) free(private);
 }
 
-static void *dmxBackendTestScreen(DMXScreenInfo *dmxScreen, void *closure)
-{
-    long target = (long)closure;
-
-    if (dmxScreen->index == target) return dmxScreen;
-    return NULL;
-}
-
-/* Return non-zero if screen and priv->myScreen are on the same physical
- * backend display (1 if they are the same screen, 2 if they are
- * different screens).  Since this is a common operation, the results
- * are cached.  The cache is invalidated if \a priv is NULL (this should
- * be done with each server generation and reconfiguration). */
-static int dmxBackendSameDisplay(myPrivate *priv, long screen)
-{
-    static myPrivate *oldpriv  = NULL;
-    static int       oldscreen = -1;
-    static int       retcode   = 0;
-
-    if (priv == oldpriv && screen == oldscreen) return retcode;
-    if (!priv) {                /* Invalidate cache */
-        oldpriv   = NULL;
-        oldscreen = -1;
-        retcode   = 0;
-        return 0;
-    }
-
-    if (screen == priv->myScreen)                     retcode = 1;
-    else if (screen < 0 || screen >= dmxNumScreens)   retcode = 0;
-    else if (dmxPropertyIterate(priv->be,
-                                dmxBackendTestScreen,
-                                (void *)screen))      retcode = 2;
-    else                                              retcode = 0;
-
-    oldpriv   = priv;
-    oldscreen = screen;
-    return retcode;
-}
-
-static void *dmxBackendTestWindow(DMXScreenInfo *dmxScreen, void *closure)
-{
-    Window win = (Window)(long)closure;
-    if (dmxScreen->scrnWin == win) return dmxScreen;
-    return NULL;
-}
-
 void dmxBackendUpdatePosition(pointer private, int x, int y)
 {
 }
@@ -932,9 +886,7 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
 
     /* Fill in myPrivate */
     for (i = 0,dmxScreen = &dmxScreens[0]; i<dmxNumScreens; i++,dmxScreen++) {
-        if ((dmxInput->scrnIdx == -1 &&
-	     dmxPropertySameDisplay (dmxScreen, dmxInput->name)) ||
-	    dmxInput->scrnIdx == i) {
+        if (dmxInput->scrnIdx == i) {
             priv->display  = dmxScreen->beDisplay;
             priv->window   = dmxScreen->scrnWin;
             priv->be       = dmxScreen;
@@ -959,7 +911,6 @@ void dmxBackendLateReInit(DevicePtr pDev)
     DMXDBG1("dmxBackendLateReInit miPointerCurrentScreen() = %p\n",
             miPointerCurrentScreen());
 
-    dmxBackendSameDisplay(NULL, 0); /* Invalidate cache */
     dmxBackendInitPrivate(pDev);
     dmxGetGlobalPosition(&x, &y);
     dmxInvalidateGlobalPosition(); /* To force event processing */
@@ -970,8 +921,6 @@ void dmxBackendInit(DevicePtr pDev)
 {
     GETPRIVFROMPDEV;
     DMXScreenInfo     *dmxScreen;
-
-    dmxBackendSameDisplay(NULL, 0); /* Invalidate cache */
 
     if (dmxLocal->type == DMX_LOCAL_MOUSE)    priv->mou = pDev;
     if (dmxLocal->type == DMX_LOCAL_KEYBOARD) priv->kbd = pDev;

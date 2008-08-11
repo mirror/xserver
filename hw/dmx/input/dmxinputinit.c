@@ -154,14 +154,6 @@ static DMXLocalInputInfoRec DMXConsoleKbd = {
     dmxCommonKbdCtrl, dmxCommonKbdBell
 };
 
-static DMXLocalInputInfoRec DMXCommonOth = {
-    "common-oth", DMX_LOCAL_OTHER, DMX_LOCAL_TYPE_COMMON, 1,
-    dmxCommonCopyPrivate, NULL,
-    NULL, NULL, NULL, dmxCommonOthGetInfo,
-    dmxCommonOthOn, dmxCommonOthOff
-};
-
-
 static DMXLocalInputInfoRec DMXLocalDevices[] = {
                                 /* Dummy drivers that can compile on any OS */
 #ifdef __linux__
@@ -805,38 +797,6 @@ static void dmxUpdateWindowInformation(DMXInputInfo *dmxInput,
                                            type, pWindow);
 }
 
-static void dmxCollectAll(DMXInputInfo *dmxInput)
-{
-    int i;
-
-    if (dmxInput->detached)
-        return;
-
-    for (i = 0; i < dmxInput->numDevs; i += dmxInput->devs[i]->binding)
-        if (dmxInput->devs[i]->collect_events)
-            dmxInput->devs[i]->collect_events(&dmxInput->devs[i]
-                                              ->pDevice->public,
-                                              dmxMotion,
-                                              dmxEnqueue,
-                                              dmxCheckSpecialKeys, DMX_BLOCK);
-}
-
-static void dmxSwitchReturn(pointer p)
-{
-    DMXInputInfo *dmxInput = p;
-    int          i;
-    
-    dmxLog(dmxInfo, "Returning from VT %d\n", dmxInput->vt_switched);
-
-    if (!dmxInput->vt_switched)
-        dmxLog(dmxFatal, "dmxSwitchReturn called, but not switched\n");
-    dmxSigioEnableInput();
-    for (i = 0; i < dmxInput->numDevs; i++)
-        if (dmxInput->devs[i]->vt_post_switch)
-            dmxInput->devs[i]->vt_post_switch(dmxInput->devs[i]->private);
-    dmxInput->vt_switched = 0;
-}
-
 static char *dmxMakeUniqueDeviceName(DMXLocalInputInfoPtr dmxLocal)
 {
     DMXInputInfo *dmxInput = &dmxInputs[dmxLocal->inputIdx];
@@ -1213,26 +1173,14 @@ void dmxInputInit(DMXInputInfo *dmxInput)
         int found;
 
         for (found = 0, i = 0; i < dmxNumScreens; i++) {
-	    if ((dmxInput->scrnIdx == -1 &&
-		 dmxPropertySameDisplay (&dmxScreens[i], dmxInput->name)) ||
-		dmxInput->scrnIdx == i) {
-                if (dmxScreens[i].shared)
-		{
-                    dmxLog(dmxFatal,
-                           "Cannot take input from shared backend (%s)\n",
-                           name);
-		}
-		else
-                {
-                    char *pt;
-                    for (pt = (char *)dmxInput->name; pt && *pt; pt++)
-                        if (*pt == ',') *pt = '\0';
-                    dmxInputCopyLocal(dmxInput, &DMXBackendMou);
-                    dmxInputCopyLocal(dmxInput, &DMXBackendKbd);
-                    dmxInput->scrnIdx = i;
-                    dmxLogInput(dmxInput,
-                                "Using backend input from %s at %d\n", name, i);
-                }
+	    if (dmxInput->scrnIdx == i) {
+		char *pt;
+		for (pt = (char *)dmxInput->name; pt && *pt; pt++)
+		    if (*pt == ',') *pt = '\0';
+		dmxInputCopyLocal(dmxInput, &DMXBackendMou);
+		dmxInputCopyLocal(dmxInput, &DMXBackendKbd);
+		dmxLogInput(dmxInput,
+			    "Using backend input from %s at %d\n", name, i);
                 ++found;
                 break;
             }
