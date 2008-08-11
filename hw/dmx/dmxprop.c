@@ -74,14 +74,9 @@
 #define DMX_ATOMNAME "DMX_NAME"
 
 /** The identification string of this DMX server */
-#define DMX_IDENT    "Xdmx"
+#define DMX_IDENT    "DMX"
 
 extern char *display;
-
-static int dmxPropertyErrorHandler(Display *dpy, XErrorEvent *ev)
-{
-    return 0;
-}
 
 static const unsigned char *dmxPropertyIdentifier(void)
 {
@@ -96,214 +91,6 @@ static const unsigned char *dmxPropertyIdentifier(void)
     XmuGetHostname(hostname, sizeof(hostname));
     XmuSnprintf(buf, sizeof(buf), "%s:%s:%s", DMX_IDENT, hostname, display);
     return (unsigned char *)buf;
-}
-
-/** Starting with the \a start screen, iterate over all of the screens
- * on the same physical X server as \a start, calling \a f with the
- * screen and the \a closure.  (The common case is that \a start is the
- * only DMX window on the backend X server.) */
-void *dmxPropertyIterate(DMXScreenInfo *start,
-                         void *(*f)(DMXScreenInfo *dmxScreen, void *),
-                         void *closure)
-{
-    DMXScreenInfo *pt;
-
-    if (!start->next) {
-        if (!start->beDisplay) return NULL;
-        return f(start, closure);
-    }
-
-    for (pt = start->next; /* condition at end of loop */; pt = pt->next) {
-        void *retval;
-        /* beDisplay ban be NULL if a screen was detached */
-        dmxLog(dmxDebug, "pt = %p\n", pt);
-        dmxLog(dmxDebug, "pt->beDisplay = %p\n", pt->beDisplay);
-        if (pt->beDisplay && (retval = f(pt, closure))) return retval;
-        if (pt == start) break;
-    }
-    return NULL;
-}
-
-/** Returns 0 if this is the only Xdmx session on the display; 1
- * otherwise. */
-static int dmxPropertyCheckOtherServers(DMXScreenInfo *dmxScreen, Atom atom)
-{
-    Display       *dpy    = dmxScreen->beDisplay;
-    XTextProperty tp;
-    XTextProperty tproot;
-    const char    *pt;
-    int           retcode = 0;
-    char          **list  = NULL;
-    int           count   = 0;
-    int           i;
-    int           (*dmxOldHandler)(Display *, XErrorEvent *);
-
-    if (!dpy)
-	return 0;
-
-    if (!XGetTextProperty(dpy, RootWindow(dpy,0), &tproot, atom)
-        || !tproot.nitems) return 0;
-    
-                                /* Ignore BadWindow errors for this
-                                 * routine because the window id stored
-                                 * in the property might be old */
-    dmxOldHandler = XSetErrorHandler(dmxPropertyErrorHandler);
-    for (pt = (const char *)tproot.value; pt && *pt; pt = pt ? pt + 1 : NULL) {
-        if ((pt = strchr(pt, ','))) {
-            Window win = strtol(pt+1, NULL, 10);
-            if (XGetTextProperty(dpy, win, &tp, atom) && tp.nitems) {
-                if (!strncmp((char *)tp.value, DMX_IDENT, strlen(DMX_IDENT))) {
-                    int flag = 0;
-                    for (i = 0; i < count; i++)
-                        if (!strcmp(list[i], (char *)tp.value)) {
-                            ++flag;
-                            break;
-                        }
-                    if (flag) continue;
-                    ++retcode;
-                    dmxLogOutputWarning(dmxScreen,
-                                        "%s also running on %s\n",
-                                        tp.value, dmxScreen->display);
-                    list = xrealloc(list, ++count * sizeof(*list));
-                    list[count-1] = xalloc(tp.nitems + 2);
-                    strncpy(list[count-1], (char *)tp.value, tp.nitems + 1);
-                }
-                XFree(tp.value);
-            }
-        }
-    }
-    XSetErrorHandler(dmxOldHandler);
-
-    for (i = 0; i < count; i++) xfree(list[i]);
-    xfree(list);
-    XFree(tproot.value);
-    if (!retcode)
-        dmxLogOutput(dmxScreen, "No Xdmx server running on backend\n");
-    return retcode;
-}
-
-/** Returns NULL if this is the only Xdmx window on the display.
- * Otherwise, returns a pointer to the dmxScreen of the other windows on
- * the display. */
-static DMXScreenInfo *dmxPropertyCheckOtherWindows(DMXScreenInfo *dmxScreen,
-                                                   Atom atom)
-{
-    Display             *dpy = dmxScreen->beDisplay;
-    const unsigned char *id  = dmxPropertyIdentifier();
-    XTextProperty       tproot;
-    XTextProperty       tp;
-    const char          *pt;
-    int                 (*dmxOldHandler)(Display *, XErrorEvent *);
-
-    if (!dpy)
-	return NULL;
-
-    if (!XGetTextProperty(dpy, RootWindow(dpy,0), &tproot, atom)
-        || !tproot.nitems) return 0;
-
-                                /* Ignore BadWindow errors for this
-                                 * routine because the window id stored
-                                 * in the property might be old */
-    dmxOldHandler = XSetErrorHandler(dmxPropertyErrorHandler);
-    for (pt = (const char *)tproot.value; pt && *pt; pt = pt ? pt + 1 : NULL) {
-        if ((pt = strchr(pt, ','))) {
-            Window win = strtol(pt+1, NULL, 10);
-            if (XGetTextProperty(dpy, win, &tp, atom) && tp.nitems) {
-                dmxLog(dmxDebug,"On %s/%lu: %s\n",
-                       dmxScreen->display, win, tp.value);
-                if (!strncmp((char *)tp.value, (char *)id,
-                             strlen((char *)id))) {
-                    int idx;
-                    
-                    if (!(pt = strchr((char *)tp.value, ','))) continue;
-                    idx = strtol(pt+1, NULL, 10);
-                    if (idx < 0 || idx >= dmxNumScreens) continue;
-                    if (dmxScreens[idx].scrnWin != win) continue;
-                    XSetErrorHandler(dmxOldHandler);
-                    return &dmxScreens[idx];
-                }
-                XFree(tp.value);
-            }
-        }
-    }
-    XSetErrorHandler(dmxOldHandler);
-    XFree(tproot.value);
-    return 0;
-}
-
-/** Returns 0 if this is the only Xdmx session on the display; 1
- * otherwise. */
-int dmxPropertyDisplay(DMXScreenInfo *dmxScreen)
-{
-    Atom                atom;
-    const unsigned char *id  = dmxPropertyIdentifier();
-    Display             *dpy = dmxScreen->beDisplay;
-
-    if (!dpy)
-	return 0;
-
-    atom = XInternAtom(dpy, DMX_ATOMNAME, False);
-    if (dmxPropertyCheckOtherServers(dmxScreen, atom)) {
-        dmxScreen->shared = 1;
-        return 1;
-    }
-    XChangeProperty(dpy, RootWindow(dpy,0), atom, XA_STRING, 8,
-                    PropModeReplace, id, strlen((char *)id));
-    return 0;
-}
-
-/** Returns 1 if the dmxScreen and the display in \a name are on the
- * same display, or 0 otherwise.  We can't just compare the display
- * names because there can be multiple synonyms for the same display,
- * some of which cannot be determined without accessing the display
- * itself (e.g., domain aliases or machines with multiple NICs). */
-int dmxPropertySameDisplay(DMXScreenInfo *dmxScreen, const char *name)
-{
-    Display             *dpy0  = dmxScreen->beDisplay;
-    Atom                atom0;
-    XTextProperty       tp0;
-    Display             *dpy1  = NULL;
-    Atom                atom1;
-    XTextProperty       tp1;
-    int                 retval = 0;
-
-    if (!dpy0)
-	return 0;
-
-    tp0.nitems = 0;
-    tp1.nitems = 0;
-
-    if ((atom0 = XInternAtom(dpy0, DMX_ATOMNAME, True)) == None) {
-        dmxLog(dmxWarning, "No atom on %s\n", dmxScreen->display);
-        return 0;
-    }
-    if (!XGetTextProperty(dpy0, RootWindow(dpy0,0), &tp0, atom0)
-        || !tp0.nitems) {
-        dmxLog(dmxWarning, "No text property on %s\n", dmxScreen->display);
-        return 0;
-    }
-
-    if (!(dpy1 = XOpenDisplay(name))) {
-        dmxLog(dmxWarning, "Cannot open %s\n", name);
-        goto cleanup;
-    }
-    atom1 = XInternAtom(dpy1, DMX_ATOMNAME, True);
-    if (atom1 == None) {
-        dmxLog(dmxDebug, "No atom on %s\n", name);
-        goto cleanup;
-    }
-    if (!XGetTextProperty(dpy1, RootWindow(dpy1,0), &tp1, atom1)
-        || !tp1.nitems) {
-        dmxLog(dmxDebug, "No text property on %s\n", name);
-        goto cleanup;
-    }
-    if (!strcmp((char *)tp0.value, (char *)tp1.value)) retval = 1;
-
-  cleanup:
-    if (tp0.nitems) XFree(tp0.value);
-    if (tp1.nitems) XFree(tp1.value);
-    if (dpy1)       XCloseDisplay(dpy1);
-    return retval;
 }
 
 /** Prints a log message if \a dmxScreen is on the same backend X server
@@ -325,32 +112,16 @@ void dmxPropertyWindow(DMXScreenInfo *dmxScreen)
     const unsigned char *id  = dmxPropertyIdentifier();
     Display             *dpy = dmxScreen->beDisplay;
     Window              win  = dmxScreen->scrnWin;
-    DMXScreenInfo       *other;
     char                buf[128]; /* RATS: only used with XmuSnprintf */
 
     if (!dpy)
-	return; /* FIXME: What should be done here if Xdmx is started
-		 * with this screen initially detached?
-		 */
+	return;
 
     atom = XInternAtom(dpy, DMX_ATOMNAME, False);
-    if ((other = dmxPropertyCheckOtherWindows(dmxScreen, atom))) {
-        DMXScreenInfo *tmp = dmxScreen->next;
-        dmxScreen->next    = (other->next ? other->next : other);
-        other->next        = (tmp         ? tmp         : dmxScreen);
-        dmxLog(dmxDebug, "%d/%s/%lu and %d/%s/%lu are on the same backend\n",
-               dmxScreen->index, dmxScreen->display, dmxScreen->scrnWin,
-               other->index, other->display, other->scrnWin);
-    }
-
-    XmuSnprintf(buf, sizeof(buf), ".%d,%lu", dmxScreen->index,
-                (long unsigned)win);
-    XChangeProperty(dpy, RootWindow(dpy,0), atom, XA_STRING, 8,
-                    PropModeAppend, (unsigned char *)buf, strlen(buf));
 
     XmuSnprintf(buf, sizeof(buf), "%s,%d", id, dmxScreen->index);
     XChangeProperty(dpy, win, atom, XA_STRING, 8,
-                    PropModeAppend, (unsigned char *)buf, strlen(buf));
+                    PropModeReplace, (unsigned char *)buf, strlen(buf));
 }
 
 static int (*dmxSaveProcVector[256]) (ClientPtr);
