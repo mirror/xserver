@@ -328,9 +328,7 @@ void dmxCloseDisplay(DMXScreenInfo *dmxScreen)
     if (dmxScreen->beAtomTable)
 	xfree (dmxScreen->beAtomTable);
 
-    XLIB_PROLOGUE (dmxScreen);
-    XCloseDisplay (dmxScreen->beDisplay);
-    XLIB_EPILOGUE (dmxScreen);
+    xcb_disconnect (dmxScreen->connection);
 }
 
 void dmxSetErrorHandler(DMXScreenInfo *dmxScreen)
