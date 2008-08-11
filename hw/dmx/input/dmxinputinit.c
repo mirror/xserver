@@ -1038,9 +1038,9 @@ static void dmxInputScanForExtensions(DMXInputInfo *dmxInput, int doXI)
     /* Only use XInput Extension if 2.0 or greater */
     if (ext->major_version < 2)
     {
-	XFree(ext);
         dmxLogInput(dmxInput, "%s version %d.%d is too old\n",
 		    INAME, ext->major_version, ext->minor_version);
+	XFree(ext);
 	return;
     }
 
