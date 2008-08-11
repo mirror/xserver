@@ -329,6 +329,8 @@ void dmxCloseDisplay(DMXScreenInfo *dmxScreen)
 	xfree (dmxScreen->beAtomTable);
 
     xcb_disconnect (dmxScreen->connection);
+
+    dmxScreen->alive = 0;
 }
 
 void dmxSetErrorHandler(DMXScreenInfo *dmxScreen)

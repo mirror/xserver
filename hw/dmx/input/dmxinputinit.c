@@ -556,6 +556,7 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
             if (dmxLocal->off) dmxLocal->off(pDev);
             pDev->on = FALSE;
         }
+	dmxInput->detached = True;
         break;
     }
     if (info.keySyms.map && info.freemap) {
