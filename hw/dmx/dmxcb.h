@@ -40,14 +40,7 @@
 /** The cursor position, in global coordinates. */
 extern int  dmxGlobalWidth, dmxGlobalHeight;
 
-/** #dmxComputeWidthHeight can either recompute the global bounding box
- * or not. */
-typedef enum {
-    DMX_RECOMPUTE_BOUNDING_BOX,
-    DMX_NO_RECOMPUTE_BOUNDING_BOX
-} DMXRecomputeFlag;
-
 extern void dmxSetWidthHeight(int width, int height);
-extern void dmxComputeWidthHeight(DMXRecomputeFlag flag);
+extern void dmxComputeWidthHeight(void);
 extern void dmxConnectionBlockCallback(void);
 #endif

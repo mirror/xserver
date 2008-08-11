@@ -63,46 +63,22 @@ void dmxSetWidthHeight(int width, int height)
     dmxGlobalHeight = height;
 }
 
-/** Computes the global bounding box for DMX.  This may be larger than
- * the one computed by Xinerama because of the DMX configuration
- * file. */
-void dmxComputeWidthHeight(DMXRecomputeFlag flag)
+void dmxComputeWidthHeight(void)
 {
-    int           i;
-    DMXScreenInfo *dmxScreen;
-    int           w = 0;
-    int           h = 0;
+    int       i;
+    ScreenPtr pScreen;
+    int       w = 0;
+    int       h = 0;
     
     for (i = 0; i < dmxNumScreens; i++) {
-                                /* Don't use root* here because this is
-                                 * the global bounding box. */
-        dmxScreen = &dmxScreens[i];
-        if (w < dmxScreen->scrnWidth)
-            w = dmxScreen->scrnWidth;
-        if (h < dmxScreen->scrnHeight)
-            h = dmxScreen->scrnHeight;
+	pScreen = screenInfo.screens[i];
+        if (w < pScreen->width)
+            w = pScreen->width;
+        if (h < pScreen->height)
+            h = pScreen->height;
     }
-    if (!dmxGlobalWidth && !dmxGlobalHeight) {
-        dmxLog(dmxInfo, "Using %dx%d as global bounding box\n", w, h);
-    } else {
-        switch (flag) {
-        case DMX_NO_RECOMPUTE_BOUNDING_BOX:
-            dmxLog(dmxInfo,
-                   "Using old bounding box (%dx%d) instead of new (%dx%d)\n",
-                   dmxGlobalWidth, dmxGlobalHeight, w, h);
-            w = dmxGlobalWidth;
-            h = dmxGlobalHeight;
-            break;
-        case DMX_RECOMPUTE_BOUNDING_BOX:
-            dmxLog(dmxInfo,
-                   "Using %dx%d as global bounding box, instead of %dx%d\n",
-                   w, h, dmxGlobalWidth, dmxGlobalHeight);
-            break;
-        }
-    }
-        
-    dmxGlobalWidth  = w;
-    dmxGlobalHeight = h;
+
+    dmxSetWidthHeight (w, h);
 }
 
 /** A callback routine that hooks into Xinerama and provides a

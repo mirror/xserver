@@ -698,12 +698,21 @@ dmxRRScreenSetSize (ScreenPtr pScreen,
 	int i;
 
 	for (i = 0; i < dmxNumScreens; i++)
+	    dmxResizeRootWindow (WindowTable[i], 0, 0, width, height);
+
+	for (i = 0; i < dmxNumScreens; i++)
 	    dmxUpdateScreenResources (screenInfo.screens[i],
 				      0, 0, width, height);
+
+	dmxSetWidthHeight (width, height);
+        dmxConnectionBlockCallback ();
     }
     else
 #endif
+    {
+	dmxResizeRootWindow (WindowTable[pScreen->myNum], 0, 0, width, height);
 	dmxUpdateScreenResources (pScreen, 0, 0, width, height);
+    }
 
     pScreen->mmWidth  = mmWidth;
     pScreen->mmHeight = mmHeight;

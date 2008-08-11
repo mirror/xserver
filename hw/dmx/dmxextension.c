@@ -112,6 +112,15 @@ Bool dmxGetScreenAttributes(int physical, DMXScreenAttributesPtr attr)
 
     attr->rootWindowWidth     = WindowTable[physical]->drawable.width;
     attr->rootWindowHeight    = WindowTable[physical]->drawable.height;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	attr->rootWindowWidth  = PanoramiXPixWidth;
+	attr->rootWindowHeight = PanoramiXPixHeight;
+    }
+#endif
+
     attr->rootWindowXoffset   = dmxScreen->rootX;
     attr->rootWindowYoffset   = dmxScreen->rootY;
 
@@ -315,7 +324,6 @@ static void dmxAdjustCursorBoundaries(void)
 {
     int           i;
 
-    dmxComputeWidthHeight(DMX_NO_RECOMPUTE_BOUNDING_BOX);
     dmxConnectionBlockCallback();
     for (i = 0; i < dmxNumInputs; i++) {
         DMXInputInfo *dmxInput = &dmxInputs[i];

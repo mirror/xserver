@@ -98,6 +98,8 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     ColormapPtr           pCmap;
     dmxColormapPrivPtr    pCmapPriv;
     Window                win = None;
+    int                   w = pWindow->drawable.width;
+    int                   h = pWindow->drawable.height;
 
     /* Avoid to create windows on back-end servers with virtual framebuffer */
     if (dmxScreen->virtualFb)
@@ -124,13 +126,21 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     attribs.colormap      = pCmapPriv->cmap;
     attribs.border_pixel  = 0;
 
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	w = PanoramiXPixWidth;
+	h = PanoramiXPixHeight;
+    }
+#endif
+
     XLIB_PROLOGUE (dmxScreen);
     win = XCreateWindow(dmxScreen->beDisplay,
 			parent,
 			pWindow->origin.x - wBorderWidth(pWindow),
 			pWindow->origin.y - wBorderWidth(pWindow),
-			pWindow->drawable.width,
-			pWindow->drawable.height,
+			w,
+			h,
 			pWindow->borderWidth,
 			pWindow->drawable.depth,
 			pWindow->drawable.class,

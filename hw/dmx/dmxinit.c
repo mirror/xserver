@@ -313,7 +313,6 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
     dmxScreen->beAtomTable     = NULL;
     dmxScreen->beAtomTableSize = 0;
 
-    dmxPropertyDisplay(dmxScreen);
     return TRUE;
 }
 
@@ -922,7 +921,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     }
 
     /* Make sure there is a global width/height available */
-    dmxComputeWidthHeight(DMX_NO_RECOMPUTE_BOUNDING_BOX);
+    dmxComputeWidthHeight ();
 
     dmxInitFonts();
     dmxInitProps();
