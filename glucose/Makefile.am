@@ -1,9 +1,7 @@
 noinst_LTLIBRARIES = libglucose.la
 
 INCLUDES = -I@MESA_SOURCE@/include \
-           -I$(top_srcdir)/GL/mesa/glapi \
-           -I$(top_srcdir)/GL/glx \
-           -I$(top_srcdir)/GL/include \
+           -I$(top_srcdir)/glx \
            -I$(top_srcdir)/xgl \
            -I$(top_srcdir)/hw/xfree86/os-support \
            -I$(top_srcdir)/hw/xfree86/os-support/bus \

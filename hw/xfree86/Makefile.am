@@ -26,7 +26,7 @@ SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support parser \
 DIST_SUBDIRS = common ddc dummylib i2c x86emu int10 fbdevhw os-support \
                parser ramdac shadowfb vbe vgahw xaa \
                xf8_16bpp loader dixmods dri dri2 exa modes \
-	       utils doc
+	       utils doc glucose
 
 bin_PROGRAMS = Xorg
 
