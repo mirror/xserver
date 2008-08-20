@@ -117,6 +117,8 @@ glitz_glucose_create_drawable_for_window (__GLXscreen        *screen,
     if (!context)
 	return NULL;
 
+    context->context->pGlxScreen = screen;
+
     drawable = _glitz_glucose_create_drawable (screen_info, context, format,
 					   window, 
 					   width, height);
@@ -146,8 +148,8 @@ glitz_glucose_destroy (void *abstract_drawable)
 	glitz_glucose_pop_current (abstract_drawable);
     }
 
-    if (__glXLastContext->drawPriv == drawable->drawable) {
-        __glXDeassociateContext(drawable->context->context);
+    if (__glXLastContext &&
+        __glXLastContext->drawPriv == drawable->drawable) {
 	__glXLastContext = NULL;
     }
 
