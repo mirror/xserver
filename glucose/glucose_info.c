@@ -724,35 +724,35 @@ glitz_gl_proc_address_list_t _glitz_glucose_gl_proc_address = {
     (glitz_gl_get_integer_v_t) glucoseGetIntegerv,
 
     /* extensions */
-    (glitz_gl_blend_color_t) 0,
-    (glitz_gl_active_texture_t) 0,
-    (glitz_gl_client_active_texture_t) 0,
-    (glitz_gl_multi_draw_arrays_t) 0,
-    (glitz_gl_gen_programs_t) 0,
-    (glitz_gl_delete_programs_t) 0,
-    (glitz_gl_program_string_t) 0,
-    (glitz_gl_bind_program_t) 0,
-    (glitz_gl_program_local_param_4fv_t) 0,
-    (glitz_gl_get_program_iv_t) 0,
-    (glitz_gl_gen_buffers_t) 0,
-    (glitz_gl_delete_buffers_t) 0,
-    (glitz_gl_bind_buffer_t) 0,
-    (glitz_gl_buffer_data_t) 0,
-    (glitz_gl_buffer_sub_data_t) 0,
-    (glitz_gl_get_buffer_sub_data_t) 0,
-    (glitz_gl_map_buffer_t) 0,
-    (glitz_gl_unmap_buffer_t) 0,
-    (glitz_gl_gen_framebuffers_t) 0,
-    (glitz_gl_delete_framebuffers_t) 0,
-    (glitz_gl_bind_framebuffer_t) 0,
-    (glitz_gl_framebuffer_renderbuffer_t) 0,
-    (glitz_gl_framebuffer_texture_2d_t) 0,
-    (glitz_gl_check_framebuffer_status_t) 0,
-    (glitz_gl_gen_renderbuffers_t) 0,
-    (glitz_gl_delete_renderbuffers_t) 0,
-    (glitz_gl_bind_renderbuffer_t) 0,
-    (glitz_gl_renderbuffer_storage_t) 0,
-    (glitz_gl_get_renderbuffer_parameter_iv_t) 0
+    (glitz_gl_blend_color_t) glucoseBlendColor,
+    (glitz_gl_active_texture_t) glucoseActiveTexture,
+    (glitz_gl_client_active_texture_t) glucoseClientActiveTexture,
+    (glitz_gl_multi_draw_arrays_t) glucoseMultiDrawArrays,
+    (glitz_gl_gen_programs_t) glucoseGenPrograms,
+    (glitz_gl_delete_programs_t) glucoseDeletePrograms,
+    (glitz_gl_program_string_t) glucoseProgramString,
+    (glitz_gl_bind_program_t) glucoseBindProgram,
+    (glitz_gl_program_local_param_4fv_t) glucoseProgramLocalParameter4fv,
+    (glitz_gl_get_program_iv_t) glucoseGetProgramiv,
+    (glitz_gl_gen_buffers_t) glucoseGenBuffers,
+    (glitz_gl_delete_buffers_t) glucoseDeleteBuffers,
+    (glitz_gl_bind_buffer_t) glucoseBindBuffer,
+    (glitz_gl_buffer_data_t) glucoseBufferData,
+    (glitz_gl_buffer_sub_data_t) glucoseBufferSubData,
+    (glitz_gl_get_buffer_sub_data_t) glucoseGetBufferSubData,
+    (glitz_gl_map_buffer_t) glucoseMapBuffer,
+    (glitz_gl_unmap_buffer_t) glucoseUnmapBuffer,
+    (glitz_gl_gen_framebuffers_t) glucoseGenFramebuffers,
+    (glitz_gl_delete_framebuffers_t) glucoseDeleteFramebuffers,
+    (glitz_gl_bind_framebuffer_t) glucoseBindFramebuffer,
+    (glitz_gl_framebuffer_renderbuffer_t) glucoseFramebufferRenderbuffer,
+    (glitz_gl_framebuffer_texture_2d_t) glucoseFramebufferTexture2D,
+    (glitz_gl_check_framebuffer_status_t) glucoseCheckFramebufferStatus,
+    (glitz_gl_gen_renderbuffers_t) glucoseGenRenderbuffers,
+    (glitz_gl_delete_renderbuffers_t) glucoseDeleteRenderbuffers,
+    (glitz_gl_bind_renderbuffer_t) glucoseBindRenderbuffer,
+    (glitz_gl_renderbuffer_storage_t) glucoseRenderbufferStorage,
+    (glitz_gl_get_renderbuffer_parameter_iv_t) glucoseGetRenderbufferParameteriv
 };
 
 
@@ -840,9 +840,6 @@ static void
 _glitz_glucose_display_destroy (glitz_glucose_display_info_t *display_info);
 
 static void
-_glitz_glucose_screen_destroy (glitz_glucose_screen_info_t *screen_info);
-
-static void
 _glitz_glucose_thread_info_fini (glitz_glucose_thread_info_t *thread_info)
 {
     int i;
@@ -906,7 +903,7 @@ _glitz_glucose_display_destroy (glitz_glucose_display_info_t *display_info)
     int i;
 
     for (i = 0; i < display_info->n_screens; i++)
-	_glitz_glucose_screen_destroy (display_info->screens[i]);
+	glitz_glucose_screen_destroy (display_info->screens[i]);
 
     if (display_info->screens)
 	free (display_info->screens);
@@ -940,6 +937,7 @@ glitz_glucose_screen_info_get (__GLXscreen *display)
     screen_info->drawables = 0;
     screen_info->formats = NULL;
     screen_info->n_formats = 0;
+    screen_info->screen = display;
 
     screen_info->contexts = NULL;
     screen_info->n_contexts = 0;
@@ -959,13 +957,10 @@ glitz_glucose_screen_info_get (__GLXscreen *display)
     return screen_info;
 }
 
-static void
-_glitz_glucose_screen_destroy (glitz_glucose_screen_info_t *screen_info)
+void
+glitz_glucose_screen_destroy (glitz_glucose_screen_info_t *screen_info)
 {
     int     i;
-
-    if (screen_info->root_context)
-	screen_info->root_context->makeCurrent (NULL);
 
     for (i = 0; i < screen_info->n_contexts; i++)
 	glitz_glucose_context_destroy (screen_info, screen_info->contexts[i]);
