@@ -34,7 +34,6 @@
 
 #include "glxserver.h"
 #include "glxutil.h"
-#include "glcontextmodes.h"
 #include "glitz.h"
 #include "glitz_glucose.h"
 #include "glthread.h"
@@ -52,9 +51,11 @@ _glitz_glucose_context_create (glitz_glucose_screen_info_t *screen_info,
 			   glitz_glucose_context_t     *context)
 {
     __GLXscreen *screen = screen_info->display_info->display;
-    __GLcontextModes *mode;
+    __GLXconfig *mode = NULL, *modes;
 
-    mode = _gl_context_modes_find_visual(screen->fbconfigs, visualid);
+    for (modes = screen->fbconfigs; modes != NULL; modes = modes->next)
+    	if (visualid == modes->visualID)
+		mode = modes;
 
     context->context = screen->createContext (screen, mode, share_list);
     context->id = visualid;
@@ -95,7 +96,6 @@ _glitz_glucose_context_destroy (void *abstract_context)
     if (drawable->screen_info->display_info->thread_info->cctx ==
 	&context->base)
     {
-	__glXDeassociateContext(context->context);
 	__glXLastContext = NULL;
 
 	drawable->screen_info->display_info->thread_info->cctx = NULL;
@@ -149,9 +149,7 @@ _glitz_glucose_make_current (void *abstract_drawable,
 	context->context->drawPriv = drawable->drawable;
 	context->context->readPriv = drawable->drawable;
         context->context->makeCurrent( context->context );
-	__glXAssociateContext(context->context);
 	__glXLastContext = context->context;
-        context->context->isCurrent = TRUE;
     }
 
     display_info->thread_info->cctx = &context->base;
@@ -316,9 +314,7 @@ _glitz_glucose_context_make_current (glitz_glucose_drawable_t *drawable,
     drawable->context->context->drawPriv = drawable->drawable;
     drawable->context->context->readPriv = drawable->drawable;
     err = drawable->context->context->makeCurrent(drawable->context->context);
-    __glXAssociateContext(drawable->context->context);
     __glXLastContext = drawable->context->context;
-    drawable->context->context->isCurrent = TRUE;
 
     drawable->base.update_all = 1;
 
