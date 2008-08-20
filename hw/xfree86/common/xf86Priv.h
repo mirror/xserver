@@ -52,7 +52,6 @@ extern Bool xf86VidModeDisabled;
 extern Bool xf86VidModeAllowNonLocal; 
 #endif 
 extern Bool xf86fpFlag;
-extern Bool xf86coFlag;
 extern Bool xf86sFlag;
 extern Bool xf86bsEnableFlag;
 extern Bool xf86bsDisableFlag;
@@ -70,10 +69,8 @@ extern int xf86Depth;
 extern Pix24Flags xf86Pix24;
 extern rgb xf86Weight;
 extern Bool xf86FlipPixels;
-extern Bool xf86BestRefresh;
 extern Gamma xf86Gamma;
 extern char *xf86ServerName;
-extern Bool xf86ShowUnresolved;
 extern struct pci_slot_match xf86IsolateDevice;
 
 /* Other parameters */
@@ -164,7 +161,6 @@ void xf86SigHandler(int signo);
 void xf86HandlePMEvents(int fd, pointer data);
 extern int (*xf86PMGetEventFromOs)(int fd,pmEvent *events,int num);
 extern pmWait (*xf86PMConfirmEventToOs)(int fd,pmEvent event);
-void xf86GrabServerCallback(CallbackListPtr *, pointer, pointer);
 
 /* xf86Helper.c */
 void xf86LogInit(void);

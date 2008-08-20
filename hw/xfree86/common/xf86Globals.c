@@ -99,8 +99,6 @@ xf86InfoRec xf86Info = {
 	-1,		/* vtno */
 	FALSE,		/* vtSysreq */
 	SKWhenNeeded,	/* ddxSpecialKeys */
-	NULL,		/* pMouse */
-	NULL,		/* mouseLocal */
 	-1,		/* lastEventTime */
 	FALSE,		/* vtRequestsPending */
 	FALSE,		/* dontVTSwitch */
@@ -108,7 +106,6 @@ xf86InfoRec xf86Info = {
 	FALSE,		/* dontZoom */
 	FALSE,		/* notrapSignals */
 	FALSE,		/* caughtSignal */
-	FALSE,		/* sharedMonitor */
 	NULL,		/* currentScreen */
 #ifdef CSRG_BASED
 	-1,		/* screenFd */
@@ -119,7 +116,6 @@ xf86InfoRec xf86Info = {
 	FALSE,		/* vidModeAllowNonLocal */
 	TRUE,		/* miscModInDevEnabled */
 	FALSE,		/* miscModInDevAllowNonLocal */
-	PCIOsConfig,	/* pciFlags */
 	Pix24DontCare,	/* pixmap24 */
 	X_DEFAULT,	/* pix24From */
 #ifdef __i386__
@@ -127,7 +123,6 @@ xf86InfoRec xf86Info = {
 #endif
 	TRUE,		/* pmFlag */
 	LogNone,	/* syncLog */
-	0,		/* estimateSizesAggressively */
 	FALSE,		/* kbdCustomKeycodes */
 	FALSE,		/* disableRandR */
 	X_DEFAULT	/* randRFrom */
@@ -164,7 +159,6 @@ const char *xf86VisualNames[] = {
 /* Parameters set only from the command line */
 char *xf86ServerName = "no-name";
 Bool xf86fpFlag = FALSE;
-Bool xf86coFlag = FALSE;
 Bool xf86sFlag = FALSE;
 Bool xf86bsEnableFlag = FALSE;
 Bool xf86bsDisableFlag = FALSE;
@@ -185,8 +179,6 @@ int xf86Depth = -1;
 rgb xf86Weight = {0, 0, 0};
 Bool xf86FlipPixels = FALSE;
 Gamma xf86Gamma = {0.0, 0.0, 0.0};
-Bool xf86ShowUnresolved = DEFAULT_UNRESOLVED;
-Bool xf86BestRefresh = DEFAULT_BEST_REFRESH;
 Bool xf86AllowMouseOpenFail = FALSE;
 #ifdef XF86VIDMODE
 Bool xf86VidModeDisabled = FALSE;

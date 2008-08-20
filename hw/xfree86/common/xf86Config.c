@@ -738,23 +738,14 @@ typedef enum {
     FLAG_ALLOWMOUSEOPENFAIL,
     FLAG_VTSYSREQ,
     FLAG_XKBDISABLE,
-    FLAG_PCIPROBE1,
-    FLAG_PCIPROBE2,
-    FLAG_PCIFORCECONFIG1,
-    FLAG_PCIFORCECONFIG2,
-    FLAG_PCIFORCENONE,
-    FLAG_PCIOSCONFIG,
     FLAG_SAVER_BLANKTIME,
     FLAG_DPMS_STANDBYTIME,
     FLAG_DPMS_SUSPENDTIME,
     FLAG_DPMS_OFFTIME,
     FLAG_PIXMAP,
     FLAG_PC98,
-    FLAG_ESTIMATE_SIZES_AGGRESSIVELY,
     FLAG_NOPM,
     FLAG_XINERAMA,
-    FLAG_ALLOW_DEACTIVATE_GRABS,
-    FLAG_ALLOW_CLOSEDOWN_GRABS,
     FLAG_LOG,
     FLAG_RENDER_COLORMAP_MODE,
     FLAG_HANDLE_SPECIAL_KEYS,
@@ -792,18 +783,6 @@ static OptionInfoRec FlagOptions[] = {
 	{0}, FALSE },
   { FLAG_XKBDISABLE,		"XkbDisable",			OPTV_BOOLEAN,
 	{0}, FALSE },
-  { FLAG_PCIPROBE1,		"PciProbe1"		,	OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_PCIPROBE2,		"PciProbe2",			OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_PCIFORCECONFIG1,	"PciForceConfig1",		OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_PCIFORCECONFIG2,	"PciForceConfig2",		OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_PCIFORCENONE,		"PciForceNone",			OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_PCIOSCONFIG,	        "PciOsConfig",   		OPTV_BOOLEAN,
-	{0}, FALSE },
   { FLAG_SAVER_BLANKTIME,	"BlankTime"		,	OPTV_INTEGER,
 	{0}, FALSE },
   { FLAG_DPMS_STANDBYTIME,	"StandbyTime",			OPTV_INTEGER,
@@ -816,15 +795,9 @@ static OptionInfoRec FlagOptions[] = {
 	{0}, FALSE },
   { FLAG_PC98,			"PC98",				OPTV_BOOLEAN,
 	{0}, FALSE },
-  { FLAG_ESTIMATE_SIZES_AGGRESSIVELY,"EstimateSizesAggressively",OPTV_INTEGER,
-	{0}, FALSE },
   { FLAG_NOPM,			"NoPM",				OPTV_BOOLEAN,
 	{0}, FALSE },
   { FLAG_XINERAMA,		"Xinerama",			OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_ALLOW_DEACTIVATE_GRABS,"AllowDeactivateGrabs",		OPTV_BOOLEAN,
-	{0}, FALSE },
-  { FLAG_ALLOW_CLOSEDOWN_GRABS, "AllowClosedownGrabs",		OPTV_BOOLEAN,
 	{0}, FALSE },
   { FLAG_LOG,			"Log",				OPTV_STRING,
 	{0}, FALSE },
@@ -905,10 +878,6 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     xf86GetOptValBool(FlagOptions, FLAG_DONTZAP, &xf86Info.dontZap);
     xf86GetOptValBool(FlagOptions, FLAG_DONTZOOM, &xf86Info.dontZoom);
 
-    xf86GetOptValBool(FlagOptions, FLAG_ALLOW_DEACTIVATE_GRABS,
-		      &(xf86Info.grabInfo.allowDeactivate));
-    xf86GetOptValBool(FlagOptions, FLAG_ALLOW_CLOSEDOWN_GRABS,
-		      &(xf86Info.grabInfo.allowClosedown));
     xf86GetOptValBool(FlagOptions, FLAG_IGNORE_ABI, &xf86Info.ignoreABI);
     if (xf86Info.ignoreABI) {
 	    xf86Msg(X_CONFIG, "Ignoring ABI Version\n");
@@ -973,19 +942,6 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
 #endif
     }
 
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIPROBE1))
-	xf86Info.pciFlags = PCIProbe1;
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIPROBE2))
-	xf86Info.pciFlags = PCIProbe2;
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIFORCECONFIG1))
-	xf86Info.pciFlags = PCIForceConfig1;
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIFORCECONFIG2))
-	xf86Info.pciFlags = PCIForceConfig2;
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIOSCONFIG))
-	xf86Info.pciFlags = PCIOsConfig;
-    if (xf86IsOptionSet(FlagOptions, FLAG_PCIFORCENONE))
-	xf86Info.pciFlags = PCIForceNone;
-
     xf86Info.pmFlag = TRUE;
     if (xf86GetOptValBool(FlagOptions, FLAG_NOPM, &value)) 
 	xf86Info.pmFlag = !value;
@@ -1044,12 +1000,6 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
 	xf86Info.randRFrom = X_CONFIG;
     }
 #endif
-    i = -1;
-    xf86GetOptValInteger(FlagOptions, FLAG_ESTIMATE_SIZES_AGGRESSIVELY, &i);
-    if (i >= 0)
-	xf86Info.estimateSizesAggressively = i;
-    else
-	xf86Info.estimateSizesAggressively = 0;
 
     xf86Info.aiglx = TRUE;
     xf86Info.aiglxFrom = X_DEFAULT;

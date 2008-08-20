@@ -115,16 +115,10 @@
 /*
  * Global Definitions
  */
-#define MAX_PCI_DEVICES 128	/* Max number of devices accomodated */
-				/* by xf86scanpci		     */
-#if defined(sun) && defined(SVR4) && defined(sparc)
-# define MAX_PCI_BUSES   4096	/* Max number of PCI buses           */
-#elif (defined(__alpha__) || defined(__ia64__)) && defined (linux)
-# define MAX_PCI_DOMAINS	512
-# define PCI_DOM_MASK	0x01fful
-# define MAX_PCI_BUSES	(MAX_PCI_DOMAINS*256) /* 256 per domain      */
+#if (defined(__alpha__) || defined(__ia64__)) && defined (linux)
+#define PCI_DOM_MASK	0x01fful
 #else
-# define MAX_PCI_BUSES   256	/* Max number of PCI buses           */
+#define PCI_DOM_MASK 0x0ffu
 #endif
 
 #define DEVID(vendor, device) \
@@ -199,17 +193,10 @@
 
 
 #if !defined(ARCH_PCI_INIT)
-/*
- * Select architecture specific PCI init function
- */
+#warning You really need to port to libpciaccess.
 #if defined(__i386__) || defined(__i386) ||  defined(__amd64__) || defined(__amd64)
-# define ARCH_PCI_INIT ix86PciInit
-#elif defined(__powerpc__) || defined(__powerpc64__)
-# define ARCH_PCI_INIT ppcPciInit
-#elif defined(__sparc__) || defined(sparc)
-# define ARCH_PCI_INIT sparcPciInit
-# define ARCH_PCI_PCI_BRIDGE sparcPciPciBridge
-#endif
+#define ARCH_PCI_INIT ix86PciInit
+#endif /* i386/amd64 */
 #endif /* !defined(ARCH_PCI_INIT) */
 
 #ifndef ARCH_PCI_INIT
@@ -217,14 +204,6 @@
 #endif
 
 extern void ARCH_PCI_INIT(void);
-
-#if defined(XF86SCANPCI_WRAPPER)
-typedef enum {
-    SCANPCI_INIT,
-    SCANPCI_TERM
-} scanpciWrapperOpt;
-extern void XF86SCANPCI_WRAPPER(scanpciWrapperOpt flags);
-#endif
 
 /*
  * Table of functions used to access a specific PCI bus domain
@@ -262,8 +241,6 @@ void          pciCfgMech1SetBits(PCITAG tag, int offset, CARD32 mask,
 				 CARD32 val);
 ADDRESS       pciAddrNOOP(PCITAG tag, PciAddrType type, ADDRESS);
 
-extern int    pciMaxBusNum;
-
-extern pciBusInfo_t  *pciBusInfo[];
+extern pciBusInfo_t  *pciBusInfo;
 
 #endif /* _PCI_H */

@@ -180,9 +180,6 @@ static Bool TileScreenSaver(int i, int kind);
 
 #define SubStrSend(pWin,pParent) (StrSend(pWin) || SubSend(pParent))
 
-_X_EXPORT int numSaveUndersViewable = 0;
-_X_EXPORT int deltaSaveUndersViewable = 0;
-
 #ifdef DEBUG
 /******
  * PrintWindowTree
@@ -270,8 +267,6 @@ int	defaultBackingStore = NotUseful;
 /* hack to force no backing store */
 Bool	disableBackingStore = FALSE;
 Bool	enableBackingStore = FALSE;
-/* hack to force no save unders */
-Bool	disableSaveUnders = FALSE;
 
 static void
 SetWindowToDefaults(WindowPtr pWin)
@@ -471,20 +466,7 @@ CreateRootWindow(ScreenPtr pScreen)
     if (enableBackingStore)
 	pScreen->backingStoreSupport = Always;
 
-#ifdef DO_SAVE_UNDERS
-    if ((pScreen->backingStoreSupport != NotUseful) &&
-	(pScreen->saveUnderSupport == NotUseful))
-    {
-	/*
-	 * If the screen has backing-store but no save-unders, let the
-	 * clients know we can support save-unders using backing-store.
-	 */
-	pScreen->saveUnderSupport = USE_DIX_SAVE_UNDERS;
-    }
-#endif /* DO_SAVE_UNDERS */
-		
-    if (disableSaveUnders)
-	pScreen->saveUnderSupport = NotUseful;
+    pScreen->saveUnderSupport = NotUseful;
 
     return TRUE;
 }
@@ -928,10 +910,6 @@ CrushTree(WindowPtr pWin)
 	    }
 	    FreeResource(pChild->drawable.id, RT_WINDOW);
 	    pSib = pChild->nextSib;
-#ifdef DO_SAVE_UNDERS
-	    if (pChild->saveUnder && pChild->viewable)
-		deltaSaveUndersViewable--;
-#endif
 	    pChild->viewable = FALSE;
 	    if (pChild->realized)
 	    {
@@ -1258,47 +1236,7 @@ ChangeWindowAttributes(WindowPtr pWin, Mask vmask, XID *vlist, ClientPtr client)
 		client->errorValue = val;
 		goto PatchUp;
 	    }
-#ifdef DO_SAVE_UNDERS
-	    if (pWin->parent && (pWin->saveUnder != val) && (pWin->viewable) &&
-		DO_SAVE_UNDERS(pWin))
-	    {
-		/*
-		 * Re-check all siblings and inferiors for obscurity or
-		 * exposition (hee hee).
-		 */
-		if (pWin->saveUnder)
-		    deltaSaveUndersViewable--;
-		else
-		    deltaSaveUndersViewable++;
-		pWin->saveUnder = val;
-
-		if (pWin->firstChild)
-		{
-                    pLayerWin = (*pScreen->GetLayerWindow)(pWin);
-                   if ((*pScreen->ChangeSaveUnder)(pLayerWin->parent, pWin->nextSib))
-                       (*pScreen->PostChangeSaveUnder)(pLayerWin->parent,
-                                                       pWin->nextSib);
-               }
-               else
-               {
-                   if ((*pScreen->ChangeSaveUnder)(pWin, pWin->nextSib))
-                       (*pScreen->PostChangeSaveUnder)(pWin,
-                                                       pWin->nextSib);
-               }                                   
-	    }
-	    else
-	    {
-		/*  If we're changing the saveUnder attribute of the root 
-		 *  window, all we do is set pWin->saveUnder so that
-		 *  GetWindowAttributes returns the right value.  We don't
-		 *  do the "normal" save-under processing (as above).
-		 *  Hope that doesn't cause any problems.
-		 */
-		pWin->saveUnder = val;
-	    }
-#else
 	    pWin->saveUnder = val;
-#endif /* DO_SAVE_UNDERS */
 	    break;
 	  case CWEventMask:
 	    rc = EventSelectForWindow(pWin, client, (Mask )*pVlist);
@@ -2200,9 +2138,6 @@ ReflectStackChange(
     Bool WasViewable = (Bool)pWin->viewable;
     Bool anyMarked;
     WindowPtr pFirstChange;
-#ifdef DO_SAVE_UNDERS
-    Bool	dosave = FALSE;
-#endif
     WindowPtr  pLayerWin;
     ScreenPtr pScreen = pWin->drawable.pScreen;
 
@@ -2217,21 +2152,11 @@ ReflectStackChange(
 	anyMarked = (*pScreen->MarkOverlappedWindows)(pWin, pFirstChange,
 						      &pLayerWin);
 	if (pLayerWin != pWin) pFirstChange = pLayerWin;
-#ifdef DO_SAVE_UNDERS
-	if (DO_SAVE_UNDERS(pWin))
-	{
-	    dosave = (*pScreen->ChangeSaveUnder)(pLayerWin, pFirstChange);
-	}
-#endif /* DO_SAVE_UNDERS */
 	if (anyMarked)
 	{
 	    (*pScreen->ValidateTree)(pLayerWin->parent, pFirstChange, kind);
 	    (*pScreen->HandleExposures)(pLayerWin->parent);
 	}
-#ifdef DO_SAVE_UNDERS
-	if (dosave)
-	    (*pScreen->PostChangeSaveUnder)(pLayerWin, pFirstChange);
-#endif /* DO_SAVE_UNDERS */
 	if (anyMarked && pWin->drawable.pScreen->PostValidateTree)
 	    (*pScreen->PostValidateTree)(pLayerWin->parent, pFirstChange, kind);
     }
@@ -2682,10 +2607,6 @@ RealizeTree(WindowPtr pWin)
 	if (pChild->mapped)
 	{
 	    pChild->realized = TRUE;
-#ifdef DO_SAVE_UNDERS
-	    if (pChild->saveUnder)
-		deltaSaveUndersViewable++;
-#endif
 	    pChild->viewable = (pChild->drawable.class == InputOutput);
 	    (* Realize)(pChild);
 	    if (pChild->firstChild)
@@ -2740,9 +2661,6 @@ MapWindow(WindowPtr pWin, ClientPtr client)
     ScreenPtr pScreen;
 
     WindowPtr pParent;
-#ifdef DO_SAVE_UNDERS
-    Bool	dosave = FALSE;
-#endif
     WindowPtr  pLayerWin;
 
     if (pWin->mapped)
@@ -2788,21 +2706,11 @@ MapWindow(WindowPtr pWin, ClientPtr client)
 	{
 	    anyMarked = (*pScreen->MarkOverlappedWindows)(pWin, pWin,
 							  &pLayerWin);
-#ifdef DO_SAVE_UNDERS
-	    if (DO_SAVE_UNDERS(pWin))
-	    {
-		dosave = (*pScreen->ChangeSaveUnder)(pLayerWin, pWin->nextSib);
-	    }
-#endif /* DO_SAVE_UNDERS */
 	    if (anyMarked)
 	    {
 		(*pScreen->ValidateTree)(pLayerWin->parent, pLayerWin, VTMap);
 		(*pScreen->HandleExposures)(pLayerWin->parent);
 	    }
-#ifdef DO_SAVE_UNDERS
-	    if (dosave)
-		(*pScreen->PostChangeSaveUnder)(pLayerWin, pWin->nextSib);
-#endif /* DO_SAVE_UNDERS */
 	if (anyMarked && pScreen->PostValidateTree)
 	    (*pScreen->PostValidateTree)(pLayerWin->parent, pLayerWin, VTMap);
 	}
@@ -2842,17 +2750,11 @@ MapSubwindows(WindowPtr pParent, ClientPtr client)
 {
     WindowPtr	pWin;
     WindowPtr	pFirstMapped = NullWindow;
-#ifdef DO_SAVE_UNDERS
-    WindowPtr	pFirstSaveUndered = NullWindow;
-#endif
     ScreenPtr	pScreen;
     Mask	parentRedirect;
     Mask	parentNotify;
     xEvent	event;
     Bool	anyMarked;
-#ifdef DO_SAVE_UNDERS
-    Bool	dosave = FALSE;
-#endif
     WindowPtr		pLayerWin;
 
     pScreen = pParent->drawable.pScreen;
@@ -2892,12 +2794,6 @@ MapSubwindows(WindowPtr pParent, ClientPtr client)
 		{
 		    anyMarked |= (*pScreen->MarkOverlappedWindows)(pWin, pWin,
 							(WindowPtr *)NULL);
-#ifdef DO_SAVE_UNDERS
-		    if (DO_SAVE_UNDERS(pWin))
-		    {
-			dosave = TRUE;
-		    }
-#endif /* DO_SAVE_UNDERS */
 		}
 	    }
 	}
@@ -2914,38 +2810,9 @@ MapSubwindows(WindowPtr pParent, ClientPtr client)
 	}
         if (anyMarked)
         {
-#ifdef DO_SAVE_UNDERS
-	    if (pLayerWin->parent != pParent)
-	    {
-		if (dosave || (DO_SAVE_UNDERS(pLayerWin)))
-		{
-		    dosave = (*pScreen->ChangeSaveUnder)(pLayerWin,
-							 pLayerWin);
-		}
-	    }
-	    else if (dosave)
-	    {
-		dosave = FALSE;
-		for (pWin = pParent->firstChild; pWin; pWin = pWin->nextSib)
-		{
-		    if (DO_SAVE_UNDERS(pWin))
-		    {
-			dosave |= (*pScreen->ChangeSaveUnder)(pWin,
-							      pWin->nextSib);
-			if (dosave && !pFirstSaveUndered)
-			    pFirstSaveUndered = pWin;
-		    }
-		}
-            }
-#endif /* DO_SAVE_UNDERS */
 	    (*pScreen->ValidateTree)(pLayerWin->parent, pFirstMapped, VTMap);
 	    (*pScreen->HandleExposures)(pLayerWin->parent);
 	}
-#ifdef DO_SAVE_UNDERS
-        if (dosave)
-	    (*pScreen->PostChangeSaveUnder)(pLayerWin,
-					    pFirstSaveUndered->nextSib);
-#endif /* DO_SAVE_UNDERS */
         if (anyMarked && pScreen->PostValidateTree)
 	    (*pScreen->PostValidateTree)(pLayerWin->parent, pFirstMapped,
 					 VTMap);
@@ -2985,10 +2852,6 @@ UnrealizeTree(
 		DeleteWindowFromAnyEvents(pChild, FALSE);
 	    if (pChild->viewable)
 	    {
-#ifdef DO_SAVE_UNDERS
-		if (pChild->saveUnder)
-		    deltaSaveUndersViewable--;
-#endif
 		pChild->viewable = FALSE;
 		(* MarkUnrealizedWindow)(pChild, pWin, fromConfigure);
 		pChild->drawable.serialNumber = NEXT_SERIAL_NUMBER;
@@ -3049,16 +2912,6 @@ UnmapWindow(WindowPtr pWin, Bool fromConfigure)
 	    (*pScreen->ValidateTree)(pLayerWin->parent, pWin, VTUnmap);
 	    (*pScreen->HandleExposures)(pLayerWin->parent);
 	}
-#ifdef DO_SAVE_UNDERS
-	if (DO_SAVE_UNDERS(pWin))
-	{
-	    if ( (*pScreen->ChangeSaveUnder)(pLayerWin, pWin->nextSib) )
-	    {
-		(*pScreen->PostChangeSaveUnder)(pLayerWin, pWin->nextSib);
-	    }
-	}
-	pWin->DIXsaveUnder = FALSE;
-#endif /* DO_SAVE_UNDERS */
 	if (!fromConfigure && pScreen->PostValidateTree)
 	    (*pScreen->PostValidateTree)(pLayerWin->parent, pWin, VTUnmap);
     }
@@ -3114,9 +2967,6 @@ UnmapSubwindows(WindowPtr pWin)
 		UnrealizeTree(pChild, FALSE);
 	    if (wasViewable)
 	    {
-#ifdef DO_SAVE_UNDERS
-		pChild->DIXsaveUnder = FALSE;
-#endif /* DO_SAVE_UNDERS */
 	    }
 	}
     }
@@ -3146,13 +2996,6 @@ UnmapSubwindows(WindowPtr pWin)
 	    (*pScreen->ValidateTree)(pLayerWin->parent, pHead, VTUnmap);
 	    (*pScreen->HandleExposures)(pLayerWin->parent);
 	}
-#ifdef DO_SAVE_UNDERS
-	if (DO_SAVE_UNDERS(pWin))
-	{
-	    if ( (*pScreen->ChangeSaveUnder)(pLayerWin, pLayerWin))
-		(*pScreen->PostChangeSaveUnder)(pLayerWin, pLayerWin);
-	}
-#endif /* DO_SAVE_UNDERS */
 	if (anyMarked && pScreen->PostValidateTree)
 	    (*pScreen->PostValidateTree)(pLayerWin->parent, pHead, VTUnmap);
     }

@@ -514,7 +514,7 @@ ExaDoPrepareAccess(DrawablePtr pDrawable, int index)
 
     if (!(*pExaScr->info->PrepareAccess) (pPixmap, index)) {
 	ExaPixmapPriv (pPixmap);
-	if (pExaPixmap->score != EXA_PIXMAP_SCORE_PINNED)
+	if (pExaPixmap->score == EXA_PIXMAP_SCORE_PINNED)
 	    FatalError("Driver failed PrepareAccess on a pinned pixmap\n");
 	exaMoveOutPixmap (pPixmap);
     }
@@ -671,34 +671,25 @@ exaCreateGC (GCPtr pGC)
     return TRUE;
 }
 
-void
-exaPrepareAccessWindow(WindowPtr pWin)
-{
-    if (pWin->backgroundState == BackgroundPixmap) 
-        exaPrepareAccess(&pWin->background.pixmap->drawable, EXA_PREPARE_SRC);
-
-    if (pWin->borderIsPixel == FALSE)
-        exaPrepareAccess(&pWin->border.pixmap->drawable, EXA_PREPARE_SRC);
-}
-
-void
-exaFinishAccessWindow(WindowPtr pWin)
-{
-    if (pWin->backgroundState == BackgroundPixmap) 
-        exaFinishAccess(&pWin->background.pixmap->drawable, EXA_PREPARE_SRC);
-
-    if (pWin->borderIsPixel == FALSE)
-        exaFinishAccess(&pWin->border.pixmap->drawable, EXA_PREPARE_SRC);
-}
-
 static Bool
 exaChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
 {
     Bool ret;
 
-    exaPrepareAccessWindow(pWin);
+    if ((mask & CWBackPixmap) && pWin->backgroundState == BackgroundPixmap) 
+        exaPrepareAccess(&pWin->background.pixmap->drawable, EXA_PREPARE_SRC);
+
+    if ((mask & CWBorderPixmap) && pWin->borderIsPixel == FALSE)
+        exaPrepareAccess(&pWin->border.pixmap->drawable, EXA_PREPARE_MASK);
+
     ret = fbChangeWindowAttributes(pWin, mask);
-    exaFinishAccessWindow(pWin);
+
+    if ((mask & CWBorderPixmap) && pWin->borderIsPixel == FALSE)
+        exaFinishAccess(&pWin->border.pixmap->drawable, EXA_PREPARE_MASK);
+
+    if ((mask & CWBackPixmap) && pWin->backgroundState == BackgroundPixmap) 
+        exaFinishAccess(&pWin->background.pixmap->drawable, EXA_PREPARE_SRC);
+
     return ret;
 }
 
@@ -752,7 +743,8 @@ exaCloseScreen(int i, ScreenPtr pScreen)
     PictureScreenPtr	ps = GetPictureScreenIfSet(pScreen);
 #endif
 
-    exaGlyphsFini(pScreen);
+    if (ps->Glyphs == exaGlyphs)
+	exaGlyphsFini(pScreen);
 
     pScreen->CreateGC = pExaScr->SavedCreateGC;
     pScreen->CloseScreen = pExaScr->SavedCloseScreen;
@@ -931,8 +923,10 @@ exaDriverInit (ScreenPtr		pScreen,
         pExaScr->SavedComposite = ps->Composite;
 	ps->Composite = exaComposite;
 
-	pExaScr->SavedGlyphs = ps->Glyphs;
-	ps->Glyphs = exaGlyphs;
+	if (pScreenInfo->PrepareComposite) {
+	    pExaScr->SavedGlyphs = ps->Glyphs;
+	    ps->Glyphs = exaGlyphs;
+	}
 	
 	pExaScr->SavedTriangles = ps->Triangles;
 	ps->Triangles = exaTriangles;
@@ -993,7 +987,8 @@ exaDriverInit (ScreenPtr		pScreen,
 	}
     }
 
-    exaGlyphsInit(pScreen);
+    if (ps->Glyphs == exaGlyphs)
+	exaGlyphsInit(pScreen);
 
     LogMessage(X_INFO, "EXA(%d): Driver registered support for the following"
 	       " operations:\n", pScreen->myNum);

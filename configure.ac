@@ -660,7 +660,7 @@ XEXT_LIB='$(top_builddir)/Xext/libXext.la'
 XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
-REQUIRED_MODULES="[randrproto >= 1.2] [renderproto >= 0.9.3] [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto [xextproto >= 7.0.3] [xproto >= 7.0.13] xtrans [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto [inputproto >= 1.9.99.3] [kbproto >= 1.0.3]" 
+REQUIRED_MODULES="[randrproto >= 1.2] [renderproto >= 0.9.3] [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto [xextproto >= 7.0.3] [xproto >= 7.0.13] xtrans [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto [inputproto >= 1.9.99.4] [kbproto >= 1.0.3]" 
 REQUIRED_LIBS="xfont xau fontenc [pixman-1 >= 0.9.5]"
 
 dnl HAVE_DBUS is true if we actually have the D-Bus library, whereas
@@ -864,13 +864,13 @@ if test "x$DRI" = xyes; then
 	AC_SUBST(GL_CFLAGS)
 fi
 
-AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
-if test "x$DRI2" = xyes; then
-	# FIXME: Bump the versions once we have releases of these.
-	AC_DEFINE(DRI2, 1, [Build DRI2 extension])
-	PKG_CHECK_MODULES([DRI2PROTO], [dri2proto >= 1.1])
-	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.2])
-fi
+#AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
+#if test "x$DRI2" = xyes; then
+#	# FIXME: Bump the versions once we have releases of these.
+#	AC_DEFINE(DRI2, 1, [Build DRI2 extension])
+#	PKG_CHECK_MODULES([DRI2PROTO], [dri2proto >= 1.1])
+#	PKG_CHECK_MODULES([LIBDRM], [libdrm >= 2.3.2])
+#fi
 
 AM_CONDITIONAL(XINERAMA, [test "x$XINERAMA" = xyes])
 if test "x$XINERAMA" = xyes; then
@@ -1285,8 +1285,6 @@ fi
 xorg_bus_linuxpci=no
 xorg_bus_bsdpci=no
 xorg_bus_ix86pci=no
-xorg_bus_ppcpci=no
-xorg_bus_sparcpci=no
 xorg_bus_sparc=no
 
 if test "x$XORG" = xyes; then
@@ -1412,17 +1410,7 @@ if test "x$XORG" = xyes; then
 	esac
 
 	case $host_cpu in
-	  powerpc*)
-		case $host_os in
-		  linux*|freebsd*|netbsd*|openbsd*|kfreebsd*-gnu)
-			;;
-		  *)
-			xorg_bus_ppcpci="yes"
-			;;
-		esac
-		;;
 	  sparc*)
-		xorg_bus_sparcpci="yes"
 		xorg_bus_sparc="yes"
 		;;
 	  i*86|x86_64*|amd64*)
@@ -1528,8 +1516,6 @@ AM_CONDITIONAL([XORG], [test "x$XORG" = xyes])
 AM_CONDITIONAL([XORG_BUS_LINUXPCI], [test "x$xorg_bus_linuxpci" = xyes])
 AM_CONDITIONAL([XORG_BUS_BSDPCI], [test "x$xorg_bus_bsdpci" = xyes])
 AM_CONDITIONAL([XORG_BUS_IX86PCI], [test "x$xorg_bus_ix86pci" = xyes])
-AM_CONDITIONAL([XORG_BUS_PPCPCI], [test "x$xorg_bus_ppcpci" = xyes])
-AM_CONDITIONAL([XORG_BUS_SPARCPCI], [test "x$xorg_bus_sparcpci" = xyes])
 AM_CONDITIONAL([XORG_BUS_SPARC], [test "x$xorg_bus_sparc" = xyes])
 AM_CONDITIONAL([LINUX_IA64], [test "x$linux_ia64" = xyes])
 AM_CONDITIONAL([LINUX_ALPHA], [test "x$linux_alpha" = xyes])

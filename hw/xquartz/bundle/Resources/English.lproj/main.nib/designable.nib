@@ -2,12 +2,13 @@
 <archive type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="7.02">
 	<data>
 		<int key="IBDocument.SystemTarget">1050</int>
-		<string key="IBDocument.SystemVersion">9E17</string>
+		<string key="IBDocument.SystemVersion">9F10</string>
 		<string key="IBDocument.InterfaceBuilderVersion">670</string>
-		<string key="IBDocument.AppKitVersion">949.33</string>
+		<string key="IBDocument.AppKitVersion">949.34</string>
 		<string key="IBDocument.HIToolboxVersion">352.00</string>
 		<object class="NSMutableArray" key="IBDocument.EditedObjectIDs">
 			<bool key="EncodedWithXMLCoder">YES</bool>
+			<integer value="351"/>
 		</object>
 		<object class="NSArray" key="IBDocument.PluginDependencies">
 			<bool key="EncodedWithXMLCoder">YES</bool>
@@ -456,7 +457,7 @@
 				<string key="NSWindowContentMaxSize">{3.40282e+38, 3.40282e+38}</string>
 				<string key="NSWindowContentMinSize">{320, 240}</string>
 				<object class="NSView" key="NSWindowView" id="941366957">
-					<nil key="NSNextResponder"/>
+					<reference key="NSNextResponder"/>
 					<int key="NSvFlags">256</int>
 					<object class="NSMutableArray" key="NSSubviews">
 						<bool key="EncodedWithXMLCoder">YES</bool>
@@ -548,7 +549,7 @@
 												<object class="NSTextFieldCell" key="NSCell" id="649334366">
 													<int key="NSCellFlags">67239424</int>
 													<int key="NSCellFlags2">4194304</int>
-													<string type="base64-UTF8" key="NSContents">SG9sZCBPcHRpb24gb3IgQ29udHJvbCB3aGlsZSBjbGlja2luZyB0byBhY3RpdmF0ZSB0aGUgbWlkZGxl
+													<string type="base64-UTF8" key="NSContents">SG9sZCBPcHRpb24gb3IgQ29tbWFuZCB3aGlsZSBjbGlja2luZyB0byBhY3RpdmF0ZSB0aGUgbWlkZGxl
 IG9yIHJpZ2h0IG1vdXNlIGJ1dHRvbnMuCg</string>
 													<reference key="NSSupport" ref="26"/>
 													<reference key="NSControlView" ref="282885445"/>
@@ -1080,6 +1081,7 @@ d2hpY2ggbWF5IHByZXZlbnQgWDExIGFwcGxpY2F0aW9ucyBmcm9tIGxhdW5jaGluZy4</string>
 						</object>
 					</object>
 					<string key="NSFrameSize">{484, 280}</string>
+					<reference key="NSSuperview"/>
 				</object>
 				<string key="NSScreenRect">{{0, 0}, {1280, 938}}</string>
 				<string key="NSMinSize">{213, 129}</string>

@@ -716,14 +716,10 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 
     for (i = 0; i < xf86NumDrivers; i++) {
 	xorgHWFlags flags;
-      /* The Identify function is mandatory, but if it isn't there continue */
+
 	if (xf86DriverList[i]->Identify != NULL)
 	    xf86DriverList[i]->Identify(0);
-	else {
-	    xf86Msg(X_WARNING, "Driver `%s' has no Identify function\n",
-		  xf86DriverList[i]->driverName ? xf86DriverList[i]->driverName
-					     : "noname");
-	}
+
 	if (!xorgHWAccess
 	    && (!xf86DriverList[i]->driverFunc
 		|| !xf86DriverList[i]->driverFunc(NULL,
@@ -734,11 +730,8 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
     }
 
     /* Enable full I/O access */
-    if (xorgHWAccess) {
-	if(!xf86EnableIO())
-	    /* oops, we have failed */
-	    xorgHWAccess = FALSE;
-    }
+    if (xorgHWAccess)
+	xorgHWAccess = xf86EnableIO();
 
     /*
      * Locate bus slot that had register IO enabled at server startup
@@ -875,46 +868,14 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
       return;
     }
 
-    /* This could be moved into a separate function */
-
-    /*
-     * Check that all screens have initialised the mandatory function
-     * entry points.  Delete those which have not.
-     */
-
-#define WARN_SCREEN(func) \
-    xf86Msg(X_ERROR, "Driver `%s' has no %s function, deleting.\n", \
-	   xf86Screens[i]->name, (warned++, func))
-
     for (i = 0; i < xf86NumScreens; i++) {
-      int warned = 0;
       if (xf86Screens[i]->name == NULL) {
-	xf86Screens[i]->name = xnfalloc(strlen("screen") + 1 + 1);
-	if (i < 10)
-	  sprintf(xf86Screens[i]->name, "screen%c", i + '0');
-	else
-	  sprintf(xf86Screens[i]->name, "screen%c", i - 10 + 'A');
+	xf86Screens[i]->name = xnfalloc(strlen("screen") + 10 + 1);
+	sprintf(xf86Screens[i]->name, "screen%d", i);
 	xf86MsgVerb(X_WARNING, 0,
 		    "Screen driver %d has no name set, using `%s'.\n",
 		    i, xf86Screens[i]->name);
       }
-      if (xf86Screens[i]->ScreenInit == NULL)
-	WARN_SCREEN("ScreenInit");
-      if (xf86Screens[i]->EnterVT == NULL)
-	WARN_SCREEN("EnterVT");
-      if (xf86Screens[i]->LeaveVT == NULL)
-	WARN_SCREEN("LeaveVT");
-      if (warned)
-	xf86DeleteScreen(i--, 0);
-    }
-
-    /*
-     * If no screens left, return now.
-     */
-
-    if (xf86NumScreens == 0) {
-      xf86Msg(X_ERROR, "Screen(s) found, but drivers were unusable.\n");
-      return;
     }
 
     /* XXX Should this be before or after loading dependent modules? */
@@ -1049,8 +1010,6 @@ InitOutput(ScreenInfo *pScreenInfo, int argc, char **argv)
 
     /* set up the proper access funcs */
     xf86PostPreInit();
-
-    AddCallback(&ServerGrabCallback, xf86GrabServerCallback, NULL);
 
   } else {
     /*
@@ -1491,11 +1450,6 @@ ddxProcessArgument(int argc, char **argv, int i)
     xf86ConfigFile = argv[i + 1];
     return 2;
   }
-  if (!strcmp(argv[i],"-showunresolved"))
-  {
-    xf86ShowUnresolved = TRUE;
-    return 1;
-  }
   if (!strcmp(argv[i],"-probeonly"))
   {
     xf86ProbeOnly = TRUE;
@@ -1521,11 +1475,6 @@ ddxProcessArgument(int argc, char **argv, int i)
   if (!strcmp(argv[i],"-allowMouseOpenFail"))
   {
     xf86AllowMouseOpenFail = TRUE;
-    return 1;
-  }
-  if (!strcmp(argv[i],"-bestRefresh"))
-  {
-    xf86BestRefresh = TRUE;
     return 1;
   }
   if (!strcmp(argv[i],"-ignoreABI"))
@@ -1589,12 +1538,6 @@ ddxProcessArgument(int argc, char **argv, int i)
   if (!strcmp(argv[i], "-fp"))
   {
     xf86fpFlag = TRUE;
-    return 0;
-  }
-  /* Notice the -co flag, but allow it to pass to the dix layer */
-  if (!strcmp(argv[i], "-co"))
-  {
-    xf86coFlag = TRUE;
     return 0;
   }
   /* Notice the -bs flag, but allow it to pass to the dix layer */
@@ -1807,7 +1750,6 @@ ddxUseMsg()
   ErrorF("-allowNonLocalXvidtune allow xvidtune to be run as a non-local client\n");
 #endif
   ErrorF("-allowMouseOpenFail    start server even if the mouse can't be initialized\n");
-  ErrorF("-bestRefresh           choose modes with the best refresh rate\n");
   ErrorF("-ignoreABI             make module ABI mismatches non-fatal\n");
   ErrorF("-isolateDevice bus_id  restrict device resets to bus_id (PCI only)\n");
   ErrorF("-version               show the server version\n");

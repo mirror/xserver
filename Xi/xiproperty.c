@@ -191,21 +191,18 @@ XIDeleteAllDeviceProperties (DeviceIntPtr device)
 {
     XIPropertyPtr               prop, next;
     XIPropertyHandlerPtr        curr_handler, next_handler;
-    devicePropertyNotifyEvent   event;
+    devicePropertyNotify        event;
 
     for (prop = device->properties.properties; prop; prop = next)
     {
         next = prop->next;
 
-        event.type      = GenericEvent;
-        event.extension = IReqCode;
-        event.evtype    = XI_DevicePropertyNotify;
-        event.length    = 0;
+        event.type      = DevicePropertyNotify;
         event.deviceid  = device->id;
         event.state     = PropertyDelete;
         event.atom      = prop->propertyName;
         event.time      = currentTime.milliseconds;
-        SendEventToAllWindows(device, XI_DevicePropertyNotifyMask,
+        SendEventToAllWindows(device, DevicePropertyNotifyMask,
                 (xEvent*)&event, 1);
 
         XIDestroyDeviceProperty(prop);
@@ -226,7 +223,7 @@ int
 XIDeleteDeviceProperty (DeviceIntPtr device, Atom property, Bool fromClient)
 {
     XIPropertyPtr               prop, *prev;
-    devicePropertyNotifyEvent   event;
+    devicePropertyNotify        event;
 
     for (prev = &device->properties.properties; (prop = *prev); prev = &(prop->next))
         if (prop->propertyName == property)
@@ -238,15 +235,12 @@ XIDeleteDeviceProperty (DeviceIntPtr device, Atom property, Bool fromClient)
     if (prop)
     {
         *prev = prop->next;
-        event.type      = GenericEvent;
-        event.extension = IReqCode;
-        event.length    = 0;
-        event.evtype    = XI_DevicePropertyNotify;
+        event.type      = DevicePropertyNotify;
         event.deviceid  = device->id;
         event.state     = PropertyDelete;
         event.atom      = prop->propertyName;
         event.time      = currentTime.milliseconds;
-        SendEventToAllWindows(device, XI_DevicePropertyNotifyMask,
+        SendEventToAllWindows(device, DevicePropertyNotifyMask,
                               (xEvent*)&event, 1);
         XIDestroyDeviceProperty (prop);
     }
@@ -261,7 +255,7 @@ XIChangeDeviceProperty (DeviceIntPtr dev, Atom property, Atom type,
                         Bool fromClient)
 {
     XIPropertyPtr               prop;
-    devicePropertyNotifyEvent   event;
+    devicePropertyNotify        event;
     int                         size_in_bytes;
     int                         total_size;
     unsigned long               total_len;
@@ -379,15 +373,12 @@ XIChangeDeviceProperty (DeviceIntPtr dev, Atom property, Atom type,
 
     if (sendevent)
     {
-        event.type      = GenericEvent;
-        event.extension = IReqCode;
-        event.length    = 0;
-        event.evtype    = XI_DevicePropertyNotify;
+        event.type      = DevicePropertyNotify;
         event.deviceid  = dev->id;
         event.state     = PropertyNewValue;
         event.atom      = prop->propertyName;
         event.time      = currentTime.milliseconds;
-        SendEventToAllWindows(dev, XI_DevicePropertyNotifyMask,
+        SendEventToAllWindows(dev, DevicePropertyNotifyMask,
                               (xEvent*)&event, 1);
     }
     return(Success);
@@ -519,6 +510,7 @@ ProcXListDeviceProperties (ClientPtr client)
         int n;
         swaps (&rep.sequenceNumber, n);
         swapl (&rep.length, n);
+        swaps (&rep.nAtoms, n);
     }
     temppAtoms = pAtoms;
     for (prop = dev->properties.properties; prop; prop = prop->next)
@@ -785,17 +777,14 @@ ProcXGetDeviceProperty (ClientPtr client)
 
     if (stuff->delete && (reply.bytesAfter == 0))
     {
-        devicePropertyNotifyEvent    event;
+        devicePropertyNotify    event;
 
-        event.type      = GenericEvent;
-        event.extension = IReqCode;
-        event.length    = 0;
-        event.evtype    = XI_DevicePropertyNotify;
+        event.type      = DevicePropertyNotify;
         event.deviceid  = dev->id;
         event.state     = PropertyDelete;
         event.atom      = prop->propertyName;
         event.time      = currentTime.milliseconds;
-        SendEventToAllWindows(dev, XI_DevicePropertyNotifyMask,
+        SendEventToAllWindows(dev, DevicePropertyNotifyMask,
                               (xEvent*)&event, 1);
     }
 
@@ -823,60 +812,79 @@ ProcXGetDeviceProperty (ClientPtr client)
 int
 SProcXListDeviceProperties (ClientPtr client)
 {
+    char n;
     REQUEST(xListDevicePropertiesReq);
 
+    swaps(&stuff->length, n);
+
     REQUEST_SIZE_MATCH(xListDevicePropertiesReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXListDeviceProperties(client));
 }
 
 int
 SProcXQueryDeviceProperty (ClientPtr client)
 {
+    char n;
     REQUEST(xQueryDevicePropertyReq);
 
+    swaps(&stuff->length, n);
+    swapl(&stuff->property, n);
+
     REQUEST_SIZE_MATCH(xQueryDevicePropertyReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXQueryDeviceProperty(client));
 }
 
 int
 SProcXConfigureDeviceProperty (ClientPtr client)
 {
+    char n;
     REQUEST(xConfigureDevicePropertyReq);
 
+    swaps(&stuff->length, n);
+    swapl(&stuff->property, n);
+
     REQUEST_SIZE_MATCH(xConfigureDevicePropertyReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXConfigureDeviceProperty(client));
 }
 
 int
 SProcXChangeDeviceProperty (ClientPtr client)
 {
+    char n;
     REQUEST(xChangeDevicePropertyReq);
 
+    swaps(&stuff->length, n);
+    swapl(&stuff->property, n);
+    swapl(&stuff->type, n);
+    swapl(&stuff->nUnits, n);
     REQUEST_SIZE_MATCH(xChangeDevicePropertyReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXChangeDeviceProperty(client));
 }
 
 int
 SProcXDeleteDeviceProperty (ClientPtr client)
 {
+    char n;
     REQUEST(xDeleteDevicePropertyReq);
 
+    swaps(&stuff->length, n);
+    swapl(&stuff->property, n);
     REQUEST_SIZE_MATCH(xDeleteDevicePropertyReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXDeleteDeviceProperty(client));
 }
 
 int
 SProcXGetDeviceProperty (ClientPtr client)
 {
+    char n;
     REQUEST(xGetDevicePropertyReq);
 
+    swaps(&stuff->length, n);
+    swapl(&stuff->property, n);
+    swapl(&stuff->type, n);
+    swapl(&stuff->longOffset, n);
+    swapl(&stuff->longLength, n);
     REQUEST_SIZE_MATCH(xGetDevicePropertyReq);
-    (void) stuff;
-    return BadImplementation;
+    return (ProcXGetDeviceProperty(client));
 }
 
