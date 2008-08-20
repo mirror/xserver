@@ -48,7 +48,6 @@ typedef struct __GLXcontext __GLXcontext;
 #include "glxdrawable.h"
 #include "glxcontext.h"
 #endif
-#include "glcontextmodes.h"
 #include "glitz_glucose.h"
 
 #include <stdlib.h>
@@ -132,73 +131,36 @@ static void
 _glitz_glucose_query_formats (glitz_glucose_screen_info_t *screen_info)
 {
     __GLXscreen			*screen = screen_info->display_info->display;
-    __GLcontextModes		*mode;
+    __GLXconfig			*modes;
     glitz_int_drawable_format_t format;
     int				i;
 
-    format.types          = GLITZ_DRAWABLE_TYPE_WINDOW_MASK;
+    memset(&format, 0, sizeof(format));
+    format.types          = GLITZ_DRAWABLE_TYPE_WINDOW_MASK | GLITZ_DRAWABLE_TYPE_FBO_MASK;
     format.d.id           = 0;
     format.d.color.fourcc = GLITZ_FOURCC_RGB;
 
-    mode = screen->fbconfigs;
-
-    for (i = 0; i < screen->numVisuals; i++)
+    for (modes = screen->fbconfigs; modes != NULL; modes = modes->next)
     {
-	int value;
+	format.d.color.red_size = modes->redBits;
+	format.d.color.green_size = modes->greenBits;
+	format.d.color.blue_size = modes->blueBits;
+	format.d.color.alpha_size = modes->alphaBits;
+	format.d.depth_size = modes->depthBits;
+	format.d.stencil_size = modes->stencilBits;
+	format.d.doublebuffer = modes->doubleBufferMode;
 
-	if ((_gl_get_context_mode_data(mode, GLX_USE_GL, &value) != 0) ||
-	    (value == 0))
-	    continue;
+	format.caveat = modes->visualRating;
 
-	_gl_get_context_mode_data(mode, GLX_RGBA, &value);
-	if (value == 0)
-	    continue;
-
-	/* Stereo is not supported yet */
-	_gl_get_context_mode_data(mode, GLX_STEREO, &value);
-	if (value != 0)
-	    continue;
-
-	_gl_get_context_mode_data(mode, GLX_RED_SIZE, &value);
-	format.d.color.red_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_GREEN_SIZE, &value);
-	format.d.color.green_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_BLUE_SIZE, &value);
-	format.d.color.blue_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_ALPHA_SIZE, &value);
-	format.d.color.alpha_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_DEPTH_SIZE, &value);
-	format.d.depth_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_STENCIL_SIZE, &value);
-	format.d.stencil_size = (unsigned short) value;
-	_gl_get_context_mode_data(mode, GLX_DOUBLEBUFFER, &value);
-	format.d.doublebuffer = (value) ? 1: 0;
-
-	_gl_get_context_mode_data(mode, GLX_VISUAL_CAVEAT_EXT, &value);
-	switch (value) {
-	case GLX_SLOW_VISUAL_EXT:
-	case GLX_NON_CONFORMANT_VISUAL_EXT:
-	    format.caveat = 1;
-	    break;
-	default:
-	    format.caveat = 0;
-	    break;
-	}
-
-	_gl_get_context_mode_data(mode, GLX_SAMPLE_BUFFERS_ARB, &value);
-	if (value)
-	{
-	    _gl_get_context_mode_data(mode, GLX_SAMPLES_ARB, &value);
-	    format.d.samples = (unsigned short) (value > 1)? value: 1;
-	}
+	/* really ? */
+	if (modes->samples > 1)
+	    format.d.samples = modes->sampleBuffers;
 	else
 	    format.d.samples = 1;
 
-	format.u.uval = mode->visualID;
+	format.u.uval = modes->visualID;
 
 	_glitz_add_format (screen_info, &format);
-
-	mode = mode->next;
     }
 }
 
