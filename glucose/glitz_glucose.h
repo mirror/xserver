@@ -151,6 +151,9 @@ extern glitz_status_t
 glitz_glucose_make_current_read (void *abstract_surface);
 
 extern void
+glitz_glucose_screen_destroy (glitz_glucose_screen_info_t *screen_info);
+
+extern void
 glitz_glucose_destroy (void *abstract_drawable);
 
 extern glitz_bool_t
