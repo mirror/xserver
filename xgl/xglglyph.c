@@ -63,6 +63,8 @@
     WRITE_VEC2 (ptr, _vx1, _vy2);		    \
     WRITE_VEC2 (ptr, (box).x1, (box).y1)
 
+DevPrivateKey xglGlyphPrivateKey = &xglGlyphPrivateKey;
+
 typedef union _xglGlyphList {
     glitz_short_t *s;
     glitz_float_t *f;
@@ -245,6 +247,8 @@ xglInitGlyphCache (xglGlyphCachePtr pCache,
 			      (pointer) pCache))
 	    return FALSE;
 
+	xglLeaveServer(pScreen);
+
 	if (pScreenPriv->geometryDataType == GEOMETRY_DATA_TYPE_SHORT)
 	{
 	    attr.unnormalized = 1;
@@ -275,6 +279,8 @@ xglInitGlyphCache (xglGlyphCachePtr pCache,
 
 	if (NEEDS_COMPONENT (format->format))
 	    glitz_surface_set_component_alpha (mask, 1);
+
+	xglEnterServer(pScreen);
 
 	pTexture->pMask = xglCreateDevicePicture (mask);
 	if (!pTexture->pMask)
@@ -416,9 +422,16 @@ xglCacheGlyph (xglGlyphCachePtr pCache,
 	{
 	    glitz_buffer_t *buffer;
 
+	    xglLeaveServer(pScreen);
+
 	    buffer = glitz_buffer_create_for_data (pGlyph + 1);
-	    if (!buffer)
+	    if (!buffer) {
+	    	xglEnterServer(pScreen);
+
 		return NULL;
+	    }
+
+	    xglEnterServer(pScreen);
 
 	    /* Find available area */
 	    if (!xglFindArea (pCache->rootArea.pArea,
@@ -445,6 +458,8 @@ xglCacheGlyph (xglGlyphCachePtr pCache,
 
 		surface = pTexture->pMask->pSourcePict->source.devPrivate.ptr;
 
+	    	xglLeaveServer(pScreen);
+
 		glitz_set_pixels (surface,
 				  pGlyphPriv->pArea->x,
 				  pGlyphPriv->pArea->y,
@@ -460,6 +475,8 @@ xglCacheGlyph (xglGlyphCachePtr pCache,
 
 		glitz_surface_translate_point (surface, &p1, &p1);
 		glitz_surface_translate_point (surface, &p2, &p2);
+
+	    	xglEnterServer(pScreen);
 
 		pAreaPriv->serial = glyphSerialNumber;
 		if (pTexture->geometryDataType)
@@ -477,7 +494,9 @@ xglCacheGlyph (xglGlyphCachePtr pCache,
 		    pAreaPriv->u.box.sBox.y2 = p2.y >> 16;
 		}
 	    }
+	    xglLeaveServer(pScreen);
 	    glitz_buffer_destroy (buffer);
+	    xglEnterServer(pScreen);
 	} else
 	    pGlyphPriv->pArea = &zeroSizeArea;
     }
@@ -689,12 +708,19 @@ xglCachedGlyphs (CARD8	       op,
 	    pGeometry = &pCache->u.geometry;
 	    pGeometry->xOff = pGeometry->yOff = 0;
 
+	    xglLeaveServer(pScreen);
+
 	    multiArray = glitz_multi_array_create (nGlyph);
-	    if (!multiArray)
+	    if (!multiArray) {
+	    	xglEnterServer(pScreen);
 		return 1;
+	    }
 
 	    GEOMETRY_SET_MULTI_ARRAY (pGeometry, multiArray);
+
 	    glitz_multi_array_destroy (multiArray);
+
+	    xglEnterServer(pScreen);
 
 	    vData.array.lastX = 0;
 	    vData.array.lastY = 0;
@@ -708,8 +734,12 @@ xglCachedGlyphs (CARD8	       op,
 	    pGeometry->type = GLITZ_GEOMETRY_TYPE_VERTEX;
 	    pMaskPicture = pCache->u.texture.pMask;
 
+	    xglLeaveServer(pScreen);
+
 	    vData.list.s = glitz_buffer_map (pGeometry->buffer,
 					     GLITZ_BUFFER_ACCESS_WRITE_ONLY);
+
+	    xglEnterServer(pScreen);
 	}
     } else
 	pGeometry = NULL;
@@ -768,11 +798,16 @@ xglCachedGlyphs (CARD8	       op,
 	    pGlyphArea = GLYPH_GET_AREA_PRIV (pArea);
 	    if (depth == 1)
 	    {
+	    	xglLeaveServer(pScreen);
+
 		glitz_multi_array_add (pGeometry->array,
 				       pGlyphArea->u.range.first, 2,
 				       pGlyphArea->u.range.count,
 				       (x1 - vData.array.lastX) << 16,
 				       (y1 - vData.array.lastY) << 16);
+
+	    	xglEnterServer(pScreen);
+
 		vData.array.lastX = x1;
 		vData.array.lastY = y1;
 	    }
@@ -799,7 +834,9 @@ xglCachedGlyphs (CARD8	       op,
     {
 	if (depth != 1)
 	{
+	    xglLeaveServer(pScreen);
 	    glitz_buffer_unmap (pGeometry->buffer);
+	    xglEnterServer(pScreen);
 	    pGeometry->count = nGlyph * 4;
 	}
 

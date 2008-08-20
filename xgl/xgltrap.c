@@ -279,11 +279,15 @@ xglTrapezoids (CARD8	     op,
 		    return;
 		}
 
+		xglLeaveServer(pScreen);
+
 		offset +=
 		    glitz_add_trapezoids (pGeometry->buffer,
 					  offset, size - offset, format->type,
 					  mask, (glitz_trapezoid_t *) pTrap, n,
 					  &nAddedTrap);
+
+		xglEnterServer(pScreen);
 
 		n     -= nAddedTrap;
 		pTrap += nAddedTrap;
@@ -437,11 +441,15 @@ xglAddTraps (PicturePtr pDst,
 	    if (!pGeometry->buffer)
 		return;
 
+	    xglLeaveServer(pScreen);
+	    
 	    offset +=
 		glitz_add_traps (pGeometry->buffer,
 				 offset, size - offset, format->type, mask,
 				 (glitz_trap_t *) pTrap, n,
 				 &nAddedTrap);
+
+	    xglEnterServer(pScreen);
 
 	    n     -= nAddedTrap;
 	    pTrap += nAddedTrap;

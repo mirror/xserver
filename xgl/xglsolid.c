@@ -53,8 +53,10 @@ xglSolid (DrawablePtr	   pDrawable,
 
     if (pGeometry)
     {
+        xglLeaveServer(pDrawable->pScreen);
 	glitz_surface_set_clip_region (surface, xOff, yOff,
 				       (glitz_box_t *) pBox, nBox);
+	xglEnterServer(pDrawable->pScreen);
     }
     else
     {
@@ -64,10 +66,10 @@ xglSolid (DrawablePtr	   pDrawable,
 
     GEOMETRY_TRANSLATE (pGeometry, xOff, yOff);
 
-    if (!GEOMETRY_ENABLE (pGeometry, surface))
+    if (!GEOMETRY_ENABLE (pDrawable->pScreen, pGeometry, surface))
 	return FALSE;
 
-    xglLeaveServer();
+    xglLeaveServer(pDrawable->pScreen);
     glitz_composite (op,
 		     solid, NULL, surface,
 		     0, 0,
@@ -75,9 +77,9 @@ xglSolid (DrawablePtr	   pDrawable,
 		     x + xOff,
 		     y + yOff,
 		     width, height);
-    xglEnterServer();
 
     glitz_surface_set_clip_region (surface, 0, 0, NULL, 0);
+    xglEnterServer(pDrawable->pScreen);
 
     if (glitz_surface_get_status (surface))
 	return FALSE;

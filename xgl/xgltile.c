@@ -74,8 +74,12 @@ xglTiledBoxGeometry (PixmapPtr pTile,
 						     GEOMETRY_DATA_TYPE_FLOAT,
 						     8 * size);
 
+    xglLeaveServer(pScreen);
+
     data = glitz_buffer_map (pGeometry->buffer,
 			     GLITZ_BUFFER_ACCESS_WRITE_ONLY);
+	
+    xglEnterServer(pScreen);
 
     while (nBox--)
     {
@@ -106,8 +110,12 @@ xglTiledBoxGeometry (PixmapPtr pTile,
 		p2.x = (xTileTmp + widthTile) << 16;
 		p2.y = (yTile + heightTile) << 16;
 
+    		xglLeaveServer(pScreen);
+
 		glitz_surface_translate_point (pPixmapPriv->surface, &p1, &p1);
 		glitz_surface_translate_point (pPixmapPriv->surface, &p2, &p2);
+
+    		xglEnterServer(pScreen);
 
 		x1 = FIXED_TO_FLOAT (p1.x);
 		y1 = FIXED_TO_FLOAT (p1.y);
@@ -149,15 +157,23 @@ xglTiledBoxGeometry (PixmapPtr pTile,
 	pBox++;
     }
 
-    if (glitz_buffer_unmap (pGeometry->buffer))
+    xglLeaveServer(pScreen);
+
+    if (glitz_buffer_unmap (pGeometry->buffer)) {
+    	xglEnterServer(pScreen);
+
 	return NULL;
+    }
 
     pGeometry->f     = tileGeometryFormat;
     pGeometry->count =
 	pGeometry->endOffset / tileGeometryFormat.vertex.bytes_per_vertex;
 
     pPixmapPriv->pictureMask |= xglPCFillMask;
+
     glitz_surface_set_fill (pPixmapPriv->surface, GLITZ_FILL_TRANSPARENT);
+
+    xglEnterServer(pScreen);
 
     return pGeometry;
 }
@@ -194,17 +210,27 @@ xglTile (DrawablePtr	  pDrawable,
     pTilePriv = XGL_GET_PIXMAP_PRIV (pTile);
 
     pTilePriv->pictureMask |= xglPCFilterMask | xglPCTransformMask;
+
+    xglLeaveServer(pDrawable->pScreen);
+
     glitz_surface_set_filter (pTilePriv->surface,
 			      GLITZ_FILTER_NEAREST,
 			      NULL, 0);
     glitz_surface_set_transform (pTilePriv->surface, NULL);
 
+    xglEnterServer(pDrawable->pScreen);
+
     if (pTilePriv->acceleratedTile)
     {
 	if (pGeometry)
 	{
+    	    xglLeaveServer(pDrawable->pScreen);
+
 	    glitz_surface_set_clip_region (surface, xOff, yOff,
 					   (glitz_box_t *) pBox, nBox);
+
+    	    xglEnterServer(pDrawable->pScreen);
+
 	    nBox = 0;
 	}
 	else
@@ -216,13 +242,15 @@ xglTile (DrawablePtr	  pDrawable,
 
 	GEOMETRY_TRANSLATE (pGeometry, xOff, yOff);
 
-	if (!GEOMETRY_ENABLE (pGeometry, surface))
+	if (!GEOMETRY_ENABLE (pDrawable->pScreen, pGeometry, surface))
 	    return FALSE;
 
 	pTilePriv->pictureMask |= xglPCFillMask;
+	
+	xglLeaveServer(pDrawable->pScreen);
+
 	glitz_surface_set_fill (pTilePriv->surface, GLITZ_FILL_REPEAT);
 
-	xglLeaveServer();
 	glitz_composite (op,
 			 pTilePriv->surface, NULL, surface,
 			 x + tileX,
@@ -231,9 +259,10 @@ xglTile (DrawablePtr	  pDrawable,
 			 x + xOff,
 			 y + yOff,
 			 width, height);
-	xglEnterServer();
 
 	glitz_surface_set_clip_region (surface, 0, 0, NULL, 0);
+
+	xglEnterServer(pDrawable->pScreen);
 
 	if (!glitz_surface_get_status (surface))
 	    return TRUE;
@@ -253,10 +282,10 @@ xglTile (DrawablePtr	  pDrawable,
 
     GEOMETRY_TRANSLATE (pGeometry, xOff, yOff);
 
-    if (!GEOMETRY_ENABLE (pGeometry, surface))
+    if (!GEOMETRY_ENABLE (pDrawable->pScreen, pGeometry, surface))
 	return FALSE;
 
-    xglLeaveServer();
+    xglLeaveServer(pDrawable->pScreen);
     glitz_composite (op,
 		     pTilePriv->surface, NULL, surface,
 		     0, 0,
@@ -264,7 +293,7 @@ xglTile (DrawablePtr	  pDrawable,
 		     x + xOff,
 		     y + yOff,
 		     width, height);
-    xglEnterServer();
+    xglEnterServer(pDrawable->pScreen);
 
     if (glitz_surface_get_status (surface))
 	return FALSE;

@@ -28,6 +28,8 @@
 #include "gcstruct.h"
 #include "migc.h"
 
+DevPrivateKey xglGCPrivateKey = &xglGCPrivateKey;
+
 #define XGL_GC_OP_FALLBACK_PROLOGUE(pDrawable) \
     xglSyncDamageBoxBits (pDrawable);	       \
     XGL_GC_UNWRAP (funcs);		       \
@@ -494,11 +496,13 @@ xglDestroyGC (GCPtr pGC)
 {
     XGL_GC_PRIV (pGC);
 
+    xglLeaveServer(pGC->pScreen);
     if (pGCPriv->fg)
 	glitz_surface_destroy (pGCPriv->fg);
 
     if (pGCPriv->bg)
 	glitz_surface_destroy (pGCPriv->bg);
+    xglEnterServer(pGC->pScreen);
 
     XGL_GC_UNWRAP (funcs);
     XGL_GC_UNWRAP (ops);
@@ -549,6 +553,8 @@ xglValidateGC (GCPtr	     pGC,
 
 		pGCPriv->flags |= xglGCSoftwareDrawableFlag;
 
+		xglLeaveServer(pDrawable->pScreen);
+
 		if (pGCPriv->fg)
 		    glitz_surface_destroy (pGCPriv->fg);
 
@@ -564,6 +570,8 @@ xglValidateGC (GCPtr	     pGC,
 						    format, 1, 1, 0, NULL);
 		if (pGCPriv->bg)
 		    glitz_surface_set_fill (pGCPriv->bg, GLITZ_FILL_REPEAT);
+
+		xglEnterServer(pDrawable->pScreen);
 
 		pGCPriv->id = format->id;
 
@@ -628,6 +636,8 @@ xglValidateGC (GCPtr	     pGC,
 	    format.bytes_per_line = sizeof (CARD32);
 	    format.scanline_order = GLITZ_PIXEL_SCANLINE_ORDER_BOTTOM_UP;
 
+	    xglLeaveServer(pDrawable->pScreen);
+
 	    buffer = glitz_buffer_create_for_data (&pixel);
 
 	    if (changes & GCForeground)
@@ -643,6 +653,8 @@ xglValidateGC (GCPtr	     pGC,
 	    }
 
 	    glitz_buffer_destroy (buffer);
+
+	    xglEnterServer(pDrawable->pScreen);
 	}
     }
 }

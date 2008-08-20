@@ -151,10 +151,10 @@ xglSyncBits (DrawablePtr pDrawable,
 	    format.scanline_order = GLITZ_PIXEL_SCANLINE_ORDER_TOP_DOWN;
 	}
 
+	xglLeaveServer(pDrawable->pScreen);
 	glitz_surface_set_clip_region (pPixmapPriv->surface,
 				       0, 0, (glitz_box_t *) pBox, nBox);
 
-	xglLeaveServer();
 	glitz_get_pixels (pPixmapPriv->surface,
 			  pExt->x1,
 			  pExt->y1,
@@ -162,9 +162,9 @@ xglSyncBits (DrawablePtr pDrawable,
 			  pExt->y2 - pExt->y1,
 			  &format,
 			  pPixmapPriv->buffer);
-	xglEnterServer();
 
 	glitz_surface_set_clip_region (pPixmapPriv->surface, 0, 0, NULL, 0);
+	xglEnterServer(pDrawable->pScreen);
     }
 
     REGION_UNINIT (pDrawable->pScreen, &region);
@@ -274,10 +274,10 @@ xglSyncSurface (DrawablePtr pDrawable)
 	    }
 	}
 
+	xglLeaveServer(pDrawable->pScreen);
 	glitz_surface_set_clip_region (pPixmapPriv->surface,
 				       0, 0, (glitz_box_t *) pBox, nBox);
 
-	xglLeaveServer();
 	glitz_set_pixels (pPixmapPriv->surface,
 			  pExt->x1,
 			  pExt->y1,
@@ -285,9 +285,9 @@ xglSyncSurface (DrawablePtr pDrawable)
 			  pExt->y2 - pExt->y1,
 			  &format,
 			  pPixmapPriv->buffer);
-	xglEnterServer();
 
 	glitz_surface_set_clip_region (pPixmapPriv->surface, 0, 0, NULL, 0);
+	xglEnterServer(pDrawable->pScreen);
 
 	REGION_EMPTY (pDrawable->pScreen, pRegion);
     }
@@ -319,6 +319,11 @@ xglPrepareTarget (DrawablePtr pDrawable)
 		width  = pPixmap->drawable.width;
 		height = pPixmap->drawable.height;
 
+		if (!format)
+			return FALSE;
+
+	    	xglLeaveServer(pDrawable->pScreen);
+
 		if (pPixmapPriv->pVisual->pbuffer)
 		{
 		    pPixmapPriv->drawable =
@@ -331,13 +336,19 @@ xglPrepareTarget (DrawablePtr pDrawable)
 			glitz_create_drawable (pScreenPriv->drawable,
 					       format, width, height);
 		}
+
+	    	xglEnterServer(pDrawable->pScreen);
 	    }
 
 	    if (pPixmapPriv->drawable)
 	    {
+	    	xglLeaveServer(pDrawable->pScreen);
+
 		glitz_surface_attach (pPixmapPriv->surface,
 				      pPixmapPriv->drawable,
 				      GLITZ_DRAWABLE_BUFFER_FRONT_COLOR);
+
+	    	xglEnterServer(pDrawable->pScreen);
 
 		pPixmapPriv->target = xglPixmapTargetIn;
 
@@ -474,15 +485,6 @@ void
 xglAddCurrentBitDamage (DrawablePtr pDrawable)
 {
     XGL_DRAWABLE_PIXMAP_PRIV (pDrawable);
-
-    {
-    	/* This is a little severe as it also impacts xgl - tune me */
-    	XGL_SCREEN_PRIV (pDrawable->pScreen);
-	xglLeaveServer();
-	glitz_surface_flush (pScreenPriv->surface);
-	glitz_drawable_finish (pScreenPriv->drawable);
-	xglEnterServer();
-    }
 
     if (REGION_NOTEMPTY (pDrawable->pScreen, &pPixmapPriv->bitRegion))
     {

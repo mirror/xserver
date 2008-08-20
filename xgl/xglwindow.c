@@ -26,6 +26,8 @@
 #include "xgl.h"
 #include "fb.h"
 
+DevPrivateKey xglWinPrivateKey = &xglWinPrivateKey;
+
 #define XGL_WINDOW_FALLBACK_PROLOGUE(pWin, func)		       \
     if (!xglMapPixmapBits (XGL_GET_DRAWABLE_PIXMAP (&pWin->drawable))) \
 	FatalError (XGL_SW_FAILURE_STRING);			       \

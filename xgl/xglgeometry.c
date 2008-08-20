@@ -55,6 +55,8 @@ xglGeometryResize (ScreenPtr	  pScreen,
     {
 	pGeometry->data = xrealloc (pGeometry->data, size);
 
+	xglLeaveServer(pScreen);
+
 	if (pGeometry->buffer)
 	    glitz_buffer_destroy (pGeometry->buffer);
 
@@ -66,19 +68,25 @@ xglGeometryResize (ScreenPtr	  pScreen,
 	    if (!pGeometry->buffer)
 	    {
 		pGeometry->broken = TRUE;
+		xglEnterServer(pScreen);
 		return;
 	    }
 	}
 	else if (size)
 	{
 	    pGeometry->broken = TRUE;
+	    xglEnterServer(pScreen);
 	    return;
 	}
+
+	xglEnterServer(pScreen);
     }
     else
     {
 	glitz_buffer_t *newBuffer;
 
+	xglLeaveServer(pScreen);
+	
 	if (size)
 	{
 	    newBuffer =
@@ -87,6 +95,7 @@ xglGeometryResize (ScreenPtr	  pScreen,
 	    if (!newBuffer)
 	    {
 		pGeometry->broken = TRUE;
+		xglEnterServer(pScreen);
 		return;
 	    }
 	} else
@@ -109,6 +118,9 @@ xglGeometryResize (ScreenPtr	  pScreen,
 
 	    glitz_buffer_destroy (pGeometry->buffer);
 	}
+
+	xglEnterServer(pScreen);
+
 	pGeometry->buffer = newBuffer;
     }
 
@@ -129,8 +141,10 @@ xglGeometryResize (ScreenPtr	  pScreen,
 	if ((pGeometry)->broken)					  \
 	    return;							  \
     }									  \
+    xglLeaveServer(pScreen);							  \
     (ptr) = glitz_buffer_map ((pGeometry)->buffer,			  \
 			      GLITZ_BUFFER_ACCESS_WRITE_ONLY);		  \
+    xglEnterServer(pScreen);							  \
     if (!(ptr))								  \
     {									  \
 	(pGeometry)->broken = TRUE;					  \
@@ -139,11 +153,14 @@ xglGeometryResize (ScreenPtr	  pScreen,
     (ptr) += (offset)
 
 #define UNMAP_GEOMETRY(pGeometry, offset, _size)			   \
+    xglLeaveServer(pScreen);							   \
     if (glitz_buffer_unmap ((pGeometry)->buffer))			   \
     {									   \
 	(pGeometry)->broken = TRUE;					   \
+        xglEnterServer(pScreen);						   \
 	return;								   \
     }									   \
+    xglEnterServer(pScreen);							   \
     if (((offset) + (_size)) > (pGeometry)->endOffset)			   \
     {									   \
 	(pGeometry)->endOffset = (offset) + (_size);			   \
@@ -458,7 +475,9 @@ xglGeometryForGlyph (ScreenPtr	    pScreen,
 	    glyphbase = pglyph;
     }
 
+    xglLeaveServer(pScreen);
     buffer = glitz_buffer_create_for_data (glyphbase);
+    xglEnterServer(pScreen);
     if (!buffer)
     {
 	pGeometry->broken = TRUE;
@@ -467,7 +486,9 @@ xglGeometryForGlyph (ScreenPtr	    pScreen,
 
     GEOMETRY_SET_BUFFER (pGeometry, buffer);
 
+    xglLeaveServer(pScreen);
     array = glitz_multi_array_create (nGlyph);
+    xglEnterServer(pScreen);
     if (!array)
     {
 	pGeometry->broken = TRUE;
@@ -489,18 +510,22 @@ xglGeometryForGlyph (ScreenPtr	    pScreen,
 	    gx = x + pci->metrics.leftSideBearing;
 	    gy = -pci->metrics.ascent;
 
+    	    xglLeaveServer(pScreen);
 	    glitz_multi_array_add (array,
 				   (pglyph - glyphbase) * 8,
 				   gWidth, gHeight,
 				   (gx - lastX) << 16, (gy - lastY) << 16);
+    	    xglEnterServer(pScreen);
 	    lastX = gx;
 	    lastY = gy;
 	}
 	x += pci->metrics.characterWidth;
     }
 
+    xglLeaveServer(pScreen);
     glitz_buffer_destroy (buffer);
     glitz_multi_array_destroy (array);
+    xglEnterServer(pScreen);
 }
 
 #define FIXED_LINE_X_TO_FLOAT(line, v)		  \
@@ -640,7 +665,9 @@ xglGetScratchGeometryWithSize (ScreenPtr pScreen,
     {
 	if (pGeometry->array)
 	{
+    	    xglLeaveServer(pScreen);
 	    glitz_multi_array_destroy (pGeometry->array);
+    	    xglEnterServer(pScreen);
 	    pGeometry->array = NULL;
 	}
 	pGeometry->endOffset = 0;
@@ -703,11 +730,14 @@ xglGetScratchVertexGeometry (ScreenPtr pScreen,
 }
 
 Bool
-xglSetGeometry (xglGeometryPtr	pGeometry,
+xglSetGeometry (ScreenPtr pScreen,
+		xglGeometryPtr	pGeometry,
 		glitz_surface_t *surface)
 {
     if (pGeometry->broken)
 	return FALSE;
+
+    xglLeaveServer(pScreen);
 
     glitz_set_geometry (surface, pGeometry->type, &pGeometry->f,
 			pGeometry->buffer);
@@ -719,6 +749,8 @@ xglSetGeometry (xglGeometryPtr	pGeometry,
 	glitz_set_array (surface,
 			 pGeometry->first, pGeometry->width, pGeometry->count,
 			 pGeometry->xOff, pGeometry->yOff);
+
+    xglEnterServer(pScreen);
 
     return TRUE;
 }
