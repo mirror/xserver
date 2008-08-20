@@ -49,10 +49,12 @@ typedef struct {
     DestroyPixmapProcPtr *DestroyPixmap;
     __GLXscreen *screen;
     destroyGLXscreenProcPtr destroyGLXscreen;
+    glitz_glucose_screen_info_t *screen_info;
 } GLucoseScreenPrivRec, *GLucoseScreenPrivPtr;
 
 extern int glucoseScreenPrivateIndex;
-#define GLucoseGetScreenPriv(s)	((GLucoseScreenPrivPtr)(s)->devPrivates[glucoseScreenPrivateIndex].ptr)
+#define GLucoseGetScreenPriv(s)	((GLucoseScreenPrivPtr) \
+	dixLookupPrivate(&(s)->devPrivates, glucoseGetScreenPrivateKey()))
 #define GLucoseScreenPriv(s)	GLucoseScreenPrivPtr    pGLucoseScr = GLucoseGetScreenPriv(s)
 
 #endif /* GLUCOSE_H */
