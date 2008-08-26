@@ -55,6 +55,7 @@
 #include "dmxstat.h"
 #include "dmxlaunch.h"
 #include "dmxgrab.h"
+#include "dmxselection.h"
 #include "dmxshm.h"
 #ifdef RENDER
 #include "dmxpict.h"
@@ -926,6 +927,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     dmxInitFonts();
     dmxInitProps();
     dmxInitGrabs();
+    dmxInitSelections();
 
 #ifdef MITSHM
     dmxInitShm();

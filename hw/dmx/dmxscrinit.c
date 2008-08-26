@@ -57,6 +57,7 @@
 #include "dmxcb.h"
 #include "dmxinit.h"
 #include "dmxgrab.h"
+#include "dmxselection.h"
 #include "dmxatom.h"
 #include "dmxshm.h"
 
@@ -1261,6 +1262,7 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 #ifdef MITSHM
 	dmxResetShm();
 #endif
+	dmxResetSelections();
 	dmxResetGrabs();
 	dmxResetProps();
 	dmxResetFonts();
