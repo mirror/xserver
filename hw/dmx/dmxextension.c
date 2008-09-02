@@ -858,11 +858,6 @@ static void dmxBECreateWindowTree(int idx)
     if (pWinPriv->hasPict) dmxCreatePictureList (pRoot);
 #endif
 
-    XLIB_PROLOGUE (dmxScreen);
-    dmxAddSequence (&dmxScreen->ignore, NextRequest (dmxScreen->beDisplay));
-    XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
-    XLIB_EPILOGUE (dmxScreen);
-
     pWin = pRoot->lastChild;
     while (pWin) {
 	pWinPriv = DMX_GET_WINDOW_PRIV(pWin);
@@ -910,6 +905,11 @@ static void dmxBECreateWindowTree(int idx)
 	if (pWin == pRoot)
 	    break;
     }
+
+    XLIB_PROLOGUE (dmxScreen);
+    dmxAddSequence (&dmxScreen->ignore, NextRequest (dmxScreen->beDisplay));
+    XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
+    XLIB_EPILOGUE (dmxScreen);
 }
 
 static void dmxBECreateWindowProperties (int idx)
