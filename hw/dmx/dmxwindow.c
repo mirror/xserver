@@ -50,6 +50,7 @@
 #include "dmxcursor.h"
 #include "dmxfont.h"
 #include "dmxatom.h"
+#include "dmxprop.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -149,6 +150,8 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
 			&attribs);
     XLIB_EPILOGUE (dmxScreen);
 
+    dmxPropertyWindow (dmxScreen, win);
+    
     return win;
 }
 

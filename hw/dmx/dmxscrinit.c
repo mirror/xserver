@@ -147,7 +147,6 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     XSelectInput (dmxScreen->beDisplay,
 		  dmxScreen->scrnWin,
 		  StructureNotifyMask);
-    dmxPropertyWindow(dmxScreen);
 
 #ifdef RANDR
     dmxBERRScreenInit (pScreen);

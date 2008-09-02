@@ -93,25 +93,11 @@ static const unsigned char *dmxPropertyIdentifier(void)
     return (unsigned char *)buf;
 }
 
-/** Prints a log message if \a dmxScreen is on the same backend X server
- * as some other DMX backend (output) screen.  Modifies the property
- * (#DMX_ATOMNAME) on the backend X server to reflect the creation of \a
- * dmxScreen.
- *
- * The root window of the backend X server holds a list of window ids
- * for all DMX windows (on this DMX server or some other DMX server).
- *
- * This list can then be iterated, and the property for each window can
- * be examined.  This property contains the following tuple (no quotes):
- *
- * "#DMX_IDENT:<hostname running DMX>:<display name of DMX>,<screen number>"
- */
-void dmxPropertyWindow(DMXScreenInfo *dmxScreen)
+void dmxPropertyWindow(DMXScreenInfo *dmxScreen, Window win)
 {
     Atom                atom;
     const unsigned char *id  = dmxPropertyIdentifier();
     Display             *dpy = dmxScreen->beDisplay;
-    Window              win  = dmxScreen->scrnWin;
     char                buf[128]; /* RATS: only used with XmuSnprintf */
 
     if (!dpy)
