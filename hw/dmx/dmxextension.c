@@ -905,6 +905,11 @@ static void dmxBECreateWindowTree(int idx)
 	if (pWin == pRoot)
 	    break;
     }
+}
+
+static void dmxBEMapRootWindow(int idx)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
 
     XLIB_PROLOGUE (dmxScreen);
     dmxAddSequence (&dmxScreen->ignore, NextRequest (dmxScreen->beDisplay));
@@ -1673,7 +1678,7 @@ dmxAttachScreen (int                    idx,
     /* Create window hierarchy (top down) */
     dmxBECreateWindowTree(idx);
     dmxBECreateWindowProperties(idx);
-
+    dmxBEMapRootWindow(idx);
     XUngrabServer (dmxScreen->beDisplay);
 
 #ifdef RENDER
