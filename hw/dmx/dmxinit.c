@@ -129,10 +129,6 @@ Bool            dmxAddRemoveScreens = TRUE;
 int             dmxLaunchIndex = 0;
 char            *dmxLaunchVT = NULL;
 
-#ifdef DMXVNC
-Bool            dmxVnc = FALSE;
-#endif
-
 #ifdef RANDR
 int xRROutputsPerScreen = 2;
 int xRRCrtcsPerScreen = 2;
@@ -1240,9 +1236,6 @@ void ddxUseMsg(void)
 #endif
     ErrorF("-ignorebadfontpaths  Ignore bad font paths during initialization\n");
     ErrorF("-noaddremovescreens  Disable dynamic screen addition/removal\n");
-#ifdef DMXVNC
-    ErrorF("-vnc                 Enable VNC\n");
-#endif
 #ifdef RANDR
     ErrorF("-outputs num         RANDR outputs for each back-end display\n");
     ErrorF("-crtcs num           RANDR crtcs for each back-end display\n");
