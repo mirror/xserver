@@ -35,6 +35,7 @@
 #include "dmxrandr.h"
 #include "dmxclient.h"
 #include "dmxatom.h"
+#include "dmxwindow.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
