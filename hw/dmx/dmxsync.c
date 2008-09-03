@@ -220,7 +220,7 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
              */
             if (dmxSyncTimer && !dmxActiveSyncTimer) xfree(dmxSyncTimer);
             dmxSyncTimer  = NULL;
-            now           = TRUE;
+            now           = FALSE;
             dmxGeneration = serverGeneration;
         }
 
