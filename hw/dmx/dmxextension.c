@@ -374,9 +374,6 @@ int dmxAddInput(DMXInputAttributesPtr attr, int *id)
 					      dmxBERestorePassiveGrab,
 					      (pointer) &dmxInputs[i]);
 	}
-
-        /* Force completion of the changes */
-        dmxSync(NULL, TRUE);
     }
 
     return retcode;
@@ -1674,8 +1671,6 @@ dmxAttachScreen (int                    idx,
 #endif
 
     dmxBEMapRootWindow(idx);
-
-    dmxSync(&dmxScreens[idx], TRUE);
 
     /* We used these to compare the old and new screens.  They are no
      * longer needed since we have a newly attached screen, so we can
