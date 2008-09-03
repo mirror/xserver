@@ -56,7 +56,9 @@
 static unsigned long dpmsGeneration = 0;
 static Bool          dpmsSupported  = TRUE;
 
-static void _dmxDPMSInit(DMXScreenInfo *dmxScreen)
+/** Initialize DPMS support.  We save the current settings and turn off
+ * DPMS.  The settings are restored in #dmxDPMSTerm. */
+void dmxDPMSInit(DMXScreenInfo *dmxScreen)
 {
     int        event_base, error_base;
     int        major, minor;
@@ -135,53 +137,24 @@ static void _dmxDPMSInit(DMXScreenInfo *dmxScreen)
                  standby, suspend, off);
 }
 
-/** Initialize DPMS support.  We save the current settings and turn off
- * DPMS.  The settings are restored in #dmxDPMSTerm. */
-void dmxDPMSInit(DMXScreenInfo *dmxScreen)
-{
-    int    interval, preferBlanking, allowExposures;
-
-                                /* Turn off DPMS */
-    _dmxDPMSInit(dmxScreen);
-
-    if (!dmxScreen->beDisplay)
-	return;
-
-                                /* Turn off screen saver */
-    XLIB_PROLOGUE (dmxScreen);
-    XGetScreenSaver(dmxScreen->beDisplay, &dmxScreen->savedTimeout, &interval,
-		    &preferBlanking, &allowExposures);
-    XSetScreenSaver(dmxScreen->beDisplay, 0, interval,
-		    preferBlanking, allowExposures);
-    XResetScreenSaver(dmxScreen->beDisplay);
-    XLIB_EPILOGUE (dmxScreen);
-    dmxSync(dmxScreen, FALSE);
-}
-
 /** Terminate DPMS support on \a dmxScreen.  We restore the settings
  * saved in #dmxDPMSInit. */
 void dmxDPMSTerm(DMXScreenInfo *dmxScreen)
 {
-    int    timeout, interval, preferBlanking, allowExposures;
-
     if (!dmxScreen->beDisplay)
 	return;
 
-    XLIB_PROLOGUE (dmxScreen);
-    XGetScreenSaver(dmxScreen->beDisplay, &timeout, &interval,
-		    &preferBlanking, &allowExposures);
-    XSetScreenSaver(dmxScreen->beDisplay, dmxScreen->savedTimeout, interval,
-		    preferBlanking, allowExposures);
     if (dmxScreen->dpmsCapable) {
                                 /* Restore saved state */
+	XLIB_PROLOGUE (dmxScreen);
         DPMSForceLevel(dmxScreen->beDisplay, DPMSModeOn);
         DPMSSetTimeouts(dmxScreen->beDisplay, dmxScreen->dpmsStandby,
                         dmxScreen->dpmsSuspend, dmxScreen->dpmsOff);
         if (dmxScreen->dpmsEnabled) DPMSEnable(dmxScreen->beDisplay);
         else                        DPMSDisable(dmxScreen->beDisplay);
+	XLIB_EPILOGUE (dmxScreen);
+	dmxSync(dmxScreen, FALSE);
     }
-    XLIB_EPILOGUE (dmxScreen);
-    dmxSync(dmxScreen, FALSE);
 }
 
 /** Called when activity is detected so that DPMS power-saving mode can
