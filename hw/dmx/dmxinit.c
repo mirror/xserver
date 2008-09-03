@@ -1119,7 +1119,7 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	dmxAddRemoveScreens = FALSE;
         retval = 1;
 #ifdef PANORAMIX
-    else if (!strcmp (argv[i], "-xinerama")) {
+    } else if (!strcmp (argv[i], "-xinerama")) {
 	dmxNoPanoramiXExtension = TRUE;
 	retval = 1;
 #endif
