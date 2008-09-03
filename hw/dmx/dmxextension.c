@@ -922,17 +922,28 @@ static void dmxBECreateWindowProperties (int idx)
     WindowPtr      pRoot0 = WindowTable[0];
     WindowPtr      pWin;
     WindowPtr      pWin0;
-    PropertyPtr    pProp;
+    PropertyPtr    pProp, pLast;
 
-    for (pProp = wUserProps (pRoot0); pProp; pProp = pProp->next)
-	dmxBESetWindowProperty (pRoot, pProp);
-
-    pWin = pRoot->lastChild;
-    pWin0 = pRoot0->lastChild;
+    pWin = pRoot;
+    pWin0 = pRoot0;
     while (pWin)
     {
-	for (pProp = wUserProps (pWin0); pProp; pProp = pProp->next)
-	    dmxBESetWindowProperty (pWin, pProp);
+	pLast = NULL;
+	for (;;)
+	{
+	    for (pProp = wUserProps (pWin0); pProp; pProp = pProp->next)
+	    {
+		if (pProp == pLast)
+		    break;
+
+		pLast = pProp;
+	    }
+
+	    if (!pLast)
+		break;
+	
+	    dmxBESetWindowProperty (pWin, pLast);
+	}
 
 	/* Next, create the bottom-most child */
 	if (pWin->lastChild) {
