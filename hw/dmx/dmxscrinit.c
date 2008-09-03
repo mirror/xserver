@@ -336,6 +336,12 @@ dmxScreenEventCheckOutputWindow (ScreenPtr	     pScreen,
 	   the block handler */
 	dmxScreen->scrnWin = None;
     } break;
+    case XCB_MAP_NOTIFY: {
+	xcb_map_notify_event_t *xmap = (xcb_map_notify_event_t *) event;
+
+	if (xmap->window == dmxScreen->scrnWin)
+	    return TRUE;
+    } break;
     default:
 	return FALSE;
     }
