@@ -919,31 +919,30 @@ static void dmxBEMapRootWindow(int idx)
 static void dmxBECreateWindowProperties (int idx)
 {
     WindowPtr      pRoot  = WindowTable[idx];
-    WindowPtr      pRoot0 = WindowTable[0];
+    WindowPtr      pRoot0 = pRoot;
     WindowPtr      pWin;
     WindowPtr      pWin0;
     PropertyPtr    pProp, pLast;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+	pRoot0 = WindowTable[0];
+#endif
 
     pWin = pRoot;
     pWin0 = pRoot0;
     while (pWin)
     {
 	pLast = NULL;
-	for (;;)
+	do
 	{
 	    for (pProp = wUserProps (pWin0); pProp; pProp = pProp->next)
-	    {
-		if (pProp == pLast)
+	    	if (pProp->next == pLast)
 		    break;
 
-		pLast = pProp;
-	    }
-
-	    if (!pLast)
-		break;
-	
-	    dmxBESetWindowProperty (pWin, pLast);
-	}
+	    if (pProp)
+		dmxBESetWindowProperty (pWin, (pLast = pProp));
+	} while (pLast != wUserProps (pWin0));
 
 	/* Next, create the bottom-most child */
 	if (pWin->lastChild) {
