@@ -912,7 +912,6 @@ static void dmxBEMapRootWindow(int idx)
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
 
     XLIB_PROLOGUE (dmxScreen);
-    dmxAddSequence (&dmxScreen->ignore, NextRequest (dmxScreen->beDisplay));
     XMapWindow(dmxScreen->beDisplay, dmxScreen->rootWin);
     XLIB_EPILOGUE (dmxScreen);
 }
