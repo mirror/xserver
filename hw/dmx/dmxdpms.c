@@ -84,7 +84,7 @@ void dmxDPMSInit(DMXScreenInfo *dmxScreen)
         return;
     }
 
-    if (!dmxScreen->scrnWin != DefaultRootWindow (dmxScreen->beDisplay)) {
+    if (dmxScreen->scrnWin != DefaultRootWindow (dmxScreen->beDisplay)) {
         dmxLogOutput(dmxScreen,
 		     "Cannot use DPMS in window mode\n");
         return;
