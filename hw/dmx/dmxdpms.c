@@ -78,13 +78,19 @@ void dmxDPMSInit(DMXScreenInfo *dmxScreen)
 
     dmxScreen->dpmsCapable = 0;
 
-    dpmsSupported = FALSE;
-    
     if (!dmxScreen->beDisplay) {
         dmxLogOutput(dmxScreen,
 		     "Cannot determine if DPMS supported (detached screen)\n");
         return;
     }
+
+    if (!dmxScreen->scrnWin != DefaultRootWindow (dmxScreen->beDisplay)) {
+        dmxLogOutput(dmxScreen,
+		     "Cannot use DPMS in window mode\n");
+        return;
+    }
+
+    dpmsSupported = FALSE;
 
     XLIB_PROLOGUE (dmxScreen);
 
@@ -190,7 +196,7 @@ int DPMSSet(ClientPtr client, int level)
 
     for (i = 0; i < dmxNumScreens; i++) {
         DMXScreenInfo *dmxScreen = &dmxScreens[i];
-	if (dmxScreen->beDisplay) {
+	if (dmxScreen->beDisplay && dmxScreen->dpmsCapable) {
 	    XLIB_PROLOGUE (dmxScreen);
 	    DPMSForceLevel(dmxScreen->beDisplay, level);
 	    XLIB_EPILOGUE (dmxScreen);
