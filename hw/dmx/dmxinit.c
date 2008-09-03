@@ -1000,9 +1000,37 @@ void ddxGiveUp(void)
     AbortDDX();
 }
 
+#ifdef PANORAMIX
+static Bool dmxNoPanoramiXExtension = FALSE;
+#endif
+
 /** This function is called in Xserver/os/osinit.c from \a OsInit(). */
 void OsVendorInit(void)
 {
+    if (!dmxPropTrans)
+    {
+	dmxPropTrans = xalloc (sizeof (DMXPropTrans));
+	dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
+	dmxPropTrans->format = "xP";
+	dmxPropTrans->type = 0;
+	dmxPropTransNum = 1;
+    }
+
+#ifdef PANORAMIX
+    noPanoramiXExtension = dmxNoPanoramiXExtension;
+    PanoramiXExtensionDisabledHack = TRUE;
+#endif
+
+#ifdef XV
+    if (!dmxXvImageFormats)
+    {
+	dmxXvImageFormats = xalloc (sizeof (char *) * 2);
+	dmxXvImageFormats[0] = "YV12";
+	dmxXvImageFormats[1] = "YUY2";
+	dmxXvImageFormatsNum = 2;
+    }
+#endif
+
 }
 
 /** This function is called in Xserver/os/utils.c from \a FatalError()
@@ -1019,15 +1047,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 {
     int retval = 0;
 
-    if (i == 1)
-    {
-	defaultFontPath = "built-ins";
-#ifdef PANORAMIX
-	noPanoramiXExtension = FALSE;
-	PanoramiXExtensionDisabledHack = TRUE;
-#endif
-    }
-    
     if (!strcmp(argv[i], "-display")) {
 	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i],
 					      NULL, 0, NULL, 0, 0);
@@ -1103,10 +1122,10 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-noaddremovescreens")) {
 	dmxAddRemoveScreens = FALSE;
         retval = 1;
-#ifdef DMXVNC
-    } else if (!strcmp(argv[i], "-novnc")) {
-	dmxVnc = FALSE;
-        retval = 1;
+#ifdef PANORAMIX
+    else if (!strcmp (argv[i], "-xinerama")) {
+	dmxNoPanoramiXExtension = TRUE;
+	retval = 1;
 #endif
 #ifdef RANDR
     } else if (!strcmp(argv[i], "-outputs")) {
@@ -1184,29 +1203,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     else if (!strcmp(argv[i], "--")) {
         dmxLaunchIndex = i + 1;
         retval = argc - i;
-    }
-
-    if (i == (argc - 1))
-    {
-	if (!dmxPropTrans)
-	{
-	    dmxPropTrans = xalloc (sizeof (DMXPropTrans));
-	    dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
-	    dmxPropTrans->format = "xP";
-	    dmxPropTrans->type = 0;
-	    dmxPropTransNum = 1;
-	}
-
-#ifdef XV
-	if (!dmxXvImageFormats)
-	{
-	    dmxXvImageFormats = xalloc (sizeof (char *) * 2);
-	    dmxXvImageFormats[0] = "YV12";
-	    dmxXvImageFormats[1] = "YUY2";
-	    dmxXvImageFormatsNum = 2;
-	}
-#endif
-
     }
 
     if (!serverGeneration) dmxConfigSetMaxScreens();
