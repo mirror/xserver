@@ -961,30 +961,6 @@ static void dmxBECreateWindowProperties (int idx)
     }
 }
 
-/* Refresh screen by generating exposure events for all windows */
-static void dmxForceExposures(int idx)
-{
-    ScreenPtr      pScreen   = screenInfo.screens[idx];
-    WindowPtr  pRoot     = WindowTable[idx];
-    Bool       anyMarked = FALSE;
-    WindowPtr  pChild;
-
-    for (pChild = pRoot->firstChild; pChild; pChild = pChild->nextSib)
-	anyMarked |= pScreen->MarkOverlappedWindows(pChild, pChild,
-						    (WindowPtr *)NULL);
-    if (anyMarked) {
-	/* If any windows have been marked, set the root window's
-	 * clipList to be broken since it will be recalculated in
-	 * ValidateTree()
-	 */
-	REGION_BREAK(pScreen, &pRoot->clipList);
-	pScreen->ValidateTree(pRoot, NULL, VTBroken);
-	pScreen->HandleExposures(pRoot);
-	if (pScreen->PostValidateTree)
-	    pScreen->PostValidateTree(pRoot, NULL, VTBroken);
-    }
-}
-
 /** Compare the new and old screens to see if they are compatible. */
 static Bool dmxCompareScreens(DMXScreenInfo      *new,
 			      DMXScreenInfo      *old,
@@ -1689,9 +1665,6 @@ dmxAttachScreen (int                    idx,
 #endif
 
     dmxBEMapRootWindow(idx);
-
-    /* Refresh screen by generating exposure events for all windows */
-    dmxForceExposures(idx);
 
     dmxSync(&dmxScreens[idx], TRUE);
 
