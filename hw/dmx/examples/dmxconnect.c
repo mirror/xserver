@@ -626,7 +626,11 @@ main (int argc, char **argv)
     }
 
     if (!name)
+    {
 	name = host;
+	if (!name)
+	    name = "localhost";
+    }
 
     slash = strrchr(displayname, '/');
     if (slash) {
