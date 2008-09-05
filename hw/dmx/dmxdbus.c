@@ -78,9 +78,17 @@ attach_screen (DBusMessage *message,
 				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
 				&auth_data, &auth_data_len,
 				DBUS_TYPE_INVALID))
-   { 
-       DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
-       return BadValue;
+    {
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
+    }
+
+    if (!*name)
+    {
+	dbus_set_error (error,
+			DBUS_ERROR_FAILED,
+			"Cannot use empty string for screen name");
+	return BadValue;
     }
 
     if (screen >= dmxGetNumScreens ())
