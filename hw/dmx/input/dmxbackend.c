@@ -888,7 +888,7 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
     for (i = 0,dmxScreen = &dmxScreens[0]; i<dmxNumScreens; i++,dmxScreen++) {
         if (dmxInput->scrnIdx == i) {
             priv->display  = dmxScreen->beDisplay;
-            priv->window   = dmxScreen->scrnWin;
+            priv->window   = dmxScreen->rootWin;
             priv->be       = dmxScreen;
             break;
         }
@@ -929,7 +929,7 @@ void dmxBackendInit(DevicePtr pDev)
     dmxScreen = dmxBackendInitPrivate(pDev);
 
     /* Finish initialization using computed values or constants. */
-    priv->eventMask          = StructureNotifyMask;
+    priv->eventMask          = ExposureMask | SubstructureRedirectMask;
     priv->myScreen           = dmxScreen->index;
     priv->lastX              = 0;
     priv->lastY              = 0;
