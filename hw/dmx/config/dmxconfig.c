@@ -114,7 +114,10 @@ void dmxConfigStoreDisplay(const char *name,
 
 void dmxConfigStoreNumDetached(const char *num)
 {
-    dmxNumDetached = strtol (num, NULL, 0);
+    int n = strtol (num, NULL, 0);
+
+    if (n >= 0)
+	dmxNumDetached = n;
 }
 
 /** Make a note that \a input is the name of an X11 display that should
@@ -376,6 +379,7 @@ static void dmxConfigCopyData(DMXConfigVirtualPtr v)
 static void dmxConfigFromCommandLine(void)
 {
     DMXConfigListPtr pt;
+    int              nDetached;
 
     dmxLog(dmxInfo, "Using configuration from command line\n");
     for (pt = dmxConfigCmd.displays; pt; pt = pt->next) {
@@ -403,11 +407,15 @@ static void dmxConfigFromCommandLine(void)
 	}
     }
 
-    if (dmxNumDetached)
+    nDetached = dmxNumDetached;
+    if (dmxNumScreens + nDetached > MAXSCREENS)
+	nDetached = MAXSCREENS - dmxNumScreens;
+    
+    if (nDetached > 0)
     {
-	dmxLog (dmxInfo, "Adding %d detached displays\n", dmxNumDetached);
+	dmxLog (dmxInfo, "Adding %d detached displays\n", nDetached);
 
-	while (dmxNumDetached--)
+	while (nDetached--)
 	{
 	    DMXScreenInfo *dmxScreen = dmxConfigAddDisplay ("", "",
 							    NULL, 0, NULL, 0,
