@@ -45,26 +45,10 @@
 #include "dmxinputinit.h"
 #include "dmxextension.h"       /* For dmxInputCount */
 
-#include "dmxdummy.h"
 #include "dmxbackend.h"
-#include "dmxconsole.h"
 #include "dmxcommon.h"
-#include "dmxevents.h"
-#include "dmxmotion.h"
-#include "dmxeq.h"
 #include "dmxprop.h"
 #include "dmxcursor.h"
-
-#include "lnx-keyboard.h"
-#include "lnx-ms.h"
-#include "lnx-ps2.h"
-#include "usb-keyboard.h"
-#include "usb-mouse.h"
-#include "usb-other.h"
-#include "usb-common.h"
-
-#include "dmxsigio.h"
-#include "dmxarg.h"
 
 #include "inputstr.h"
 #include "input.h"
@@ -87,16 +71,6 @@
 #endif
 
 DMXLocalInputInfoPtr dmxLocalCorePointer, dmxLocalCoreKeyboard;
-
-static DMXLocalInputInfoRec DMXDummyMou = {
-    "dummy-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
-    NULL, NULL, NULL, NULL, NULL, dmxDummyMouGetInfo
-};
-
-static DMXLocalInputInfoRec DMXDummyKbd = {
-    "dummy-kbd", DMX_LOCAL_KEYBOARD, DMX_LOCAL_TYPE_LOCAL, 1,
-    NULL, NULL, NULL, NULL, NULL, dmxDummyKbdGetInfo
-};
 
 static DMXLocalInputInfoRec DMXBackendMou = {
     "backend-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_BACKEND, 2,
@@ -123,111 +97,6 @@ static DMXLocalInputInfoRec DMXBackendKbd = {
     NULL, NULL,
     NULL, NULL,
     NULL, dmxCommonKbdCtrl, dmxCommonKbdBell
-};
-
-static DMXLocalInputInfoRec DMXConsoleMou = {
-    "console-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_CONSOLE, 2,
-    dmxConsoleCreatePrivate, dmxConsoleDestroyPrivate,
-    dmxConsoleInit, dmxConsoleReInit, NULL, dmxConsoleMouGetInfo,
-    dmxCommonMouOn, dmxCommonMouOff, dmxConsoleUpdatePosition,
-    NULL, NULL, NULL,
-    dmxConsoleCollectEvents, NULL,
-    dmxConsoleFunctions, dmxConsoleUpdateInfo,
-    NULL, NULL,
-    NULL, NULL,
-    NULL, NULL,
-    dmxCommonMouCtrl
-};
-
-static DMXLocalInputInfoRec DMXConsoleKbd = {
-    "console-kbd", DMX_LOCAL_KEYBOARD, DMX_LOCAL_TYPE_CONSOLE,
-    1, /* With backend-mou or console-mou */
-    dmxCommonCopyPrivate, NULL,
-    dmxConsoleInit, dmxConsoleReInit, NULL, dmxConsoleKbdGetInfo,
-    dmxCommonKbdOn, dmxCommonKbdOff, NULL,
-    NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL,
-    NULL, NULL,
-    NULL, NULL,
-    dmxCommonKbdCtrl, dmxCommonKbdBell
-};
-
-static DMXLocalInputInfoRec DMXLocalDevices[] = {
-                                /* Dummy drivers that can compile on any OS */
-#ifdef __linux__
-                                /* Linux-specific drivers */
-    {
-        "kbd", DMX_LOCAL_KEYBOARD, DMX_LOCAL_TYPE_LOCAL, 1,
-        kbdLinuxCreatePrivate, kbdLinuxDestroyPrivate,
-        kbdLinuxInit, NULL, NULL, kbdLinuxGetInfo,
-        kbdLinuxOn, kbdLinuxOff, NULL,
-        kbdLinuxVTPreSwitch, kbdLinuxVTPostSwitch, kbdLinuxVTSwitch,
-        kbdLinuxRead, NULL, NULL, NULL, NULL,
-	NULL, NULL,
-	NULL, NULL,
-	NULL, NULL,
-	kbdLinuxCtrl, kbdLinuxBell
-    },
-    {
-        "ms", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
-        msLinuxCreatePrivate, msLinuxDestroyPrivate,
-        msLinuxInit, NULL, NULL, msLinuxGetInfo,
-        msLinuxOn, msLinuxOff, NULL,
-        msLinuxVTPreSwitch, msLinuxVTPostSwitch, NULL,
-        msLinuxRead
-    },
-    {
-        "ps2", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
-        ps2LinuxCreatePrivate, ps2LinuxDestroyPrivate,
-        ps2LinuxInit, NULL, NULL, ps2LinuxGetInfo,
-        ps2LinuxOn, ps2LinuxOff, NULL,
-        ps2LinuxVTPreSwitch, ps2LinuxVTPostSwitch, NULL,
-        ps2LinuxRead
-    },
-#endif
-#ifdef __linux__
-                                /* USB drivers, currently only for
-                                   Linux, but relatively easy to port to
-                                   other OSs */
-    {
-        "usb-kbd", DMX_LOCAL_KEYBOARD, DMX_LOCAL_TYPE_LOCAL, 1,
-        usbCreatePrivate, usbDestroyPrivate,
-        kbdUSBInit, NULL, NULL, kbdUSBGetInfo,
-        kbdUSBOn, usbOff, NULL,
-        NULL, NULL, NULL,
-        kbdUSBRead, NULL, NULL, NULL, NULL,
-	NULL, NULL,
-	NULL, NULL,
-	NULL, NULL,
-	kbdUSBCtrl
-    },
-    {
-        "usb-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
-        usbCreatePrivate, usbDestroyPrivate,
-        mouUSBInit, NULL, NULL, mouUSBGetInfo,
-        mouUSBOn, usbOff, NULL,
-        NULL, NULL, NULL,
-        mouUSBRead
-    },
-    {
-        "usb-oth", DMX_LOCAL_OTHER, DMX_LOCAL_TYPE_LOCAL, 1,
-        usbCreatePrivate, usbDestroyPrivate,
-        othUSBInit, NULL, NULL, othUSBGetInfo,
-        othUSBOn, usbOff, NULL,
-        NULL, NULL, NULL,
-        othUSBRead
-    },
-#endif
-    {
-        "dummy-mou", DMX_LOCAL_MOUSE, DMX_LOCAL_TYPE_LOCAL, 1,
-        NULL, NULL, NULL, NULL, NULL, dmxDummyMouGetInfo
-    },
-    {
-        "dummy-kbd", DMX_LOCAL_KEYBOARD, DMX_LOCAL_TYPE_LOCAL, 1,
-        NULL, NULL, NULL, NULL, NULL, dmxDummyKbdGetInfo
-    },
-    { NULL }                    /* Must be last */
 };
 
 #if 11 /*BP*/
@@ -422,7 +291,6 @@ static int dmxKeyboardOn(DeviceIntPtr pDevice, DMXLocalInitInfo *info)
 static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
 {
     GETDMXINPUTFROMPDEVICE;
-    int              fd;
     DMXLocalInitInfo info;
     int              i;
     
@@ -460,7 +328,7 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
                                            info.minres[0], info.maxres[0]);
             } else if (info.numRelAxes) {
                 InitValuatorClassDeviceStruct(pDevice, info.numRelAxes,
-                                              dmxPointerGetMotionBufferSize(),
+					      GetMaximumEventsNum(),
                                               Relative);
                 for (i = 0; i < info.numRelAxes; i++)
                     InitValuatorAxisStruct(pDevice, i, info.minval[0],
@@ -468,7 +336,7 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
                                            info.minres[0], info.maxres[0]);
             } else if (info.numAbsAxes) {
                 InitValuatorClassDeviceStruct(pDevice, info.numAbsAxes,
-                                              dmxPointerGetMotionBufferSize(),
+                                              GetMaximumEventsNum(),
                                               Absolute);
                 for (i = 0; i < info.numAbsAxes; i++)
                     InitValuatorAxisStruct(pDevice, i+info.numRelAxes,
@@ -494,11 +362,7 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
                    pDevice->name);
         break;
     case DEVICE_ON:
-        if (!pDev->on) {
-            if (dmxLocal->on && (fd = dmxLocal->on(pDev)) >= 0)
-                dmxSigioRegister(dmxInput, fd);
-            pDev->on = TRUE;
-        }
+	pDev->on = TRUE;
         break;
     case DEVICE_OFF:
     case DEVICE_CLOSE:
@@ -506,7 +370,6 @@ static int dmxDeviceOnOff(DeviceIntPtr pDevice, int what)
              * detached screen (DEVICE_OFF), and then again at server
              * generation time (DEVICE_CLOSE). */
         if (pDev->on) {
-            dmxSigioUnregister(dmxInput);
             if (dmxLocal->off) dmxLocal->off(pDev);
             pDev->on = FALSE;
         }
@@ -719,39 +582,6 @@ static void dmxUngrabPointer (DMXInputInfo *dmxInput,
     }
 }
 
-static void dmxUpdateWindowInformation(DMXInputInfo *dmxInput,
-                                       DMXUpdateType type,
-                                       WindowPtr pWindow)
-{
-    int i;
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension && pWindow && pWindow->parent != WindowTable[0])
-        return;
-#endif
-#if DMX_WINDOW_DEBUG
-    {
-        const char *name = "Unknown";
-        switch (type) {
-        case DMX_UPDATE_REALIZE:            name = "Realize";         break;
-        case DMX_UPDATE_UNREALIZE:          name = "Unrealize";       break;
-        case DMX_UPDATE_RESTACK:            name = "Restack";         break;
-        case DMX_UPDATE_COPY:               name = "Copy";            break;
-        case DMX_UPDATE_RESIZE:             name = "Resize";          break;
-        case DMX_UPDATE_REPARENT:           name = "Repaint";         break;
-        }
-        dmxLog(dmxDebug, "Window %p changed: %s\n", pWindow, name);
-    }
-#endif
-
-    if (dmxInput->detached)
-        return;
-    for (i = 0; i < dmxInput->numDevs; i += dmxInput->devs[i]->binding)
-        if (dmxInput->devs[i]->update_info)
-            dmxInput->devs[i]->update_info(dmxInput->devs[i]->private,
-                                           type, pWindow);
-}
-
 static char *dmxMakeUniqueDeviceName(DMXLocalInputInfoPtr dmxLocal)
 {
     DMXInputInfo *dmxInput = &dmxInputs[dmxLocal->inputIdx];
@@ -849,15 +679,6 @@ static DeviceIntPtr dmxAddDevice(DMXLocalInputInfoPtr dmxLocal)
     return pDevice;
 }
 
-static DMXLocalInputInfoPtr dmxLookupLocal(const char *name)
-{
-    DMXLocalInputInfoPtr pt;
-    
-    for (pt = &DMXLocalDevices[0]; pt->name; ++pt)
-        if (!strcmp(pt->name, name)) return pt; /* search for device name */
-    return NULL;
-}
-
 /** Copy the local input information from \a s into a new \a devs slot
  * in \a dmxInput. */
 DMXLocalInputInfoPtr dmxInputCopyLocal(DMXInputInfo *dmxInput,
@@ -881,38 +702,6 @@ DMXLocalInputInfoPtr dmxInputCopyLocal(DMXInputInfo *dmxInput,
     dmxInput->devs[dmxInput->numDevs-1] = dmxLocal;
     
     return dmxLocal;
-}
-
-static void dmxPopulateLocal(DMXInputInfo *dmxInput, dmxArg a)
-{
-    int                  i;
-    int                  help = 0;
-    DMXLocalInputInfoRec *pt;
-
-    for (i = 1; i < dmxArgC(a); i++) {
-        const char *name = dmxArgV(a, i);
-        if ((pt = dmxLookupLocal(name))) {
-            dmxInputCopyLocal(dmxInput, pt);
-        } else {
-            if (strlen(name))
-                dmxLog(dmxWarning,
-                       "Could not find a driver called %s\n", name);
-            ++help;
-        }
-    }
-    if (help) {
-        dmxLog(dmxInfo, "Available local device drivers:\n");
-        for (pt = &DMXLocalDevices[0]; pt->name; ++pt) {
-            const char *type;
-            switch (pt->type) {
-            case DMX_LOCAL_KEYBOARD: type = "keyboard"; break;
-            case DMX_LOCAL_MOUSE:    type = "pointer";  break;
-            default:                 type = "unknown";  break;
-            }
-            dmxLog(dmxInfo, "   %s (%s)\n", pt->name, type);
-        }
-        dmxLog(dmxFatal, "Must have valid local device driver\n");
-    }
 }
 
 int dmxInputExtensionErrorHandler(Display *dsp, char *name, char *reason)

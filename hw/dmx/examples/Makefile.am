@@ -1,14 +1,9 @@
-if DMX_BUILD_USB 
-# Requires <linux/input.h>
-EV_PROG = ev
-endif
-
 bin_PROGRAMS = \
 	xdmx dmxwininfo dmxreconfig dmxresize \
 	dmxaddscreen dmxrmscreen \
 	dmxaddinput dmxrminput \
 	dmxconnect
-noinst_PROGRAMS = xinput xtest evi res xled xbell $(EV_PROG)
+noinst_PROGRAMS = xinput xtest evi res xled xbell
 
 xdmx_SOURCES = xdmx.c
 xdmx_LDADD = @DMXEXAMPLES_DEP_LIBS@
@@ -69,7 +64,3 @@ xled_CFLAGS = @X11EXAMPLES_DEP_CFLAGS@
 xbell_SOURCES = xbell.c
 xbell_LDADD = @X11EXAMPLES_DEP_LIBS@
 xbell_CFLAGS = @X11EXAMPLES_DEP_CFLAGS@
-
-ev_SOURCES = ev.c
-ev_LDADD = 
-ev_CFLAGS = 

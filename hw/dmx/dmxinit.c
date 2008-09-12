@@ -331,7 +331,7 @@ dmxAddScreen(const char *name,
     dmxScreen->virtualFb   = virtualFb;
     ++dmxNumScreens;
 
-    if (!virtualFb)
+    if (!virtualFb && *display)
 	dmxAddScreenInput (dmxScreen);
     
     return dmxScreen;

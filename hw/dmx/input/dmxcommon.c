@@ -46,10 +46,8 @@
 
 #include "dmxinputinit.h"
 #include "dmxcommon.h"
-#include "dmxconsole.h"
 #include "dmxprop.h"
 #include "dmxsync.h"
-#include "dmxmap.h"
 
 #include "inputstr.h"
 #include "input.h"
@@ -370,46 +368,6 @@ void dmxCommonKbdOff(DevicePtr pDev)
 /** Turn \a pDev on (i.e., take input from \a pDev). */
 int dmxCommonOthOn(DevicePtr pDev)
 {
-    GETPRIVFROMPDEV;
-    GETDMXINPUTFROMPRIV;
-    XEventClass event_list[DMX_MAX_XINPUT_EVENT_TYPES];
-    int         event_type[DMX_MAX_XINPUT_EVENT_TYPES];
-    int         count = 0;
-
-#define ADD(type)                                                            \
-    if (count < DMX_MAX_XINPUT_EVENT_TYPES) {                                \
-        type(priv->xi, event_type[count], event_list[count]);                \
-        if (event_type[count]) {                                             \
-            dmxMapInsert(dmxLocal, event_type[count], XI_##type);            \
-            ++count;                                                         \
-        }                                                                    \
-    } else {                                                                 \
-        dmxLog(dmxWarning, "More than %d event types for %s\n",              \
-               DMX_MAX_XINPUT_EVENT_TYPES,				\
-	       dmxScreens[dmxInput->scrnIdx].name);			\
-    }
-
-    if (!(priv->xi = XOpenDevice(priv->display, dmxLocal->deviceId))) {
-        dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
-               dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
-               dmxLocal->deviceId, dmxScreens[dmxInput->scrnIdx].name);
-        return -1;
-    }
-    ADD(DeviceKeyPress);
-    ADD(DeviceKeyRelease);
-    ADD(DeviceButtonPress);
-    ADD(DeviceButtonRelease);
-    ADD(DeviceMotionNotify);
-    ADD(DeviceFocusIn);
-    ADD(DeviceFocusOut);
-    ADD(ProximityIn);
-    ADD(ProximityOut);
-    ADD(DeviceStateNotify);
-    ADD(DeviceMappingNotify);
-    ADD(ChangeDeviceNotify);
-
-    XSelectExtensionEvent(priv->display, priv->window, event_list, count);
-    
     return -1;
 }
 
@@ -427,7 +385,6 @@ void dmxCommonOthOff(DevicePtr pDev)
 void dmxCommonOthGetInfo(DevicePtr pDev, DMXLocalInitInfoPtr info)
 {
     GETPRIVFROMPDEV;
-    GETDMXINPUTFROMPRIV;
     XExtensionVersion    *ext;
     XDeviceInfo          *devices;
     Display              *display = priv->display;

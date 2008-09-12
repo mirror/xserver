@@ -45,16 +45,13 @@
 #include "dmxinputinit.h"
 #include "dmxbackend.h"
 #include "dmxcommon.h"
-#include "dmxconsole.h"
 #include "dmxcursor.h"
 #include "dmxwindow.h"
 #include "dmxprop.h"
 #include "dmxsync.h"
 #include "dmxscrinit.h"
 #include "dmxxlibio.h"
-#include "dmxcb.h"              /* For dmxGlobalWidth and dmxGlobalHeight */
-#include "dmxevents.h"          /* For dmxGetGlobalPosition */
-#include "ChkNotMaskEv.h"
+#include "dmxcb.h"
 
 #include "inputstr.h"
 #include "input.h"
@@ -901,14 +898,10 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
  * reconfig). */
 void dmxBackendLateReInit(DevicePtr pDev)
 {
-    int               x, y;
-
     DMXDBG1("dmxBackendLateReInit miPointerCurrentScreen() = %p\n",
             miPointerCurrentScreen());
 
     dmxBackendInitPrivate(pDev);
-    dmxGetGlobalPosition(&x, &y);
-    dmxInvalidateGlobalPosition(); /* To force event processing */
 }
 
 /** Initialized the backend device described by \a pDev. */
