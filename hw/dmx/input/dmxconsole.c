@@ -733,10 +733,7 @@ void dmxConsoleInit(DevicePtr pDev)
     if (dmxLocal->type == DMX_LOCAL_KEYBOARD) priv->kbd = pDev;
     if (priv->initialized++) return; /* Only do once for mouse/keyboard pair */
 
-    if (!(dpy = priv->display = XOpenDisplay(dmxInput->name)))
-        dmxLog(dmxFatal,
-               "dmxOpenConsole: cannot open console display %s\n",
-               dmxInput->name);
+    dmxLog(dmxFatal, "dmxOpenConsole: cannot open console display\n");
 
     /* Set up defaults */
     dmxConsoleComputeWidthHeight(priv,

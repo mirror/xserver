@@ -311,7 +311,7 @@ int dmxCommonKbdOn(DevicePtr pDev)
 					      dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
 		   dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
-		   dmxLocal->deviceId, dmxInput->name);
+		   dmxLocal->deviceId, dmxScreens[dmxInput->scrnIdx].name);
 	    return -1;
 	}
 
@@ -385,13 +385,14 @@ int dmxCommonOthOn(DevicePtr pDev)
         }                                                                    \
     } else {                                                                 \
         dmxLog(dmxWarning, "More than %d event types for %s\n",              \
-               DMX_MAX_XINPUT_EVENT_TYPES, dmxInput->name);                  \
+               DMX_MAX_XINPUT_EVENT_TYPES,				\
+	       dmxScreens[dmxInput->scrnIdx].name);			\
     }
 
     if (!(priv->xi = XOpenDevice(priv->display, dmxLocal->deviceId))) {
         dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
                dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
-               dmxLocal->deviceId, dmxInput->name);
+               dmxLocal->deviceId, dmxScreens[dmxInput->scrnIdx].name);
         return -1;
     }
     ADD(DeviceKeyPress);
@@ -434,7 +435,7 @@ void dmxCommonOthGetInfo(DevicePtr pDev, DMXLocalInitInfoPtr info)
     int                  i, j, k;
     int                  (*handler)(Display *, char *, char *);
 
-    if (!display && !(display = XOpenDisplay(dmxInput->name)))
+    if (!display)
         return;
     
     /* Print out information about the XInput Extension. */
@@ -535,7 +536,7 @@ int dmxCommonMouOn(DevicePtr pDev)
 					      dmxLocal->deviceId))) {
 	    dmxLog(dmxWarning, "Cannot open %s device (id=%d) on %s\n",
 		   dmxLocal->deviceName ? dmxLocal->deviceName : "(unknown)",
-		   dmxLocal->deviceId, dmxInput->name);
+		   dmxLocal->deviceId, dmxScreens[dmxInput->scrnIdx].name);
 	    return -1;
 	}
 

@@ -126,19 +126,14 @@ static void dmxHeader(dmxLogLevel logLevel, DMXInputInfo *dmxInput,
 
     if (dmxInput && dmxScreen) {
         ErrorF("(%s) dmx[i%d/%s;o%d/%s/%s]: ", type,
-               dmxInput->inputIdx, dmxInput->name,
+               dmxInput->inputIdx, dmxScreens[dmxInput->scrnIdx].name,
                dmxScreen->index, dmxScreen->display, dmxScreen->name);
     } else if (dmxScreen) {
         ErrorF("(%s) dmx[o%d/%s/%s]: ", type,
                dmxScreen->index, dmxScreen->display, dmxScreen->name);
     } else if (dmxInput) {
-        const char *pt = strchr(dmxInput->name, ',');
-        int        len = (pt
-                          ? (size_t)(pt-dmxInput->name)
-                          : strlen(dmxInput->name));
-
-        ErrorF("(%s) dmx[i%d/%*.*s]: ", type,
-               dmxInput->inputIdx, len, len, dmxInput->name);
+        ErrorF("(%s) dmx[i%d/%s]: ", type,
+               dmxInput->inputIdx, dmxScreens[dmxInput->scrnIdx].name);
     } else {
         ErrorF("(%s) dmx: ", type);
     }

@@ -894,11 +894,6 @@ static DMXScreenInfo *dmxBackendInitPrivate(DevicePtr pDev)
         }
     }
 
-    if (i >= dmxNumScreens)
-        dmxLog(dmxFatal,
-               "%s is not an existing backend display - cannot initialize\n",
-               dmxInput->name);
-
     return dmxScreen;
 }
 

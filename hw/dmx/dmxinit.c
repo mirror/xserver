@@ -49,7 +49,6 @@
 #include "dmxscrinit.h"
 #include "dmxcursor.h"
 #include "dmxfont.h"
-#include "config/dmxconfig.h"
 #include "dmxcb.h"
 #include "dmxprop.h"
 #include "dmxstat.h"
@@ -128,6 +127,8 @@ Bool            dmxAddRemoveScreens = TRUE;
 
 int             dmxLaunchIndex = 0;
 char            *dmxLaunchVT = NULL;
+
+int             dmxNumDetached = 4;
 
 #ifdef RANDR
 int xRROutputsPerScreen = 2;
@@ -274,6 +275,66 @@ dmxMemDup (const char *data,
     memcpy (d, data, dataLen);
 
     return d;
+}
+
+static DMXInputInfo *dmxAddScreenInput(DMXScreenInfo *dmxScreen)
+{
+    DMXInputInfo *dmxInput;
+
+    if (!(dmxInputs = realloc(dmxInputs,
+                              (dmxNumInputs+1) * sizeof(*dmxInputs))))
+        dmxLog(dmxFatal,
+               "dmxAddInput: realloc failed for input %d (%s)\n",
+               dmxNumInputs, dmxScreen->name);
+
+    dmxInput = &dmxInputs[dmxNumInputs];
+
+    memset(dmxInput, 0, sizeof(*dmxInput));
+    dmxInput->inputIdx = dmxNumInputs;
+    dmxInput->scrnIdx  = dmxScreen->index;
+    dmxInput->core     = TRUE;
+    ++dmxNumInputs;
+    return dmxInput;
+}
+
+DMXScreenInfo *
+dmxAddScreen(const char *name,
+	     const char *display,
+	     const char *authType,
+	     int        authTypeLen,
+	     const char *authData,
+	     int        authDataLen,
+	     int        virtualFb)
+{
+    DMXScreenInfo *dmxScreen;
+    
+    if (!(dmxScreens = realloc(dmxScreens,
+                               (dmxNumScreens+1) * sizeof(*dmxScreens))))
+        dmxLog(dmxFatal,
+               "dmxAddScreen: realloc failed for screen %d (%s)\n",
+               dmxNumScreens, name);
+
+    dmxScreen = &dmxScreens[dmxNumScreens];
+    memset(dmxScreen, 0, sizeof(*dmxScreen));
+    dmxScreen->name        = strdup (name);
+    dmxScreen->display     = strdup (display);
+    dmxScreen->index       = dmxNumScreens;
+    dmxScreen->scrnWidth   = 0;
+    dmxScreen->scrnHeight  = 0;
+    dmxScreen->rootX       = 0;
+    dmxScreen->rootY       = 0;
+    dmxScreen->stat        = dmxStatAlloc();
+    dmxScreen->authType    = dmxMemDup (authType, authTypeLen);
+    dmxScreen->authTypeLen = authTypeLen;
+    dmxScreen->authData    = dmxMemDup (authData, authDataLen);
+    dmxScreen->authDataLen = authDataLen;
+    dmxScreen->virtualFb   = virtualFb;
+    ++dmxNumScreens;
+
+    if (!virtualFb)
+	dmxAddScreenInput (dmxScreen);
+    
+    return dmxScreen;
 }
 
 Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
@@ -683,7 +744,7 @@ static const char *dmxExecHost(void)
 /** This routine is called in Xserver/dix/main.c from \a main(). */
 void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 {
-    int                  i;
+    int                  i, nDetached;
     static unsigned long dmxGeneration = 0;
 #ifdef GLXEXT
     Bool                 glxSupported  = TRUE;
@@ -763,15 +824,24 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 					 strlen (dmxPropTrans[i].name),
 					 TRUE);
 
-    if (!dmxConfigDisplaysFromCommandLine ())
-	dmxLaunchDisplay (argc, argv, dmxLaunchIndex, dmxLaunchVT);
-
-    /* ddxProcessArgument has been called at this point, but any data
-     * from the configuration file has not been applied.  Do so, and be
-     * sure we have at least one back-end display. */
-    dmxConfigConfigure();
     if (!dmxNumScreens)
-        dmxLog(dmxFatal, "InitOutput: no back-end displays found\n");
+    {
+	dmxLaunchDisplay (argc, argv, dmxLaunchIndex, dmxLaunchVT);
+	if (!dmxNumScreens)
+	    dmxLog(dmxFatal, "InitOutput: no back-end displays found\n");
+    }
+
+    nDetached = dmxNumDetached;
+    if (dmxNumScreens + nDetached > MAXSCREENS)
+	nDetached = MAXSCREENS - dmxNumScreens;
+    
+    if (nDetached > 0)
+    {
+	dmxLog (dmxInfo, "Adding %d detached displays\n", nDetached);
+
+	while (nDetached--)
+	    dmxAddScreen ("", "", NULL, 0, NULL, 0, 0);
+    }
     
     /* Disable lazy window creation optimization if offscreen
      * optimization is disabled */
@@ -1044,17 +1114,10 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     int retval = 0;
 
     if (!strcmp(argv[i], "-display")) {
-	if (++i < argc) dmxConfigStoreDisplay(argv[i], argv[i],
-					      NULL, 0, NULL, 0, 0);
+	if (++i < argc) dmxAddScreen(argv[i], argv[i], NULL, 0, NULL, 0, 0);
         retval = 2;
     } else if (!strcmp(argv[i], "-numDetached")) {
-	if (++i < argc) dmxConfigStoreNumDetached(argv[i]);
-        retval = 2;
-    } else if (!strcmp(argv[i], "-inputfrom") || !strcmp(argv[i], "-input")) {
-	if (++i < argc) dmxConfigStoreInput(argv[i]);
-        retval = 2;
-    } else if (!strcmp(argv[i], "-xinputfrom") || !strcmp(argv[i],"-xinput")) {
-        if (++i < argc) dmxConfigStoreXInput(argv[i]);
+	if (++i < argc) dmxNumDetached = atoi (argv[i]);
         retval = 2;
     } else if (!strcmp(argv[i], "-noshadowfb")) {
         dmxLog(dmxWarning,
@@ -1065,12 +1128,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-shadowfb")) {
 	dmxShadowFB = TRUE;
 	retval = 1;
-    } else if (!strcmp(argv[i], "-configfile")) {
-        if (++i < argc) dmxConfigStoreFile(argv[i]);
-        retval = 2;
-    } else if (!strcmp(argv[i], "-config")) {
-        if (++i < argc) dmxConfigStoreConfig(argv[i]);
-        retval = 2;
     } else if (!strcmp(argv[i], "-fontpath")) {
         if (++i < argc) dmxSetDefaultFontPath(argv[i]);
         retval = 2;
@@ -1130,26 +1187,8 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-crtcs")) {
 	if (++i < argc) xRRCrtcsPerScreen = atoi(argv[i]);
         retval = 2;
-#endif
-    } else if (!strcmp(argv[i], "-param")) {
-        if ((i += 2) < argc) {
-            if (!strcasecmp(argv[i-1], "xkbrules"))
-                dmxConfigSetXkbRules(argv[i]);
-            else if (!strcasecmp(argv[i-1], "xkbmodel"))
-                dmxConfigSetXkbModel(argv[i]);
-            else if (!strcasecmp(argv[i-1], "xkblayout"))
-                dmxConfigSetXkbLayout(argv[i]);
-            else if (!strcasecmp(argv[i-1], "xkbvariant"))
-                dmxConfigSetXkbVariant(argv[i]);
-            else if (!strcasecmp(argv[i-1], "xkboptions"))
-                dmxConfigSetXkbOptions(argv[i]);
-            else
-                dmxLog(dmxWarning,
-                       "-param requires: XkbRules, XkbModel, XkbLayout,"
-                       " XkbVariant, or XkbOptions\n");
-        }
-        retval = 3;
     }
+#endif
     else if (!strcmp (argv[i], "-prop"))
     {
 	if ((i + 2) < argc)
@@ -1201,7 +1240,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
         retval = argc - i;
     }
 
-    if (!serverGeneration) dmxConfigSetMaxScreens();
     return retval;
 }
 
@@ -1211,11 +1249,7 @@ void ddxUseMsg(void)
     ErrorF("\n\nDevice Dependent Usage:\n");
     ErrorF("-display string      Specify the back-end display(s)\n");
     ErrorF("-numDetached num     Specify detached back-end display(s)\n");
-    ErrorF("-input string        Specify input source for core device\n");
-    ErrorF("-xinput string       Specify input source for XInput device\n");
     ErrorF("-shadowfb            Enable shadow frame buffer\n");
-    ErrorF("-configfile file     Read from a configuration file\n");
-    ErrorF("-config config       Select a specific configuration\n");
     ErrorF("-fontpath            Sets the default font path\n");
     ErrorF("-stat inter scrns    Print out performance statistics\n");
     ErrorF("-syncbatch inter     Set interval for XSync batching\n");
@@ -1240,41 +1274,9 @@ void ddxUseMsg(void)
     ErrorF("-outputs num         RANDR outputs for each back-end display\n");
     ErrorF("-crtcs num           RANDR crtcs for each back-end display\n");
 #endif
-    ErrorF("-param ...           Specify configuration parameters (e.g.,\n");
-    ErrorF("                     XkbRules, XkbModel, XkbLayout, etc.)\n");
     ErrorF("-prop name format    Specify property translation\n");
 #ifdef XV
     ErrorF("-xvimage fourcc      Enable XVideo image format\n");
 #endif
-    ErrorF("\n");
-    ErrorF("    If the -input string matches a -display string, then input\n"
-           "    is taken from that backend display.  (XInput cannot be taken\n"
-           "    from a backend display.)  Placing \",console\" after the\n"
-           "    display name will force a console window to be opened on\n"
-           "    that display in addition to the backend input.  This is\n"
-           "    useful if the backend window does not cover the whole\n"
-           "    physical display.\n\n");
-    
-    ErrorF("    Otherwise, if the -input or -xinput string specifies another\n"
-           "    X display, then a console window will be created on that\n"
-           "    display.  Placing \",windows\" or \",nowindows\" after the\n"
-           "    display name will control the display of window outlines in\n"
-           "    the console.\n\n");
-    
-    ErrorF("    -input or -xinput dummy specifies no input.\n");
-    ErrorF("    -input or -xinput local specifies the use of a raw keyboard,\n"
-           "    mouse, or other (extension) device:\n"
-           "        -input local,kbd,ps2 will use a ps2 mouse\n"
-           "        -input local,kbd,ms  will use a serial mouse\n"
-           "        -input local,usb-kbd,usb-mou will use USB devices \n"
-           "        -xinput local,usb-oth will use a non-mouse and\n"
-           "                non-keyboard USB device with XInput\n\n");
-    
-    ErrorF("    Special Keys:\n");
-    ErrorF("        Ctrl-Alt-g    Server grab/ungrab (console only)\n");
-    ErrorF("        Ctrl-Alt-f    Fine (1-pixel) mouse mode (console only)\n");
-    ErrorF("        Ctrl-Alt-q    Quit (core devices only)\n");
-    ErrorF("        Ctrl-Alt-F*   Switch to VC (local only)\n\n");
-
     ErrorF("--  [ server ] [ display ] [ options ]\n");
 }

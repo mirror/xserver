@@ -26,7 +26,7 @@
 
 #include "dmx.h"
 #include "dmxlaunch.h"
-#include "config/dmxconfig.h"
+#include "dmxinit.h"
 #include "opaque.h"
 
 #include <X11/Xauth.h>
@@ -261,13 +261,13 @@ dmxSetupAuth (char *name, int authFd)
 	strcmp (basename (realProg), "Xfake") == 0)
 	virtualFb = TRUE;
     
-    dmxConfigStoreDisplay (basename (realProg),
-			   xbeDisplay,
-			   auth.name,
-			   auth.name_length,
-			   auth.data,
-			   auth.data_length,
-			   virtualFb);
+    dmxAddScreen (basename (realProg),
+		  xbeDisplay,
+		  auth.name,
+		  auth.name_length,
+		  auth.data,
+		  auth.data_length,
+		  virtualFb);
 
     return TRUE;
 }

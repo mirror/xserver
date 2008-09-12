@@ -1601,9 +1601,6 @@ dnl Linux sources in DMX require <linux/keyboard.h>
 	if test "x$GLX" = xyes; then
 		PKG_CHECK_MODULES([GL], [glproto])
 	fi
-	PKG_CHECK_MODULES([XDMXCONFIG_DEP], [xaw7 xmu xt xpm x11])
-	AC_SUBST(XDMXCONFIG_DEP_CFLAGS)
-	AC_SUBST(XDMXCONFIG_DEP_LIBS)
 	PKG_CHECK_MODULES([DMXEXAMPLES_DEP], [dmx xext x11])
 	AC_SUBST(DMXEXAMPLES_DEP_LIBS)
 	PKG_CHECK_MODULES([DMXXMUEXAMPLES_DEP], [dmx xmu xext x11])
@@ -1869,7 +1866,6 @@ hw/xfree86/xf8_16bpp/Makefile
 hw/xfree86/utils/Makefile
 hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile
-hw/dmx/config/Makefile
 hw/dmx/doc/Makefile
 hw/dmx/examples/Makefile
 hw/dmx/input/Makefile

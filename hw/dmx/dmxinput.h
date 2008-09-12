@@ -121,10 +121,6 @@ typedef enum {
  * access to the global pointers.  However, the elements are only
  * available to input-related routines. */
 struct _DMXInputInfo {
-    const char              *name; /**< Name of input display or device
-                                    * (from command line or config
-                                    * file)  */
-    Bool                    freename; /**< If true, free name on destroy */
     Bool                    detached; /**< If true, input screen is detached */
     int                     inputIdx; /**< Index into #dmxInputs global */
     int                     scrnIdx;  /**< Index into #dmxScreens global */
@@ -210,7 +206,4 @@ extern DMXScreenInfo *dmxFindFirstScreen(int x, int y);
 extern void          dmxCoreMotion(DevicePtr pDev, int x, int y, int delta,
                                    DMXBlockType block);
 
-/* Support for dynamic addition of inputs.  This functions is defined in
- * config/dmxconfig.c */
-extern DMXInputInfo *dmxConfigAddInput(const char *name, int core);
 #endif /* DMXINPUT_H */

@@ -302,14 +302,14 @@ int dmxGetInputAttributes(int deviceId, DMXInputAttributesPtr attr)
                 break;
             case DMX_LOCAL_TYPE_CONSOLE:
                 attr->inputType      = 1;
-                attr->name           = dmxInput->name;
+                attr->name           = dmxScreens[dmxInput->scrnIdx].name;
                 attr->physicalId     = dmxLocal->deviceId;
                 break;
             case DMX_LOCAL_TYPE_BACKEND:
             case DMX_LOCAL_TYPE_COMMON:
                 attr->inputType      = 2;
                 attr->physicalScreen = dmxInput->scrnIdx;
-                attr->name           = dmxInput->name;
+                attr->name           = dmxScreens[dmxInput->scrnIdx].name;
                 attr->physicalId     = dmxLocal->deviceId;
                 break;
             }

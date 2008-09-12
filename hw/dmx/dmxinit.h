@@ -38,7 +38,13 @@
 #define DMXINIT_H
 
 #include "scrnintstr.h"
-
+extern DMXScreenInfo *dmxAddScreen(const char *name,
+				   const char *display,
+				   const char *authType,
+				   int        authTypeLen,
+				   const char *authData,
+				   int        authDataLen,
+				   int        virtualFb);
 extern Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen);
 extern void dmxCloseDisplay(DMXScreenInfo *dmxScreen);
 extern void dmxSetErrorHandler(DMXScreenInfo *dmxScreen);
