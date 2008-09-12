@@ -471,7 +471,8 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     char filename[128];
     size_t buffer_size;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    unsigned int sareaHandle;
+    drm_handle_t sareaHandle;
+    unsigned int sareaSize;
     const __DRIextension **extensions;
     const __DRIconfig **driConfigs;
     int i;
@@ -482,7 +483,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     memset(screen, 0, sizeof *screen);
 
     if (!xf86LoaderCheckSymbol("DRI2Connect") ||
-	!DRI2Connect(pScreen, &screen->fd, &driverName, &sareaHandle)) {
+	!DRI2Connect(pScreen, &screen->fd, &driverName, &sareaHandle, &sareaSize)) {
 	LogMessage(X_INFO,
 		   "AIGLX: Screen %d is not DRI2 capable\n", pScreen->myNum);
 	return NULL;
@@ -530,6 +531,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 	(*screen->core->createNewScreen)(pScreen->myNum,
 					 screen->fd,
 					 sareaHandle,
+					 sareaSize,
 					 loader_extensions,
 					 &driConfigs,
 					 screen);

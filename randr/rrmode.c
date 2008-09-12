@@ -320,6 +320,9 @@ ProcRRCreateMode (ClientPtr client)
 	swapl(&rep.mode, n);
     }
     WriteToClient(client, sizeof(xRRCreateModeReply), (char *)&rep);
+
+    /* Drop our reference to this mode */
+    RRModeDestroy (mode);
     
     return client->noClientException;
 }

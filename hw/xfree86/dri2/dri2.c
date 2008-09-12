@@ -57,8 +57,8 @@ typedef struct _DRI2DrawablePriv {
 
 typedef struct _DRI2Screen {
     int				 fd;
-    drmBO			 sareaBO;
     void			*sarea;
+    drm_handle_t		 sareaHandle;
     unsigned int		 sareaSize;
     const char			*driverName;
     unsigned int		 nextHandle;
@@ -257,8 +257,7 @@ DRI2CloseScreen(ScreenPtr pScreen)
     pScreen->ClipNotify		= ds->ClipNotify;
     pScreen->HandleExposures	= ds->HandleExposures;
 
-    drmBOUnmap(ds->fd, &ds->sareaBO);
-    drmBOUnreference(ds->fd, &ds->sareaBO);
+    drmRmMap(ds->fd, ds->sareaHandle);
 
     xfree(ds);
     dixSetPrivate(&pScreen->devPrivates, dri2ScreenPrivateKey, NULL);
@@ -350,7 +349,8 @@ DRI2ReemitDrawableInfo(DrawablePtr pDraw, unsigned int *head)
 
 Bool
 DRI2Connect(ScreenPtr pScreen, int *fd, const char **driverName,
-	    unsigned int *sareaHandle)
+	    drm_handle_t *sareaHandle,
+	    drmSize *sareaSize)
 {
     DRI2ScreenPtr ds = DRI2GetScreen(pScreen);
 
@@ -359,7 +359,8 @@ DRI2Connect(ScreenPtr pScreen, int *fd, const char **driverName,
 
     *fd = ds->fd;
     *driverName = ds->driverName;
-    *sareaHandle = ds->sareaBO.handle;
+    *sareaHandle = ds->sareaHandle;
+    *sareaSize = ds->sareaSize;
 
     return TRUE;
 }
@@ -387,7 +388,7 @@ static void *
 DRI2SetupSAREA(ScreenPtr pScreen, size_t driverSareaSize)
 {
     DRI2ScreenPtr ds = DRI2GetScreen(pScreen);
-    unsigned long mask;
+
     const size_t event_buffer_size = 32 * 1024;
 
     ds->sareaSize = 
@@ -395,21 +396,18 @@ DRI2SetupSAREA(ScreenPtr pScreen, size_t driverSareaSize)
 	driverSareaSize +
 	sizeof (unsigned int);
 
-    mask = DRM_BO_FLAG_READ | DRM_BO_FLAG_WRITE | DRM_BO_FLAG_MAPPABLE |
-	DRM_BO_FLAG_MEM_LOCAL | DRM_BO_FLAG_SHAREABLE;
-
-    if (drmBOCreate(ds->fd, ds->sareaSize, 1, NULL, mask, 0, &ds->sareaBO))
+    if (drmAddMap(ds->fd, 1, ds->sareaSize, DRM_SHM,
+		  DRM_CONTAINS_LOCK, &ds->sareaHandle) != 0)
 	return NULL;
 
-    if (drmBOMap(ds->fd, &ds->sareaBO,
-		 DRM_BO_FLAG_READ | DRM_BO_FLAG_WRITE, 0, &ds->sarea)) {
-	drmBOUnreference(ds->fd, &ds->sareaBO);
+    if (drmMap(ds->fd, ds->sareaHandle, ds->sareaSize, &ds->sarea)) {
+	drmRmMap (ds->fd, ds->sareaHandle);
 	return NULL;
     }
 
     xf86DrvMsg(pScreen->myNum, X_INFO,
-	       "[DRI2] Allocated %d byte SAREA, BO handle 0x%08x\n",
-	       ds->sareaSize, ds->sareaBO.handle);
+	       "[DRI2] Allocated %d byte SAREA, handle 0x%08x\n",
+	       ds->sareaSize, ds->sareaHandle);
     memset(ds->sarea, 0, ds->sareaSize);
 
     ds->buffer = ds->sarea;

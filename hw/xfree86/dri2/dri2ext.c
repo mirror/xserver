@@ -115,7 +115,8 @@ ProcDRI2Connect(ClientPtr client)
     int fd;
     const char *driverName;
     char *busId = NULL;
-    unsigned int sareaHandle;
+    drm_handle_t sareaHandle;
+    unsigned int sareaSize;
 
     REQUEST_SIZE_MATCH(xDRI2ConnectReq);
     if (!validScreen(client, stuff->screen, &pScreen))
@@ -127,8 +128,9 @@ ProcDRI2Connect(ClientPtr client)
     rep.driverNameLength = 0;
     rep.busIdLength = 0;
     rep.sareaHandle = 0;
+    rep.sareaSize = 0;
 
-    if (!DRI2Connect(pScreen, &fd, &driverName, &sareaHandle))
+    if (!DRI2Connect(pScreen, &fd, &driverName, &sareaHandle, &sareaSize))
 	goto fail;
 
     busId = drmGetBusid(fd);
@@ -137,7 +139,8 @@ ProcDRI2Connect(ClientPtr client)
 
     rep.driverNameLength = strlen(driverName);
     rep.busIdLength = strlen(busId);
-    rep.sareaHandle = sareaHandle;
+    rep.sareaHandle = (CARD32) sareaHandle;
+    rep.sareaSize = (CARD32) sareaSize;
     rep.length = (rep.driverNameLength + 3) / 4 + (rep.busIdLength + 3) / 4;
 
  fail:

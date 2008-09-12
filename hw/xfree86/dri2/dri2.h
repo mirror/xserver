@@ -56,7 +56,8 @@ void DRI2CloseScreen(ScreenPtr pScreen);
 Bool DRI2Connect(ScreenPtr pScreen,
 		 int *fd,
 		 const char **driverName,
-		 unsigned int *sareaHandle);
+		 drm_handle_t *sareaHandle,
+		 drmSize *sareaSize);
 
 Bool DRI2AuthConnection(ScreenPtr pScreen, drm_magic_t magic);
 
