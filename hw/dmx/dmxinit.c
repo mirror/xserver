@@ -89,9 +89,6 @@ extern void GlxSetVisualConfigs(
 int             dmxNumScreens;
 DMXScreenInfo  *dmxScreens;
 
-int             dmxNumInputs = 0;
-DMXInputInfo   *dmxInputs;
-
 int             dmxShadowFB = FALSE;
 
 XErrorEvent     dmxLastErrorEvent;
@@ -277,26 +274,6 @@ dmxMemDup (const char *data,
     return d;
 }
 
-static DMXInputInfo *dmxAddScreenInput(DMXScreenInfo *dmxScreen)
-{
-    DMXInputInfo *dmxInput;
-
-    if (!(dmxInputs = realloc(dmxInputs,
-                              (dmxNumInputs+1) * sizeof(*dmxInputs))))
-        dmxLog(dmxFatal,
-               "dmxAddInput: realloc failed for input %d (%s)\n",
-               dmxNumInputs, dmxScreen->name);
-
-    dmxInput = &dmxInputs[dmxNumInputs];
-
-    memset(dmxInput, 0, sizeof(*dmxInput));
-    dmxInput->inputIdx = dmxNumInputs;
-    dmxInput->scrnIdx  = dmxScreen->index;
-    dmxInput->core     = TRUE;
-    ++dmxNumInputs;
-    return dmxInput;
-}
-
 DMXScreenInfo *
 dmxAddScreen(const char *name,
 	     const char *display,
@@ -331,9 +308,6 @@ dmxAddScreen(const char *name,
     dmxScreen->virtualFb   = virtualFb;
     ++dmxNumScreens;
 
-    if (!virtualFb && *display)
-	dmxAddScreenInput (dmxScreen);
-    
     return dmxScreen;
 }
 
@@ -791,13 +765,9 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
             dmxStatFree(dmxScreens[i].stat);
             dmxScreens[i].stat = NULL;
         }
-        for (i = 0; i < dmxNumInputs; i++) dmxInputFree(&dmxInputs[i]);
         if (dmxScreens) free(dmxScreens);
-        if (dmxInputs)  free(dmxInputs);
         dmxScreens    = NULL;
-        dmxInputs     = NULL;
         dmxNumScreens = 0;
-        dmxNumInputs  = 0;
     }
 
     /* Make sure that the command-line arguments are sane. */

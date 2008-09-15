@@ -59,10 +59,10 @@
 #include "dmxrandr.h"
 #endif
 #include "dmxinput.h"
+#include "dmxlog.h"
 #include "dmxgrab.h"
 #include "dmxsync.h"
 #include "dmxscrinit.h"
-#include "input/dmxinputinit.h"
 #ifdef XV
 #include "dmxxv.h"
 #endif
@@ -271,7 +271,9 @@ int dmxGetInputCount(void)
 {
     int i, total;
     
-    for (total = i = 0; i < dmxNumInputs; i++) total += dmxInputs[i].numDevs;
+    for (total = i = 0; i < dmxNumScreens; i++)
+	total += dmxScreens[i].input.numDevs;
+
     return total;
 }
 
@@ -285,55 +287,21 @@ int dmxGetInputAttributes(int deviceId, DMXInputAttributesPtr attr)
     DMXInputInfo *dmxInput;
 
     if (deviceId < 0) return -1;
-    for (i = 0; i < dmxNumInputs; i++) {
-        dmxInput = &dmxInputs[i];
+    for (i = 0; i < dmxNumScreens; i++) {
+        dmxInput = &dmxScreens[i].input;
         for (j = 0; j < dmxInput->numDevs; j++) {
-            DMXLocalInputInfoPtr dmxLocal = dmxInput->devs[j];
-            if (deviceId != dmxLocal->pDevice->id) continue;
-            attr->isCore             = !!dmxLocal->isCore;
-            attr->sendsCore          = !!dmxLocal->sendsCore;
-            attr->detached           = !!dmxInput->detached;
-            attr->physicalScreen     = -1;
-            attr->physicalId         = -1;
-            attr->name               = NULL;
-            switch (dmxLocal->extType) {
-            case DMX_LOCAL_TYPE_LOCAL:
-                attr->inputType      = 0;
-                break;
-            case DMX_LOCAL_TYPE_CONSOLE:
-                attr->inputType      = 1;
-                attr->name           = dmxScreens[dmxInput->scrnIdx].name;
-                attr->physicalId     = dmxLocal->deviceId;
-                break;
-            case DMX_LOCAL_TYPE_BACKEND:
-            case DMX_LOCAL_TYPE_COMMON:
-                attr->inputType      = 2;
-                attr->physicalScreen = dmxInput->scrnIdx;
-                attr->name           = dmxScreens[dmxInput->scrnIdx].name;
-                attr->physicalId     = dmxLocal->deviceId;
-                break;
-            }
-            return 0;           /* Success */
+            if (deviceId != dmxInput->devs[i]->id) continue;
+            attr->isCore         = FALSE;
+            attr->sendsCore      = TRUE;
+            attr->detached       = FALSE;
+	    attr->inputType      = 2;
+	    attr->physicalScreen = i;
+	    attr->name           = dmxInput->devs[i]->name;
+	    attr->physicalId     = deviceId;
+	    return 0;           /* Success */
         }
     }
     return -1;                  /* Failure */
-}
-
-/** Reinitialized the cursor boundaries. */
-static void dmxAdjustCursorBoundaries(void)
-{
-    int           i;
-
-    dmxConnectionBlockCallback();
-    for (i = 0; i < dmxNumInputs; i++) {
-        DMXInputInfo *dmxInput = &dmxInputs[i];
-	if (!dmxInput->detached) dmxInputReInit(dmxInput);
-    }
-
-    for (i = 0; i < dmxNumInputs; i++) {
-        DMXInputInfo *dmxInput = &dmxInputs[i];
-	if (!dmxInput->detached) dmxInputLateReInit(dmxInput);
-    }
 }
 
 static void dmxBERestorePassiveGrab(pointer value, XID id, pointer closure)
@@ -348,41 +316,41 @@ static void dmxBERestorePassiveGrab(pointer value, XID id, pointer closure)
  * the physical id is returned in \a deviceId. */
 int dmxAddInput(DMXInputAttributesPtr attr, int *id)
 {
-    int retcode = BadValue;
+    if (attr->physicalScreen < 0 || attr->physicalScreen >= dmxNumScreens)
+	return BadValue;
 
-    if (attr->inputType == 1)   /* console */
-        retcode = dmxInputAttachConsole(attr->name, attr->sendsCore, id);
-    else if (attr->inputType == 2)   /* backend */
-        retcode = dmxInputAttachBackend(attr->physicalScreen,
-                                        attr->sendsCore,id);
+    if (attr->inputType == 2)
+    {
+	DMXInputInfo *dmxInput = &dmxScreens[attr->physicalScreen].input;
+	int          ret;
 
-    if (retcode == Success) {
-        /* Adjust the cursor boundaries */
-        dmxAdjustCursorBoundaries();
-
-	if (attr->inputType == 2)
+	ret = dmxInputAttach (dmxInput);
+	if (ret == Success)
 	{
-	    int i, j;
-
-	    for (i = 0; i < dmxNumInputs; i++)
-		if (attr->physicalScreen == dmxInputs[i].scrnIdx)
-		    break;
+	    int j;
 
 	    for (j = currentMaxClients; --j >= 0; )
 		if (clients[j])
-		    FindClientResourcesByType(clients[j], RT_PASSIVEGRAB,
-					      dmxBERestorePassiveGrab,
-					      (pointer) &dmxInputs[i]);
+		    FindClientResourcesByType (clients[j], RT_PASSIVEGRAB,
+					       dmxBERestorePassiveGrab,
+					       (pointer) dmxInput);
+
+	    *id = attr->physicalScreen;
 	}
+
+	return ret;
     }
 
-    return retcode;
+    return BadValue;
 }
 
 /** Remove the input with physical id \a id. */
 int dmxRemoveInput(int id)
 {
-    return dmxInputDetachId(id);
+    if (id < 0 || id >= dmxNumScreens)
+	return BadValue;
+
+    return dmxInputDetach (&dmxScreens[id].input);
 }
 
 /** Return the value of #dmxNumScreens -- the total number of backend
@@ -2086,7 +2054,7 @@ int dmxDetachScreen(int idx)
 #endif
 
     /* Detach input */
-    dmxInputDetachAll(dmxScreen);
+    dmxInputDetach (&dmxScreen->input);
 
     dmxScreen->scrnWidth   = 1;
     dmxScreen->scrnHeight  = 1;
@@ -2122,9 +2090,6 @@ int dmxDetachScreen(int idx)
 
     /* Free the remaining screen resources and close the screen */
     dmxBECloseScreen(screenInfo.screens[idx]);
-
-    /* Adjust the cursor boundaries (paints detached console window) */
-    dmxAdjustCursorBoundaries();
 
     if (dmxScreen->name)
     {

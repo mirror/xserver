@@ -217,6 +217,25 @@ dmxSetWindowPixmap (WindowPtr pWin, PixmapPtr pPixmap)
     DMX_WRAP(SetWindowPixmap, dmxSetWindowPixmap, dmxScreen, pScreen);
 }
 
+static Bool
+dmxScreenEventCheckInput (ScreenPtr           pScreen,
+			  xcb_generic_event_t *event)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    return dmxInputEventCheck (&dmxScreen->input, event);
+}
+
+static Bool
+dmxScreenReplyCheckInput (ScreenPtr           pScreen,
+			  unsigned int        sequence,
+			  xcb_generic_reply_t *reply)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    return dmxInputReplyCheck (&dmxScreen->input, sequence, reply);
+}
+
 static void
 dmxDiscardIgnore (DMXScreenInfo *dmxScreen,
 		  unsigned long sequence)
@@ -903,11 +922,15 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 	dmxGeneration = serverGeneration;
     }
 
+    dmxInputInit (&dmxScreen->input);
+
     dmxScreen->ignore.head = NULL;
     dmxScreen->ignore.tail = &dmxScreen->ignore.head;
 
     dmxScreen->request.head = NULL;
     dmxScreen->request.tail = &dmxScreen->request.head;
+
+    dmxScreen->rootEventMask = ExposureMask | SubstructureRedirectMask;
 
 #ifdef MITSHM
     dmxScreen->beShm = FALSE;

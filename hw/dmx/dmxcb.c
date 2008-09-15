@@ -173,7 +173,6 @@ void dmxConnectionBlockCallback(void)
         offset = voffset + depth->nVisuals * sizeof(xVisualType);
     }
 
-    dmxInputLogDevices();
     dmxLog(dmxInfo, "===== End of Summary =====\n");
 
 #ifdef PANORAMIX

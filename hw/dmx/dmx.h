@@ -108,15 +108,19 @@ typedef struct _DMXPropTrans {
 #define DMX_DETACHED 0xff
 
 /** Provide the typedef globally, but keep the contents opaque outside
- * of the input routines.  \see dmxinput.h */
-typedef struct _DMXInputInfo DMXInputInfo;
-
-/** Provide the typedef globally, but keep the contents opaque outside
  * of the XSync statistic routines.  \see dmxstat.c */
 typedef struct _DMXStatInfo DMXStatInfo;
 
+typedef struct _DMXInputInfo {
+    DeviceIntPtr *devs;
+    int          numDevs;
+    int          eventBase;
+} DMXInputInfo;
+
 /** Global structure containing information about each backend screen. */
 typedef struct _DMXScreenInfo {
+    DMXInputInfo input;
+
     char          *name;          /**< Name that uniquely identifies screen  */
     char          *display;       /**< Name from command line or config file */
     int           index;          /**< Index into dmxScreens global          */
@@ -195,6 +199,7 @@ typedef struct _DMXScreenInfo {
     Window        rootWin;        /**< "Root" window on backend display */
     int           rootX;          /**< X offset of "root" window WRT "screen"*/
     int           rootY;          /**< Y offset of "root" window WRT "screen"*/
+    int           rootEventMask;
 
     /*---------- Shadow framebuffer information ----------*/
 

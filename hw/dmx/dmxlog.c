@@ -124,16 +124,12 @@ static void dmxHeader(dmxLogLevel logLevel, DMXInputInfo *dmxInput,
     case dmxFatal:   type = "Fatal Error"; break;
     }
 
-    if (dmxInput && dmxScreen) {
-        ErrorF("(%s) dmx[i%d/%s;o%d/%s/%s]: ", type,
-               dmxInput->inputIdx, dmxScreens[dmxInput->scrnIdx].name,
-               dmxScreen->index, dmxScreen->display, dmxScreen->name);
-    } else if (dmxScreen) {
+    if (dmxInput)
+	dmxScreen = (DMXScreenInfo *) dmxInput;
+
+    if (dmxScreen) {
         ErrorF("(%s) dmx[o%d/%s/%s]: ", type,
                dmxScreen->index, dmxScreen->display, dmxScreen->name);
-    } else if (dmxInput) {
-        ErrorF("(%s) dmx[i%d/%s]: ", type,
-               dmxInput->inputIdx, dmxScreens[dmxInput->scrnIdx].name);
     } else {
         ErrorF("(%s) dmx: ", type);
     }

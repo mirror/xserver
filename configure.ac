@@ -1859,7 +1859,6 @@ hw/xfree86/utils/cvt/Makefile
 hw/xfree86/utils/gtf/Makefile
 hw/dmx/doc/Makefile
 hw/dmx/examples/Makefile
-hw/dmx/input/Makefile
 hw/dmx/glxProxy/Makefile
 hw/dmx/Makefile
 hw/vfb/Makefile

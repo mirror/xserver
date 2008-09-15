@@ -1,6 +1,6 @@
-DIST_SUBDIRS = input glxProxy examples doc
+DIST_SUBDIRS = glxProxy examples doc
 
-SUBDIRS = input examples
+SUBDIRS = examples
 bin_PROGRAMS = Xdmx
 
 if XINERAMA
@@ -120,7 +120,6 @@ XDMX_LIBS = \
 	$(top_srcdir)/composite/libcomposite.la \
 	$(top_srcdir)/xfixes/libxfixes.la \
 	$(top_srcdir)/damageext/libdamageext.la \
-        input/libdmxinput.a \
 	$(XSERVER_LIBS)
 
 Xdmx_LDFLAGS = $(LD_EXPORT_SYMBOLS_FLAG)

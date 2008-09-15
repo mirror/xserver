@@ -1,49 +1,28 @@
 /*
- * Copyright 2001,2002 Red Hat Inc., Durham, North Carolina.
+ * Copyright © 2008 Novell, Inc.
  *
- * All Rights Reserved.
+ * Permission to use, copy, modify, distribute, and sell this software
+ * and its documentation for any purpose is hereby granted without
+ * fee, provided that the above copyright notice appear in all copies
+ * and that both that copyright notice and this permission notice
+ * appear in supporting documentation, and that the name of
+ * Novell, Inc. not be used in advertising or publicity pertaining to
+ * distribution of the software without specific, written prior permission.
+ * Novell, Inc. makes no representations about the suitability of this
+ * software for any purpose. It is provided "as is" without express or
+ * implied warranty.
  *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation on the rights to use, copy, modify, merge,
- * publish, distribute, sublicense, and/or sell copies of the Software,
- * and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
+ * NOVELL, INC. DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN
+ * NO EVENT SHALL NOVELL, INC. BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+ * OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial
- * portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NON-INFRINGEMENT.  IN NO EVENT SHALL RED HAT AND/OR THEIR SUPPLIERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Author: David Reveman <davidr@novell.com>
  */
 
-/*
- * Authors:
- *   David H. Dawes <dawes@xfree86.org>
- *   Kevin E. Martin <kem@redhat.com>
- *   Rickard E. (Rik) Faith <faith@redhat.com>
- *
- */
-
-/** \file
- * This file provides access to:
- * - global variables available to all hw/dmx routines, and
- * - enumerations and typedefs needed by input routines in hw/dmx (and
- *   hw/dmx/input).
- *
- * The goal is that no files in hw/dmx should include header files from
- * hw/dmx/input -- the interface defined here should be the only
- * interface exported to the hw/dmx layer.  \see input/dmxinputinit.c.
- */
- 
 #ifndef DMXINPUT_H
 #define DMXINPUT_H
 
@@ -51,6 +30,17 @@ extern DevPrivateKey dmxDevicePrivateKey;
 
 /** Device private area. */
 typedef struct _dmxDevicePriv {
+    DMXInputInfo             *dmxInput;
+    long                     deviceId;
+    long                     masterId;
+    XDevice                  *device;
+    char		     state[32];
+    char		     keysbuttons[32];
+    xcb_void_cookie_t        grab;
+
+    Bool (*EventCheck) (DeviceIntPtr, xcb_generic_event_t *);
+    Bool (*ReplyCheck) (DeviceIntPtr, unsigned int, xcb_generic_reply_t *);
+
     void (*ActivateGrab)   (DeviceIntPtr, GrabPtr, TimeStamp, Bool);
     void (*DeactivateGrab) (DeviceIntPtr);
 } dmxDevicePrivRec, *dmxDevicePrivPtr;
@@ -59,151 +49,61 @@ typedef struct _dmxDevicePriv {
     ((dmxDevicePrivPtr)dixLookupPrivate(&(_pDev)->devPrivates,	\
 					dmxDevicePrivateKey))
 
-/** Maximum number of file descriptors for SIGIO handling */
-#define DMX_MAX_SIGIO_FDS 4
+void
+dmxInputInit (DMXInputInfo *dmxInput);
 
-struct _DMXInputInfo;
+void
+dmxInputLogDevices (void);
 
-/** Reason why window layout was updated. */
-typedef enum {
-    DMX_UPDATE_REALIZE,         /**< Window realized        */
-    DMX_UPDATE_UNREALIZE,       /**< Window unrealized      */
-    DMX_UPDATE_RESTACK,         /**< Stacking order changed */
-    DMX_UPDATE_COPY,            /**< Window copied          */
-    DMX_UPDATE_RESIZE,          /**< Window resized         */
-    DMX_UPDATE_REPARENT         /**< Window reparented      */
-} DMXUpdateType;
+Bool
+dmxInputEventCheck (DMXInputInfo        *dmxInput,
+		    xcb_generic_event_t *event);
 
-typedef Bool (*ScreenEventCheckProc)(struct _DMXInputInfo *,
-				     xcb_generic_event_t  *);
-typedef Bool (*ScreenReplyCheckProc)(struct _DMXInputInfo *,
-				     unsigned int         request,
-				     xcb_generic_reply_t  *);
-typedef void (*ProcessInputEventsProc)(struct _DMXInputInfo *);
-typedef void (*UpdateWindowInfoProc)(struct _DMXInputInfo *,
-                                     DMXUpdateType, WindowPtr);
-typedef void (*GrabButtonProc)(struct _DMXInputInfo *,
-			       DeviceIntPtr         pDevice,
-			       DeviceIntPtr         pModDevice,
-			       WindowPtr            pWindow,
-			       WindowPtr            pConfineTo,
-			       int	            button,
-			       int	            modifiers,
-			       CursorPtr            pCursor);
-typedef void (*UngrabButtonProc)(struct _DMXInputInfo *,
-				 DeviceIntPtr         pDevice,
-				 DeviceIntPtr         pModDevice,
-				 WindowPtr            pWindow,
-				 int	              button,
-				 int	              modifiers);
-typedef void (*GrabPointerProc) (struct _DMXInputInfo *,
-				 DeviceIntPtr         pDevice,
-				 WindowPtr            pWindow,
-				 WindowPtr            pConfineTo,
-				 CursorPtr            pCursor);
-typedef void (*UngrabPointerProc) (struct _DMXInputInfo *,
-				   DeviceIntPtr         pDevice,
-				   WindowPtr            pWindow);
+Bool
+dmxInputReplyCheck (DMXInputInfo        *dmxInput,
+		    unsigned int        request,
+		    xcb_generic_reply_t *reply);
 
-/** An opaque structure that is only exposed in the dmx/input layer. */
-typedef struct _DMXLocalInputInfo *DMXLocalInputInfoPtr;
+void
+dmxInputGrabButton (DMXInputInfo *dmxInput,
+		    DeviceIntPtr pDevice,
+		    DeviceIntPtr pModDevice,
+		    WindowPtr    pWindow,
+		    WindowPtr    pConfineTo,
+		    int	         button,
+		    int	         modifiers,
+		    CursorPtr    pCursor);
 
-/** State of the SIGIO engine */
-typedef enum {
-    DMX_NOSIGIO = 0,            /**< Device does not use SIGIO at all. */
-    DMX_USESIGIO,               /**< Device can use SIGIO, but is not
-                                 * (e.g., because the VT is switch
-                                 * away). */
-    DMX_ACTIVESIGIO             /**< Device is currently using SIGIO. */
-} dmxSigioState;
+void
+dmxInputUngrabButton (DMXInputInfo *dmxInput,
+		      DeviceIntPtr pDevice,
+		      DeviceIntPtr pModDevice,
+		      WindowPtr    pWindow,
+		      int	   button,
+		      int	   modifiers);
 
-/** DMXInputInfo is typedef'd in #dmx.h so that all routines can have
- * access to the global pointers.  However, the elements are only
- * available to input-related routines. */
-struct _DMXInputInfo {
-    Bool                    detached; /**< If true, input screen is detached */
-    int                     inputIdx; /**< Index into #dmxInputs global */
-    int                     scrnIdx;  /**< Index into #dmxScreens global */
-    Bool                    core;  /**< If True, initialize these
-                                    * devices as devices that send core
-                                    * events */
-    Bool                    console; /**< True if console and backend
-                                      * input share the same backend
-                                      * display  */
+void
+dmxInputGrabPointer (DMXInputInfo *dmxInput,
+		     DeviceIntPtr pDevice,
+		     WindowPtr    pWindow,
+		     WindowPtr    pConfineTo,
+		     CursorPtr    pCursor);
 
-    Bool                    windows; /**< True if window outlines are
-                                      * draw in console */
+void
+dmxInputUngrabPointer (DMXInputInfo *dmxInput,
+		       DeviceIntPtr pDevice,
+		       WindowPtr    pWindow);
 
-    ScreenEventCheckProc    screenEventCheck;
-    ScreenReplyCheckProc    screenReplyCheck;
-    ProcessInputEventsProc  processInputEvents;
-    UpdateWindowInfoProc    updateWindowInfo;
-    GrabButtonProc          grabButton;
-    UngrabButtonProc        ungrabButton;
-    GrabPointerProc         grabPointer;
-    UngrabPointerProc       ungrabPointer;
+int
+dmxInputAttach (DMXInputInfo *dmxInput);
 
-                                /* Local input information */
-    dmxSigioState           sigioState;    /**< Current stat */
-    int                     sigioFdCount;  /**< Number of fds in use */
-    int                     sigioFd[DMX_MAX_SIGIO_FDS];    /**< List of fds */
-    Bool                    sigioAdded[DMX_MAX_SIGIO_FDS]; /**< Active fds */
+int
+dmxInputDetach (DMXInputInfo *dmxInput);
 
-    
-    /** True if a VT switch is pending, but has not yet happened. */
-    int                     vt_switch_pending;
+void
+dmxInputInit (DMXInputInfo *dmxInput);
 
-    /** True if a VT switch has happened. */
-    int                     vt_switched;
-
-    /** Number of devices handled in this _DMXInputInfo structure. */
-    int                     numDevs;
-
-    /** List of actual input devices.  Each _DMXInputInfo structure can
-     * refer to more than one device.  For example, the keyboard and the
-     * pointer of a backend display; or all of the XInput extension
-     * devices on a backend display. */
-    DMXLocalInputInfoPtr    *devs;
-
-    char                    *keycodes; /**< XKB keycodes from command line */
-    char                    *symbols;  /**< XKB symbols from command line */
-    char                    *geometry; /**< XKB geometry from command line */
-
-    int                     k, m, o;
-
-    int                     eventBase;
-};
-
-extern int                  dmxNumInputs; /**< Number of #dmxInputs */
-extern DMXInputInfo         *dmxInputs;   /**< List of inputs */
-
-extern void dmxInputInit(DMXInputInfo *dmxInput);
-extern void dmxInputReInit(DMXInputInfo *dmxInput);
-extern void dmxInputLateReInit(DMXInputInfo *dmxInput);
-extern void dmxInputFree(DMXInputInfo *dmxInput);
-extern void dmxInputLogDevices(void);
-extern void dmxUpdateWindowInfo(DMXUpdateType type, WindowPtr pWindow);
-extern Bool dmxScreenEventCheckInput (ScreenPtr	          pScreen,
-				      xcb_generic_event_t *event);
-extern Bool dmxScreenReplyCheckInput (ScreenPtr	          pScreen,
-				      unsigned int        request,
-				      xcb_generic_reply_t *reply);
-
-/* These functions are defined in input/dmxeq.c */
-extern Bool dmxeqInitialized(void);
-extern void dmxeqEnqueue(DeviceIntPtr pDev, xEvent *e);
-extern void dmxeqSwitchScreen(DeviceIntPtr pDev, ScreenPtr pScreen, Bool fromDIX);
-
-/* This type is used in input/dmxevents.c.  Also, these functions are
- * defined in input/dmxevents.c */
-typedef enum {
-    DMX_NO_BLOCK = 0,
-    DMX_BLOCK    = 1
-} DMXBlockType;
-
-extern void          dmxGetGlobalPosition(int *x, int *y);
-extern DMXScreenInfo *dmxFindFirstScreen(int x, int y);
-extern void          dmxCoreMotion(DevicePtr pDev, int x, int y, int delta,
-                                   DMXBlockType block);
+void
+dmxInputFini (DMXInputInfo *dmxInput);
 
 #endif /* DMXINPUT_H */

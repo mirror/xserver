@@ -107,7 +107,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
 	return None;
 
     mask = CWEventMask;
-    attribs.event_mask = ExposureMask | SubstructureRedirectMask;
+    attribs.event_mask = dmxScreen->rootEventMask;
 
     /* Incorporate new attributes, if needed */
     if (pWinPriv->attribMask) {
@@ -272,7 +272,7 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     }
 
     mask |= CWEventMask;
-    attribs.event_mask = ExposureMask | SubstructureRedirectMask;
+    attribs.event_mask = dmxScreen->rootEventMask;
 
     /* Incorporate new attributes, if needed */
     if (pWinPriv->attribMask) {
@@ -705,7 +705,6 @@ Bool dmxRealizeWindow(WindowPtr pWindow)
 
     DMX_WRAP(RealizeWindow, dmxRealizeWindow, dmxScreen, pScreen);
 
-    dmxUpdateWindowInfo(DMX_UPDATE_REALIZE, pWindow);
     return ret;
 }
 
@@ -754,7 +753,6 @@ Bool dmxUnrealizeWindow(WindowPtr pWindow)
 
     DMX_WRAP(UnrealizeWindow, dmxUnrealizeWindow, dmxScreen, pScreen);
 
-    dmxUpdateWindowInfo(DMX_UPDATE_UNREALIZE, pWindow);
     return ret;
 }
 
@@ -837,7 +835,6 @@ void dmxRestackWindow(WindowPtr pWindow, WindowPtr pOldNextSib)
     }
 
     DMX_WRAP(RestackWindow, dmxRestackWindow, dmxScreen, pScreen);
-    dmxUpdateWindowInfo(DMX_UPDATE_RESTACK, pWindow);
 }
 
 /** Move \a pWindow on the back-end server.  Determine whether or not it
@@ -856,8 +853,6 @@ void dmxCopyWindow(WindowPtr pWindow, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
     if (!pWinPriv->window && pWinPriv->mapped && !pWinPriv->offscreen) {
 	dmxCreateAndRealizeWindow(pWindow, TRUE);
     }
-
-    dmxUpdateWindowInfo(DMX_UPDATE_COPY, pWindow);
 }
 
 /** Resize \a pWindow on the back-end server.  Determine whether or not
@@ -904,7 +899,6 @@ void dmxResizeWindow(WindowPtr pWindow, int x, int y,
     }
 
     DMX_WRAP(ResizeWindow, dmxResizeWindow, dmxScreen, pScreen);
-    dmxUpdateWindowInfo(DMX_UPDATE_RESIZE, pWindow);
 }
 
 /** Reparent \a pWindow on the back-end server. */
@@ -935,7 +929,6 @@ void dmxReparentWindow(WindowPtr pWindow, WindowPtr pPriorParent)
     }
 
     DMX_WRAP(ReparentWindow, dmxReparentWindow, dmxScreen, pScreen);
-    dmxUpdateWindowInfo(DMX_UPDATE_REPARENT, pWindow);
 }
 
 /** Change border width for \a pWindow to \a width pixels. */
