@@ -1343,8 +1343,6 @@ dmxInputAddExtensionDevices (DMXInputInfo *dmxInput)
 	return FALSE;
     }
 
-    XFree (ext);
-
     XQueryExtension (dmxScreen->beDisplay,
 		     INAME,
 		     &i,
@@ -1354,6 +1352,8 @@ dmxInputAddExtensionDevices (DMXInputInfo *dmxInput)
     dmxLogInput (dmxInput, "Locating devices on %s (%s version %d.%d)\n",
 		 dmxScreen->name, INAME,
 		 ext->major_version, ext->minor_version);
+
+    XFree (ext);
 
     devices = XListInputDevices (dmxScreen->beDisplay, &num);
     if (devices)
