@@ -272,7 +272,7 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     }
 
     mask |= CWEventMask;
-    attribs.event_mask = dmxScreen->rootEventMask;
+    attribs.event_mask = ExposureMask | SubstructureRedirectMask;
 
     /* Incorporate new attributes, if needed */
     if (pWinPriv->attribMask) {
