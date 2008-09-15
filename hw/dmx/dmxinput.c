@@ -1492,7 +1492,7 @@ InitInput (int argc, char **argv)
 
     for (i = 0; i < dmxNumScreens; i++)
 	if (dmxScreens[i].beDisplay && !dmxScreens[i].virtualFb)
-	    dmxInputAttach (&dmxScreens[i].input);
+	    dmxInputAddDevices (&dmxScreens[i].input);
 
     mieqInit ();
 }
