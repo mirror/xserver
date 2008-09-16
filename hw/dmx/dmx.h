@@ -201,12 +201,6 @@ typedef struct _DMXScreenInfo {
     int           rootY;          /**< Y offset of "root" window WRT "screen"*/
     int           rootEventMask;
 
-    /*---------- Shadow framebuffer information ----------*/
-
-    void         *shadow;         /**< Shadow framebuffer data (if enabled) */
-    XlibGC        shadowGC;       /**< Default GC used by shadow FB code */
-    XImage       *shadowFBImage;  /**< Screen image used by shadow FB code */
-
     /*---------- Other related information ----------*/
 
     int           shared;         /**< Non-zero if another Xdmx is running */
@@ -315,9 +309,7 @@ typedef struct _DMXScreenInfo {
 /* Global variables available to all Xserver/hw/dmx routines. */
 extern int              dmxNumScreens;          /**< Number of dmxScreens */
 extern DMXScreenInfo   *dmxScreens;             /**< List of outputs */
-extern int              dmxShadowFB;            /**< Non-zero if using
-                                                 * shadow frame-buffer
-                                                 * (deprecated) */
+
 extern XErrorEvent      dmxLastErrorEvent;      /**< Last error that
                                                  * occurred */
 extern Bool             dmxErrorOccurred;       /**< True if an error

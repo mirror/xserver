@@ -89,8 +89,6 @@ extern void GlxSetVisualConfigs(
 int             dmxNumScreens;
 DMXScreenInfo  *dmxScreens;
 
-int             dmxShadowFB = FALSE;
-
 XErrorEvent     dmxLastErrorEvent;
 Bool            dmxErrorOccurred = FALSE;
 
@@ -984,9 +982,6 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     /* Initialized things that need timer hooks */
     dmxStatInit();
     dmxSyncInit();              /* Calls RegisterBlockAndWakeupHandlers */
-
-    dmxLog(dmxInfo, "Shadow framebuffer support %s\n",
-	   dmxShadowFB ? "enabled" : "disabled");
 }
 
 /* RATS: Assuming the fp string (which comes from the command-line argv
@@ -1089,15 +1084,6 @@ int ddxProcessArgument(int argc, char *argv[], int i)
     } else if (!strcmp(argv[i], "-numDetached")) {
 	if (++i < argc) dmxNumDetached = atoi (argv[i]);
         retval = 2;
-    } else if (!strcmp(argv[i], "-noshadowfb")) {
-        dmxLog(dmxWarning,
-               "-noshadowfb has been deprecated "
-	       "since it is now the default\n");
-	dmxShadowFB = FALSE;
-	retval = 1;
-    } else if (!strcmp(argv[i], "-shadowfb")) {
-	dmxShadowFB = TRUE;
-	retval = 1;
     } else if (!strcmp(argv[i], "-fontpath")) {
         if (++i < argc) dmxSetDefaultFontPath(argv[i]);
         retval = 2;
