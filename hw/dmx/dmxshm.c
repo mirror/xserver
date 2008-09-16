@@ -607,16 +607,23 @@ dmxProcShmPutImage (ClientPtr client)
 Bool
 dmxShmInit (ScreenPtr pScreen)
 {
-    DMXScreenInfo       *dmxScreen = &dmxScreens[pScreen->myNum];
-    xcb_generic_error_t *error;
-    xcb_shm_seg_t       shmseg;
-    uint32_t            shmid;
-    char                *shmaddr;
+    DMXScreenInfo             *dmxScreen = &dmxScreens[pScreen->myNum];
+    xcb_generic_error_t       *error;
+    xcb_shm_seg_t             shmseg;
+    xcb_pixmap_t              pixmap = 0;
+    uint32_t                  shmid;
+    static char               key[] = { 'x', 'd', 'm', 'x' };
+    char                      *shmaddr;
+    xcb_shm_get_image_reply_t *reply;
+    XlibGC                    gc;
+    XGCValues                 gcvals;
+    unsigned long             mask;
+    int                       i;
 
     if (!dmxScreen->beDisplay)
 	return FALSE;
 
-    shmid = shmget (IPC_PRIVATE, 32, IPC_CREAT | 0600);
+    shmid = shmget (IPC_PRIVATE, sizeof (key), IPC_CREAT | 0600);
     if (shmid == -1)
 	return FALSE;
 
@@ -626,6 +633,8 @@ dmxShmInit (ScreenPtr pScreen)
 	shmctl (shmid, IPC_RMID, NULL);
 	return FALSE;
     }
+
+    memset (shmaddr, 0, sizeof (key));
 
     shmseg = xcb_generate_id (dmxScreen->connection);
     error  = xcb_request_check (dmxScreen->connection,
@@ -641,9 +650,70 @@ dmxShmInit (ScreenPtr pScreen)
 	return FALSE;
     }
 
+    mask = (GCFunction | GCPlaneMask | GCClipMask);
+
+    gcvals.function    = GXcopy;
+    gcvals.plane_mask  = AllPlanes;
+    gcvals.clip_mask   = None;
+    gcvals.foreground  = 0;
+
+    pixmap = xcb_generate_id (dmxScreen->connection);
+    xcb_create_pixmap (dmxScreen->connection,
+		       8,
+		       pixmap,
+		       dmxScreen->scrnWin,
+		       sizeof (key),
+		       1);
+
+    XLIB_PROLOGUE (dmxScreen);
+    gc = XCreateGC (dmxScreen->beDisplay, pixmap, mask, &gcvals);
+    if (gc)
+    {
+	for (i = 0; i < sizeof (key); i++)
+	{
+	    gcvals.foreground = key[i];
+	    XChangeGC (dmxScreen->beDisplay, gc, GCForeground, &gcvals);
+	    XFillRectangle (dmxScreen->beDisplay, pixmap, gc, i, 0, 1, 1);
+	}
+
+	XFreeGC (dmxScreen->beDisplay, gc);
+    }
+    XLIB_EPILOGUE (dmxScreen);
+
+    reply =
+	xcb_shm_get_image_reply (dmxScreen->connection,
+				 xcb_shm_get_image (dmxScreen->connection,
+						    pixmap,
+						    0, 0,
+						    sizeof (key), 1,
+						    0xff,
+						    XCB_IMAGE_FORMAT_Z_PIXMAP,
+						    shmseg,
+						    0),
+				 NULL);
+
+    xcb_free_pixmap (dmxScreen->connection, pixmap);
+    
+    if (!reply)
+    {
+	xcb_shm_detach (dmxScreen->connection, shmseg);
+	shmdt (shmaddr);
+	shmctl (shmid, IPC_RMID, NULL);
+	return FALSE;
+    }
+
+    free (reply);
+
+    for (i = 0; i < sizeof (key); i++)
+	if (shmaddr[i] != key[i])
+	    break;
+
     xcb_shm_detach (dmxScreen->connection, shmseg);
     shmdt (shmaddr);
     shmctl (shmid, IPC_RMID, NULL);
+
+    if (i < sizeof (key))
+	return FALSE;
 
     return TRUE;
 }
