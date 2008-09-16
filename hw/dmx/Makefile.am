@@ -76,8 +76,6 @@ Xdmx_SOURCES = dmx.c \
                dmxprop.h \
                dmxscrinit.c \
                dmxscrinit.h \
-               dmxshadow.c \
-               dmxshadow.h \
                dmxstat.c \
                dmxstat.h \
                dmxsync.c \
@@ -116,11 +114,7 @@ Xdmx_SOURCES = dmx.c \
 XDMX_LIBS = \
 	@XDMX_LIBS@ \
 	$(GLX_LIBS) \
-        $(AVAHI_LIBS) \
-	$(top_srcdir)/composite/libcomposite.la \
-	$(top_srcdir)/xfixes/libxfixes.la \
-	$(top_srcdir)/damageext/libdamageext.la \
-	$(XSERVER_LIBS)
+        $(AVAHI_LIBS)
 
 Xdmx_LDFLAGS = $(LD_EXPORT_SYMBOLS_FLAG)
 Xdmx_DEPENDENCIES= $(XDMX_LIBS)
