@@ -203,14 +203,6 @@ typedef struct _DMXScreenInfo {
 
     /*---------- Other related information ----------*/
 
-    int           shared;         /**< Non-zero if another Xdmx is running */
-
-    PositionType  where;            /**< Relative layout information */
-    int           whereX;           /**< Relative layout information */
-    int           whereY;           /**< Relative layout information */
-    int           whereRefScreen;   /**< Relative layout information */
-
-    int           savedTimeout;     /**< Original screen saver timeout */
     int           dpmsCapable;      /**< Non-zero if backend is DPMS capable */
     int           dpmsEnabled;      /**< Non-zero if DPMS enabled */
     int           dpmsStandby;      /**< Original DPMS standby value  */
