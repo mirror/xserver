@@ -404,12 +404,8 @@ void dmxChangeClip(GCPtr pGC, int type, pointer pvalue, int nrects)
 	}
 	break;
 
-    case CT_PIXMAP:
-    case CT_UNSORTED:
-    case CT_YSORTED:
-    case CT_YXSORTED:
-    case CT_YXBANDED:
-	/* These clip types are condensed down to either NONE or REGION
+    default:
+	/* Other clip types are condensed down to either NONE or REGION
            in the mi code */
 	break;
     }
