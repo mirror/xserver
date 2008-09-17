@@ -53,6 +53,126 @@
 
 static EventListPtr dmxEvents = NULL;
 
+static void
+dmxUpdateKeycodeMap (DeviceIntPtr pDevice)
+{
+    dmxDevicePrivPtr  pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo     *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
+    KeySymsPtr        dst = &pDevice->key->curKeySyms;
+    KeySymsPtr        src = &pDevPriv->keySyms;
+    int               width = src->mapWidth;
+    int               i;
+
+    if (!pDevice->isMaster && pDevice->u.master && pDevice->u.master->key)
+	dst = &pDevice->u.master->key->curKeySyms;
+
+    if (dst->mapWidth < width)
+	width = dst->mapWidth;
+
+    memset (pDevPriv->keycode, 0,
+	    sizeof (KeyCode) * (setup->max_keycode - setup->min_keycode));
+
+    for (i = src->minKeyCode - setup->min_keycode;
+	 i < (src->maxKeyCode - src->minKeyCode);
+	 i++)
+    {
+	int j;
+
+	for (j = 0; j < (dst->maxKeyCode - dst->minKeyCode); j++)
+	{
+	    int k;
+
+	    for (k = 0; k < i; k++)
+		if (pDevPriv->keycode[k] == (dst->minKeyCode + j))
+		    break;
+
+	    /* make sure the keycode is not already in use */
+	    if (k < i)
+		continue;
+
+	    for (k = 0; k < width; k++)
+	    	if (dst->map[j * dst->mapWidth + k] !=
+		    src->map[i * src->mapWidth + k])
+		    break;
+
+	    if (k == width)
+		break;
+	}
+
+	if (j < (dst->maxKeyCode - dst->minKeyCode))
+	    pDevPriv->keycode[i] = dst->minKeyCode + j;
+    }
+}
+
+static void
+dmxUpdateKeyboardMapping (DeviceIntPtr pDevice,
+			  int          first,
+			  int          count)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    KeySymsRec       keysyms;
+    xcb_keysym_t     *syms;
+    int              n;
+
+    if (pDevPriv->deviceId >= 0)
+    {
+	xcb_input_get_device_key_mapping_reply_t *reply;
+
+	reply = xcb_input_get_device_key_mapping_reply
+	    (dmxScreen->connection,
+	     xcb_input_get_device_key_mapping (dmxScreen->connection,
+					       pDevPriv->deviceId,
+					       first,
+					       count),
+	     NULL);
+
+	if (reply)
+	{
+	    syms = xcb_input_get_device_key_mapping_keysyms (reply);
+	    n    = xcb_input_get_device_key_mapping_keysyms_length (reply);
+
+	    keysyms.minKeyCode = first;
+	    keysyms.maxKeyCode = first + n - 1;
+	    keysyms.mapWidth   = reply->keysyms_per_keycode;
+	    keysyms.map        = (KeySym *) syms;
+    
+	    SetKeySymsMap (&pDevPriv->keySyms, &keysyms);
+
+	    free (reply);
+	}
+    }
+    else
+    {
+	xcb_get_keyboard_mapping_reply_t *reply;
+
+	reply = xcb_get_keyboard_mapping_reply
+	    (dmxScreen->connection,
+	     xcb_get_keyboard_mapping (dmxScreen->connection,
+				       first,
+				       count),
+	     NULL);
+
+	if (reply)
+	{
+	    syms = xcb_get_keyboard_mapping_keysyms (reply);
+	    n    = xcb_get_keyboard_mapping_keysyms_length (reply);
+
+	    keysyms.minKeyCode = first;
+	    keysyms.maxKeyCode = first + n - 1;
+	    keysyms.mapWidth   = reply->keysyms_per_keycode;
+	    keysyms.map        = (KeySym *) syms;
+    
+	    SetKeySymsMap (&pDevPriv->keySyms, &keysyms);
+
+	    free (reply);
+	}
+    }
+
+    dmxUpdateKeycodeMap (pDevice);
+}
+
 static DeviceIntPtr
 dmxGetButtonDevice (DMXInputInfo *dmxInput,
 		    XID          deviceId)
@@ -131,17 +251,28 @@ dmxKeyEvent (DeviceIntPtr pDevice,
 	     int          key,
 	     int          type)
 {
-    int i, nEvents;
+    dmxDevicePrivPtr  pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo     *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
+    int               nEvents = 0;
 
-    GetEventList (&dmxEvents);
-    nEvents = GetKeyboardEvents (dmxEvents, pDevice, type, key);
-    for (i = 0; i < nEvents; i++)
-	mieqEnqueue (pDevice, dmxEvents[i].event);
+    if (key >= setup->min_keycode && key <= setup->max_keycode)
+    {
+	int keycode = pDevPriv->keycode[key - setup->min_keycode];
+
+	if (keycode)
+	{
+	    int i;
+
+	    GetEventList (&dmxEvents);
+	    nEvents = GetKeyboardEvents (dmxEvents, pDevice, type, keycode);
+	    for (i = 0; i < nEvents; i++)
+		mieqEnqueue (pDevice, dmxEvents[i].event);
+	}
+    }
 
     if (key > 0 && key <= 255)
     {
-	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-
 	switch (type) {
 	case XCB_KEY_PRESS:
 	    pDevPriv->state[key >> 3] |= 1 << (key & 7);
@@ -499,6 +630,15 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
     
 	dmxUpdateKeyState (pKeyDev, state);
     } break;
+    case XCB_MAPPING_NOTIFY: {
+	xcb_mapping_notify_event_t *xmapping =
+	    (xcb_mapping_notify_event_t *) event;
+
+	if (xmapping->request == XCB_MAPPING_KEYBOARD)
+	    dmxUpdateKeyboardMapping (pKeyDev,
+				      xmapping->first_keycode,
+				      xmapping->count);
+    } break;
     default:
 	if (id < 0)
 	    return FALSE;
@@ -564,6 +704,18 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 
 	    memcpy (&pDevPriv->keysbuttons[4], xstate->keys, 28);
 	    dmxUpdateKeyState (pKeyDev, pDevPriv->keysbuttons);
+	} break;
+	case XCB_INPUT_DEVICE_MAPPING_NOTIFY: {
+	    xcb_input_device_mapping_notify_event_t *xmapping =
+		(xcb_input_device_mapping_notify_event_t *) event;
+
+	    if (id != (xmapping->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (xmapping->request == XCB_MAPPING_KEYBOARD)
+		dmxUpdateKeyboardMapping (pKeyDev,
+					  xmapping->first_keycode,
+					  xmapping->count);
 	} break;
 	default:
 	    return FALSE;
@@ -956,8 +1108,21 @@ dmxKeyboardBell (int          volume,
 static int
 dmxKeyboardOn (DeviceIntPtr pDevice)
 {
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    dmxDevicePrivPtr  pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo     *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
+    int               nKeycode = setup->max_keycode - setup->min_keycode;
+
+    pDevPriv->keycode = xalloc (nKeycode * sizeof (KeyCode));
+    if (!pDevPriv->keycode)
+	return -1;
+
+    pDevPriv->keySyms.map        = (KeySym *) NULL;
+    pDevPriv->keySyms.mapWidth   = 0;
+    pDevPriv->keySyms.minKeyCode = setup->min_keycode;
+    pDevPriv->keySyms.maxKeyCode = setup->max_keycode;
+
+    dmxUpdateKeyboardMapping (pDevice, setup->min_keycode, nKeycode);
 
     if (pDevPriv->deviceId >= 0)
     {
@@ -970,6 +1135,7 @@ dmxKeyboardOn (DeviceIntPtr pDevice)
 	{
 	    dmxLog (dmxWarning, "Cannot open %s device (id=%d) on %s\n",
 		    pDevice->name, pDevPriv->deviceId, dmxScreen->name);
+	    xfree (pDevPriv->keycode);
 	    return -1;
 	}
 
@@ -1021,6 +1187,11 @@ dmxKeyboardOff (DeviceIntPtr pDevice)
 		      dmxScreen->rootEventMask);
 	XLIB_EPILOGUE (dmxScreen);
     }
+
+    if (pDevPriv->keySyms.map)
+	xfree (pDevPriv->keySyms.map);
+
+    xfree (pDevPriv->keycode);
 }
 
 static int

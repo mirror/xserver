@@ -36,6 +36,8 @@ typedef struct _dmxDevicePriv {
     XDevice                  *device;
     char		     state[32];
     char		     keysbuttons[32];
+    KeySymsRec               keySyms;
+    KeyCode                  *keycode;
     xcb_void_cookie_t        grab;
 
     Bool (*EventCheck) (DeviceIntPtr, xcb_generic_event_t *);
