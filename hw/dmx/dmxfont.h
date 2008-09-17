@@ -45,9 +45,6 @@ typedef struct _dmxFontPriv {
     XFontStruct **font;
 } dmxFontPrivRec, *dmxFontPrivPtr;
 
-extern void dmxInitFonts(void);
-extern void dmxResetFonts(void);
-
 extern Bool dmxRealizeFont(ScreenPtr pScreen, FontPtr pFont);
 extern Bool dmxUnrealizeFont(ScreenPtr pScreen, FontPtr pFont);
 

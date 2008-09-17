@@ -958,7 +958,6 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     /* Make sure there is a global width/height available */
     dmxComputeWidthHeight ();
 
-    dmxInitFonts();
     dmxInitProps();
     dmxInitGrabs();
     dmxInitSelections();

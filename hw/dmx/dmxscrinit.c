@@ -1240,7 +1240,6 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	dmxResetSelections();
 	dmxResetGrabs();
 	dmxResetProps();
-	dmxResetFonts();
     }
 
     /* Unwrap Shape functions */
