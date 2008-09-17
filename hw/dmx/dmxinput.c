@@ -92,9 +92,11 @@ dmxUpdateKeycodeMap (DeviceIntPtr pDevice)
 		continue;
 
 	    for (k = 0; k < width; k++)
-	    	if (dst->map[j * dst->mapWidth + k] !=
-		    src->map[i * src->mapWidth + k])
-		    break;
+		if (dst->map[j * dst->mapWidth + k] != NoSymbol &&
+		    src->map[i * src->mapWidth + k] != NoSymbol)
+		    if (dst->map[j * dst->mapWidth + k] !=
+			src->map[i * src->mapWidth + k])
+			break;
 
 	    if (k == width)
 		break;
