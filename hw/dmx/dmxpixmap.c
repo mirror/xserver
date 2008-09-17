@@ -277,6 +277,7 @@ RegionPtr dmxBitmapToRegion(PixmapPtr pPixmap)
     for (y = 0; y < pPixmap->drawable.height; y++) {
 	Box.y1 = y;
 	Box.y2 = y + 1;
+	Box.x1 = 0;
 	previousPixel = 0L;
 	for (x = 0; x < pPixmap->drawable.width; x++) {
 	    currentPixel = XGetPixel(ximage, x, y);
