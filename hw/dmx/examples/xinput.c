@@ -77,7 +77,8 @@ static void printdmxinfo(Display *display, int id)
     case DMXBackendInputType:
         if (iinf.physicalId >= 0) {
             if ((backend = XOpenDisplay(iinf.name))) {
-                XExtensionVersion *ext = XGetExtensionVersion(backend, INAME);
+                XExtensionVersion *ext =
+		    XQueryInputVersion (backend, XI_2_Major, XI_2_Minor);
                 if (ext && ext != (XExtensionVersion *)NoSuchExtension) {
                     int count, i;
                     XDeviceInfo *devInfo = XListInputDevices(backend, &count);
@@ -136,7 +137,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    ext = XGetExtensionVersion(display, INAME);
+    ext = XQueryInputVersion (display, XI_2_Major, XI_2_Minor);
     if (!ext || ext == (XExtensionVersion *)NoSuchExtension) {
         printf("No XInputExtension\n");
         return -1;
