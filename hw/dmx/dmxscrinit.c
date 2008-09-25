@@ -1313,6 +1313,8 @@ static Bool dmxSaveScreen(ScreenPtr pScreen, int what)
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
     if (dmxScreen->beDisplay) {
+	if (dmxScreen->scrnWin != DefaultRootWindow (dmxScreen->beDisplay))
+	    return TRUE;
 	switch (what) {
 	case SCREEN_SAVER_OFF:
 	case SCREEN_SAVER_FORCER:
