@@ -122,10 +122,11 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     pCmap = (ColormapPtr)LookupIDByType(wColormap(pWindow), RT_COLORMAP);
     pCmapPriv = DMX_GET_COLORMAP_PRIV(pCmap);
 
-    mask |= CWBackingStore | CWColormap | CWBorderPixel;
-    attribs.backing_store = NotUseful;
-    attribs.colormap      = pCmapPriv->cmap;
-    attribs.border_pixel  = 0;
+    mask |= CWBackingStore | CWColormap | CWBorderPixel | CWOverrideRedirect;
+    attribs.backing_store     = NotUseful;
+    attribs.colormap          = pCmapPriv->cmap;
+    attribs.border_pixel      = 0;
+    attribs.override_redirect = TRUE;
 
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
@@ -595,7 +596,12 @@ static void dmxDoChangeWindowAttributes(WindowPtr pWindow,
 	*mask &= ~CWBackingPixel; /* Backing store not supported */
 
     if (*mask & CWOverrideRedirect)
-	attribs->override_redirect = pWindow->overrideRedirect;
+    {
+	if (pWindow->parent)
+	    attribs->override_redirect = pWindow->overrideRedirect;
+	else
+	    *mask &= ~CWOverrideRedirect;
+    }
 
     if (*mask & CWSaveUnder)
 	*mask &= ~CWSaveUnder; /* Save unders not supported */
