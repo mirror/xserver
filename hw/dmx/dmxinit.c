@@ -126,8 +126,8 @@ char            *dmxLaunchVT = NULL;
 int             dmxNumDetached = 4;
 
 #ifdef RANDR
-int xRROutputsPerScreen = 2;
-int xRRCrtcsPerScreen = 2;
+int             xRROutputsPerScreen = 1;
+int             xRRCrtcsPerScreen = 1;
 #endif
 
 DMXPropTrans    *dmxPropTrans = NULL;
