@@ -2113,6 +2113,15 @@ dmxDisableScreen (int idx)
     /* Screen is now disabled */
     dmxScreen->beDisplay = NULL;
 
+    /* Make sure we don't have any pending sync replies */
+    if (!dmxScreen->broken)
+    {
+	static xcb_generic_error_t detached_error = { 0, DMX_DETACHED };
+
+	dmxScreenReplyCheckSync (pScreen, 0, (xcb_generic_reply_t *)
+				 &detached_error);
+    }
+
 #ifdef RANDR
     RRGetInfo (screenInfo.screens[0]);
 #endif

@@ -353,9 +353,6 @@ void dmxCloseDisplay(DMXScreenInfo *dmxScreen)
 {
     RemoveEnabledDevice (dmxScreen->fd);
 
-    /* make sure all pending sync replies are processed */
-    dmxSync (dmxScreen, TRUE);
-
     if (dmxScreen->atomTable)
 	xfree (dmxScreen->atomTable);
     if (dmxScreen->beAtomTable)
