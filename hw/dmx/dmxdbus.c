@@ -55,6 +55,88 @@ reset_info (struct connection_info *info)
 }
 
 static int
+enable_screen (DBusMessage *message,
+	       DBusMessage *reply,
+	       DBusError   *error)
+{
+    DMXScreenAttributesRec attr;
+    uint32_t               screen;
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_INVALID))
+    {
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
+    }
+
+    if (screen >= dmxGetNumScreens ())
+    {
+	dbus_set_error (error,
+			DMX_ERROR_INVALID_SCREEN,
+			"Screen %d does not exist", screen);
+	return BadValue;
+    }
+
+    dmxGetScreenAttributes (screen, &attr);
+
+    if (!attr.name || !*attr.name)
+    {
+	dbus_set_error (error,
+			DBUS_ERROR_FAILED,
+			"No back-end server attached to screen %d",
+			screen);
+	return BadValue;
+    }
+
+    dmxEnableScreen(screen);
+
+    return Success;
+}
+
+static int
+disable_screen (DBusMessage *message,
+		DBusMessage *reply,
+		DBusError   *error)
+{
+    DMXScreenAttributesRec attr;
+    uint32_t               screen;
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_INVALID))
+    {
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
+    }
+
+    if (screen >= dmxGetNumScreens ())
+    {
+	dbus_set_error (error,
+			DMX_ERROR_INVALID_SCREEN,
+			"Screen %d does not exist", screen);
+	return BadValue;
+    }
+
+    dmxGetScreenAttributes (screen, &attr);
+
+    if (!attr.name || !*attr.name)
+    {
+	dbus_set_error (error,
+			DBUS_ERROR_FAILED,
+			"No back-end server attached to screen %d",
+			screen);
+	return BadValue;
+    }
+
+    dmxDisableScreen(screen);
+
+    return Success;
+}
+
+static int
 attach_screen (DBusMessage *message,
 	       DBusMessage *reply,
 	       DBusError   *error)
@@ -131,8 +213,6 @@ attach_screen (DBusMessage *message,
         DebugF ("[dmx/dbus] dmxAttachScreen failed\n");
         return ret;
     }
-
-    dmxEnableScreen(screen);
 
     return Success;
 }
@@ -340,7 +420,11 @@ message_handler (DBusConnection *connection,
         goto err_start;
     }
 
-    if (strcmp (dbus_message_get_member (message), "attachScreen") == 0)
+    if (strcmp (dbus_message_get_member (message), "enableScreen") == 0)
+        err = enable_screen (message, reply, &error);
+    else if (strcmp (dbus_message_get_member (message), "disableScreen") == 0)
+        err = disable_screen (message, reply, &error);
+    else if (strcmp (dbus_message_get_member (message), "attachScreen") == 0)
         err = attach_screen (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "detachScreen") == 0)
         err = detach_screen (message, reply, &error);

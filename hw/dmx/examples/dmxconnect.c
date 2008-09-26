@@ -520,6 +520,7 @@ main (int argc, char **argv)
 {
     DBusError        err;
     DBusConnection   *conn;
+    DBusMessage      *message;
     DBusMessage      *reply;
     DBusMessageIter  iter;
     int              i, ret, fd, len, screen_num, display = 0;
@@ -734,8 +735,6 @@ main (int argc, char **argv)
 
     do
     {
-	DBusMessage *message;
-
 	message = dbus_message_new_method_call (dest,
 						path,
 						"org.x.config.dmx",
@@ -821,8 +820,6 @@ main (int argc, char **argv)
     /* failing to add input is not an error */
     if (!viewonly)
     {
-	DBusMessage *message;
-
 	message = dbus_message_new_method_call (dest,
 						path,
 						"org.x.config.dmx",
@@ -860,6 +857,29 @@ main (int argc, char **argv)
 
 	dbus_message_unref (reply);
     }
+
+    message = dbus_message_new_method_call (dest,
+					    path,
+					    "org.x.config.dmx",
+					    "enableScreen");
+    if (!message)
+    {
+	fprintf (stderr, "Warning: enableScreen: Not enough memory\n");
+	return 0;
+    }
+
+    dbus_message_iter_init_append (message, &iter);
+
+    dbus_message_iter_append_basic (&iter,
+				    DBUS_TYPE_UINT32,
+				    &screen);
+
+    if (dbus_connection_send (conn, message, NULL))
+	dbus_connection_flush (conn);
+    else
+        fprintf (stderr, "Warning: enableScreen failed\n");
+
+    dbus_message_unref (message);
 
     return 0;
 }
