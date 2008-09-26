@@ -45,7 +45,12 @@ extern DMXScreenInfo *dmxAddScreen(const char *name,
 				   const char *authData,
 				   int        authDataLen,
 				   int        virtualFb);
-extern Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen);
+extern Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen,
+			   const char    *display,
+			   const char    *authType,
+			   int           authTypeLen,
+			   const char    *authData,
+			   int           authDataLen);
 extern void dmxCloseDisplay(DMXScreenInfo *dmxScreen);
 extern void dmxSetErrorHandler(DMXScreenInfo *dmxScreen);
 extern void dmxGetScreenAttribs(DMXScreenInfo *dmxScreen);

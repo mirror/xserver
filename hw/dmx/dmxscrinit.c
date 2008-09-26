@@ -1190,19 +1190,6 @@ void dmxBECloseScreen(ScreenPtr pScreen)
     xfree(dmxScreen->beDefColormaps);
     dmxScreen->beDefColormaps = NULL;
 
-#if 0
-    /* Do not free visuals, depths and pixmap formats here.  Free them
-     * in dmxCloseScreen() instead -- see comment below. */
-    XFree(dmxScreen->beVisuals);
-    dmxScreen->beVisuals = NULL;
-
-    XFree(dmxScreen->beDepths);
-    dmxScreen->beDepths = NULL;
-
-    XFree(dmxScreen->bePixmapFormats);
-    dmxScreen->bePixmapFormats = NULL;
-#endif
-
 #ifdef GLXEXT
     if (dmxScreen->glxVisuals) {
 	XFree(dmxScreen->glxVisuals);
@@ -1210,10 +1197,6 @@ void dmxBECloseScreen(ScreenPtr pScreen)
 	dmxScreen->numGlxVisuals = 0;
     }
 #endif
-
-    /* Close display */
-    dmxCloseDisplay (dmxScreen);
-    dmxScreen->beDisplay = NULL;
 
     dmxClearQueue (&dmxScreen->request);
     dmxClearQueue (&dmxScreen->ignore);
@@ -1287,7 +1270,10 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
     if (dmxScreen->beDisplay) {
 	dmxBECloseScreen(pScreen);
 
-#if 1
+	/* Close display */
+	dmxCloseDisplay (dmxScreen);
+	dmxScreen->beDisplay = NULL;
+
 	/* Free visuals, depths and pixmap formats here so that they
 	 * won't be freed when a screen is detached, thereby allowing
 	 * the screen to be reattached to be compared to the one
@@ -1301,7 +1287,6 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 
 	XFree(dmxScreen->bePixmapFormats);
 	dmxScreen->bePixmapFormats = NULL;
-#endif
     }
 
     DMX_UNWRAP(CloseScreen, dmxScreen, pScreen);

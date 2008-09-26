@@ -175,6 +175,8 @@ typedef struct _DMXScreenInfo {
     int           beShmEventBase;
 #endif
 
+    Display      *beAttachedDisplay; /**< Disabld X server's display */
+
     char          *authType;
     int           authTypeLen;
     char          *authData;

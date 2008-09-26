@@ -309,20 +309,23 @@ dmxAddScreen(const char *name,
     return dmxScreen;
 }
 
-Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen)
+Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen,
+		    const char    *display,
+		    const char    *authType,
+		    int           authTypeLen,
+		    const char    *authData,
+		    int           authDataLen)
 {
     dmxScreen->beDisplay = NULL;
 
-    if (!dmxScreen->display || !*dmxScreen->display)
+    if (!display || !*display)
 	return FALSE;
 
-    if (dmxScreen->authType && *dmxScreen->authType)
-	XSetAuthorization (dmxScreen->authType,
-			   dmxScreen->authTypeLen,
-			   dmxScreen->authData,
-			   dmxScreen->authDataLen);
+    if (authType && *authType)
+	XSetAuthorization ((char *) authType, authTypeLen,
+			   (char *) authData, authDataLen);
 
-    if (!(dmxScreen->beDisplay = XOpenDisplay(dmxScreen->display)))
+    if (!(dmxScreen->beDisplay = XOpenDisplay(display)))
 	return FALSE;
 
     dmxScreen->alive      = 1;
@@ -606,7 +609,12 @@ static Bool dmxSetPixmapFormats(ScreenInfo *pScreenInfo,
  *  display properties */
 static Bool dmxDisplayInit(DMXScreenInfo *dmxScreen)
 {
-    if (!dmxOpenDisplay(dmxScreen))
+    if (!dmxOpenDisplay(dmxScreen,
+			dmxScreen->display,
+			dmxScreen->authType,
+			dmxScreen->authTypeLen,
+			dmxScreen->authData,
+			dmxScreen->authDataLen))
     {
 	if (dmxScreen->display && *dmxScreen->display)
 	    dmxLog(dmxWarning,

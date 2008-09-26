@@ -1593,12 +1593,10 @@ dmxInputRemoveDevices (DMXInputInfo *dmxInput)
 }
 
 int
-dmxInputAttach (DMXInputInfo *dmxInput)
+dmxInputEnable (DMXInputInfo *dmxInput)
 {
     int i;
     
-    dmxInputAddDevices (dmxInput);
-
     for (i = 0; i < dmxInput->numDevs; i++)
     {
 	dmxLogInput (dmxInput, "Activate device id %d: %s\n",
@@ -1615,10 +1613,10 @@ dmxInputAttach (DMXInputInfo *dmxInput)
 }
 
 int
-dmxInputDetach (DMXInputInfo *dmxInput)
+dmxInputDisable (DMXInputInfo *dmxInput)
 {
     int i;
-
+    
     for (i = 0; i < dmxInput->numDevs; i++)
     {
         dmxLogInput (dmxInput, "Disable device id %d: %s\n",
@@ -1627,6 +1625,20 @@ dmxInputDetach (DMXInputInfo *dmxInput)
         DisableDevice (dmxInput->devs[i]);
     }
 
+    return 0;
+}
+
+int
+dmxInputAttach (DMXInputInfo *dmxInput)
+{
+    dmxInputAddDevices (dmxInput);
+
+    return 0;
+}
+
+int
+dmxInputDetach (DMXInputInfo *dmxInput)
+{
     ProcessInputEvents ();
 
     dmxInputRemoveDevices (dmxInput);

@@ -321,22 +321,36 @@ int dmxAddInput(DMXInputAttributesPtr attr, int *id)
 
     if (attr->inputType == 2)
     {
-	DMXInputInfo *dmxInput = &dmxScreens[attr->physicalScreen].input;
-	int          ret;
+	DMXScreenInfo *dmxScreen = &dmxScreens[attr->physicalScreen];
+	int           ret;
 
-	ret = dmxInputAttach (dmxInput);
-	if (ret == Success)
+	if (dmxScreen->beDisplay)
 	{
 	    int j;
+
+	    ret = dmxInputAttach (&dmxScreen->input);
+	    if (ret != Success)
+		return ret;
+
+	    dmxInputEnable (&dmxScreen->input);
 
 	    for (j = currentMaxClients; --j >= 0; )
 		if (clients[j])
 		    FindClientResourcesByType (clients[j], RT_PASSIVEGRAB,
 					       dmxBERestorePassiveGrab,
-					       (pointer) dmxInput);
-
-	    *id = attr->physicalScreen;
+					       (pointer) &dmxScreen->input);
 	}
+	else
+	{
+	    dmxScreen->beDisplay = dmxScreen->beAttachedDisplay;
+	    ret = dmxInputAttach (&dmxScreen->input);
+	    dmxScreen->beDisplay = NULL;
+	
+	    if (ret != Success)
+		return ret;
+	}
+
+	*id = attr->physicalScreen;
 
 	return ret;
     }
@@ -347,10 +361,25 @@ int dmxAddInput(DMXInputAttributesPtr attr, int *id)
 /** Remove the input with physical id \a id. */
 int dmxRemoveInput(int id)
 {
+    int ret;
+
     if (id < 0 || id >= dmxNumScreens)
 	return BadValue;
 
-    return dmxInputDetach (&dmxScreens[id].input);
+    if (dmxScreens[id].beDisplay)
+    {
+	dmxInputDisable (&dmxScreens[id].input);
+	ret = dmxInputDetach (&dmxScreens[id].input);
+    }
+    else
+    {
+	dmxScreens[id].beDisplay = dmxScreens[id].beAttachedDisplay;
+	ret = dmxInputDetach (&dmxScreens[id].input);
+	dmxScreens[id].beDisplay = NULL;
+
+    }
+
+    return ret;
 }
 
 /** Return the value of #dmxNumScreens -- the total number of backend
@@ -1417,10 +1446,9 @@ dmxAttachScreen (int                    idx,
 		 void			*error,
 		 const char             *errorName)
 {
-    ScreenPtr      pScreen;
+    ScreenPtr     pScreen;
     DMXScreenInfo *dmxScreen;
-    DMXScreenInfo  oldDMXScreen;
-    int            i;
+    DMXScreenInfo oldDMXScreen;
 
     /* Return failure if dynamic addition/removal of screens is disabled */
     if (!dmxAddRemoveScreens) {
@@ -1449,7 +1477,7 @@ dmxAttachScreen (int                    idx,
     dmxScreen = &dmxScreens[idx];
 
     /* Cannot attach to a screen that is already opened */
-    if (dmxScreen->beDisplay) {
+    if (dmxScreen->name && *dmxScreen->name) {
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
 			"Attempting to attach back-end server to screen #%d "
 			"but back-end server is already attached to this "
@@ -1465,24 +1493,16 @@ dmxAttachScreen (int                    idx,
     dmxScreen->scrnWin   = window;
     dmxScreen->virtualFb = FALSE;
 
-    /* Copy the display name to the new screen */
-    dmxScreen->display = strdup(attr->displayName);
-
-    if (attr->name)
-	dmxScreen->name = strdup(attr->name);
-    else
-	dmxScreen->name = strdup(attr->displayName);
-
-    dmxScreen->authType = dmxMemDup (authType, authTypeLen);
-    dmxScreen->authTypeLen = authTypeLen;
-    dmxScreen->authData = dmxMemDup (authData, authDataLen);
-    dmxScreen->authDataLen = authDataLen;
-
     /* Open display and get all of the screen info */
-    if (!dmxOpenDisplay(dmxScreen)) {
+    if (!dmxOpenDisplay(dmxScreen,
+			attr->displayName,
+			authType,
+			authTypeLen,
+			authData,
+			authDataLen)) {
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
 			"Can't open display: %s",
-			dmxScreen->display);
+			attr->displayName);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
@@ -1494,6 +1514,96 @@ dmxAttachScreen (int                    idx,
 
     dmxSetErrorHandler(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
+
+    if (!dmxGetVisualInfo(dmxScreen)) {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"No matching visuals found");
+	XFree(dmxScreen->beVisuals);
+	dmxCloseDisplay (dmxScreen);
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
+    dmxGetColormaps(dmxScreen);
+    dmxGetPixmapFormats(dmxScreen);
+
+    /* Verify that the screen to be added has the same info as the
+     * previously added screen. */
+    if (!dmxCompareScreens(dmxScreen,
+			   &oldDMXScreen,
+			   errorSet,
+			   error,
+			   errorName))
+    {
+	dmxLog(dmxWarning,
+	       "New screen data (%s) does not match previously\n",
+	       dmxScreen->name);
+	dmxLog(dmxWarning,
+	       "attached screen data\n");
+	dmxLog(dmxWarning,
+	       "All data must match in order to attach to screen #%d\n",
+	       idx);
+	XFree(dmxScreen->beVisuals);
+	XFree(dmxScreen->beDepths);
+	XFree(dmxScreen->bePixmapFormats);
+	dmxCloseDisplay (dmxScreen);
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
+    /* Create the default font */
+    if (!dmxBELoadFont(pScreen, defaultFont))
+    {
+	dmxErrorSet (errorSet, error, errorName,
+		     "Failed to load default font");
+	XFree(dmxScreen->beVisuals);
+	XFree(dmxScreen->beDepths);
+	XFree(dmxScreen->bePixmapFormats);
+	dmxCloseDisplay (dmxScreen);
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
+    /* We used these to compare the old and new screens.  They are no
+     * longer needed since we have a newly attached screen, so we can
+     * now free the old screen's resources. */
+    if (oldDMXScreen.beVisuals)
+	XFree(oldDMXScreen.beVisuals);
+    if (oldDMXScreen.beDepths)
+	XFree(oldDMXScreen.beDepths);
+    if (oldDMXScreen.bePixmapFormats)
+	XFree(oldDMXScreen.bePixmapFormats);
+
+    if (attr->name)
+	dmxScreen->name = strdup(attr->name);
+    else
+	dmxScreen->name = strdup(attr->displayName);
+    
+    dmxScreen->beAttachedDisplay = dmxScreen->beDisplay;
+    dmxScreen->beDisplay = NULL;
+
+    return 0; /* Success */
+}
+
+void
+dmxEnableScreen (int idx)
+{
+    ScreenPtr     pScreen;
+    DMXScreenInfo *dmxScreen;
+    int           i;
+
+    pScreen = screenInfo.screens[idx];
+    dmxScreen = &dmxScreens[idx];
+
+    dmxLogOutput(dmxScreen, "Enable screen #%d\n", idx);
+
+    dmxScreen->beDisplay = dmxScreen->beAttachedDisplay;
 
 #ifdef MITSHM
     dmxScreen->beShm = dmxShmInit (pScreen);
@@ -1547,56 +1657,6 @@ dmxAttachScreen (int                    idx,
 
     }
 
-    if (!dmxGetVisualInfo(dmxScreen)) {
-	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
-			"No matching visuals found");
-	XFree(dmxScreen->beVisuals);
-	dmxCloseDisplay (dmxScreen);
-
-	/* Restore the old screen */
-	*dmxScreen = oldDMXScreen;
-	return 1;
-    }
-
-    dmxGetColormaps(dmxScreen);
-    dmxGetPixmapFormats(dmxScreen);
-
-    /* Verify that the screen to be added has the same info as the
-     * previously added screen. */
-    if (!dmxCompareScreens(dmxScreen, &oldDMXScreen, errorSet, error, errorName))
-    {
-	dmxLog(dmxWarning,
-	       "New screen data (%s) does not match previously\n",
-	       dmxScreen->name);
-	dmxLog(dmxWarning,
-	       "attached screen data\n");
-	dmxLog(dmxWarning,
-	       "All data must match in order to attach to screen #%d\n",
-	       idx);
-	XFree(dmxScreen->beVisuals);
-	XFree(dmxScreen->beDepths);
-	XFree(dmxScreen->bePixmapFormats);
-	dmxCloseDisplay (dmxScreen);
-
-	/* Restore the old screen */
-	*dmxScreen = oldDMXScreen;
-	return 1;
-    }
-
-    /* Create the default font */
-    if (!dmxBELoadFont(pScreen, defaultFont))
-    {
-	dmxErrorSet (errorSet, error, errorName, "Failed to load default font");
-	XFree(dmxScreen->beVisuals);
-	XFree(dmxScreen->beDepths);
-	XFree(dmxScreen->bePixmapFormats);
-	dmxCloseDisplay (dmxScreen);
-
-	/* Restore the old screen */
-	*dmxScreen = oldDMXScreen;
-	return 1;
-    }
-
     /* Initialize the BE screen resources */
     dmxBEScreenInit(idx, screenInfo.screens[idx]);
 
@@ -1640,19 +1700,17 @@ dmxAttachScreen (int                    idx,
 
     dmxBEMapRootWindow(idx);
 
-    /* We used these to compare the old and new screens.  They are no
-     * longer needed since we have a newly attached screen, so we can
-     * now free the old screen's resources. */
-    XFree(oldDMXScreen.beVisuals);
-    XFree(oldDMXScreen.beDepths);
-    XFree(oldDMXScreen.bePixmapFormats);
-    /* TODO: should oldDMXScreen.name be freed?? */
-
 #ifdef RANDR
     RRGetInfo (screenInfo.screens[0]);
 #endif
 
-    return 0; /* Success */
+    dmxInputEnable (&dmxScreen->input);
+
+    for (i = currentMaxClients; --i >= 0; )
+	if (clients[i])
+	    FindClientResourcesByType (clients[i], RT_PASSIVEGRAB,
+				       dmxBERestorePassiveGrab,
+				       (pointer) &dmxScreen->input);
 }
 
 /*
@@ -2006,11 +2064,65 @@ static void dmxBEDestroyWindowTree(int idx)
     }
 }
 
+void
+dmxDisableScreen (int idx)
+{
+    ScreenPtr     pScreen;
+    DMXScreenInfo *dmxScreen;
+    int           i;
+
+    pScreen = screenInfo.screens[idx];
+    dmxScreen = &dmxScreens[idx];
+
+    dmxLogOutput(dmxScreen, "Disable screen #%d\n", idx);
+
+    dmxInputDisable (&dmxScreen->input);
+
+#ifdef XV
+    dmxBEXvScreenFini (pScreen);
+#endif
+
+#ifdef RANDR
+    dmxBERRScreenFini (pScreen);
+#endif
+
+    /* Save all relevant state (TODO) */
+
+    /* Free all non-window resources related to this screen */
+    for (i = currentMaxClients; --i >= 0; )
+	if (clients[i])
+	    FindAllClientResources(clients[i], dmxBEDestroyResources,
+				   (pointer)idx);
+
+    /* Free scratch GCs */
+    dmxBEDestroyScratchGCs(idx);
+
+    /* Free window resources related to this screen */
+    dmxBEDestroyWindowTree(idx);
+
+    /* Free default stipple */
+    dmxBESavePixmap(pScreen->PixmapPerDepth[0]);
+    dmxBEFreePixmap(pScreen->PixmapPerDepth[0]);
+
+    if (pScreen->pScratchPixmap)
+	dmxBEFreePixmap(pScreen->pScratchPixmap);
+
+    /* Free the remaining screen resources and close the screen */
+    dmxBECloseScreen(pScreen);
+
+    /* Screen is now disabled */
+    dmxScreen->beDisplay = NULL;
+
+#ifdef RANDR
+    RRGetInfo (screenInfo.screens[0]);
+#endif
+
+}
+
 /** Detach back-end screen. */
 int dmxDetachScreen(int idx)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
-    int            i;
+    DMXScreenInfo *dmxScreen;
 
     /* Return failure if dynamic addition/removal of screens is disabled */
     if (!dmxAddRemoveScreens) {
@@ -2028,6 +2140,8 @@ int dmxDetachScreen(int idx)
     /* Cannot remove a screen that does not exist */
     if (idx < 0 || idx >= dmxNumScreens) return 1;
 
+    dmxScreen = &dmxScreens[idx];
+
     if (idx == 0) {
 	dmxLog(dmxWarning,
 	       "Attempting to remove screen #%d\n",
@@ -2036,7 +2150,7 @@ int dmxDetachScreen(int idx)
     }
 
     /* Cannot detach from a screen that is not opened */
-    if (!dmxScreen->beDisplay) {
+    if (!dmxScreen->beAttachedDisplay && !dmxScreen->beDisplay) {
 	dmxLog(dmxWarning,
 	       "Attempting to remove screen #%d but it has not been opened\n",
 	       idx);
@@ -2045,16 +2159,17 @@ int dmxDetachScreen(int idx)
 
     dmxLogOutput(dmxScreen, "Detaching screen #%d\n", idx);
 
-#ifdef XV
-    dmxBEXvScreenFini (screenInfo.screens[idx]);
-#endif
-
-#ifdef RANDR
-    dmxBERRScreenFini (screenInfo.screens[idx]);
-#endif
+    if (dmxScreen->beDisplay)
+	dmxDisableScreen (idx);
 
     /* Detach input */
     dmxInputDetach (&dmxScreen->input);
+
+    dmxScreen->beDisplay = dmxScreen->beAttachedDisplay;
+    dmxCloseDisplay (dmxScreen);
+
+    dmxScreen->beAttachedDisplay = NULL;
+    dmxScreen->beDisplay = NULL;
 
     dmxScreen->scrnWidth   = 1;
     dmxScreen->scrnHeight  = 1;
@@ -2066,30 +2181,6 @@ int dmxDetachScreen(int idx)
     dmxScreen->beYDPI      = 75;
     dmxScreen->beDepth     = 24;
     dmxScreen->beBPP       = 32;
-
-    /* Save all relevant state (TODO) */
-
-    /* Free all non-window resources related to this screen */
-    for (i = currentMaxClients; --i >= 0; )
-	if (clients[i])
-	    FindAllClientResources(clients[i], dmxBEDestroyResources,
-				   (pointer)idx);
-
-    /* Free scratch GCs */
-    dmxBEDestroyScratchGCs(idx);
-
-    /* Free window resources related to this screen */
-    dmxBEDestroyWindowTree(idx);
-
-    /* Free default stipple */
-    dmxBESavePixmap(screenInfo.screens[idx]->PixmapPerDepth[0]);
-    dmxBEFreePixmap(screenInfo.screens[idx]->PixmapPerDepth[0]);
-
-    if (screenInfo.screens[idx]->pScratchPixmap)
-	dmxBEFreePixmap(screenInfo.screens[idx]->pScratchPixmap);
-
-    /* Free the remaining screen resources and close the screen */
-    dmxBECloseScreen(screenInfo.screens[idx]);
 
     if (dmxScreen->name)
     {
@@ -2108,6 +2199,8 @@ int dmxDetachScreen(int idx)
 	free (dmxScreen->authType);
 	dmxScreen->authType = NULL;
     }
+
+    dmxScreen->authTypeLen = 0;
 
     if (dmxScreen->authData)
     {

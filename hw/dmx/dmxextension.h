@@ -122,6 +122,9 @@ typedef void (*dmxErrorSetProcPtr) (void       *error,
 				    const char *format,
 				    ...);
 
+extern void          dmxEnableScreen(int idx);
+extern void          dmxDisableScreen(int idx);
+
 extern int           dmxAttachScreen (int                    idx,
 				      DMXScreenAttributesPtr attr,
 				      unsigned int	     window,

@@ -97,6 +97,12 @@ dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 		       WindowPtr    pWindow);
 
 int
+dmxInputEnable (DMXInputInfo *dmxInput);
+
+int
+dmxInputDisable (DMXInputInfo *dmxInput);
+
+int
 dmxInputAttach (DMXInputInfo *dmxInput);
 
 int

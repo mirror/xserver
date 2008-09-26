@@ -132,6 +132,8 @@ attach_screen (DBusMessage *message,
         return ret;
     }
 
+    dmxEnableScreen(screen);
+
     return Success;
 }
 

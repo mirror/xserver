@@ -521,6 +521,9 @@ static int ProcDMXAddScreen(ClientPtr client)
 			     &attr, 0, NULL, 0, NULL, 0, NULL,
 			     0, 0);
 
+    if (status == Success)
+	dmxEnableScreen(stuff->physicalScreen);
+
     xfree(name);
 
     rep.type           = X_Reply;
