@@ -542,7 +542,6 @@ main (int argc, char **argv)
     char             dest[256];
     char             path[256];
     uint32_t         index;
-    int              timeout = 600000; /* 10 minutes */
 
     for (i = 1; i < argc; i++)
     {
@@ -766,7 +765,7 @@ main (int argc, char **argv)
 
 	reply = dbus_connection_send_with_reply_and_block (conn,
 							   message,
-							   timeout,
+							   -1,
 							   &err);
 
 	dbus_message_unref (message);
@@ -842,7 +841,7 @@ main (int argc, char **argv)
 
 	reply = dbus_connection_send_with_reply_and_block (conn,
 							   message,
-							   timeout,
+							   -1,
 							   &err);
 
 	dbus_message_unref (message);
