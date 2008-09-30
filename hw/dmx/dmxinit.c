@@ -66,7 +66,15 @@
 
 #include <X11/Xos.h>                /* For gettimeofday */
 #include "dixstruct.h"
+#include "opaque.h"
 #include "panoramiXsrv.h"
+
+#ifdef HAVE_SHA1_IN_LIBMD /* Use libmd for SHA1 */
+# include <sha1.h>
+#else /* Use OpenSSL's libcrypto */
+# include <stddef.h>  /* buggy openssl/sha.h wants size_t */
+# include <openssl/sha.h>
+#endif
 
 #include <signal.h>             /* For SIGQUIT */
 #include <execinfo.h>
@@ -137,6 +145,8 @@ int             dmxPropTransNum = 0;
 char            **dmxXvImageFormats = NULL;
 int             dmxXvImageFormatsNum = 0;
 #endif
+
+char            dmxDigest[64];
 
 #include <execinfo.h>
 
@@ -730,6 +740,37 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     if (dmxGeneration != serverGeneration) {
 	int vendrel = VENDOR_RELEASE;
         int major, minor, year, month, day;
+	unsigned char sha1[20];
+	const char *host = dmxExecHost ();
+	time_t t = time (NULL);
+	pid_t pid = getpid ();
+
+#ifdef HAVE_SHA1_IN_LIBMD /* Use libmd for SHA1 */
+	SHA1_CTX ctx;
+
+	SHA1Init (&ctx);
+	SHA1Update (&ctx, display, strlen (display));
+	SHA1Update (&ctx, host, strlen (host));
+	SHA1Update (&ctx, &t, sizeof (time_t));
+	SHA1Update (&ctx, &pid, sizeof (pid_t));
+	SHA1Final (sha1, &ctx);
+#else /* Use OpenSSL's libcrypto */
+	SHA_CTX ctx;
+
+	if (!SHA1_Init (&ctx)                              ||
+	    !SHA1_Update (&ctx, display, strlen (display)) ||
+	    !SHA1_Update (&ctx, host, strlen (host))       ||
+	    !SHA1_Update (&ctx, &t, sizeof (time_t))       ||
+	    !SHA1_Update (&ctx, &pid, sizeof (pid_t))      ||
+	    !SHA1_Final (sha1, &ctx))
+	{
+	    dmxLog(dmxFatal, "SHA1_Init failed\n");
+	}
+#endif
+
+	for (i = 0; i < sizeof (sha1); i++)
+	    snprintf(dmxDigest + 2 * i, sizeof (dmxDigest) - 2 * i, "%02x",
+		     sha1[i]);
         
         dmxGeneration = serverGeneration;
 
@@ -747,6 +788,7 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
         if (major > 0 && minor > 0) year += 2000;
 
         dmxLog(dmxInfo, "Generation:         %d\n", dmxGeneration);
+	dmxLog(dmxInfo, "DMX digest:         %s\n", dmxDigest);
         dmxLog(dmxInfo, "DMX version:        %d.%d.%02d%02d%02d (%s)\n",
                major, minor, year, month, day, VENDOR_STRING);
 
