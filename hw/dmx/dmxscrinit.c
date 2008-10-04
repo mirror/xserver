@@ -119,6 +119,7 @@ DevPrivateKey dmxGlyphPrivateKey = &dmxGlyphPrivateKeyIndex; /**< Private index 
 void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
+    char          buf[256];
     int           i, j;
 
     /* FIXME: The dmxScreenInit() code currently assumes that it will
@@ -137,6 +138,12 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 
     pScreen->whitePixel = dmxScreen->beWhitePixel;
     pScreen->blackPixel = dmxScreen->beBlackPixel;
+
+    dmxScreen->selectionAtom  = None;
+    dmxScreen->selectionOwner = None;
+
+    sprintf(buf, "DMX_%s", dmxDigest);
+    dmxScreen->selectionAtom = XInternAtom (dmxScreen->beDisplay, buf, 0);
 
     /* Handle screen savers and DPMS on the backend */
     dmxDPMSInit(dmxScreen);
@@ -206,6 +213,168 @@ dmxScreenReplyCheckInput (ScreenPtr           pScreen,
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
     return dmxInputReplyCheck (&dmxScreen->input, sequence, reply);
+}
+
+static void
+dmxScreenGetSelectionOwner (ScreenPtr pScreen)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    dmxScreen->selectionOwner = None;
+    while (dmxScreen->selectionOwner == None)
+    {
+	xcb_connection_t                *c = dmxScreen->connection;
+	xcb_atom_t                      a = dmxScreen->selectionAtom;
+	xcb_get_selection_owner_reply_t *reply;
+
+	reply = xcb_get_selection_owner_reply (c,
+					       xcb_get_selection_owner (c, a),
+					       NULL);
+	if (!reply)
+	    break;
+
+	if (reply->owner)
+	{
+	    if (reply->owner != dmxScreen->rootWin)
+	    {
+		const uint32_t      value = XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+		xcb_void_cookie_t   r;
+		xcb_generic_error_t *error;
+		
+		r = xcb_change_window_attributes_checked (c,
+							  reply->owner,
+							  XCB_CW_EVENT_MASK,
+							  &value);
+		error = xcb_request_check (c, r);
+		if (error)
+		{
+		    if (error->error_code != BadWindow)
+			dmxScreen->selectionOwner = reply->owner;
+
+		    free (error);
+		}
+		else
+		{
+		    dmxScreen->selectionOwner = reply->owner;
+		}
+	    }
+	    else
+	    {
+		dmxScreen->selectionOwner = dmxScreen->rootWin;
+	    }
+	}
+	else
+	{
+	    xcb_set_selection_owner (dmxScreen->connection,
+				     dmxScreen->rootWin,
+				     dmxScreen->selectionAtom,
+				     0);
+	}
+
+	free (reply);
+    }
+}
+
+static Bool
+dmxScreenEventCheckSelection (ScreenPtr           pScreen,
+			      xcb_generic_event_t *event)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    switch (event->response_type & ~0x80) {
+    case XCB_DESTROY_NOTIFY: {
+	xcb_destroy_notify_event_t *xdestroy =
+	    (xcb_destroy_notify_event_t *) event;
+
+	if (xdestroy->window != dmxScreen->selectionOwner)
+	    return FALSE;
+
+	if (dmxScreen->selectionOwner == dmxScreen->rootWin)
+	    return FALSE;
+
+	dmxScreenGetSelectionOwner (pScreen);
+    } break;
+    case XCB_PROPERTY_NOTIFY: {
+	xcb_property_notify_event_t *xproperty =
+	    (xcb_property_notify_event_t *) event;
+
+	if (!dmxSelectionPropertyNotify (pScreen,
+					 xproperty->window,
+					 xproperty->state,
+					 xproperty->atom,
+					 xproperty->time))
+	    return FALSE;
+    } break;
+    case XCB_SELECTION_CLEAR: {
+	xcb_selection_clear_event_t *xclear =
+	    (xcb_selection_clear_event_t *) event;
+
+	if (xclear->selection == dmxScreen->selectionAtom)
+	{
+	    dmxScreenGetSelectionOwner (pScreen);
+	}
+	else
+	{
+	    dmxSelectionClear (pScreen,
+			       xclear->owner,
+			       xclear->selection);
+	}
+    } break;
+    case XCB_SELECTION_NOTIFY: {
+	xcb_selection_notify_event_t *xnotify =
+	    (xcb_selection_notify_event_t *) event;
+
+	dmxSelectionNotify (pScreen,
+			    xnotify->requestor,
+			    xnotify->selection,
+			    xnotify->target,
+			    xnotify->property,
+			    xnotify->time);
+    } break;
+    case XCB_SELECTION_REQUEST: {
+	xcb_selection_request_event_t *xrequest =
+	    (xcb_selection_request_event_t *) event;
+
+	dmxSelectionRequest (pScreen,
+			     xrequest->owner,
+			     xrequest->requestor,
+			     xrequest->selection,
+			     xrequest->target,
+			     xrequest->property,
+			     xrequest->time);
+    } break;
+    default:
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
+static Bool
+dmxScreenReplyCheckSelection (ScreenPtr           pScreen,
+			      unsigned int        sequence,
+			      xcb_generic_reply_t *reply)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (sequence == dmxScreen->getSelectionOwner.sequence)
+    {
+	dmxScreen->getSelectionOwner.sequence = 0;
+
+	if (reply->response_type)
+	{
+	    xcb_get_selection_owner_reply_t *xselection =
+		(xcb_get_selection_owner_reply_t *) reply;
+	    
+	    dmxScreen->getSelectionOwnerResult = xselection->owner;
+	}
+
+	return TRUE;
+    }
+    else
+    {
+	return dmxSelectionPropertyReplyCheck (pScreen, sequence, reply);
+    }
 }
 
 static void
@@ -326,6 +495,7 @@ dmxScreenEventCheckOutputWindow (ScreenPtr	     pScreen,
 	/* output window has been destroyed, detach screen when we reach
 	   the block handler */
 	dmxScreen->scrnWin = None;
+	return TRUE;
     } break;
     case XCB_MAP_NOTIFY: {
 	xcb_map_notify_event_t *xmap = (xcb_map_notify_event_t *) event;
@@ -334,10 +504,10 @@ dmxScreenEventCheckOutputWindow (ScreenPtr	     pScreen,
 	    return TRUE;
     } break;
     default:
-	return FALSE;
+	break;
     }
 
-    return TRUE;
+    return FALSE;
 }
 
 static Bool
@@ -361,7 +531,7 @@ dmxScreenEventCheckManageRoot (ScreenPtr	   pScreen,
 	(xcb_map_request_event_t *) event;
     xcb_client_message_event_t *xclient =
 	(xcb_client_message_event_t *) event;
-    xcb_map_notify_event_t * xmap =
+    xcb_map_notify_event_t *xmap =
 	(xcb_map_notify_event_t *) event;
 
     switch (event->response_type & ~0x80) {
@@ -379,7 +549,10 @@ dmxScreenEventCheckManageRoot (ScreenPtr	   pScreen,
 	break;
     case XCB_MAP_NOTIFY:
 	if (xmap->window == dmxScreen->rootWin)
+	{
+	    dmxScreenGetSelectionOwner (pScreen);
 	    return TRUE;
+	}
 
 	/* fall-through */
     default:
@@ -680,6 +853,7 @@ dmxBEDispatch (ScreenPtr pScreen)
     while ((event = xcb_poll_for_event (dmxScreen->connection)))
     {
 	if (!dmxScreenEventCheckInput (pScreen, event)        &&
+	    !dmxScreenEventCheckSelection (pScreen, event)    &&
 	    !dmxScreenEventCheckOutputWindow (pScreen, event) &&
 	    !dmxScreenEventCheckManageRoot (pScreen, event)   &&
 	    !dmxScreenEventCheckExpose (pScreen, event)       &&
@@ -731,7 +905,8 @@ dmxBEDispatch (ScreenPtr pScreen)
 	    dmxScreen->request.tail = &dmxScreen->request.head;
 
 	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep) &&
-	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep))
+	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep) &&
+	    !dmxScreenReplyCheckSelection (pScreen, head->sequence, rep))
 	{
 	    /* error response */
 	    if (rep->response_type == 0)
@@ -751,36 +926,27 @@ dmxBEDispatch (ScreenPtr pScreen)
     if (!dmxScreen->scrnWin ||
 	xcb_connection_has_error (dmxScreen->connection))
     {
-	if (!dmxScreen->broken)
+	while (dmxScreen->request.head)
 	{
+	    DMXSequence                *head = dmxScreen->request.head;
 	    static xcb_generic_error_t detached_error = { 0, DMX_DETACHED };
 
-	    dmxScreenEventCheckInput (pScreen, (xcb_generic_event_t *)
-				      &detached_error);
-	    dmxScreenEventCheckOutputWindow (pScreen, (xcb_generic_event_t *)
-					     &detached_error);
-	    dmxScreenEventCheckManageRoot (pScreen, (xcb_generic_event_t *)
-					   &detached_error);
-	    dmxScreenEventCheckExpose (pScreen, (xcb_generic_event_t *)
-				       &detached_error);
+	    dmxScreen->request.head = head->next;
+	    if (!dmxScreen->request.head)
+		dmxScreen->request.tail = &dmxScreen->request.head;
 
-#ifdef MITSHM
-	    dmxScreenEventCheckShm (pScreen, (xcb_generic_event_t *)
-				    &detached_error);
-#endif
-
-#ifdef RANDR
-	    dmxScreenEventCheckRR (pScreen, (xcb_generic_event_t *)
-				   &detached_error);
-#endif
-
-	    dmxScreenReplyCheckSync (pScreen, 0, (xcb_generic_reply_t *)
+	    dmxScreenReplyCheckSync (pScreen, head->sequence,
+				     (xcb_generic_reply_t *)
 				     &detached_error);
-	    dmxScreenReplyCheckInput (pScreen, 0, (xcb_generic_reply_t *)
+	    dmxScreenReplyCheckInput (pScreen, head->sequence,
+				      (xcb_generic_reply_t *)
 				      &detached_error);
-	    
-	    dmxScreen->broken = TRUE;
+	    dmxScreenReplyCheckSelection (pScreen, head->sequence,
+					  (xcb_generic_reply_t *)
+					  &detached_error);
 	}
+
+	dmxScreen->broken = TRUE;
     }
 
     dmxScreen->inDispatch--;
@@ -902,7 +1068,10 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     dmxScreen->request.head = NULL;
     dmxScreen->request.tail = &dmxScreen->request.head;
 
-    dmxScreen->rootEventMask = ExposureMask | SubstructureRedirectMask;
+    dmxScreen->rootEventMask = ExposureMask | StructureNotifyMask |
+	SubstructureRedirectMask;
+
+    dmxScreen->incrAtom = MakeAtom ("INCR", strlen ("INCR"), TRUE);
 
 #ifdef MITSHM
     dmxScreen->beShm = FALSE;
@@ -1206,6 +1375,10 @@ void dmxBECloseScreen(ScreenPtr pScreen)
 Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
+
+    /* Free selection proxy window tree */
+    if (dmxScreen->selectionProxyWid[0])
+	FreeResource (dmxScreen->selectionProxyWid[0], RT_NONE);
 
     /* Reset the proc vectors */
     if (idx == 0) {

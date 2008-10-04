@@ -141,6 +141,9 @@ int             xRRCrtcsPerScreen = 1;
 DMXPropTrans    *dmxPropTrans = NULL;
 int             dmxPropTransNum = 0;
 
+DMXSelectionMap *dmxSelectionMap = NULL;
+int             dmxSelectionMapNum = 0;
+
 #ifdef XV
 char            **dmxXvImageFormats = NULL;
 int             dmxXvImageFormatsNum = 0;
@@ -839,6 +842,26 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
 					 strlen (dmxPropTrans[i].name),
 					 TRUE);
 
+    for (i = 0; i < dmxSelectionMapNum; i++)
+    {
+	char *beName;
+
+	dmxSelectionMap[i].atom = MakeAtom ((char *) dmxSelectionMap[i].name,
+					    strlen (dmxSelectionMap[i].name),
+					    TRUE);
+
+	beName = xalloc (strlen (dmxSelectionMap[i].name) +
+			 strlen (dmxDigest) + 2);
+	if (!beName)
+	    dmxLog (dmxFatal, "InitOutput: not enough memory\n");
+	
+	sprintf (beName, "%s_%s", dmxSelectionMap[i].name, dmxDigest);
+	dmxSelectionMap[i].beAtom = MakeAtom ((char *) beName,
+					      strlen (beName),
+					      TRUE);
+	xfree (beName);
+    }
+
     if (!dmxNumScreens)
     {
 	dmxLaunchDisplay (argc, argv, dmxLaunchIndex, dmxLaunchVT);
@@ -1093,6 +1116,39 @@ void OsVendorInit(void)
 	dmxPropTransNum = 1;
     }
 
+    if (!dmxSelectionMap)
+    {
+	dmxSelectionMap = xalloc (sizeof (DMXSelectionMap) * 9);
+	dmxSelectionMap[0].name = "WM_S0";
+	dmxSelectionMap[0].atom = 0;
+	dmxSelectionMap[0].beAtom = 0;
+	dmxSelectionMap[1].name = "_NET_WM_CM_S0";
+	dmxSelectionMap[1].atom = 0;
+	dmxSelectionMap[1].beAtom = 0;
+	dmxSelectionMap[2].name = "_NET_SYSTEM_TRAY_S0";
+	dmxSelectionMap[2].atom = 0;
+	dmxSelectionMap[2].beAtom = 0;
+	dmxSelectionMap[3].name = "_NET_DESKTOP_LAYOUT_S0";
+	dmxSelectionMap[3].atom = 0;
+	dmxSelectionMap[3].beAtom = 0;
+	dmxSelectionMap[4].name = "_NET_DESKTOP_MANAGER_S0";
+	dmxSelectionMap[4].atom = 0;
+	dmxSelectionMap[4].beAtom = 0;
+	dmxSelectionMap[5].name = "_XSETTINGS_S0";
+	dmxSelectionMap[5].atom = 0;
+	dmxSelectionMap[5].beAtom = 0;
+	dmxSelectionMap[6].name = "CLIPBOARD_MANAGER";
+	dmxSelectionMap[6].atom = 0;
+	dmxSelectionMap[6].beAtom = 0;
+	dmxSelectionMap[7].name = "GVM_SELECTION";
+	dmxSelectionMap[7].atom = 0;
+	dmxSelectionMap[7].beAtom = 0;
+	dmxSelectionMap[8].name = "_COMPIZ_DM_S0";
+	dmxSelectionMap[8].atom = 0;
+	dmxSelectionMap[8].beAtom = 0;
+	dmxSelectionMapNum = 9;
+    }
+
 #ifdef PANORAMIX
     noPanoramiXExtension = dmxNoPanoramiXExtension;
     PanoramiXExtensionDisabledHack = TRUE;
@@ -1211,6 +1267,26 @@ int ddxProcessArgument(int argc, char *argv[], int i)
 	}
         retval = 3;
     }
+    else if (!strcmp (argv[i], "-selection"))
+    {
+	if (++i < argc)
+	{
+	    DMXSelectionMap *selection;
+
+	    selection = xrealloc (dmxSelectionMap, sizeof (DMXSelectionMap) *
+				  (dmxSelectionMapNum + 1));
+	    if (selection)
+	    {
+		selection[dmxSelectionMapNum].name   = argv[i];
+		selection[dmxSelectionMapNum].atom   = 0;
+		selection[dmxSelectionMapNum].beAtom = 0;
+
+		dmxSelectionMapNum++;
+		dmxSelectionMap = selection;
+	    }
+	}
+        retval = 2;
+    }
 #ifdef XV
     else if (!strcmp (argv[i], "-xvimage"))
     {
@@ -1277,6 +1353,7 @@ void ddxUseMsg(void)
     ErrorF("-crtcs num           RANDR crtcs for each back-end display\n");
 #endif
     ErrorF("-prop name format    Specify property translation\n");
+    ErrorF("-selection name      Specify selection that needs unique prefix\n");
 #ifdef XV
     ErrorF("-xvimage fourcc      Enable XVideo image format\n");
 #endif

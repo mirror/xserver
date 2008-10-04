@@ -104,8 +104,17 @@ typedef struct _DMXPropTrans {
     Atom       type;
 } DMXPropTrans;
 
-/** Opcode for xcb_implementation. */
+typedef struct _DMXSelectionMap {
+    const char *name;
+    Atom       atom;
+    Atom       beAtom;
+} DMXSelectionMap;
+
 #define DMX_DETACHED 0xff
+
+/** Number of backend selection conversion requests that can be
+    processed simultaneously . */
+#define DMX_N_SELECTION_PROXY 10
 
 /** Provide the typedef globally, but keep the contents opaque outside
  * of the XSync statistic routines.  \see dmxstat.c */
@@ -202,6 +211,15 @@ typedef struct _DMXScreenInfo {
     int           rootX;          /**< X offset of "root" window WRT "screen"*/
     int           rootY;          /**< Y offset of "root" window WRT "screen"*/
     int           rootEventMask;
+
+    /*---------- Selection information ----------*/
+    Atom                             selectionAtom;
+    Window                           selectionOwner;
+    xcb_get_selection_owner_cookie_t getSelectionOwner;
+    Window                           getSelectionOwnerResult;
+    XID                              selectionProxyWid[DMX_N_SELECTION_PROXY];
+    WindowPtr                        pSelectionProxyWin[DMX_N_SELECTION_PROXY];
+    Atom                             incrAtom;
 
     /*---------- Other related information ----------*/
 
@@ -364,10 +382,15 @@ extern int             xRRCrtcsPerScreen;
 extern DMXPropTrans     *dmxPropTrans;
 extern int              dmxPropTransNum;
 
+extern DMXSelectionMap  *dmxSelectionMap;
+extern int              dmxSelectionMapNum;
+
 #ifdef XV
 extern char             **dmxXvImageFormats;
 extern int              dmxXvImageFormatsNum;
 #endif
+
+extern char             dmxDigest[64];
 
 /** Wrap screen or GC function pointer */
 #define DMX_WRAP(_entry, _newfunc, _saved, _actual)			\

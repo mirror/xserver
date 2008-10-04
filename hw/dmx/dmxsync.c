@@ -283,9 +283,8 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (reply->response_type || reply->pad0 != DMX_DETACHED)
-	if (sequence != dmxScreen->sync.sequence)
-	    return FALSE;
+    if (sequence != dmxScreen->sync.sequence)
+	return FALSE;
 
     if (dmxScreen->sync.sequence)
     {

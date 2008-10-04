@@ -27,8 +27,57 @@
 #define DMXSELECTION_H
 
 #include "dmx.h"
+#include "propertyst.h"
 
-extern void dmxInitSelections (void);
-extern void dmxResetSelections (void);
+Window
+dmxBEGetSelectionAdjustedPropertyWindow (WindowPtr pWin);
+
+void
+dmxSelectionClear (ScreenPtr pScreen,
+		   Window    owner,
+		   Atom      xSelection);
+
+void
+dmxSelectionNotify (ScreenPtr pScreen,
+		    Window    requestor,
+		    Atom      xSelection,
+		    Atom      xTarget,
+		    Atom      xProperty,
+		    Time      xTime);
+
+Bool
+dmxSelectionPropertyNotify (ScreenPtr pScreen,
+			    Window    requestor,
+			    int       state,
+			    Atom      xProperty,
+			    Time      xTime);
+
+Bool
+dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
+				unsigned int        sequence,
+				xcb_generic_reply_t *reply);
+
+void
+dmxSelectionRequest (ScreenPtr pScreen,
+		     Window    owner,
+		     Window    requestor,
+		     Atom      xSelection,
+		     Atom      xTarget,
+		     Atom      xProperty,
+		     Time      xTime);
+
+void
+dmxSelectionPropertyChangeCheck (WindowPtr pWin,
+				 Atom      property,
+				 int       nUnits);
+
+Bool
+dmxCreateSelectionProxies (void);
+
+void
+dmxInitSelections (void);
+
+void
+dmxResetSelections (void);
 
 #endif /* DMXSELECTION_H */

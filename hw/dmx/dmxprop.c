@@ -64,6 +64,7 @@
 #include "dmxwindow.h"
 #include "dmxlog.h"
 #include "dmxatom.h"
+#include "dmxselection.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -146,20 +147,30 @@ dmxProcChangeProperty (ClientPtr client)
 							    XRT_WINDOW,
 							    DixReadAccess)))
 	{
-	    FOR_NSCREENS_FORWARD(j) {
-		if (dixLookupWindow (&pWin,
+	    FOR_NSCREENS_BACKWARD(j) {
+		WindowPtr pScrWin;
+
+		if (dixLookupWindow (&pScrWin,
 				     win->info[j].id,
 				     serverClient,
 				     DixReadAccess) == Success)
-		    dmxBESetWindowProperty (pWin, pProp);
+		    dmxBESetWindowProperty (pScrWin, pProp);
 	    }
 	}
+	
+	dmxSelectionPropertyChangeCheck (pWin,
+					 stuff->property,
+					 stuff->nUnits);
 
 	return Success;
     }
 #endif
 
     dmxBESetWindowProperty (pWin, pProp);
+
+    dmxSelectionPropertyChangeCheck (pWin,
+				     stuff->property,
+				     stuff->nUnits);
 
     return Success;
 }
@@ -168,16 +179,17 @@ static void
 dmxDeleteProperty (WindowPtr pWin,
 		   Atom      property)
 {
-    ScreenPtr      pScreen = pWin->drawable.pScreen;
-    DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+    ScreenPtr     pScreen = pWin->drawable.pScreen;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Window        window;
 
-    if (!pWinPriv->window)
+    window = dmxBEGetSelectionAdjustedPropertyWindow (pWin);
+    if (!window)
 	return;
 
     XLIB_PROLOGUE (dmxScreen);
     XDeleteProperty (dmxScreen->beDisplay,
-		     pWinPriv->window,
+		     window,
 		     dmxBEAtom (dmxScreen, property));
     XLIB_EPILOGUE (dmxScreen);
 }
@@ -226,6 +238,60 @@ dmxProcDeleteProperty (ClientPtr client)
     return Success;
 }
 
+static int
+dmxProcGetProperty (ClientPtr client)
+{
+    WindowPtr   pWin;
+    PropertyPtr pProp;
+    int         err;
+    REQUEST(xGetPropertyReq);
+
+    err = (*dmxSaveProcVector[X_GetProperty]) (client);
+    if (err != Success || !stuff->delete)
+	return err;
+
+    if (dixLookupWindow (&pWin,
+			 stuff->window,
+			 serverClient,
+			 DixReadAccess) != Success ||
+	dixLookupProperty (&pProp,
+			   pWin,
+			   stuff->property,
+			   serverClient,
+			   DixReadAccess) != BadMatch)
+	return Success;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *win;
+	int          j;
+
+	if ((win = (PanoramiXRes *) SecurityLookupIDByType (serverClient,
+							    stuff->window,
+							    XRT_WINDOW,
+							    DixReadAccess)))
+	{
+	    FOR_NSCREENS_FORWARD(j) {
+		if (dixLookupWindow (&pWin,
+				     win->info[j].id,
+				     serverClient,
+				     DixReadAccess) == Success)
+		{
+		    dmxDeleteProperty (pWin, stuff->property);
+		}
+	    }
+	}
+
+	return Success;
+    }
+#endif
+
+    dmxDeleteProperty (pWin, stuff->property);
+
+    return Success;
+}
+
 static void
 dmxRotateProperties (WindowPtr pWin,
 		     Atom      *atoms,
@@ -235,22 +301,22 @@ dmxRotateProperties (WindowPtr pWin,
 {
     ScreenPtr     pScreen = pWin->drawable.pScreen;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+    Window        window;
     int		  i;
 
-    if (!pWinPriv->window)
+    window = dmxBEGetSelectionAdjustedPropertyWindow (pWin);
+    if (!window)
 	return;
 
-    XLIB_PROLOGUE (dmxScreen);
     for (i = 0; i < nAtoms; i++)
 	buf[i] = dmxBEAtom (dmxScreen, atoms[i]);
 
+    XLIB_PROLOGUE (dmxScreen);
     XRotateWindowProperties (dmxScreen->beDisplay,
-			     pWinPriv->window,
+			     window,
 			     buf,
 			     nAtoms,
 			     nPositions);
-
     XLIB_EPILOGUE (dmxScreen);
 }
 
@@ -323,6 +389,7 @@ void dmxInitProps (void)
 
     ProcVector[X_ChangeProperty]   = dmxProcChangeProperty;
     ProcVector[X_DeleteProperty]   = dmxProcDeleteProperty;
+    ProcVector[X_GetProperty]      = dmxProcGetProperty;
     ProcVector[X_RotateProperties] = dmxProcRotateProperties;
 }
 

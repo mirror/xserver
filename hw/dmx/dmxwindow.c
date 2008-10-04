@@ -51,6 +51,7 @@
 #include "dmxfont.h"
 #include "dmxatom.h"
 #include "dmxprop.h"
+#include "dmxselection.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -152,7 +153,7 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     XLIB_EPILOGUE (dmxScreen);
 
     dmxPropertyWindow (dmxScreen, win);
-    
+
     return win;
 }
 
@@ -1347,12 +1348,13 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
 {
     ScreenPtr      pScreen = pWindow->drawable.pScreen;
     DMXScreenInfo  *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxWinPrivPtr  pWinPriv = DMX_GET_WINDOW_PRIV (pWindow);
     unsigned char  *data = pProp->data;
     const char     *format = NULL;
+    Window         window;
     int		   i;
 
-    if (!pWinPriv->window)
+    window = dmxBEGetSelectionAdjustedPropertyWindow (pWindow);
+    if (!window)
 	return;
 
     /* only 32 bit data types can be translated */
@@ -1429,7 +1431,7 @@ dmxBESetWindowProperty (WindowPtr   pWindow,
 
     XLIB_PROLOGUE (dmxScreen);
     XChangeProperty (dmxScreen->beDisplay,
-		     pWinPriv->window,
+		     window,
 		     dmxBEAtom (dmxScreen, pProp->propertyName),
 		     dmxBEAtom (dmxScreen, pProp->type),
 		     pProp->format,

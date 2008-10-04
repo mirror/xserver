@@ -42,6 +42,7 @@
 #include "dmxcb.h"
 #include "dmxinput.h"
 #include "dmxlog.h"
+#include "dmxselection.h"
 
 extern int     connBlockScreenStart;
 
@@ -194,4 +195,6 @@ void dmxConnectionBlockCallback(void)
     }
 #endif
     MAXSCREENSFREE(found);
+
+    dmxCreateSelectionProxies ();
 }

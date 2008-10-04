@@ -650,12 +650,13 @@ dmxShmInit (ScreenPtr pScreen)
 	return FALSE;
     }
 
-    mask = (GCFunction | GCPlaneMask | GCClipMask);
+    mask = (GCFunction | GCPlaneMask | GCClipMask | GCGraphicsExposures);
 
-    gcvals.function    = GXcopy;
-    gcvals.plane_mask  = AllPlanes;
-    gcvals.clip_mask   = None;
-    gcvals.foreground  = 0;
+    gcvals.function           = GXcopy;
+    gcvals.plane_mask         = AllPlanes;
+    gcvals.clip_mask          = None;
+    gcvals.foreground         = 0;
+    gcvals.graphics_exposures = FALSE;
 
     pixmap = xcb_generate_id (dmxScreen->connection);
     xcb_create_pixmap (dmxScreen->connection,
