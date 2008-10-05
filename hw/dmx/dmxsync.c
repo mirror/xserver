@@ -88,7 +88,7 @@ dmxWaitForResponse (void)
      
     for (i = 0; i < dmxNumScreens; i++)
     {
-	if (dmxScreens[i].beDisplay && dmxScreens[i].alive)
+	if (dmxScreens[i].alive)
 	{
 	    xcb_flush (dmxScreens[i].connection);
 

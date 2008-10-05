@@ -148,10 +148,6 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     /* Handle screen savers and DPMS on the backend */
     dmxDPMSInit(dmxScreen);
 
-    XSelectInput (dmxScreen->beDisplay,
-		  dmxScreen->scrnWin,
-		  StructureNotifyMask);
-
 #ifdef RANDR
     dmxBERRScreenInit (pScreen);
 #endif
@@ -991,7 +987,7 @@ dmxScreenBlockHandler (pointer   blockData,
     ScreenPtr     pScreen = (ScreenPtr) blockData;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (dmxScreen->beDisplay)
+    if (dmxScreen->alive)
     {
 	xcb_flush (dmxScreen->connection);
 	dmxScreenCheckForIOError (pScreen);
@@ -1006,7 +1002,7 @@ dmxScreenWakeupHandler (pointer blockData,
     ScreenPtr     pScreen = (ScreenPtr) blockData;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    if (dmxScreen->beDisplay)
+    if (dmxScreen->alive)
 	dmxBEDispatch (pScreen);
 }
 
@@ -1193,7 +1189,12 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 		 dmxScreen->beBPP);
 
     if (!dmxScreen->scrnWin && dmxScreen->beDisplay)
+    {
 	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+	XSelectInput (dmxScreen->beDisplay,
+		      dmxScreen->scrnWin,
+		      StructureNotifyMask);
+    }
 
 #ifdef MITSHM
     ShmRegisterDmxFuncs (pScreen);

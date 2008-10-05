@@ -1512,6 +1512,10 @@ dmxAttachScreen (int                    idx,
     if (!dmxScreen->scrnWin)
 	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
 
+    XSelectInput (dmxScreen->beDisplay,
+		  dmxScreen->scrnWin,
+		  StructureNotifyMask);
+
     dmxSetErrorHandler(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
 
@@ -1584,7 +1588,7 @@ dmxAttachScreen (int                    idx,
 	dmxScreen->name = strdup(attr->name);
     else
 	dmxScreen->name = strdup(attr->displayName);
-    
+
     dmxScreen->beAttachedDisplay = dmxScreen->beDisplay;
     dmxScreen->beDisplay = NULL;
 
