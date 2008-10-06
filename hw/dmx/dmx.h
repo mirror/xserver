@@ -213,13 +213,44 @@ typedef struct _DMXScreenInfo {
     int           rootEventMask;
 
     /*---------- Selection information ----------*/
-    Atom                             selectionAtom;
+    Atom                             beSelectionAtom;
     Window                           selectionOwner;
     xcb_get_selection_owner_cookie_t getSelectionOwner;
     Window                           getSelectionOwnerResult;
     XID                              selectionProxyWid[DMX_N_SELECTION_PROXY];
     WindowPtr                        pSelectionProxyWin[DMX_N_SELECTION_PROXY];
     Atom                             incrAtom;
+
+    /*---------- DnD information ----------*/
+    Atom                               wmStateAtom;
+    Atom                               xdndProxyAtom;
+    Atom                               xdndAwareAtom;
+    Atom                               xdndSelectionAtom;
+    Atom                               xdndEnterAtom;
+    Atom                               xdndPositionAtom;
+    Atom                               xdndStatusAtom;
+    Atom                               xdndLeaveAtom;
+    Atom                               xdndDropAtom;
+    Atom                               xdndFinishedAtom;
+    Atom                               xdndTypeListAtom;
+    Atom                               xdndActionListAtom;
+    Atom                               xdndActionDescriptionAtom;
+    Bool                               dndHasTypeProp;
+    XID                                dndWid;
+    XID                                dndSource;
+    XID                                dndTarget;
+    int                                dndStatus;
+    XID                                dndWindow;
+    Atom                               dndAction;
+    int                                dndVersion;
+    Atom                               dndType[3];
+    RegionRec                          dndBox;
+    int                                dndX;
+    int                                dndY;
+    int                                dndXPos;
+    int                                dndYPos;
+    xcb_translate_coordinates_cookie_t translateCoordinates;
+    xcb_get_property_cookie_t          getTypeProp;
 
     /*---------- Other related information ----------*/
 

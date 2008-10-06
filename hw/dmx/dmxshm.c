@@ -33,6 +33,7 @@
 #include "dmxwindow.h"
 #include "dmxpixmap.h"
 #include "dmxsync.h"
+#include "dmxlog.h"
 #include "scrnintstr.h"
 #include "servermd.h"
 #include "shmint.h"
@@ -229,10 +230,7 @@ dmxScreenEventCheckShm (ScreenPtr           pScreen,
     }
     else
     {
-	xcb_generic_error_t *error = (xcb_generic_error_t *) event;
-
-	if (event->pad0 != DMX_DETACHED)
-	    sequence = error->sequence;
+	sequence = ((xcb_generic_error_t *) event)->sequence;
     }
 
     for (pShmInfo = shmSegs; pShmInfo; pShmInfo = pShmInfo->next)
@@ -604,8 +602,8 @@ dmxProcShmPutImage (ClientPtr client)
     return (client->noClientException);
 }
 
-Bool
-dmxShmInit (ScreenPtr pScreen)
+void
+dmxBEShmScreenInit (ScreenPtr pScreen)
 {
     DMXScreenInfo             *dmxScreen = &dmxScreens[pScreen->myNum];
     xcb_generic_error_t       *error;
@@ -620,18 +618,17 @@ dmxShmInit (ScreenPtr pScreen)
     unsigned long             mask;
     int                       i;
 
-    if (!dmxScreen->beDisplay)
-	return FALSE;
+    dmxScreen->beShm = FALSE;
 
     shmid = shmget (IPC_PRIVATE, sizeof (key), IPC_CREAT | 0600);
     if (shmid == -1)
-	return FALSE;
+	return;
 
     shmaddr = shmat (shmid, NULL, 0);
     if (shmaddr == (char *) -1)
     {
 	shmctl (shmid, IPC_RMID, NULL);
-	return FALSE;
+	return;
     }
 
     memset (shmaddr, 0, sizeof (key));
@@ -647,7 +644,7 @@ dmxShmInit (ScreenPtr pScreen)
 	free (error);
 	shmdt (shmaddr);
 	shmctl (shmid, IPC_RMID, NULL);
-	return FALSE;
+	return;
     }
 
     mask = (GCFunction | GCPlaneMask | GCClipMask | GCGraphicsExposures);
@@ -700,7 +697,7 @@ dmxShmInit (ScreenPtr pScreen)
 	xcb_shm_detach (dmxScreen->connection, shmseg);
 	shmdt (shmaddr);
 	shmctl (shmid, IPC_RMID, NULL);
-	return FALSE;
+	return;
     }
 
     free (reply);
@@ -714,9 +711,11 @@ dmxShmInit (ScreenPtr pScreen)
     shmctl (shmid, IPC_RMID, NULL);
 
     if (i < sizeof (key))
-	return FALSE;
+	return;
 
-    return TRUE;
+    dmxScreen->beShm = TRUE;
+    dmxScreen->beShmEventBase = XShmGetEventBase (dmxScreen->beDisplay);
+    dmxLogOutput (dmxScreen, "Using MIT-SHM extension\n");
 }
 
 void dmxInitShm (void)

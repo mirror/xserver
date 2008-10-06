@@ -58,14 +58,15 @@ static Bool          dpmsSupported  = TRUE;
 
 /** Initialize DPMS support.  We save the current settings and turn off
  * DPMS.  The settings are restored in #dmxDPMSTerm. */
-void dmxDPMSInit(DMXScreenInfo *dmxScreen)
+void dmxBEDPMSScreenInit(ScreenPtr pScreen)
 {
-    int        event_base, error_base;
-    int        major, minor;
-    CARD16     level, standby, suspend, off;
-    BOOL       state;
-    const char *monitor;
-    int        status = 1;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    int           event_base, error_base;
+    int           major, minor;
+    CARD16        level, standby, suspend, off;
+    BOOL          state;
+    const char    *monitor;
+    int           status = 1;
 
     if (dpmsGeneration != serverGeneration) {
         dpmsSupported  = TRUE;  /* On unless a backend doesn't support it */
@@ -145,8 +146,10 @@ void dmxDPMSInit(DMXScreenInfo *dmxScreen)
 
 /** Terminate DPMS support on \a dmxScreen.  We restore the settings
  * saved in #dmxDPMSInit. */
-void dmxDPMSTerm(DMXScreenInfo *dmxScreen)
+void dmxBEDPMSScreenFini(ScreenPtr pScreen)
 {
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
     if (!dmxScreen->beDisplay)
 	return;
 

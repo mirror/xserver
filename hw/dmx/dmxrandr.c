@@ -1143,7 +1143,9 @@ dmxScreenEventCheckRR (ScreenPtr           pScreen,
 	DisplayHeight (dmxScreen->beDisplay,
 		       DefaultScreen (dmxScreen->beDisplay));
 
-    RRGetInfo (screenInfo.screens[0]);
+    /* only call RRGetInfo when server is fully initialized */
+    if (dmxScreens[0].selectionProxyWid[0])
+	RRGetInfo (screenInfo.screens[0]);
 
     return TRUE;
 }
@@ -1194,8 +1196,30 @@ dmxRRScreenInit (ScreenPtr pScreen)
 	XRRScreenResources *r = NULL;
 	DMXScreenInfo      *dmxScreen = dmxScreens;
 	Display            *display = dmxScreen->beDisplay;
+	Bool               beRandr = FALSE;
 
-	if (display && dmxScreens->beRandr)
+	if (display && dmxScreen->scrnWin == DefaultRootWindow (display))
+	{
+	    int major, minor, status = 0;
+
+	    XLIB_PROLOGUE (dmxScreen);
+	    status = XRRQueryVersion (display, &major, &minor);
+	    XLIB_EPILOGUE (dmxScreen);
+
+	    if (status)
+	    {
+		if (major > 1 || (major == 1 && minor >= 2))
+		{
+		    int ignore;
+
+		    XLIB_PROLOGUE (dmxScreen);
+		    beRandr = XRRQueryExtension (display, &ignore, &ignore);
+		    XLIB_EPILOGUE (dmxScreen);
+		}
+	    }
+	}
+
+	if (display && beRandr)
 	{
 	    XLIB_PROLOGUE (dmxScreens);
 	    r = XRRGetScreenResources (display, DefaultRootWindow (display));
@@ -1246,6 +1270,42 @@ Bool
 dmxBERRScreenInit (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    dmxScreen->beRandr = FALSE;
+
+    if (dmxScreen->scrnWin == DefaultRootWindow (dmxScreen->beDisplay))
+    {
+	int major, minor, status = 0;
+
+	XLIB_PROLOGUE (dmxScreen);
+	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
+	XLIB_EPILOGUE (dmxScreen);
+
+	if (status)
+	{
+	    if (major > 1 || (major == 1 && minor >= 2))
+	    {
+		int ignore;
+
+		XLIB_PROLOGUE (dmxScreen);
+		dmxScreen->beRandr =
+		    XRRQueryExtension (dmxScreen->beDisplay,
+				       &dmxScreen->beRandrEventBase,
+				       &ignore);
+		XLIB_EPILOGUE (dmxScreen);
+
+		dmxLog (dmxInfo, "RandR 1.2 is present\n");
+	    }
+	    else
+	    {
+		dmxLog (dmxInfo, "RandR 1.2 is not present\n");
+	    }
+	}
+	else
+	{
+	    dmxLog (dmxInfo, "RandR extension missing\n");
+	}
+    }
 	
     if (!dmxScreen->beRandr)
 	return FALSE;

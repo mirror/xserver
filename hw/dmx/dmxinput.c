@@ -1184,10 +1184,13 @@ dmxKeyboardOff (DeviceIntPtr pDevice)
     {
 	dmxScreen->rootEventMask &= ~DMX_KEYBOARD_EVENT_MASK;
 
-	XLIB_PROLOGUE (dmxScreen);
-	XSelectInput (dmxScreen->beDisplay, dmxScreen->rootWin,
-		      dmxScreen->rootEventMask);
-	XLIB_EPILOGUE (dmxScreen);
+	if (dmxScreen->scrnWin)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XSelectInput (dmxScreen->beDisplay, dmxScreen->rootWin,
+			  dmxScreen->rootEventMask);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
     }
 
     if (pDevPriv->keySyms.map)
@@ -1336,10 +1339,13 @@ dmxPointerOff (DeviceIntPtr pDevice)
     {
 	dmxScreen->rootEventMask &= ~DMX_POINTER_EVENT_MASK;
 	
-	XLIB_PROLOGUE (dmxScreen);
-	XSelectInput (dmxScreen->beDisplay, dmxScreen->rootWin,
-		      dmxScreen->rootEventMask);
-	XLIB_EPILOGUE (dmxScreen);
+	if (dmxScreen->scrnWin)
+	{
+	    XLIB_PROLOGUE (dmxScreen);
+	    XSelectInput (dmxScreen->beDisplay, dmxScreen->rootWin,
+			  dmxScreen->rootEventMask);
+	    XLIB_EPILOGUE (dmxScreen);
+	}
     }
 }
 

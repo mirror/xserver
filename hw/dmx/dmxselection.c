@@ -33,6 +33,7 @@
 #include "dmxwindow.h"
 #include "dmxscrinit.h"
 #include "dmxsync.h"
+#include "dmxdnd.h"
 #include "dmxselection.h"
 
 #include "selection.h"
@@ -549,7 +550,7 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
 	if (s)
 	{
 	    WindowPtr pWin;
-	    
+
 	    if (dixLookupWindow (&pWin,
 				 s->wid,
 				 serverClient,
@@ -801,7 +802,7 @@ dmxSelectionRequest (ScreenPtr pScreen,
 	    }
 	    else
 	    {
-		/* TODO: wait for proxy window to become availble */
+		/* TODO: wait for proxy window to become available */
 		dmxLog (dmxWarning,
 			"dmxSelectionRequest: no proxy window available "
 			"for conversion of %s selection\n",
@@ -1123,7 +1124,7 @@ dmxProcConvertSelection (ClientPtr client)
     if (!s)
 	return BadAlloc;
 
-    s->wid       = stuff->requestor;
+    s->wid       = 0;
     s->requestor = 0;
     s->selection = stuff->selection;
     s->target    = stuff->target;
@@ -1197,6 +1198,8 @@ dmxProcConvertSelection (ClientPtr client)
 
     if (j < dmxNumScreens)
     {
+	s->wid = stuff->requestor;
+
 	dmxAppendSelection (s, &convTail);
 
 	return client->noClientException;
@@ -1222,37 +1225,39 @@ dmxProcSendEvent (ClientPtr client)
     REQUEST(xSendEventReq);
     REQUEST_SIZE_MATCH(xSendEventReq);
 
-    if (stuff->event.u.u.type == SelectionNotify &&
-	stuff->eventMask      == NoEventMask     &&
-	stuff->destination    != PointerWindow   &&
-	stuff->destination    != InputFocus)
+    if ((stuff->propagate != xFalse) && (stuff->propagate != xTrue))
     {
-	Atom         property = stuff->event.u.selectionNotify.property;
-	Atom         target = stuff->event.u.selectionNotify.target;
-	DMXSelection *s;
+	client->errorValue = stuff->propagate;
+	return BadValue;
+    }
 
-	if ((stuff->propagate != xFalse) && (stuff->propagate != xTrue))
+    switch (stuff->event.u.u.type) {
+    case SelectionNotify:
+	if (stuff->eventMask   == NoEventMask   &&
+	    stuff->destination != PointerWindow &&
+	    stuff->destination != InputFocus)
 	{
-	    client->errorValue = stuff->propagate;
-	    return BadValue;
-	}
+	    Atom         property = stuff->event.u.selectionNotify.property;
+	    Atom         target = stuff->event.u.selectionNotify.target;
+	    DMXSelection *s;
 
-	for (s = reqHead; s; s = s->next)
-	    if (s->wid       == stuff->destination &&
-		s->selection == stuff->event.u.selectionNotify.selection)
-		break;
+	    for (s = reqHead; s; s = s->next)
+		if (s->wid       == stuff->destination &&
+		    s->selection == stuff->event.u.selectionNotify.selection)
+		    break;
 
-	if (s)
-	{
-	    int i;
-
-	    for (i = 0; i < dmxNumScreens; i++)
+	    if (s)
 	    {
-		if (s->value[i].out)
+		int i;
+
+		for (i = 0; i < dmxNumScreens; i++)
 		{
 		    xcb_selection_notify_event_t xevent;
 		    DMXScreenInfo                *dmxScreen = &dmxScreens[i];
 
+		    if (!s->value[i].out)
+			continue;
+		    
 		    xevent.response_type = XCB_SELECTION_NOTIFY;
 		    xevent.pad0 = 0;
 		    xevent.sequence = 0;
@@ -1297,18 +1302,32 @@ dmxProcSendEvent (ClientPtr client)
 								   &reqHead,
 								   &reqTail));
 
-		    return Success;
+		    return client->noClientException;
 		}
-	    }
 	    
-	    s->property = property;
-	    if (property == dmxScreens[0].incrAtom)
-		dmxSelectionResetTimer (s);
-	    else
-		dmxSelectionDeleteReq (dmxUnhookSelection (s,
-							   &reqHead,
-							   &reqTail));
+		s->property = property;
+		if (property == dmxScreens[0].incrAtom)
+		    dmxSelectionResetTimer (s);
+		else
+		    dmxSelectionDeleteReq (dmxUnhookSelection (s,
+							       &reqHead,
+							       &reqTail));
+	    }
 	}
+	break;
+    case ClientMessage:
+	if (stuff->event.u.u.detail != 8 &&
+	    stuff->event.u.u.detail != 16 &&
+	    stuff->event.u.u.detail != 32)
+	{
+	    client->errorValue = stuff->event.u.u.detail;
+	    return BadValue;
+	}
+
+	if (stuff->destination == dmxScreens[0].selectionProxyWid[0])
+	    dmxDnDClientMessageEvent (&stuff->event);
+
+	break;
     }
 
     return (*dmxSaveProcVector[X_SendEvent]) (client);

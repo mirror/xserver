@@ -1051,6 +1051,10 @@ void InitOutput(ScreenInfo *pScreenInfo, int argc, char *argv[])
     /* Initialized things that need timer hooks */
     dmxStatInit();
     dmxSyncInit();              /* Calls RegisterBlockAndWakeupHandlers */
+
+    for (i = 0; i < dmxNumScreens; i++)
+	if (dmxScreens[i].beDisplay)
+	    dmxBEScreenInit (screenInfo.screens[i]);
 }
 
 /* RATS: Assuming the fp string (which comes from the command-line argv

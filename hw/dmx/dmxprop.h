@@ -36,7 +36,6 @@
 
 #ifndef _DMXPROP_H_
 #define _DMXPROP_H_
-extern void dmxPropertyWindow(DMXScreenInfo *dmxScreen, Window win);
 extern void dmxInitProps (void);
 extern void dmxResetProps (void);
 #endif

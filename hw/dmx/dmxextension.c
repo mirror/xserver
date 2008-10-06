@@ -1609,60 +1609,8 @@ dmxEnableScreen (int idx)
 
     dmxScreen->beDisplay = dmxScreen->beAttachedDisplay;
 
-#ifdef MITSHM
-    dmxScreen->beShm = dmxShmInit (pScreen);
-    if (dmxScreen->beShm)
-    {
-	dmxScreen->beShmEventBase =
-	    XShmGetEventBase (dmxScreen->beDisplay);
-	dmxLogOutput (dmxScreen, "Using MIT-SHM extension\n");
-    }
-#endif
-
-#ifdef RANDR
-    dmxScreen->beRandr = FALSE;
-#endif
-
-    if (dmxScreen->scrnWin == DefaultRootWindow (dmxScreen->beDisplay))
-    {
-
-#ifdef RANDR
-	int major, minor, status = 0;
-
-	XLIB_PROLOGUE (dmxScreen);
-	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
-	XLIB_EPILOGUE (dmxScreen);
-
-	if (status)
-	{
-	    if (major > 1 || (major == 1 && minor >= 2))
-	    {
-		int ignore;
-
-		XLIB_PROLOGUE (dmxScreen);
-		dmxScreen->beRandr =
-		    XRRQueryExtension (dmxScreen->beDisplay,
-				       &dmxScreen->beRandrEventBase,
-				       &ignore);
-		XLIB_EPILOGUE (dmxScreen);
-
-		dmxLog (dmxInfo, "RandR 1.2 is present\n");
-	    }
-	    else
-	    {
-		dmxLog (dmxInfo, "RandR 1.2 is not present\n");
-	    }
-	}
-	else
-	{
-	    dmxLog (dmxInfo, "RandR extension missing\n");
-	}
-#endif
-
-    }
-
     /* Initialize the BE screen resources */
-    dmxBEScreenInit(idx, screenInfo.screens[idx]);
+    dmxBEScreenInit(screenInfo.screens[idx]);
 
     /* TODO: Handle GLX visual initialization.  GLXProxy needs to be
      * updated to handle dynamic addition/removal of screens. */

@@ -71,46 +71,6 @@
 #include "panoramiXsrv.h"
 #endif
 
-/** Holds the window id of all DMX windows on the backend X server. */
-#define DMX_ATOMNAME "DMX_NAME"
-
-/** The identification string of this DMX server */
-#define DMX_IDENT    "DMX"
-
-extern char *display;
-
-static const unsigned char *dmxPropertyIdentifier(void)
-{
-                                /* RATS: These buffers are only used in
-                                 * length-limited calls. */
-    char          hostname[256];
-    static char   buf[128];
-    static int    initialized = 0;
-
-    if (initialized++) return (unsigned char *)buf;
-    
-    XmuGetHostname(hostname, sizeof(hostname));
-    XmuSnprintf(buf, sizeof(buf), "%s:%s:%s", DMX_IDENT, hostname, display);
-    return (unsigned char *)buf;
-}
-
-void dmxPropertyWindow(DMXScreenInfo *dmxScreen, Window win)
-{
-    Atom                atom;
-    const unsigned char *id  = dmxPropertyIdentifier();
-    Display             *dpy = dmxScreen->beDisplay;
-    char                buf[128]; /* RATS: only used with XmuSnprintf */
-
-    if (!dpy)
-	return;
-
-    atom = XInternAtom(dpy, DMX_ATOMNAME, False);
-
-    XmuSnprintf(buf, sizeof(buf), "%s,%d", id, dmxScreen->index);
-    XChangeProperty(dpy, win, atom, XA_STRING, 8,
-                    PropModeReplace, (unsigned char *)buf, strlen(buf));
-}
-
 static int (*dmxSaveProcVector[256]) (ClientPtr);
 
 static int

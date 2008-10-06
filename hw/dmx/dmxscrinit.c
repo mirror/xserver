@@ -59,6 +59,7 @@
 #include "dmxselection.h"
 #include "dmxatom.h"
 #include "dmxshm.h"
+#include "dmxdnd.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -116,9 +117,9 @@ DevPrivateKey dmxGlyphPrivateKey = &dmxGlyphPrivateKeyIndex; /**< Private index 
 
 /** Initialize the parts of screen \a idx that require access to the
  *  back-end server. */
-void dmxBEScreenInit(int idx, ScreenPtr pScreen)
+void dmxBEScreenInit(ScreenPtr pScreen)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[idx];
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     char          buf[256];
     int           i, j;
 
@@ -139,14 +140,20 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
     pScreen->whitePixel = dmxScreen->beWhitePixel;
     pScreen->blackPixel = dmxScreen->beBlackPixel;
 
-    dmxScreen->selectionAtom  = None;
     dmxScreen->selectionOwner = None;
 
     sprintf(buf, "DMX_%s", dmxDigest);
-    dmxScreen->selectionAtom = XInternAtom (dmxScreen->beDisplay, buf, 0);
+    
+    XLIB_PROLOGUE (dmxScreens);
+    dmxScreen->beSelectionAtom = XInternAtom (dmxScreen->beDisplay, buf, 0);
+    XLIB_EPILOGUE (dmxScreen);
 
     /* Handle screen savers and DPMS on the backend */
-    dmxDPMSInit(dmxScreen);
+    dmxBEDPMSScreenInit (pScreen);
+
+#ifdef MITSHM
+    dmxBEShmScreenInit (pScreen);
+#endif
 
 #ifdef RANDR
     dmxBERRScreenInit (pScreen);
@@ -162,9 +169,11 @@ void dmxBEScreenInit(int idx, ScreenPtr pScreen)
 	    if ((dmxScreen->bePixmapFormats[i].depth == 1) ||
 		(dmxScreen->bePixmapFormats[i].depth ==
 		 dmxScreen->beDepths[j])) {
+		XLIB_PROLOGUE (dmxScreens);
 		dmxScreen->scrnDefDrawables[i] = (Drawable)
 		    XCreatePixmap(dmxScreen->beDisplay, dmxScreen->scrnWin,
 				  1, 1, dmxScreen->bePixmapFormats[i].depth);
+		XLIB_EPILOGUE (dmxScreen);
 		break;
 	    }
 }
@@ -220,7 +229,7 @@ dmxScreenGetSelectionOwner (ScreenPtr pScreen)
     while (dmxScreen->selectionOwner == None)
     {
 	xcb_connection_t                *c = dmxScreen->connection;
-	xcb_atom_t                      a = dmxScreen->selectionAtom;
+	xcb_atom_t                      a = dmxScreen->beSelectionAtom;
 	xcb_get_selection_owner_reply_t *reply;
 
 	reply = xcb_get_selection_owner_reply (c,
@@ -263,7 +272,7 @@ dmxScreenGetSelectionOwner (ScreenPtr pScreen)
 	{
 	    xcb_set_selection_owner (dmxScreen->connection,
 				     dmxScreen->rootWin,
-				     dmxScreen->selectionAtom,
+				     dmxScreen->beSelectionAtom,
 				     0);
 	}
 
@@ -305,7 +314,7 @@ dmxScreenEventCheckSelection (ScreenPtr           pScreen,
 	xcb_selection_clear_event_t *xclear =
 	    (xcb_selection_clear_event_t *) event;
 
-	if (xclear->selection == dmxScreen->selectionAtom)
+	if (xclear->selection == dmxScreen->beSelectionAtom)
 	{
 	    dmxScreenGetSelectionOwner (pScreen);
 	}
@@ -850,6 +859,7 @@ dmxBEDispatch (ScreenPtr pScreen)
     {
 	if (!dmxScreenEventCheckInput (pScreen, event)        &&
 	    !dmxScreenEventCheckSelection (pScreen, event)    &&
+	    !dmxScreenEventCheckDnD (pScreen, event)          &&
 	    !dmxScreenEventCheckOutputWindow (pScreen, event) &&
 	    !dmxScreenEventCheckManageRoot (pScreen, event)   &&
 	    !dmxScreenEventCheckExpose (pScreen, event)       &&
@@ -902,7 +912,8 @@ dmxBEDispatch (ScreenPtr pScreen)
 
 	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep) &&
 	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep) &&
-	    !dmxScreenReplyCheckSelection (pScreen, head->sequence, rep))
+	    !dmxScreenReplyCheckSelection (pScreen, head->sequence, rep) &&
+	    !dmxScreenReplyCheckDnD (pScreen, head->sequence, rep))
 	{
 	    /* error response */
 	    if (rep->response_type == 0)
@@ -940,6 +951,9 @@ dmxBEDispatch (ScreenPtr pScreen)
 	    dmxScreenReplyCheckSelection (pScreen, head->sequence,
 					  (xcb_generic_reply_t *)
 					  &detached_error);
+	    dmxScreenReplyCheckDnD (pScreen, head->sequence,
+				    (xcb_generic_reply_t *)
+				    &detached_error);
 	}
 
 	dmxScreen->broken = TRUE;
@@ -1069,15 +1083,6 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
     dmxScreen->incrAtom = MakeAtom ("INCR", strlen ("INCR"), TRUE);
 
-#ifdef MITSHM
-    dmxScreen->beShm = FALSE;
-#endif
-
-#ifdef RANDR
-    dmxScreen->beRandr = FALSE;
-    dmxScreen->beRandrPending = FALSE;
-#endif
-
     if (!dmxInitGC(pScreen)) return FALSE;
     if (!dmxInitWindow(pScreen)) return FALSE;
     if (!dmxInitPixmap(pScreen)) return FALSE;
@@ -1090,7 +1095,7 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
      * Maybe a miAddVisualTypeAndMask() function will be added to make
      * things easier here.
      */
-    if (dmxScreen->beDisplay)
+    if (dmxScreen->beAttachedDisplay)
     {
 	for (i = 0; i < dmxScreen->beNumDepths; i++) {
 	    int    depth;
@@ -1198,13 +1203,6 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
 #ifdef MITSHM
     ShmRegisterDmxFuncs (pScreen);
-    dmxScreen->beShm = dmxShmInit (pScreen);
-    if (dmxScreen->beShm)
-    {
-	dmxScreen->beShmEventBase =
-	    XShmGetEventBase (dmxScreen->beDisplay);
-	dmxLogOutput (dmxScreen, "Using MIT-SHM extension\n");
-    }
 #endif
 
 #ifdef PANORAMIX
@@ -1217,35 +1215,11 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 #endif
 
 #ifdef RENDER
-    (void)dmxPictureInit(pScreen, 0, 0);
+    if (!dmxPictureInit (pScreen, 0, 0))
+	return FALSE;
 #endif
 
 #ifdef RANDR
-    if (dmxScreen->beDisplay &&
-	dmxScreen->scrnWin == DefaultRootWindow (dmxScreen->beDisplay))
-    {
-	int major, minor, status = 0;
-
-	XLIB_PROLOGUE (dmxScreen);
-	status = XRRQueryVersion (dmxScreen->beDisplay, &major, &minor);
-	XLIB_EPILOGUE (dmxScreen);
-
-	if (status)
-	{
-	    if (major > 1 || (major == 1 && minor >= 2))
-	    {
-		int ignore;
-
-		XLIB_PROLOGUE (dmxScreen);
-		dmxScreen->beRandr =
-		    XRRQueryExtension (dmxScreen->beDisplay,
-				       &dmxScreen->beRandrEventBase,
-				       &ignore);
-		XLIB_EPILOGUE (dmxScreen);
-	    }
-	}
-    }
-
     if (!dmxRRScreenInit (pScreen))
 	return FALSE;
 #endif
@@ -1254,6 +1228,9 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     if (!dmxXvScreenInit (pScreen))
 	return FALSE;
 #endif
+
+    if (!dmxDnDScreenInit (pScreen))
+	return FALSE;
 
     miInitializeBackingStore(pScreen);
 
@@ -1270,9 +1247,6 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
 
     DMX_WRAP(CloseScreen, dmxCloseScreen, dmxScreen, pScreen);
     DMX_WRAP(SaveScreen, dmxSaveScreen, dmxScreen, pScreen);
-
-    if (dmxScreen->beDisplay)
-	dmxBEScreenInit(idx, pScreen);
 
     /* Wrap GC functions */
     DMX_WRAP(CreateGC, dmxCreateGC, dmxScreen, pScreen);
@@ -1336,8 +1310,16 @@ void dmxBECloseScreen(ScreenPtr pScreen)
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     int            i;
 
+#ifdef XV
+    dmxBEXvScreenFini (pScreen);
+#endif
+
+#ifdef RANDR
+    dmxBERRScreenFini (pScreen);
+#endif
+
     /* Restore the back-end screen-saver and DPMS state. */
-    dmxDPMSTerm(dmxScreen);
+    dmxBEDPMSScreenFini (pScreen);
 
     /* Free the screen resources */
     dmxScreen->scrnWin = (Window)0;

@@ -52,6 +52,7 @@
 #include "dmxatom.h"
 #include "dmxprop.h"
 #include "dmxselection.h"
+#include "dmxdnd.h"
 #ifdef RENDER
 #include "dmxpict.h"
 #endif
@@ -150,9 +151,15 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
 			visual,
 			mask,
 			&attribs);
+    XChangeProperty (dmxScreen->beDisplay, win,
+		     XInternAtom (dmxScreen->beDisplay, "DMX_NAME", False),
+		     XA_STRING, 8,
+		     PropModeReplace,
+		     (unsigned char *) dmxDigest,
+		     strlen (dmxDigest));
     XLIB_EPILOGUE (dmxScreen);
 
-    dmxPropertyWindow (dmxScreen, win);
+    dmxBEDnDRootWindowUpdate (pWindow->drawable.pScreen, win);
 
     return win;
 }

@@ -45,7 +45,7 @@ extern DevPrivateKey dmxScreenPrivateKey;
 
 extern Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[]);
 
-extern void dmxBEScreenInit(int idx, ScreenPtr pScreen);
+extern void dmxBEScreenInit(ScreenPtr pScreen);
 extern void dmxBECloseScreen(ScreenPtr pScreen);
 extern void dmxBEDispatch (ScreenPtr pScreen);
 

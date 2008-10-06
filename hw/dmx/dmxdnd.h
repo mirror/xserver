@@ -23,40 +23,31 @@
  * Author: David Reveman <davidr@novell.com>
  */
 
-#ifndef DMXSHM_H
-#define DMXSHM_H
+#ifndef DMXDND_H
+#define DMXDND_H
 
-#ifdef MITSHM
+#include "dmx.h"
 
-#include <X11/extensions/XShm.h>
-#include <xcb/shm.h>
+void
+dmxBEDnDRootWindowUpdate (ScreenPtr pScreen,
+			  Window    window);
 
-typedef struct _dmxShmSegInfo {
-    struct _dmxShmSegInfo *next;
-    uint32_t              shmid;
-    int                   refcnt;
-    uint8_t               readOnly;
-    uint32_t              pendingEvents;
-    xcb_shm_seg_t         shmseg[MAXSCREENS];
-    xcb_void_cookie_t     cookie[MAXSCREENS];
-} dmxShmSegInfoRec, *dmxShmSegInfoPtr;
+Bool
+dmxScreenEventCheckDnD (ScreenPtr           pScreen,
+			xcb_generic_event_t *event);
 
-extern unsigned long DMX_SHMSEG;
+Bool
+dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
+			unsigned int        sequence,
+			xcb_generic_reply_t *reply);
 
-extern void ShmRegisterDmxFuncs (ScreenPtr pScreen);
+void
+dmxDnDClientMessageEvent (xEvent *event);
 
-extern void dmxBEAttachShmSeg (DMXScreenInfo    *dmxScreen,
-			       dmxShmSegInfoPtr pShmInfo);
-extern void dmxBEDetachShmSeg (DMXScreenInfo    *dmxScreen,
-			       dmxShmSegInfoPtr pShmInfo);
+Bool
+dmxDnDScreenInit (ScreenPtr pScreen);
 
-extern Bool dmxScreenEventCheckShm (ScreenPtr           pScreen,
-				    xcb_generic_event_t *event);
+void
+dmxDnDScreenFini (ScreenPtr pScreen);
 
-extern void dmxBEShmScreenInit (ScreenPtr pScreen);
-
-extern void dmxInitShm (void);
-extern void dmxResetShm (void);
-#endif
-
-#endif /* DMXSHM_H */
+#endif /* DMXDND_H */
