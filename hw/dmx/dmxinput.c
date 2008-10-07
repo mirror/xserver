@@ -474,17 +474,20 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    /* eat valuator events */
 	} break;
 	case XCB_INPUT_DEVICE_MOTION_NOTIFY: {
-	    xcb_input_device_button_release_event_t *xmotion =
-		(xcb_input_device_button_release_event_t *) event;
+	    xcb_input_device_motion_notify_event_t *xmotion =
+		(xcb_input_device_motion_notify_event_t *) event;
+
+	    if (id != (xmotion->device_id & DEVICE_BITS))
+		return FALSE;
 
 	    dmxUpdateSpritePosition (pButtonDev,
 				     xmotion->event_x,
 				     xmotion->event_y);
 	} break;
-	case XCB_INPUT_DEVICE_BUTTON_RELEASE:
-	case XCB_INPUT_DEVICE_BUTTON_PRESS: {
-	    xcb_input_device_key_press_event_t *xbutton =
-		(xcb_input_device_key_press_event_t *) event;
+	case XCB_INPUT_DEVICE_BUTTON_PRESS:
+	case XCB_INPUT_DEVICE_BUTTON_RELEASE: {
+	    xcb_input_device_button_press_event_t *xbutton =
+		(xcb_input_device_button_press_event_t *) event;
 
 	    if (id != (xbutton->device_id & DEVICE_BITS))
 		return FALSE;
