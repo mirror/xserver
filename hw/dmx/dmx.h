@@ -233,6 +233,7 @@ typedef struct _DMXScreenInfo {
     Atom                               xdndDropAtom;
     Atom                               xdndFinishedAtom;
     Atom                               xdndTypeListAtom;
+    Atom                               xdndActionAskAtom;
     Atom                               xdndActionListAtom;
     Atom                               xdndActionDescriptionAtom;
     Bool                               dndHasTypeProp;
@@ -242,6 +243,7 @@ typedef struct _DMXScreenInfo {
     int                                dndStatus;
     XID                                dndWindow;
     Atom                               dndAction;
+    Atom                               dndAcceptedAction;
     int                                dndVersion;
     Atom                               dndType[3];
     RegionRec                          dndBox;
@@ -251,6 +253,8 @@ typedef struct _DMXScreenInfo {
     int                                dndYPos;
     xcb_translate_coordinates_cookie_t translateCoordinates;
     xcb_get_property_cookie_t          getTypeProp;
+    xcb_get_property_cookie_t          getActionListProp;
+    xcb_get_property_cookie_t          getActionDescriptionProp;
 
     /*---------- Other related information ----------*/
 

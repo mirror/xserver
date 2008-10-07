@@ -593,17 +593,18 @@ dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
 
 	    if (reply->response_type)
 	    {
-		Atom type = dmxAtom (dmxScreen, xproperty->type);
+		Atom     type = dmxAtom (dmxScreen, xproperty->type);
+		uint32_t *data = xcb_get_property_value (xproperty);
+		int      length = xcb_get_property_value_length (xproperty);
 
 		/* only 32 bit data types can be translated */
 		if (xproperty->format == 32)
 		{
-		    uint32_t *data = (uint32_t *) (&xproperty[1]);
-		    int      i;
+		    int i;
 
 		    switch (type) {
 		    case XA_ATOM:
-			for (i = 0; i < xproperty->value_len; i++)
+			for (i = 0; i < length; i++)
 			    data[i] = dmxAtom (dmxScreen, data[i]);
 			break;
 		    case XA_BITMAP:
@@ -630,8 +631,8 @@ dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
 					  type,
 					  xproperty->format,
 					  PropModeReplace,
-					  xproperty->value_len,
-					  &xproperty[1],
+					  length,
+					  data,
 					  TRUE) == Success)
 		    event.u.selectionNotify.property = s->property;
 	    }

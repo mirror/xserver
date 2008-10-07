@@ -200,12 +200,13 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
 				   NoEventMask,
 				   NullGrab, 0);
 
-	    dmxScreen->dndStatus  = 0;
-	    dmxScreen->dndWindow  = pDst->drawable.id;
-	    dmxScreen->dndTarget  = targetId;
-	    dmxScreen->dndXPos    = -1;
-	    dmxScreen->dndYPos    = -1;
-	    dmxScreen->dndVersion = version;
+	    dmxScreen->dndStatus         = 0;
+	    dmxScreen->dndWindow         = pDst->drawable.id;
+	    dmxScreen->dndTarget         = targetId;
+	    dmxScreen->dndXPos           = -1;
+	    dmxScreen->dndYPos           = -1;
+	    dmxScreen->dndAcceptedAction = None;
+	    dmxScreen->dndVersion        = version;
 
 	    REGION_EMPTY (pScreen, &dmxScreen->dndBox);
 	}
@@ -221,8 +222,7 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
 	event.u.clientMessage.u.l.longs1 = 0;
 	event.u.clientMessage.u.l.longs2 = (x << 16) | y;
 	event.u.clientMessage.u.l.longs3 = currentTime.milliseconds;
-	event.u.clientMessage.u.l.longs4 = dmxAtom (dmxScreen,
-						    dmxScreen->dndAction);
+	event.u.clientMessage.u.l.longs4 = dmxScreen->dndAction;
 
 	DeliverEventsToWindow (PickPointer (serverClient),
 			       pDst,
@@ -249,11 +249,41 @@ dmxDnDPositionMessage (ScreenPtr pScreen,
 		       int       xRoot,
 		       int       yRoot,
 		       Time      time,
-		       int       action)
+		       Atom      action)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    dmxScreen->dndAction = action;
+    if (action)
+	dmxScreen->dndAction = dmxAtom (dmxScreen, action);
+
+    if (dmxScreen->dndAction == dmxScreen->xdndActionAskAtom)
+    {
+	dmxScreen->getActionListProp =
+	    xcb_get_property (dmxScreen->connection,
+			      xFalse,
+			      source,
+			      dmxBEAtom (dmxScreen,
+					 dmxScreen->xdndActionListAtom),
+			      XCB_GET_PROPERTY_TYPE_ANY,
+			      0,
+			      0xffffffff);
+
+	dmxAddSequence (&dmxScreen->request,
+			dmxScreen->getActionListProp.sequence);
+
+	dmxScreen->getActionDescriptionProp =
+	    xcb_get_property (dmxScreen->connection,
+			      xFalse,
+			      source,
+			      dmxBEAtom (dmxScreen,
+					 dmxScreen->xdndActionDescriptionAtom),
+			      XCB_GET_PROPERTY_TYPE_ANY,
+			      0,
+			      0xffffffff);
+
+	dmxAddSequence (&dmxScreen->request,
+			dmxScreen->getActionDescriptionProp.sequence);
+    }
 
     dmxScreen->translateCoordinates =
 	xcb_translate_coordinates (dmxScreen->connection,
@@ -277,14 +307,14 @@ dmxDnDEnterMessage (ScreenPtr pScreen,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
-    dmxScreen->dndWid     = target;
-    dmxScreen->dndSource  = source;
-    dmxScreen->dndAction  = None;
-    dmxScreen->dndType[0] = type0;
-    dmxScreen->dndType[1] = type1;
-    dmxScreen->dndType[2] = type2;
-
-    dmxScreen->dndHasTypeProp = FALSE;
+    dmxScreen->dndWid            = target;
+    dmxScreen->dndSource         = source;
+    dmxScreen->dndAction         = None;
+    dmxScreen->dndAcceptedAction = None;
+    dmxScreen->dndType[0]        = type0;
+    dmxScreen->dndType[1]        = type1;
+    dmxScreen->dndType[2]        = type2;
+    dmxScreen->dndHasTypeProp    = FALSE;
 
     if (hasTypeProp)
     {
@@ -485,10 +515,15 @@ dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
 	    xevent.window = dmxScreen->dndSource;
 
 	    xevent.data.data32[0] = dmxScreen->dndWid;
-	    xevent.data.data32[1] = dmxScreen->dndStatus | 1 << 1;
+	    xevent.data.data32[1] = dmxScreen->dndStatus;
 	    xevent.data.data32[2] = 0;
 	    xevent.data.data32[3] = 0;
-	    xevent.data.data32[4] = dmxScreen->dndAction;
+	    xevent.data.data32[4] = 0;
+
+	    if (dmxScreen->dndAcceptedAction &&
+		ValidAtom (dmxScreen->dndAcceptedAction))
+		xevent.data.data32[4] =
+		    dmxBEAtom (dmxScreen, dmxScreen->dndAcceptedAction);
 
 	    xcb_send_event (dmxScreen->connection,
 			    FALSE,
@@ -511,10 +546,10 @@ dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
 	    if (xproperty->format                    == 32 &&
 		dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
 	    {
-		uint32_t *data = (uint32_t *) (&xproperty[1]);
+		uint32_t *data = xcb_get_property_value (xproperty);
 		int      i;
 
-		for (i = 0; i < xproperty->value_len; i++)
+		for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
 		    data[i] = dmxAtom (dmxScreen, data[i]);
 
 		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
@@ -522,8 +557,8 @@ dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
 				      XA_ATOM,
 				      32,
 				      PropModeReplace,
-				      xproperty->value_len,
-				      &xproperty[1],
+				      xcb_get_property_value_length (xproperty),
+				      data,
 				      TRUE);
 
 		dmxScreen->dndHasTypeProp = TRUE;
@@ -549,6 +584,62 @@ dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
 
 	return TRUE;
     }
+    else if (sequence == dmxScreen->getActionListProp.sequence)
+    {
+	if (reply->response_type)
+	{
+	    xcb_get_property_reply_t *xproperty =
+		(xcb_get_property_reply_t *) reply;
+	    
+	    if (xproperty->format                    == 32 &&
+		dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
+	    {
+		uint32_t *data = xcb_get_property_value (xproperty);
+		int      i;
+
+		for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
+		    data[i] = dmxAtom (dmxScreen, data[i]);
+
+		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+				      dmxScreen->xdndActionListAtom,
+				      XA_ATOM,
+				      32,
+				      PropModeReplace,
+				      xcb_get_property_value_length (xproperty),
+				      data,
+				      TRUE);
+	    }
+	}
+
+	dmxScreen->getActionListProp.sequence = 0;
+
+	return TRUE;
+    }
+    else if (sequence == dmxScreen->getActionDescriptionProp.sequence)
+    {
+	if (reply->response_type)
+	{
+	    xcb_get_property_reply_t *xproperty =
+		(xcb_get_property_reply_t *) reply;
+	    
+	    if (xproperty->format                    == 8 &&
+		dmxAtom (dmxScreen, xproperty->type) == XA_STRING)
+	    {
+		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+				      dmxScreen->xdndActionDescriptionAtom,
+				      XA_STRING,
+				      8,
+				      PropModeReplace,
+				      xcb_get_property_value_length (xproperty),
+				      xcb_get_property_value (xproperty),
+				      TRUE);
+	    }
+	}
+
+	dmxScreen->getActionDescriptionProp.sequence = 0;
+
+	return TRUE;
+    }
 
     return FALSE;
 }
@@ -571,15 +662,16 @@ dmxDnDClientMessageEvent (xEvent *event)
 
 	    if (type == dmxScreen->xdndStatusAtom)
 	    {
-		int dndStatus = event->u.clientMessage.u.l.longs0 | (1 << 0);
+		int  dndStatus = event->u.clientMessage.u.l.longs1 & 1;
+		Atom dndAcceptedAction = event->u.clientMessage.u.l.longs4;
 
-		if (dmxScreen->dndStatus != dndStatus ||
-		    dmxScreen->dndAction != event->u.clientMessage.u.l.longs4)
+		if (dmxScreen->dndStatus         != dndStatus ||
+		    dmxScreen->dndAcceptedAction != dndAcceptedAction)
 		{
 		    xcb_client_message_event_t xevent;
 
-		    dmxScreen->dndStatus = dndStatus;
-		    dmxScreen->dndAction = event->u.clientMessage.u.l.longs4;
+		    dmxScreen->dndStatus         = dndStatus;
+		    dmxScreen->dndAcceptedAction = dndAcceptedAction;
 
 		    xevent.response_type = XCB_CLIENT_MESSAGE;
 		    xevent.format        = 32;
@@ -589,10 +681,15 @@ dmxDnDClientMessageEvent (xEvent *event)
 		    xevent.window = dmxScreen->dndSource;
 
 		    xevent.data.data32[0] = dmxScreen->dndWid;
-		    xevent.data.data32[1] = dmxScreen->dndStatus | (1 << 1);
+		    xevent.data.data32[1] = dmxScreen->dndStatus;
 		    xevent.data.data32[2] = 0;
 		    xevent.data.data32[3] = 0;
-		    xevent.data.data32[4] = dmxScreen->dndAction;
+		    xevent.data.data32[4] = 0;
+
+		    if (dmxScreen->dndAcceptedAction &&
+			ValidAtom (dmxScreen->dndAcceptedAction))
+			xevent.data.data32[4] =
+			    dmxBEAtom (dmxScreen, dmxScreen->dndAcceptedAction);
 
 		    xcb_send_event (dmxScreen->connection,
 				    FALSE,
@@ -601,7 +698,9 @@ dmxDnDClientMessageEvent (xEvent *event)
 				    (const char *) &xevent);
 		}
 
-		if (dmxScreen->dndStatus & (1 << 1))
+		REGION_EMPTY (pScreen, &dmxScreen->dndBox);
+
+		if (dmxScreen->dndStatus & 2)
 		{
 		    BoxRec box;
 
@@ -693,6 +792,7 @@ dmxDnDScreenInit (ScreenPtr pScreen)
     dmxScreen->xdndDropAtom = MAKE_DND_ATOM ("Drop");
     dmxScreen->xdndFinishedAtom = MAKE_DND_ATOM ("Finished");
     dmxScreen->xdndTypeListAtom = MAKE_DND_ATOM ("TypeList");
+    dmxScreen->xdndActionAskAtom = MAKE_DND_ATOM ("ActionAsk");
     dmxScreen->xdndActionListAtom = MAKE_DND_ATOM ("ActionList");
     dmxScreen->xdndActionDescriptionAtom = MAKE_DND_ATOM ("ActionDescription");
 
