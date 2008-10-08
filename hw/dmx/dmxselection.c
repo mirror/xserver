@@ -64,18 +64,12 @@ typedef struct _DMXSelection {
 } DMXSelection;
 
 static DMXSelection *convHead = NULL;
-static DMXSelection **convTail = &convHead;
-
 static DMXSelection *propHead = NULL;
-static DMXSelection **propTail = &propHead;
-
-static DMXSelection *reqHead = NULL;
-static DMXSelection **reqTail = &reqHead;
+static DMXSelection *reqHead  = NULL;
 
 static DMXSelection *
-dmxUnhookSelection (DMXSelection *s,
-		    DMXSelection **head,
-		    DMXSelection ***tail)
+dmxUnhookSelection (DMXSelection **head,
+		    DMXSelection *s)
 {
     DMXSelection *p, *prev = NULL;
 
@@ -90,17 +84,9 @@ dmxUnhookSelection (DMXSelection *s,
     assert (p);
 
     if (prev)
-    {
 	prev->next = s->next;
-	if (!prev->next)
-	    *tail = &prev->next;
-    }
     else
-    {
 	*head = s->next;
-	if (!s->next)
-	    *tail = head;
-    }
 
     s->next = NULL;
 
@@ -214,21 +200,15 @@ dmxSelectionCallback (OsTimerPtr timer,
 
     for (s = convHead; s; s = s->next)
 	if (s == r)
-	    return dmxSelectionDeleteConv (dmxUnhookSelection (s,
-							       &convHead,
-							       &convTail));
+	    return dmxSelectionDeleteConv (dmxUnhookSelection (&convHead, s));
 
     for (s = propHead; s; s = s->next)
 	if (s == r)
-	    return dmxSelectionDeleteProp (dmxUnhookSelection (s,
-							       &propHead,
-							       &propTail));
+	    return dmxSelectionDeleteProp (dmxUnhookSelection (&propHead, s));
 
     for (s = reqHead; s; s = s->next)
 	if (s == r)
-	    return dmxSelectionDeleteReq (dmxUnhookSelection (s,
-							      &reqHead,
-							      &reqTail));
+	    return dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
 
     return 0;
 }
@@ -244,13 +224,31 @@ dmxSelectionResetTimer (DMXSelection *s)
 }
 
 static void
-dmxAppendSelection (DMXSelection *s,
-		    DMXSelection ***tail)
+dmxAppendSelection (DMXSelection **head,
+		    DMXSelection *s)
 {
+    DMXSelection *p, *last;
+
+    do {
+	for (last = NULL, p = *head; p; p = p->next)
+	{
+	    /* avoid duplicates */
+	    if (p->timer && p->selection == s->selection)
+	    {
+		TimerForce (p->timer);
+		break;
+	    }
+
+	    last = p;
+	}
+    } while (p);
+
     dmxSelectionResetTimer (s);
 
-    *(*tail) = s;
-    *tail = &s->next;
+    if (last)
+	last->next = s;
+    else
+	*head = s;
 }
 
 static Atom
@@ -536,9 +534,7 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 	    }
 	}
 
-	dmxSelectionDeleteProp (dmxUnhookSelection (s,
-						    &propHead,
-						    &propTail));
+	dmxSelectionDeleteProp (dmxUnhookSelection (&propHead, s));
     }
 }
 
@@ -582,7 +578,7 @@ dmxSelectionNotify (ScreenPtr pScreen,
 		XCB_EVENT_MASK_STRUCTURE_NOTIFY |
 		XCB_EVENT_MASK_PROPERTY_CHANGE;
 
-	    dmxUnhookSelection (s, &convHead, &convTail);
+	    dmxUnhookSelection (&convHead, s);
 
 	    memset (s->value, 0, sizeof (s->value));
 
@@ -598,7 +594,7 @@ dmxSelectionNotify (ScreenPtr pScreen,
 					      XCB_CW_EVENT_MASK,
 					      &value);
 
-	    dmxAppendSelection (s, &propTail);
+	    dmxAppendSelection (&propHead, s);
 
 	    dmxAddRequest (&dmxScreen->request,
 			   dmxSelectionPropertyReply,
@@ -616,9 +612,7 @@ dmxSelectionNotify (ScreenPtr pScreen,
 		    break;
 
 	    if (i == dmxNumScreens)
-		dmxSelectionDeleteConv (dmxUnhookSelection (s,
-							    &convHead,
-							    &convTail));
+		dmxSelectionDeleteConv (dmxUnhookSelection (&convHead, s));
 	}
     }
 }
@@ -637,7 +631,7 @@ dmxSelectionDestroyNotify (ScreenPtr pScreen,
 
     if (s)
     {
-	dmxSelectionDeleteReq (dmxUnhookSelection (s, &reqHead, &reqTail));
+	dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
 	return TRUE;
     }
 
@@ -688,9 +682,7 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
 	    }
 	    else
 	    {
-		dmxSelectionDeleteProp (dmxUnhookSelection (s,
-							    &propHead,
-							    &propTail));
+		dmxSelectionDeleteProp (dmxUnhookSelection (&propHead, s));
 	    }
 	}
     }
@@ -839,7 +831,7 @@ dmxSelectionRequest (ScreenPtr pScreen,
 				s->value[j].out = requestor;
 			}
 
-			dmxAppendSelection (s, &reqTail);
+			dmxAppendSelection (&reqHead, s);
 			return;
 		    }
 
@@ -890,9 +882,7 @@ dmxSelectionPropertyChangeCheck (WindowPtr pWin,
 	    break;
 
     if (s)
-	dmxSelectionDeleteReq (dmxUnhookSelection (s,
-						   &reqHead,
-						   &reqTail));
+	dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
 }
 
 Bool
@@ -1203,7 +1193,7 @@ dmxProcConvertSelection (ClientPtr client)
 		s->value[pWin->drawable.pScreen->myNum].in =
 		    DMX_GET_WINDOW_PRIV (pWin)->window;
 
-	    dmxAppendSelection (s, &reqTail);
+	    dmxAppendSelection (&reqHead, s);
 
 	    return (*dmxSaveProcVector[X_ConvertSelection]) (client);
 	}
@@ -1246,7 +1236,7 @@ dmxProcConvertSelection (ClientPtr client)
     {
 	s->wid = stuff->requestor;
 
-	dmxAppendSelection (s, &convTail);
+	dmxAppendSelection (&convHead, s);
 
 	return client->noClientException;
     }
@@ -1346,9 +1336,8 @@ dmxProcSendEvent (ClientPtr client)
 		    if (property == dmxScreen->incrAtom)
 			dmxSelectionResetTimer (s);
 		    else
-			dmxSelectionDeleteReq (dmxUnhookSelection (s,
-								   &reqHead,
-								   &reqTail));
+			dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead,
+								   s));
 
 		    return client->noClientException;
 		}
@@ -1357,9 +1346,7 @@ dmxProcSendEvent (ClientPtr client)
 		if (property == dmxScreens[0].incrAtom)
 		    dmxSelectionResetTimer (s);
 		else
-		    dmxSelectionDeleteReq (dmxUnhookSelection (s,
-							       &reqHead,
-							       &reqTail));
+		    dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
 	    }
 	}
 	break;
