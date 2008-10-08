@@ -41,21 +41,13 @@ dmxAtom (DMXScreenInfo *dmxScreen,
 
     if (!atom)
     {
-	xcb_get_atom_name_cookie_t cookie;
-	xcb_get_atom_name_reply_t  *reply = NULL;
+	xcb_get_atom_name_reply_t *reply;
 
-	cookie = xcb_get_atom_name (dmxScreen->connection, beAtom);
-			
-	do {
-	    dmxDispatch ();
-
-	    if (xcb_poll_for_reply (dmxScreen->connection,
-				    cookie.sequence,
-				    (void **) &reply,
-				    NULL))
-		break;
-	} while (dmxWaitForResponse () && dmxScreen->alive);
-
+	reply =
+	    xcb_get_atom_name_reply (dmxScreen->connection,
+				     xcb_get_atom_name (dmxScreen->connection,
+							beAtom),
+				     NULL);
 	if (!reply)
 	    return None;
 
@@ -100,29 +92,19 @@ dmxBEAtom (DMXScreenInfo *dmxScreen,
 
     if (!beAtom)
     {
-	xcb_intern_atom_cookie_t cookie;
-	xcb_intern_atom_reply_t  *reply = NULL;
-	char			 *name;
+	xcb_intern_atom_reply_t *reply;
+	char			*name;
 
 	name = NameForAtom (atom);
 	if (!name)
 	    return None;
 
-	cookie = xcb_intern_atom (dmxScreen->connection,
-				  FALSE,
-				  strlen (name),
-				  name);
-
-	do {
-	    dmxDispatch ();
-
-	    if (xcb_poll_for_reply (dmxScreen->connection,
-				    cookie.sequence,
-				    (void **) &reply,
-				    NULL))
-		break;
-	} while (dmxWaitForResponse () && dmxScreen->alive);
-
+	reply = xcb_intern_atom_reply (dmxScreen->connection,
+				       xcb_intern_atom (dmxScreen->connection,
+							FALSE,
+							strlen (name),
+							name),
+				       NULL);
 	if (!reply)
 	    return None;
 
