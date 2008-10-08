@@ -30,5 +30,6 @@
 
 extern Atom dmxAtom (DMXScreenInfo *dmxScreen, Atom beAtom);
 extern Atom dmxBEAtom (DMXScreenInfo *dmxScreen, Atom atom);
+extern void dmxBEPrefetchAtom (DMXScreenInfo *dmxScreen, Atom atom);
 
 #endif /* DMXATOM_H */

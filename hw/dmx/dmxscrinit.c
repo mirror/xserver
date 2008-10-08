@@ -143,6 +143,11 @@ void dmxBEScreenInit(ScreenPtr pScreen)
     dmxScreen->selectionOwner = None;
 
     sprintf(buf, "DMX_%s", dmxDigest);
+
+    /* prefetch all valid atoms */
+    for (i = 1; ValidAtom ((Atom) i); i++);
+    while (--i)
+	dmxBEPrefetchAtom (dmxScreen, (Atom) i);
     
     XLIB_PROLOGUE (dmxScreens);
     dmxScreen->beSelectionAtom = XInternAtom (dmxScreen->beDisplay, buf, 0);

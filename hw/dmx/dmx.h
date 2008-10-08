@@ -88,6 +88,11 @@ typedef enum {
     PosRelative
 } PositionType;
 
+typedef struct _DMXAtom {
+    Atom                     atom;
+    xcb_intern_atom_cookie_t cookie;
+} DMXAtom;
+
 typedef struct _DMXSequence {
     struct _DMXSequence *next;
     unsigned long       sequence;
@@ -156,8 +161,9 @@ typedef struct _DMXScreenInfo {
 
     Atom *atomTable;
     int  atomTableSize;
-    Atom *beAtomTable;
-    int  beAtomTableSize;
+
+    DMXAtom *beAtomTable;
+    int     beAtomTableSize;
 
     Display      *beDisplay;      /**< Back-end X server's display */
     int           beWidth;        /**< Width of BE display */

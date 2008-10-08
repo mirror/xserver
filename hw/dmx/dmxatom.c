@@ -29,25 +29,143 @@
 
 #include "dmxatom.h"
 #include "dmxsync.h"
+#include "dmxscrinit.h"
+
+static void
+dmxAddAtom (DMXScreenInfo *dmxScreen,
+	    Atom          atom,
+	    Atom          beAtom)
+{
+    int i;
+
+    if (atom >= dmxScreen->beAtomTableSize)
+    {
+	DMXAtom *table;
+
+	table = xrealloc (dmxScreen->beAtomTable,
+			  sizeof (DMXAtom) * (atom + 1));
+	if (table)
+	{
+	    for (i = dmxScreen->beAtomTableSize; i < atom; i++)
+	    {
+		table[i].atom            = None;
+		table[i].cookie.sequence = 0;
+	    }
+
+	    table[atom].atom            = beAtom;
+	    table[atom].cookie.sequence = 0;
+
+	    dmxScreen->beAtomTable     = table;
+	    dmxScreen->beAtomTableSize = atom + 1;
+	}
+    }
+    else
+    {
+	dmxScreen->beAtomTable[atom].atom = beAtom;
+    }
+
+    if (beAtom)
+    {
+	if (beAtom >= dmxScreen->atomTableSize)
+	{
+	    Atom *table;
+
+	    table = xrealloc (dmxScreen->atomTable,
+			      sizeof (Atom) * (beAtom + 1));
+	    if (table)
+	    {
+		for (i = dmxScreen->atomTableSize; i < beAtom; i++)
+		    table[i] = None;
+
+		table[beAtom] = atom;
+
+		dmxScreen->atomTable     = table;
+		dmxScreen->atomTableSize = beAtom + 1;
+	    }
+	}
+	else
+	{
+	    dmxScreen->atomTable[beAtom] = atom;
+	}
+    }
+}
+
+static void
+dmxInternAtomReply (ScreenPtr           pScreen,
+		    unsigned int        sequence,
+		    xcb_generic_reply_t *reply,
+		    xcb_generic_error_t *error,
+		    void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Atom          atom = (Atom) data;
+
+    dmxScreen->beAtomTable[atom].cookie.sequence = 0;
+
+    if (reply)
+    {
+	xcb_intern_atom_reply_t *xatom = (xcb_intern_atom_reply_t *) reply;
+
+	dmxAddAtom (dmxScreen, atom, xatom->atom);
+    }
+}
+
+static unsigned int
+dmxBERequestAtom (DMXScreenInfo *dmxScreen,
+		  Atom	        atom)
+{
+    if (atom < dmxScreen->beAtomTableSize)
+	if (dmxScreen->beAtomTable[atom].atom)
+	    return 0;
+
+    if (atom <= XA_LAST_PREDEFINED)
+    {
+	dmxAddAtom (dmxScreen, atom, atom);
+    }
+    else
+    {
+	char *name;
+
+	dmxAddAtom (dmxScreen, atom, None);
+
+	name = NameForAtom (atom);
+	if (name && atom < dmxScreen->beAtomTableSize)
+	{
+	    dmxScreen->beAtomTable[atom].cookie =
+		xcb_intern_atom (dmxScreen->connection,
+				 FALSE,
+				 strlen (name),
+				 name);
+	    
+	    return dmxScreen->beAtomTable[atom].cookie.sequence;
+	}
+    }
+
+    return 0;
+}
 
 Atom
 dmxAtom (DMXScreenInfo *dmxScreen,
 	 Atom	       beAtom)
 {
-    Atom atom = None;
+    if (beAtom < dmxScreen->atomTableSize)
+	if (dmxScreen->atomTable[beAtom])
+	    return dmxScreen->atomTable[beAtom];
 
-    if (beAtom < dmxScreen->beAtomTableSize)
-	atom = dmxScreen->beAtomTable[beAtom];
-
-    if (!atom)
+    if (beAtom <= XA_LAST_PREDEFINED)
+    {
+	dmxAddAtom (dmxScreen, beAtom, beAtom);
+    }
+    else
     {
 	xcb_get_atom_name_reply_t *reply;
+	Atom                      atom;
 
-	reply =
-	    xcb_get_atom_name_reply (dmxScreen->connection,
-				     xcb_get_atom_name (dmxScreen->connection,
-							beAtom),
-				     NULL);
+	reply = xcb_get_atom_name_reply
+	    (dmxScreen->connection,
+	     xcb_get_atom_name (dmxScreen->connection,
+				beAtom),
+	     NULL);
 	if (!reply)
 	    return None;
 
@@ -58,79 +176,61 @@ dmxAtom (DMXScreenInfo *dmxScreen,
 	if (!atom)
 	    return None;
 
-	if (beAtom >= dmxScreen->beAtomTableSize)
-	{
-	    Atom *table;
-	    int  i;
-
-	    table = xrealloc (dmxScreen->beAtomTable,
-			      sizeof (Atom) * (beAtom + 1));
-	    if (!table)
-		return atom;
-
-	    for (i = dmxScreen->beAtomTableSize; i < beAtom; i++)
-		table[i] = None;
-
-	    dmxScreen->beAtomTable     = table;
-	    dmxScreen->beAtomTableSize = beAtom + 1;
-	}
-
-	dmxScreen->beAtomTable[beAtom] = atom;
+	dmxAddAtom (dmxScreen, atom, beAtom);
     }
 
-    return atom;
+    if (beAtom < dmxScreen->atomTableSize)
+	return dmxScreen->atomTable[beAtom];
+
+    return None;
 }
 
 Atom
 dmxBEAtom (DMXScreenInfo *dmxScreen,
 	   Atom		 atom)
 {
-    Atom beAtom = None;
+    xcb_intern_atom_cookie_t cookie = { 0 };
 
-    if (atom < dmxScreen->atomTableSize)
-	beAtom = dmxScreen->atomTable[atom];
-
-    if (!beAtom)
+    if (atom < dmxScreen->beAtomTableSize)
     {
-	xcb_intern_atom_reply_t *reply;
-	char			*name;
+	if (dmxScreen->beAtomTable[atom].atom)
+	    return dmxScreen->beAtomTable[atom].atom;
 
-	name = NameForAtom (atom);
-	if (!name)
-	    return None;
-
-	reply = xcb_intern_atom_reply (dmxScreen->connection,
-				       xcb_intern_atom (dmxScreen->connection,
-							FALSE,
-							strlen (name),
-							name),
-				       NULL);
-	if (!reply)
-	    return None;
-
-	beAtom = reply->atom;
-
-	free (reply);
-
-	if (atom >= dmxScreen->atomTableSize)
-	{
-	    Atom *table;
-	    int  i;
-
-	    table = xrealloc (dmxScreen->atomTable,
-			      sizeof (Atom) * (atom + 1));
-	    if (!table)
-		return beAtom;
-
-	    for (i = dmxScreen->atomTableSize; i < atom; i++)
-		table[i] = None;
-
-	    dmxScreen->atomTable     = table;
-	    dmxScreen->atomTableSize = atom + 1;
-	}
-
-	dmxScreen->atomTable[atom] = beAtom;
+	cookie = dmxScreen->beAtomTable[atom].cookie;
     }
 
-    return beAtom;
+    if (!cookie.sequence)
+	cookie.sequence = dmxBERequestAtom (dmxScreen, atom);
+    
+    if (cookie.sequence)
+    {
+	xcb_intern_atom_reply_t *reply;
+
+	reply = xcb_intern_atom_reply (dmxScreen->connection, cookie, NULL);
+
+	dmxInternAtomReply (screenInfo.screens[dmxScreen->index],
+			    cookie.sequence,
+			    (xcb_generic_reply_t *) reply,
+			    NULL,
+			    (void *) atom);
+    }
+
+    if (atom < dmxScreen->beAtomTableSize)
+	return dmxScreen->beAtomTable[atom].atom;
+
+    return None;
+}
+
+void
+dmxBEPrefetchAtom (DMXScreenInfo *dmxScreen,
+		   Atom	         atom)
+{
+    unsigned int sequence;
+
+    sequence = dmxBERequestAtom (dmxScreen, atom);
+    if (sequence)
+	dmxAddRequest (&dmxScreen->request,
+		       dmxInternAtomReply,
+		       sequence,
+		       (void *) atom);
 }
