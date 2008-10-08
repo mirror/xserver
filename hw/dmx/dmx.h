@@ -98,6 +98,15 @@ typedef struct _DMXQueue {
     DMXSequence **tail;
 } DMXQueue;
 
+typedef void (*ReplyProcPtr) (ScreenPtr           pScreen,
+			      unsigned int        sequence,
+			      xcb_generic_reply_t *reply);
+
+typedef struct _DMXRequest {
+    DMXSequence  base;
+    ReplyProcPtr reply;
+} DMXRequest;
+
 typedef struct _DMXPropTrans {
     const char *name;
     const char *format;

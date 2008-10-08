@@ -291,6 +291,9 @@ dmxScreenEventCheckSelection (ScreenPtr           pScreen,
 	xcb_destroy_notify_event_t *xdestroy =
 	    (xcb_destroy_notify_event_t *) event;
 
+	if (dmxSelectionDestroyNotify (pScreen, xdestroy->window))
+	    return TRUE;
+
 	if (xdestroy->window != dmxScreen->selectionOwner)
 	    return FALSE;
 
@@ -853,7 +856,8 @@ dmxBEDispatch (ScreenPtr pScreen)
     xcb_generic_error_t *error;
     void                *reply;
 
-    dmxScreen->inDispatch++;
+    assert (dmxScreen->inDispatch == FALSE);
+    dmxScreen->inDispatch = TRUE;
 
     while ((event = xcb_poll_for_event (dmxScreen->connection)))
     {
@@ -959,7 +963,7 @@ dmxBEDispatch (ScreenPtr pScreen)
 	dmxScreen->broken = TRUE;
     }
 
-    dmxScreen->inDispatch--;
+    dmxScreen->inDispatch = FALSE;
 }
 
 static void
@@ -1509,3 +1513,25 @@ dmxClearQueue (DMXQueue *q)
 
     q->tail = &q->head;
 }
+
+Bool
+dmxAddRequest (DMXQueue      *q,
+	       ReplyProcPtr  reply,
+	       unsigned long sequence)
+{
+    DMXRequest *r;
+
+    r = malloc (sizeof (DMXRequest));
+    if (!r)
+	return FALSE;
+
+    r->base.sequence = sequence;
+    r->base.next     = 0;
+    r->reply         = reply;
+
+    *(q->tail) = &r->base;
+    q->tail = &r->base.next;
+
+    return TRUE;
+}
+

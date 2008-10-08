@@ -52,4 +52,8 @@ extern void dmxBEDispatch (ScreenPtr pScreen);
 extern Bool dmxAddSequence (DMXQueue *q, unsigned long sequence);
 extern void dmxClearQueue (DMXQueue *q);
 
+extern Bool dmxAddRequest (DMXQueue      *q,
+			   ReplyProcPtr  reply,
+			   unsigned long sequence);
+
 #endif /* DMXSCRINIT_H */
