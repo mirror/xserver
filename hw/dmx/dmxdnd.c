@@ -246,6 +246,233 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
     }
 }
 
+/* version 5 of the XDND protocol doesn't provide information about
+   the pointer device that is used so we'll simply update all devices */
+static void
+dmxDnDUpdatePointerDevice (ScreenPtr pScreen,
+			   int       x,
+			   int       y)
+{
+    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
+    int          i;
+    
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr        pDevice = dmxInput->devs[i];
+	dmxDevicePrivPtr    pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+	xcb_generic_event_t xevent;
+
+	/* extension device */
+	if (pDevPriv->deviceId >= 0)
+	{
+	    xcb_input_device_motion_notify_event_t *xmotion =
+		(xcb_input_device_motion_notify_event_t *) &xevent;
+
+	    xmotion->response_type = dmxInput->eventBase +
+		XCB_INPUT_DEVICE_MOTION_NOTIFY;
+	    xmotion->device_id = pDevPriv->deviceId;
+
+	    xmotion->event_x = x;
+	    xmotion->event_y = y;
+	}
+	else
+	{
+	    xcb_motion_notify_event_t *xmotion =
+		(xcb_motion_notify_event_t *) &xevent;
+
+	    xmotion->response_type = XCB_MOTION_NOTIFY;
+
+	    xmotion->event_x = x;
+	    xmotion->event_y = y;
+	}
+
+	(*pDevPriv->EventCheck) (pDevice, &xevent);
+    }
+}
+
+static void
+dmxDnDTranslateCoordinatesReply (ScreenPtr           pScreen,
+				 unsigned int        sequence,
+				 xcb_generic_reply_t *reply,
+				 xcb_generic_error_t *error,
+				 void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (reply)
+    {
+	xcb_translate_coordinates_reply_t *xcoord =
+	    (xcb_translate_coordinates_reply_t *) reply;
+
+	dmxScreen->dndX = xcoord->dst_x;
+	dmxScreen->dndY = xcoord->dst_y;
+
+	if (dmxScreen->dndSource)
+	{
+	    WindowPtr                  pWin = WindowTable[pScreen->myNum];
+	    xcb_client_message_event_t xevent;
+
+	    dmxDnDUpdatePointerDevice (pScreen, xcoord->dst_x, xcoord->dst_y);
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+		pWin = WindowTable[0];
+#endif
+
+	    if (!dmxScreen->getTypeProp.sequence)
+		dmxDnDUpdatePosition (dmxScreen,
+				      pWin,
+				      dmxScreen->dndX,
+				      dmxScreen->dndY);
+
+	    xevent.response_type = XCB_CLIENT_MESSAGE;
+	    xevent.format        = 32;
+
+	    xevent.type   = dmxBEAtom (dmxScreen, dmxScreen->xdndStatusAtom);
+	    xevent.window = dmxScreen->dndSource;
+
+	    xevent.data.data32[0] = dmxScreen->dndWid;
+	    xevent.data.data32[1] = dmxScreen->dndStatus;
+	    xevent.data.data32[2] = 0;
+	    xevent.data.data32[3] = 0;
+	    xevent.data.data32[4] = 0;
+
+	    if (dmxScreen->dndAcceptedAction &&
+		ValidAtom (dmxScreen->dndAcceptedAction))
+		xevent.data.data32[4] =
+		    dmxBEAtom (dmxScreen, dmxScreen->dndAcceptedAction);
+
+	    xcb_send_event (dmxScreen->connection,
+			    FALSE,
+			    dmxScreen->dndSource,
+			    0,
+			    (const char *) &xevent);
+	}
+    }
+}
+
+static void
+dmxDnDGetTypePropReply (ScreenPtr           pScreen,
+			unsigned int        sequence,
+			xcb_generic_reply_t *reply,
+			xcb_generic_error_t *error,
+			void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (reply)
+    {
+	xcb_get_property_reply_t *xproperty =
+	    (xcb_get_property_reply_t *) reply;
+	    
+	if (xproperty->format                    == 32 &&
+	    dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
+	{
+	    uint32_t *data = xcb_get_property_value (xproperty);
+	    int      i;
+
+	    for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
+		data[i] = dmxAtom (dmxScreen, data[i]);
+
+	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+				  dmxScreen->xdndTypeListAtom,
+				  XA_ATOM,
+				  32,
+				  PropModeReplace,
+				  xcb_get_property_value_length (xproperty),
+				  data,
+				  TRUE);
+
+	    dmxScreen->dndHasTypeProp = TRUE;
+	}
+	    
+	if (dmxScreen->dndX != -1 && dmxScreen->dndY != -1)
+	{
+	    WindowPtr pWin = WindowTable[pScreen->myNum];
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+		pWin = WindowTable[0];
+#endif
+
+	    dmxDnDUpdatePosition (dmxScreen,
+				  pWin,
+				  dmxScreen->dndX,
+				  dmxScreen->dndY);
+	}
+    }
+
+    dmxScreen->getTypeProp.sequence = 0;
+}
+
+static void
+dmxDnDGetActionListPropReply (ScreenPtr           pScreen,
+			      unsigned int        sequence,
+			      xcb_generic_reply_t *reply,
+			      xcb_generic_error_t *error,
+			      void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (reply)
+    {
+	xcb_get_property_reply_t *xproperty =
+	    (xcb_get_property_reply_t *) reply;
+	    
+	if (xproperty->format                    == 32 &&
+	    dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
+	{
+	    uint32_t *data = xcb_get_property_value (xproperty);
+	    int      i;
+
+	    for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
+		data[i] = dmxAtom (dmxScreen, data[i]);
+
+	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+				  dmxScreen->xdndActionListAtom,
+				  XA_ATOM,
+				  32,
+				  PropModeReplace,
+				  xcb_get_property_value_length (xproperty),
+				  data,
+				  TRUE);
+	}
+    }
+
+    dmxScreen->getActionListProp.sequence = 0;
+}
+
+static void
+dmxDnDGetActionDescriptionPropReply (ScreenPtr           pScreen,
+				     unsigned int        sequence,
+				     xcb_generic_reply_t *reply,
+				     xcb_generic_error_t *error,
+				     void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (reply)
+    {
+	xcb_get_property_reply_t *xproperty =
+	    (xcb_get_property_reply_t *) reply;
+	    
+	if (xproperty->format                    == 8 &&
+	    dmxAtom (dmxScreen, xproperty->type) == XA_STRING)
+	{
+	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+				  dmxScreen->xdndActionDescriptionAtom,
+				  XA_STRING,
+				  8,
+				  PropModeReplace,
+				  xcb_get_property_value_length (xproperty),
+				  xcb_get_property_value (xproperty),
+				  TRUE);
+	}
+    }
+
+    dmxScreen->getActionDescriptionProp.sequence = 0;
+}
+
 static void
 dmxDnDPositionMessage (ScreenPtr pScreen,
 		       Window    source,
@@ -271,8 +498,10 @@ dmxDnDPositionMessage (ScreenPtr pScreen,
 			      0,
 			      0xffffffff);
 
-	dmxAddSequence (&dmxScreen->request,
-			dmxScreen->getActionListProp.sequence);
+	dmxAddRequest (&dmxScreen->request,
+		       dmxDnDGetActionListPropReply,
+		       dmxScreen->getActionListProp.sequence,
+		       0);
 
 	dmxScreen->getActionDescriptionProp =
 	    xcb_get_property (dmxScreen->connection,
@@ -284,8 +513,10 @@ dmxDnDPositionMessage (ScreenPtr pScreen,
 			      0,
 			      0xffffffff);
 
-	dmxAddSequence (&dmxScreen->request,
-			dmxScreen->getActionDescriptionProp.sequence);
+	dmxAddRequest (&dmxScreen->request,
+		       dmxDnDGetActionDescriptionPropReply,
+		       dmxScreen->getActionDescriptionProp.sequence,
+		       0);
     }
 
     dmxScreen->translateCoordinates =
@@ -294,8 +525,10 @@ dmxDnDPositionMessage (ScreenPtr pScreen,
 				   dmxScreen->rootWin,
 				   xRoot,
 				   yRoot);
-    dmxAddSequence (&dmxScreen->request,
-		    dmxScreen->translateCoordinates.sequence);
+    	dmxAddRequest (&dmxScreen->request,
+		       dmxDnDTranslateCoordinatesReply,
+		       dmxScreen->translateCoordinates.sequence,
+		       0);
 }
 
 static void
@@ -332,8 +565,10 @@ dmxDnDEnterMessage (ScreenPtr pScreen,
 			      0xffffffff);
 
 	if (dmxScreen->getTypeProp.sequence)
-	    dmxAddSequence (&dmxScreen->request,
-			    dmxScreen->getTypeProp.sequence);
+	    dmxAddRequest (&dmxScreen->request,
+			   dmxDnDGetTypePropReply,
+			   dmxScreen->getTypeProp.sequence,
+			   0);
     }
 }
 
@@ -478,219 +713,6 @@ dmxScreenEventCheckDnD (ScreenPtr           pScreen,
     }
 
     return TRUE;
-}
-
-/* version 5 of the XDND protocol doesn't provide information about
-   the pointer device that is used so we'll simply update all devices */
-static void
-dmxDnDUpdatePointerDevice (ScreenPtr pScreen,
-			   int       x,
-			   int       y)
-{
-    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
-    int          i;
-    
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr        pDevice = dmxInput->devs[i];
-	dmxDevicePrivPtr    pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-	xcb_generic_event_t xevent;
-
-	/* extension device */
-	if (pDevPriv->deviceId >= 0)
-	{
-	    xcb_input_device_motion_notify_event_t *xmotion =
-		(xcb_input_device_motion_notify_event_t *) &xevent;
-
-	    xmotion->response_type = dmxInput->eventBase +
-		XCB_INPUT_DEVICE_MOTION_NOTIFY;
-	    xmotion->device_id = pDevPriv->deviceId;
-
-	    xmotion->event_x = x;
-	    xmotion->event_y = y;
-	}
-	else
-	{
-	    xcb_motion_notify_event_t *xmotion =
-		(xcb_motion_notify_event_t *) &xevent;
-
-	    xmotion->response_type = XCB_MOTION_NOTIFY;
-
-	    xmotion->event_x = x;
-	    xmotion->event_y = y;
-	}
-
-	(*pDevPriv->EventCheck) (pDevice, &xevent);
-    }
-}
-
-Bool
-dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
-			unsigned int        sequence,
-			xcb_generic_reply_t *reply)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    if (sequence == dmxScreen->translateCoordinates.sequence)
-    {
-	xcb_translate_coordinates_reply_t *xcoord =
-	    (xcb_translate_coordinates_reply_t *) reply;
-
-	dmxScreen->dndX = xcoord->dst_x;
-	dmxScreen->dndY = xcoord->dst_y;
-
-	dmxDnDUpdatePointerDevice (pScreen, xcoord->dst_x, xcoord->dst_y);
-
-	if (dmxScreen->dndSource)
-	{
-	    WindowPtr                  pWin = WindowTable[pScreen->myNum];
-	    xcb_client_message_event_t xevent;
-
-#ifdef PANORAMIX
-	    if (!noPanoramiXExtension)
-		pWin = WindowTable[0];
-#endif
-
-	    if (!dmxScreen->getTypeProp.sequence)
-		dmxDnDUpdatePosition (dmxScreen,
-				      pWin,
-				      dmxScreen->dndX,
-				      dmxScreen->dndY);
-
-	    xevent.response_type = XCB_CLIENT_MESSAGE;
-	    xevent.format        = 32;
-
-	    xevent.type   = dmxBEAtom (dmxScreen, dmxScreen->xdndStatusAtom);
-	    xevent.window = dmxScreen->dndSource;
-
-	    xevent.data.data32[0] = dmxScreen->dndWid;
-	    xevent.data.data32[1] = dmxScreen->dndStatus;
-	    xevent.data.data32[2] = 0;
-	    xevent.data.data32[3] = 0;
-	    xevent.data.data32[4] = 0;
-
-	    if (dmxScreen->dndAcceptedAction &&
-		ValidAtom (dmxScreen->dndAcceptedAction))
-		xevent.data.data32[4] =
-		    dmxBEAtom (dmxScreen, dmxScreen->dndAcceptedAction);
-
-	    xcb_send_event (dmxScreen->connection,
-			    FALSE,
-			    dmxScreen->dndSource,
-			    0,
-			    (const char *) &xevent);
-	}
-
-	dmxScreen->translateCoordinates.sequence = 0;
-
-	return TRUE;
-    }
-    else if (sequence == dmxScreen->getTypeProp.sequence)
-    {
-	if (reply->response_type)
-	{
-	    xcb_get_property_reply_t *xproperty =
-		(xcb_get_property_reply_t *) reply;
-	    
-	    if (xproperty->format                    == 32 &&
-		dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
-	    {
-		uint32_t *data = xcb_get_property_value (xproperty);
-		int      i;
-
-		for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
-		    data[i] = dmxAtom (dmxScreen, data[i]);
-
-		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
-				      dmxScreen->xdndTypeListAtom,
-				      XA_ATOM,
-				      32,
-				      PropModeReplace,
-				      xcb_get_property_value_length (xproperty),
-				      data,
-				      TRUE);
-
-		dmxScreen->dndHasTypeProp = TRUE;
-	    }
-	}
-	    
-	if (dmxScreen->dndX != -1 && dmxScreen->dndY != -1)
-	{
-	    WindowPtr pWin = WindowTable[pScreen->myNum];
-
-#ifdef PANORAMIX
-	    if (!noPanoramiXExtension)
-		pWin = WindowTable[0];
-#endif
-
-	    dmxDnDUpdatePosition (dmxScreen,
-				  pWin,
-				  dmxScreen->dndX,
-				  dmxScreen->dndY);
-	}
-
-	dmxScreen->getTypeProp.sequence = 0;
-
-	return TRUE;
-    }
-    else if (sequence == dmxScreen->getActionListProp.sequence)
-    {
-	if (reply->response_type)
-	{
-	    xcb_get_property_reply_t *xproperty =
-		(xcb_get_property_reply_t *) reply;
-	    
-	    if (xproperty->format                    == 32 &&
-		dmxAtom (dmxScreen, xproperty->type) == XA_ATOM)
-	    {
-		uint32_t *data = xcb_get_property_value (xproperty);
-		int      i;
-
-		for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
-		    data[i] = dmxAtom (dmxScreen, data[i]);
-
-		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
-				      dmxScreen->xdndActionListAtom,
-				      XA_ATOM,
-				      32,
-				      PropModeReplace,
-				      xcb_get_property_value_length (xproperty),
-				      data,
-				      TRUE);
-	    }
-	}
-
-	dmxScreen->getActionListProp.sequence = 0;
-
-	return TRUE;
-    }
-    else if (sequence == dmxScreen->getActionDescriptionProp.sequence)
-    {
-	if (reply->response_type)
-	{
-	    xcb_get_property_reply_t *xproperty =
-		(xcb_get_property_reply_t *) reply;
-	    
-	    if (xproperty->format                    == 8 &&
-		dmxAtom (dmxScreen, xproperty->type) == XA_STRING)
-	    {
-		ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
-				      dmxScreen->xdndActionDescriptionAtom,
-				      XA_STRING,
-				      8,
-				      PropModeReplace,
-				      xcb_get_property_value_length (xproperty),
-				      xcb_get_property_value (xproperty),
-				      TRUE);
-	    }
-	}
-
-	dmxScreen->getActionDescriptionProp.sequence = 0;
-
-	return TRUE;
-    }
-
-    return FALSE;
 }
 
 void

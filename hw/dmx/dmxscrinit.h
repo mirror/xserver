@@ -54,6 +54,7 @@ extern void dmxClearQueue (DMXQueue *q);
 
 extern Bool dmxAddRequest (DMXQueue      *q,
 			   ReplyProcPtr  reply,
-			   unsigned long sequence);
+			   unsigned long sequence,
+			   void          *data);
 
 #endif /* DMXSCRINIT_H */

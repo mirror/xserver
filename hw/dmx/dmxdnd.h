@@ -36,11 +36,6 @@ Bool
 dmxScreenEventCheckDnD (ScreenPtr           pScreen,
 			xcb_generic_event_t *event);
 
-Bool
-dmxScreenReplyCheckDnD (ScreenPtr           pScreen,
-			unsigned int        sequence,
-			xcb_generic_reply_t *reply);
-
 void
 dmxDnDClientMessageEvent (xEvent *event);
 

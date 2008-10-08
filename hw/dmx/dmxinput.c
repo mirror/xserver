@@ -833,6 +833,26 @@ dmxDeviceUngrabButton (DeviceIntPtr pDevice,
 }
 
 static void
+dmxInputGrabPointerReply (ScreenPtr           pScreen,
+			  unsigned int        sequence,
+			  xcb_generic_reply_t *reply,
+			  xcb_generic_error_t *error,
+			  void                *data)
+{
+    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
+    int          i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr     pDevice = dmxInput->devs[i];
+	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+	if ((*pDevPriv->ReplyCheck) (pDevice, sequence, reply))
+	    break;
+    }
+}
+
+static void
 dmxDeviceGrabPointer (DeviceIntPtr pDevice,
 		      WindowPtr    pWindow,
 		      WindowPtr    pConfineTo,
@@ -889,7 +909,10 @@ dmxDeviceGrabPointer (DeviceIntPtr pDevice,
 			      0).sequence;
     }
 
-    dmxAddSequence (&dmxScreen->request, pDevPriv->grab.sequence);
+    dmxAddRequest (&dmxScreen->request,
+		   dmxInputGrabPointerReply,
+		   pDevPriv->grab.sequence,
+		   0);
 }
 
 static void
@@ -923,25 +946,6 @@ dmxInputEventCheck (DMXInputInfo        *dmxInput,
 	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
 
         if ((*pDevPriv->EventCheck) (pDevice, event))
-	    return TRUE;
-    }
-
-    return FALSE;
-}
-
-Bool
-dmxInputReplyCheck (DMXInputInfo        *dmxInput,
-		    unsigned int        request,
-		    xcb_generic_reply_t *reply)
-{
-    int i;
-
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr     pDevice = dmxInput->devs[i];
-	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-
-	if ((*pDevPriv->ReplyCheck) (pDevice, request, reply))
 	    return TRUE;
     }
 

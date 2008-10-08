@@ -210,16 +210,6 @@ dmxScreenEventCheckInput (ScreenPtr           pScreen,
     return dmxInputEventCheck (&dmxScreen->input, event);
 }
 
-static Bool
-dmxScreenReplyCheckInput (ScreenPtr           pScreen,
-			  unsigned int        sequence,
-			  xcb_generic_reply_t *reply)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    return dmxInputReplyCheck (&dmxScreen->input, sequence, reply);
-}
-
 static void
 dmxScreenGetSelectionOwner (ScreenPtr pScreen)
 {
@@ -356,33 +346,6 @@ dmxScreenEventCheckSelection (ScreenPtr           pScreen,
     }
 
     return TRUE;
-}
-
-static Bool
-dmxScreenReplyCheckSelection (ScreenPtr           pScreen,
-			      unsigned int        sequence,
-			      xcb_generic_reply_t *reply)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    if (sequence == dmxScreen->getSelectionOwner.sequence)
-    {
-	dmxScreen->getSelectionOwner.sequence = 0;
-
-	if (reply->response_type)
-	{
-	    xcb_get_selection_owner_reply_t *xselection =
-		(xcb_get_selection_owner_reply_t *) reply;
-	    
-	    dmxScreen->getSelectionOwnerResult = xselection->owner;
-	}
-
-	return TRUE;
-    }
-    else
-    {
-	return dmxSelectionPropertyReplyCheck (pScreen, sequence, reply);
-    }
 }
 
 static void
@@ -901,30 +864,17 @@ dmxBEDispatch (ScreenPtr pScreen)
 			       (void **) &reply,
 			       &error))
     {
-	static xcb_generic_reply_t _default_rep = { 1 };
-	DMXSequence                *head = dmxScreen->request.head;
-	xcb_generic_reply_t        *rep = &_default_rep;
+	DMXRequest *head = (DMXRequest *) dmxScreen->request.head;
 
-	if (error)
-	    rep = (xcb_generic_reply_t *) error;
-	if (reply)
-	    rep = (xcb_generic_reply_t *) reply;
-
-	dmxScreen->request.head = head->next;
+	dmxScreen->request.head = head->base.next;
 	if (!dmxScreen->request.head)
 	    dmxScreen->request.tail = &dmxScreen->request.head;
 
-	if (!dmxScreenReplyCheckSync (pScreen, head->sequence, rep) &&
-	    !dmxScreenReplyCheckInput (pScreen, head->sequence, rep) &&
-	    !dmxScreenReplyCheckSelection (pScreen, head->sequence, rep) &&
-	    !dmxScreenReplyCheckDnD (pScreen, head->sequence, rep))
-	{
-	    /* error response */
-	    if (rep->response_type == 0)
-		dmxLogOutput (dmxScreen, "error %d sequence %d\n",
-			      ((xcb_generic_error_t *) rep)->error_code,
-			      head->sequence);
-	}
+	(*head->reply) (pScreen,
+			head->base.sequence,
+			reply,
+			error,
+			head->data);
 
         if (reply)
 	    free (reply);
@@ -937,27 +887,23 @@ dmxBEDispatch (ScreenPtr pScreen)
     if (!dmxScreen->scrnWin ||
 	xcb_connection_has_error (dmxScreen->connection))
     {
+	static xcb_generic_error_t detached_error = { 0, DMX_DETACHED };
+
 	while (dmxScreen->request.head)
 	{
-	    DMXSequence                *head = dmxScreen->request.head;
-	    static xcb_generic_error_t detached_error = { 0, DMX_DETACHED };
+	    DMXRequest *head = (DMXRequest *) dmxScreen->request.head;
 
-	    dmxScreen->request.head = head->next;
+	    dmxScreen->request.head = head->base.next;
 	    if (!dmxScreen->request.head)
 		dmxScreen->request.tail = &dmxScreen->request.head;
 
-	    dmxScreenReplyCheckSync (pScreen, head->sequence,
-				     (xcb_generic_reply_t *)
-				     &detached_error);
-	    dmxScreenReplyCheckInput (pScreen, head->sequence,
-				      (xcb_generic_reply_t *)
-				      &detached_error);
-	    dmxScreenReplyCheckSelection (pScreen, head->sequence,
-					  (xcb_generic_reply_t *)
-					  &detached_error);
-	    dmxScreenReplyCheckDnD (pScreen, head->sequence,
-				    (xcb_generic_reply_t *)
-				    &detached_error);
+	    (*head->reply) (pScreen,
+			    head->base.sequence,
+			    NULL,
+			    &detached_error,
+			    head->data);
+
+	    free (head);
 	}
 
 	dmxScreen->broken = TRUE;
@@ -1517,7 +1463,8 @@ dmxClearQueue (DMXQueue *q)
 Bool
 dmxAddRequest (DMXQueue      *q,
 	       ReplyProcPtr  reply,
-	       unsigned long sequence)
+	       unsigned long sequence,
+	       void          *data)
 {
     DMXRequest *r;
 
@@ -1528,6 +1475,7 @@ dmxAddRequest (DMXQueue      *q,
     r->base.sequence = sequence;
     r->base.next     = 0;
     r->reply         = reply;
+    r->data          = data;
 
     *(q->tail) = &r->base;
     q->tail = &r->base.next;

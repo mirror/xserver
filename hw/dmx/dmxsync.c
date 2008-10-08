@@ -131,7 +131,10 @@ static void dmxDoSync(DMXScreenInfo *dmxScreen)
 	return;
 
     dmxScreen->sync = xcb_get_input_focus (dmxScreen->connection);
-    dmxAddSequence (&dmxScreen->request, dmxScreen->sync.sequence);
+    dmxAddRequest (&dmxScreen->request,
+		   dmxScreenSyncReply,
+		   dmxScreen->sync.sequence,
+		   0);
     dmxSyncRequest++;
 }
 
@@ -276,15 +279,14 @@ void dmxSync(DMXScreenInfo *dmxScreen, Bool now)
 
 /* error or reply doesn't matter, all we need is some response
    from the back-end server */
-Bool
-dmxScreenReplyCheckSync (ScreenPtr           pScreen,
-			 unsigned int        sequence,
-			 xcb_generic_reply_t *reply)
+void
+dmxScreenSyncReply (ScreenPtr           pScreen,
+		    unsigned int        sequence,
+		    xcb_generic_reply_t *reply,
+		    xcb_generic_error_t *error,
+		    void                *data)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-
-    if (sequence != dmxScreen->sync.sequence)
-	return FALSE;
 
     if (dmxScreen->sync.sequence)
     {
@@ -297,6 +299,4 @@ dmxScreenReplyCheckSync (ScreenPtr           pScreen,
 	    dmxActiveSyncTimer = NULL;
 	}
     }
-    
-    return TRUE;
 }

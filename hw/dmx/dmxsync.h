@@ -42,7 +42,9 @@ extern int  dmxWaitForResponse (void);
 extern void dmxSyncActivate(const char *interval);
 extern void dmxSyncInit(void);
 extern void dmxSync(DMXScreenInfo *dmxScreen, Bool now);
-extern Bool dmxScreenReplyCheckSync (ScreenPtr           pScreen,
-				     unsigned int        sequence,
-				     xcb_generic_reply_t *reply);
+extern void dmxScreenSyncReply (ScreenPtr           pScreen,
+				unsigned int        sequence,
+				xcb_generic_reply_t *reply,
+				xcb_generic_error_t *error,
+				void                *data);
 #endif

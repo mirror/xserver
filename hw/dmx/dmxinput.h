@@ -61,11 +61,6 @@ Bool
 dmxInputEventCheck (DMXInputInfo        *dmxInput,
 		    xcb_generic_event_t *event);
 
-Bool
-dmxInputReplyCheck (DMXInputInfo        *dmxInput,
-		    unsigned int        request,
-		    xcb_generic_reply_t *reply);
-
 void
 dmxInputGrabButton (DMXInputInfo *dmxInput,
 		    DeviceIntPtr pDevice,

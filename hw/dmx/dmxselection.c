@@ -302,6 +302,26 @@ dmxBESetSelectionOwner (ScreenPtr pScreen,
 			     0);
 }
 
+static void
+dmxSelectionOwnerReply (ScreenPtr           pScreen,
+			unsigned int        sequence,
+			xcb_generic_reply_t *reply,
+			xcb_generic_error_t *error,
+			void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (reply)
+    {
+	xcb_get_selection_owner_reply_t *xselection =
+	    (xcb_get_selection_owner_reply_t *) reply;
+
+	dmxScreen->getSelectionOwnerResult = xselection->owner;
+    }
+
+    dmxScreen->getSelectionOwner.sequence = 0;
+}
+
 static Bool
 dmxBEGetSelectionOwner (ScreenPtr pScreen,
 			Atom      selection)
@@ -322,11 +342,10 @@ dmxBEGetSelectionOwner (ScreenPtr pScreen,
 	xcb_get_selection_owner (dmxScreen->connection,
 				 dmxBESelectionAtom (dmxScreen, selection));
 
-    if (!dmxScreen->getSelectionOwner.sequence)
-	return FALSE;
-
-    dmxAddSequence (&dmxScreen->request,
-		    dmxScreen->getSelectionOwner.sequence);
+    dmxAddRequest (&dmxScreen->request,
+		   dmxSelectionOwnerReply,
+		   dmxScreen->getSelectionOwner.sequence,
+		   0);
 
     return TRUE;
 }
@@ -417,180 +436,12 @@ dmxSelectionClear (ScreenPtr pScreen,
     }
 }
 
-void
-dmxSelectionNotify (ScreenPtr pScreen,
-		    Window    requestor,
-		    Atom      xSelection,
-		    Atom      xTarget,
-		    Atom      xProperty,
-		    Time      xTime)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    Atom          selection = dmxSelectionAtom (dmxScreen, xSelection);
-    Atom          target = dmxAtom (dmxScreen, xTarget);
-    DMXSelection  *s;
-
-    for (s = convHead; s; s = s->next)
-	if (s->value[pScreen->myNum].out == requestor &&
-	    s->selection                 == selection &&
-	    s->target                    == target)
-	    break;
-
-    if (s)
-    {
-	xcb_get_property_cookie_t cookie = { 0 };
-	Atom                      property = dmxAtom (dmxScreen, xProperty);
-	Atom                      target = dmxAtom (dmxScreen, xTarget);
-
-	if (ValidAtom (property) && ValidAtom (target))
-	    cookie = xcb_get_property (dmxScreen->connection,
-				       xFalse,
-				       requestor,
-				       xProperty,
-				       XCB_GET_PROPERTY_TYPE_ANY,
-				       0,
-				       0xffffffff);
-
-	if (cookie.sequence)
-	{
-	    const uint32_t value =
-		XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-		XCB_EVENT_MASK_PROPERTY_CHANGE;
-
-	    dmxUnhookSelection (s, &convHead, &convTail);
-
-	    memset (s->value, 0, sizeof (s->value));
-
-	    s->value[pScreen->myNum].out = requestor;
-	    s->value[pScreen->myNum].in = cookie.sequence;
-
-	    s->property = property;
-	    s->target = target;
-
-	    if (property == dmxScreen->incrAtom)
-		xcb_change_window_attributes (dmxScreen->connection,
-					      requestor,
-					      XCB_CW_EVENT_MASK,
-					      &value);
-
-	    dmxAppendSelection (s, &propTail);
-
-	    dmxAddSequence (&dmxScreen->request, cookie.sequence);
-	}
-	else
-	{
-	    int i;
-	    
-	    s->value[pScreen->myNum].out = 0;
-
-	    for (i = 0; i < dmxNumScreens; i++)
-		if (s->value[i].out)
-		    break;
-
-	    if (i == dmxNumScreens)
-		dmxSelectionDeleteConv (dmxUnhookSelection (s,
-							    &convHead,
-							    &convTail));
-	}
-    }
-}
-
-Bool
-dmxSelectionDestroyNotify (ScreenPtr pScreen,
-			   Window    window)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    DMXSelection  *s;
-
-    for (s = reqHead; s; s = s->next)
-	if (s->value[pScreen->myNum].out == window &&
-	    s->property                  == dmxScreen->incrAtom)
-	    break;
-
-    if (s)
-    {
-	dmxSelectionDeleteReq (dmxUnhookSelection (s, &reqHead, &reqTail));
-	return TRUE;
-    }
-
-    return FALSE;
-}
-
-Bool
-dmxSelectionPropertyNotify (ScreenPtr pScreen,
-			    Window    window,
-			    int       state,
-			    Atom      xProperty,
-			    Time      xTime)
-{
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    Atom          property = dmxAtom (dmxScreen, xProperty);
-    DMXSelection  *s;
-
-    if (property != dmxScreen->incrAtom)
-	return FALSE;
-
-    if (state == XCB_PROPERTY_NEW_VALUE)
-    {
-	for (s = propHead; s; s = s->next)
-	    if (s->value[pScreen->myNum].out == window &&
-		s->property                  == dmxScreen->incrAtom)
-		break;
-
-	if (s)
-	{
-	    xcb_get_property_cookie_t cookie = { 0 };
-
-	    cookie = xcb_get_property (dmxScreen->connection,
-				       xFalse,
-				       window,
-				       xProperty,
-				       XCB_GET_PROPERTY_TYPE_ANY,
-				       0,
-				       0xffffffff);
-
-	    if (cookie.sequence)
-	    {
-		s->value[pScreen->myNum].in = cookie.sequence;
-		dmxAddSequence (&dmxScreen->request, cookie.sequence);
-		dmxSelectionResetTimer (s);
-	    }
-	    else
-	    {
-		dmxSelectionDeleteProp (dmxUnhookSelection (s,
-							    &propHead,
-							    &propTail));
-	    }
-	}
-    }
-    else
-    {
-	for (s = reqHead; s; s = s->next)
-	    if (s->value[pScreen->myNum].out == window &&
-		s->property                  == dmxScreen->incrAtom)
-		break;
-
-	if (s)
-	{
-	    WindowPtr pWin;
-
-	    if (dixLookupWindow (&pWin,
-				 s->wid,
-				 serverClient,
-				 DixReadAccess) == Success)
-		DeleteProperty (serverClient, pWin, s->property);
-
-	    dmxSelectionResetTimer (s);
-	}
-    }
-
-    return TRUE;
-}
-
-Bool
-dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
-				unsigned int        sequence,
-				xcb_generic_reply_t *reply)
+static void
+dmxSelectionPropertyReply (ScreenPtr           pScreen,
+			   unsigned int        sequence,
+			   xcb_generic_reply_t *reply,
+			   xcb_generic_error_t *error,
+			   void                *data)
 {
     DMXSelection *s;
 
@@ -680,8 +531,7 @@ dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
 		    /* don't send another selection notify event */
 		    s->selection = None;
 		    dmxSelectionResetTimer (s);
-
-		    return TRUE;
+		    return;
 		}
 	    }
 	}
@@ -689,11 +539,183 @@ dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
 	dmxSelectionDeleteProp (dmxUnhookSelection (s,
 						    &propHead,
 						    &propTail));
+    }
+}
 
+void
+dmxSelectionNotify (ScreenPtr pScreen,
+		    Window    requestor,
+		    Atom      xSelection,
+		    Atom      xTarget,
+		    Atom      xProperty,
+		    Time      xTime)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Atom          selection = dmxSelectionAtom (dmxScreen, xSelection);
+    Atom          target = dmxAtom (dmxScreen, xTarget);
+    DMXSelection  *s;
+
+    for (s = convHead; s; s = s->next)
+	if (s->value[pScreen->myNum].out == requestor &&
+	    s->selection                 == selection &&
+	    s->target                    == target)
+	    break;
+
+    if (s)
+    {
+	xcb_get_property_cookie_t cookie = { 0 };
+	Atom                      property = dmxAtom (dmxScreen, xProperty);
+	Atom                      target = dmxAtom (dmxScreen, xTarget);
+
+	if (ValidAtom (property) && ValidAtom (target))
+	    cookie = xcb_get_property (dmxScreen->connection,
+				       xFalse,
+				       requestor,
+				       xProperty,
+				       XCB_GET_PROPERTY_TYPE_ANY,
+				       0,
+				       0xffffffff);
+
+	if (cookie.sequence)
+	{
+	    const uint32_t value =
+		XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+		XCB_EVENT_MASK_PROPERTY_CHANGE;
+
+	    dmxUnhookSelection (s, &convHead, &convTail);
+
+	    memset (s->value, 0, sizeof (s->value));
+
+	    s->value[pScreen->myNum].out = requestor;
+	    s->value[pScreen->myNum].in = cookie.sequence;
+
+	    s->property = property;
+	    s->target = target;
+
+	    if (property == dmxScreen->incrAtom)
+		xcb_change_window_attributes (dmxScreen->connection,
+					      requestor,
+					      XCB_CW_EVENT_MASK,
+					      &value);
+
+	    dmxAppendSelection (s, &propTail);
+
+	    dmxAddRequest (&dmxScreen->request,
+			   dmxSelectionPropertyReply,
+			   cookie.sequence,
+			   0);
+	}
+	else
+	{
+	    int i;
+	    
+	    s->value[pScreen->myNum].out = 0;
+
+	    for (i = 0; i < dmxNumScreens; i++)
+		if (s->value[i].out)
+		    break;
+
+	    if (i == dmxNumScreens)
+		dmxSelectionDeleteConv (dmxUnhookSelection (s,
+							    &convHead,
+							    &convTail));
+	}
+    }
+}
+
+Bool
+dmxSelectionDestroyNotify (ScreenPtr pScreen,
+			   Window    window)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    DMXSelection  *s;
+
+    for (s = reqHead; s; s = s->next)
+	if (s->value[pScreen->myNum].out == window &&
+	    s->property                  == dmxScreen->incrAtom)
+	    break;
+
+    if (s)
+    {
+	dmxSelectionDeleteReq (dmxUnhookSelection (s, &reqHead, &reqTail));
 	return TRUE;
     }
 
     return FALSE;
+}
+
+Bool
+dmxSelectionPropertyNotify (ScreenPtr pScreen,
+			    Window    window,
+			    int       state,
+			    Atom      xProperty,
+			    Time      xTime)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    Atom          property = dmxAtom (dmxScreen, xProperty);
+    DMXSelection  *s;
+
+    if (property != dmxScreen->incrAtom)
+	return FALSE;
+
+    if (state == XCB_PROPERTY_NEW_VALUE)
+    {
+	for (s = propHead; s; s = s->next)
+	    if (s->value[pScreen->myNum].out == window &&
+		s->property                  == dmxScreen->incrAtom)
+		break;
+
+	if (s)
+	{
+	    xcb_get_property_cookie_t cookie = { 0 };
+
+	    cookie = xcb_get_property (dmxScreen->connection,
+				       xFalse,
+				       window,
+				       xProperty,
+				       XCB_GET_PROPERTY_TYPE_ANY,
+				       0,
+				       0xffffffff);
+
+	    if (cookie.sequence)
+	    {
+		s->value[pScreen->myNum].in = cookie.sequence;
+		dmxAddRequest (&dmxScreen->request,
+			       dmxSelectionPropertyReply,
+			       cookie.sequence,
+			       0);
+		dmxSelectionResetTimer (s);
+	    }
+	    else
+	    {
+		dmxSelectionDeleteProp (dmxUnhookSelection (s,
+							    &propHead,
+							    &propTail));
+	    }
+	}
+    }
+    else
+    {
+	for (s = reqHead; s; s = s->next)
+	    if (s->value[pScreen->myNum].out == window &&
+		s->property                  == dmxScreen->incrAtom)
+		break;
+
+	if (s)
+	{
+	    WindowPtr pWin;
+
+	    if (dixLookupWindow (&pWin,
+				 s->wid,
+				 serverClient,
+				 DixReadAccess) == Success)
+		DeleteProperty (serverClient, pWin, s->property);
+
+	    dmxSelectionResetTimer (s);
+	}
+    }
+
+    return TRUE;
 }
 
 void

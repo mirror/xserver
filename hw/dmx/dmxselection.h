@@ -56,11 +56,6 @@ Bool
 dmxSelectionDestroyNotify (ScreenPtr pScreen,
 			   Window    requestor);
 
-Bool
-dmxSelectionPropertyReplyCheck (ScreenPtr           pScreen,
-				unsigned int        sequence,
-				xcb_generic_reply_t *reply);
-
 void
 dmxSelectionRequest (ScreenPtr pScreen,
 		     Window    owner,
