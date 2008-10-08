@@ -453,7 +453,9 @@ dmxSelectionNotify (ScreenPtr pScreen,
 
 	if (cookie.sequence)
 	{
-	    const uint32_t value = XCB_EVENT_MASK_PROPERTY_CHANGE;
+	    const uint32_t value =
+		XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+		XCB_EVENT_MASK_PROPERTY_CHANGE;
 
 	    dmxUnhookSelection (s, &convHead, &convTail);
 
@@ -491,6 +493,27 @@ dmxSelectionNotify (ScreenPtr pScreen,
 							    &convTail));
 	}
     }
+}
+
+Bool
+dmxSelectionDestroyNotify (ScreenPtr pScreen,
+			   Window    window)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    DMXSelection  *s;
+
+    for (s = reqHead; s; s = s->next)
+	if (s->value[pScreen->myNum].out == window &&
+	    s->property                  == dmxScreen->incrAtom)
+	    break;
+
+    if (s)
+    {
+	dmxSelectionDeleteReq (dmxUnhookSelection (s, &reqHead, &reqTail));
+	return TRUE;
+    }
+
+    return FALSE;
 }
 
 Bool
@@ -1278,7 +1301,9 @@ dmxProcSendEvent (ClientPtr client)
 
 		    if (property == dmxScreen->incrAtom)
 		    {
-			const uint32_t value = XCB_EVENT_MASK_PROPERTY_CHANGE;
+			const uint32_t value =
+			    XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+			    XCB_EVENT_MASK_PROPERTY_CHANGE;
 
 			xcb_change_window_attributes (dmxScreen->connection,
 						      s->requestor,
