@@ -39,6 +39,7 @@ typedef struct _dmxDevicePriv {
     KeySymsRec               keySyms;
     KeyCode                  *keycode;
     xcb_void_cookie_t        grab;
+    Bool                     fakeGrab;
 
     Bool (*EventCheck) (DeviceIntPtr, xcb_generic_event_t *);
     Bool (*ReplyCheck) (DeviceIntPtr, unsigned int, xcb_generic_reply_t *);
@@ -90,6 +91,14 @@ void
 dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 		       DeviceIntPtr pDevice,
 		       WindowPtr    pWindow);
+
+Bool
+dmxFakeMotion (DMXInputInfo *dmxInput,
+	       int          x,
+	       int          y);
+
+void
+dmxEndFakeMotion (DMXInputInfo *dmxInput);
 
 int
 dmxInputEnable (DMXInputInfo *dmxInput);

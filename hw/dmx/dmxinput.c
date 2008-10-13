@@ -30,6 +30,7 @@
 #include "dmx.h"
 #include "dmxlog.h"
 #include "dmxinput.h"
+#include "dmxgrab.h"
 #include "dmxwindow.h"
 #include "dmxcursor.h"
 #include "dmxscrinit.h"
@@ -426,6 +427,82 @@ dmxUpdateSpritePosition (DeviceIntPtr pDevice,
     return dmxButtonEvent (pDevice, 0, x, y, XCB_MOTION_NOTIFY);
 }
 
+Bool
+dmxFakeMotion (DMXInputInfo *dmxInput,
+	       int          x,
+	       int          y)
+{
+    DMXScreenInfo *dmxScreen = (DMXScreenInfo *) dmxInput;
+    WindowPtr     pWin = WindowTable[dmxScreen->index];
+    GrabRec       newGrab;
+    int           i;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+	pWin = WindowTable[0];
+#endif
+
+    memset (&newGrab, 0, sizeof (GrabRec));	    
+
+    newGrab.window       = pWin;
+    newGrab.resource     = 0;
+    newGrab.ownerEvents  = xFalse;
+    newGrab.cursor       = NULL;
+    newGrab.confineTo    = NullWindow;
+    newGrab.eventMask    = NoEventMask;
+    newGrab.genericMasks = NULL;
+    newGrab.next         = NULL;
+    newGrab.keyboardMode = GrabModeAsync;
+    newGrab.pointerMode  = GrabModeAsync;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pDevice = pDevice->u.master;
+
+	if (!pDevice->button)
+	    continue;
+
+	newGrab.device = pDevice;
+
+	if (!dmxActivateFakePointerGrab (pDevice, &newGrab))
+	    return FALSE;
+    }
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->button)
+	    continue;
+
+	dmxUpdateSpritePosition (pDevice, x, y);
+    }
+
+    return TRUE;
+}
+
+void
+dmxEndFakeMotion (DMXInputInfo *dmxInput)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pDevice = pDevice->u.master;
+
+	if (!pDevice->button)
+	    continue;
+
+	dmxDeactivateFakePointerGrab (pDevice);
+    }
+}
+
 static Bool
 dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 			    xcb_generic_event_t *event)
@@ -440,7 +517,8 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
     case XCB_MOTION_NOTIFY: {
 	xcb_motion_notify_event_t *xmotion =
 	    (xcb_motion_notify_event_t *) event;
-		    
+
+	dmxEndFakeMotion (dmxInput);
 	dmxUpdateSpritePosition (pButtonDev,
 				 xmotion->event_x,
 				 xmotion->event_y);
@@ -450,6 +528,7 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	xcb_button_press_event_t *xbutton =
 	    (xcb_button_press_event_t *) event;
 
+	dmxEndFakeMotion (dmxInput);
 	dmxUpdateSpritePosition (pButtonDev,
 				 xbutton->event_x,
 				 xbutton->event_y);
@@ -480,6 +559,7 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    if (id != (xmotion->device_id & DEVICE_BITS))
 		return FALSE;
 
+	    dmxEndFakeMotion (dmxInput);
 	    dmxUpdateSpritePosition (pButtonDev,
 				     xmotion->event_x,
 				     xmotion->event_y);
@@ -492,6 +572,7 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    if (id != (xbutton->device_id & DEVICE_BITS))
 		return FALSE;
 
+	    dmxEndFakeMotion (dmxInput);
 	    dmxUpdateSpritePosition (pButtonDev,
 				     xbutton->event_x,
 				     xbutton->event_y);
@@ -1466,6 +1547,7 @@ dmxAddInputDevice (DMXInputInfo *dmxInput,
 	pDevPriv->deviceId   = deviceId;
 	pDevPriv->masterId   = masterId;
 	pDevPriv->device     = NULL;
+	pDevPriv->fakeGrab   = xFalse;
 	pDevPriv->EventCheck = EventCheck;
 	pDevPriv->ReplyCheck = ReplyCheck;
 

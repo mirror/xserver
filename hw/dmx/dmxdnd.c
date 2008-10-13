@@ -81,6 +81,16 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
     
     event.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
 
+    if (pWin)
+    {
+	if (!dmxFakeMotion (&dmxScreen->input, x, y))
+	    pWin = NullWindow;
+    }
+    else
+    {
+	dmxEndFakeMotion (&dmxScreen->input);
+    }
+
     while (pWin)
     {
 	if ((pWin->mapped) &&
@@ -246,50 +256,6 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
     }
 }
 
-/* version 5 of the XDND protocol doesn't provide information about
-   the pointer device that is used so we'll simply update all devices */
-static void
-dmxDnDUpdatePointerDevice (ScreenPtr pScreen,
-			   int       x,
-			   int       y)
-{
-    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
-    int          i;
-    
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr        pDevice = dmxInput->devs[i];
-	dmxDevicePrivPtr    pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-	xcb_generic_event_t xevent;
-
-	/* extension device */
-	if (pDevPriv->deviceId >= 0)
-	{
-	    xcb_input_device_motion_notify_event_t *xmotion =
-		(xcb_input_device_motion_notify_event_t *) &xevent;
-
-	    xmotion->response_type = dmxInput->eventBase +
-		XCB_INPUT_DEVICE_MOTION_NOTIFY;
-	    xmotion->device_id = pDevPriv->deviceId;
-
-	    xmotion->event_x = x;
-	    xmotion->event_y = y;
-	}
-	else
-	{
-	    xcb_motion_notify_event_t *xmotion =
-		(xcb_motion_notify_event_t *) &xevent;
-
-	    xmotion->response_type = XCB_MOTION_NOTIFY;
-
-	    xmotion->event_x = x;
-	    xmotion->event_y = y;
-	}
-
-	(*pDevPriv->EventCheck) (pDevice, &xevent);
-    }
-}
-
 static void
 dmxDnDTranslateCoordinatesReply (ScreenPtr           pScreen,
 				 unsigned int        sequence,
@@ -311,8 +277,6 @@ dmxDnDTranslateCoordinatesReply (ScreenPtr           pScreen,
 	{
 	    WindowPtr                  pWin = WindowTable[pScreen->myNum];
 	    xcb_client_message_event_t xevent;
-
-	    dmxDnDUpdatePointerDevice (pScreen, xcoord->dst_x, xcoord->dst_y);
 
 #ifdef PANORAMIX
 	    if (!noPanoramiXExtension)
@@ -596,6 +560,8 @@ dmxDnDDropMessage (ScreenPtr pScreen,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
 
+    dmxEndFakeMotion (&dmxScreen->input);
+
     if (dmxScreen->dndWindow)
     {
 	WindowPtr pWin;
@@ -760,7 +726,8 @@ dmxDnDClientMessageEvent (xEvent *event)
 		    if (dmxScreen->dndAcceptedAction &&
 			ValidAtom (dmxScreen->dndAcceptedAction))
 			xevent.data.data32[4] =
-			    dmxBEAtom (dmxScreen, dmxScreen->dndAcceptedAction);
+			    dmxBEAtom (dmxScreen,
+				       dmxScreen->dndAcceptedAction);
 
 		    xcb_send_event (dmxScreen->connection,
 				    FALSE,

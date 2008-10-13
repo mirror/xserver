@@ -37,6 +37,10 @@ extern void dmxActivatePointerGrab (DeviceIntPtr pDev,
 				    Bool         autoGrab);
 extern void dmxDeactivatePointerGrab (DeviceIntPtr pDev);
 
+extern Bool dmxActivateFakePointerGrab (DeviceIntPtr pDev,
+					GrabPtr      pGrab);
+extern void dmxDeactivateFakePointerGrab (DeviceIntPtr pDev);
+
 extern void dmxInitGrabs (void);
 extern void dmxResetGrabs (void);
 

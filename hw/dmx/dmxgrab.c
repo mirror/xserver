@@ -285,6 +285,44 @@ dmxDeactivatePointerGrab (DeviceIntPtr pDev)
 	      &pDev->deviceGrab);
 }
 
+Bool
+dmxActivateFakePointerGrab (DeviceIntPtr pDev,
+			    GrabPtr      pGrab)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+
+    if (pDevPriv->fakeGrab)
+	return TRUE;
+
+    if (pDev->deviceGrab.grab)
+	return FALSE;
+
+    pDevPriv->fakeGrab = TRUE;
+
+    DMX_UNWRAP (ActivateGrab, pDevPriv, &pDev->deviceGrab);
+    (*pDev->deviceGrab.ActivateGrab) (pDev, pGrab, currentTime, FALSE);
+    DMX_WRAP (ActivateGrab, dmxActivatePointerGrab, pDevPriv,
+	      &pDev->deviceGrab);
+
+    return TRUE;
+}
+
+void
+dmxDeactivateFakePointerGrab (DeviceIntPtr pDev)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+
+    if (!pDevPriv->fakeGrab)
+	return;
+
+    pDevPriv->fakeGrab = FALSE;
+
+    DMX_UNWRAP (DeactivateGrab, pDevPriv, &pDev->deviceGrab);
+    (*pDev->deviceGrab.DeactivateGrab) (pDev);
+    DMX_WRAP (DeactivateGrab, dmxDeactivatePointerGrab, pDevPriv,
+	      &pDev->deviceGrab);
+}
+
 static int
 dmxProcGrabButton (ClientPtr client)
 {
