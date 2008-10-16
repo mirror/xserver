@@ -504,6 +504,242 @@ dmxEndFakeMotion (DMXInputInfo *dmxInput)
 }
 
 static Bool
+dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
+			     unsigned int        request,
+			     xcb_generic_reply_t *reply)
+{
+    return FALSE;
+}
+
+static void
+dmxInputGrabPointerReply (ScreenPtr           pScreen,
+			  unsigned int        sequence,
+			  xcb_generic_reply_t *reply,
+			  xcb_generic_error_t *error,
+			  void                *data)
+{
+    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
+    int          i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr     pDevice = dmxInput->devs[i];
+	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+	if ((*pDevPriv->ReplyCheck) (pDevice, sequence, reply))
+	    break;
+    }
+}
+
+/* not in xcb-xinput yet */
+#define DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE 45
+
+typedef struct dmx_xcb_input_extended_grab_device_request_t {
+    uint8_t         major_opcode;
+    uint8_t         minor_opcode;
+    uint16_t        length;
+    xcb_window_t    grab_window;
+    xcb_timestamp_t time;
+    uint8_t         deviceid;
+    uint8_t         device_mode;
+    uint8_t         owner_events;
+    uint8_t         pad0;
+    xcb_window_t    confine_to;
+    xcb_cursor_t    cursor;
+    uint16_t        event_count;
+    uint16_t        generic_event_count;
+} dmx_xcb_input_extended_grab_device_request_t;
+
+static void
+dmxDeviceGrabPointer (DeviceIntPtr pDevice,
+		      WindowPtr    pWindow,
+		      WindowPtr    pConfineTo,
+		      CursorPtr    pCursor)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    ScreenPtr        pScreen = screenInfo.screens[dmxScreen->index];
+    Window           window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
+    Window           confineTo = None;
+    Cursor           cursor = None;
+
+    if (pConfineTo)
+	confineTo = (DMX_GET_WINDOW_PRIV (pConfineTo))->window;
+
+    if (pCursor)
+	cursor = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
+
+    if (pDevPriv->deviceId >= 0)
+    {
+	dmx_xcb_input_extended_grab_device_request_t grab = {
+	    .grab_window  = window,
+	    .deviceid     = pDevPriv->deviceId,
+	    .device_mode  = XCB_GRAB_MODE_ASYNC,
+	    .owner_events = TRUE,
+	    .confine_to   = confineTo,
+	    .cursor       = cursor
+	};
+	xcb_protocol_request_t request = {
+	    2,
+	    &xcb_input_id,
+	    DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE,
+	    FALSE
+	};
+	XEventClass  cls[3];
+	int          type;
+	struct iovec vector[] =  {
+	    { &grab, sizeof (grab) },
+	    { cls,   sizeof (cls)  }
+	};
+
+	DeviceMotionNotify (pDevPriv->device, type, cls[0]);
+	DeviceButtonPress (pDevPriv->device, type, cls[1]);
+	DeviceButtonRelease (pDevPriv->device, type, cls[2]);
+
+	pDevPriv->grab.sequence =
+	    xcb_send_request (dmxScreen->connection,
+			      0,
+			      vector,
+			      &request);
+    }
+    else
+    {
+	pDevPriv->grab.sequence =
+	    xcb_grab_pointer (dmxScreen->connection,
+			      TRUE,
+			      window,
+			      DMX_POINTER_EVENT_MASK,
+			      XCB_GRAB_MODE_ASYNC,
+			      XCB_GRAB_MODE_ASYNC,
+			      confineTo,
+			      cursor,
+			      0).sequence;
+    }
+
+    dmxAddRequest (&dmxScreen->request,
+		   dmxInputGrabPointerReply,
+		   pDevPriv->grab.sequence,
+		   0);
+}
+
+static void
+dmxDeviceUngrabPointer (DeviceIntPtr pDevice)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+
+    if (pDevPriv->deviceId >= 0)
+    {
+	xcb_input_ungrab_device (dmxScreen->connection,
+				 0,
+				 pDevPriv->deviceId);
+    }
+    else
+    {
+	xcb_ungrab_pointer (dmxScreen->connection, 0);
+    }
+}
+
+static Bool
+dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
+			    unsigned int        request,
+			    xcb_generic_reply_t *reply)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (request == pDevPriv->grab.sequence)
+    {
+	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
+
+	if (reply->response_type == 1)
+	{
+	    if (pDevPriv->deviceId >= 0)
+	    {
+		xcb_input_grab_device_reply_t *xgrab =
+		    (xcb_input_grab_device_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	    else
+	    {
+		xcb_grab_pointer_reply_t *xgrab =
+		    (xcb_grab_pointer_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	}
+
+	if (status == XCB_GRAB_STATUS_SUCCESS)
+	{
+	    /* TODO: track state of grabs */
+	}
+
+	pDevPriv->grab.sequence = 0;
+	return TRUE;
+    }
+
+    return FALSE;
+}
+
+static void
+dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
+			  xcb_window_t event,
+			  int          x,
+			  int          y)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+
+    if (event != dmxScreen->rootWin)
+    {
+	DeviceIntPtr pMaster = pDevice;
+	WindowPtr    pWin;
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pMaster = pDevice->u.master;
+
+	if (!pMaster->deviceGrab.grab)
+	{
+	    dmxDeviceUngrabPointer (pDevice);
+	    dmxLog (dmxWarning, "non-root window event without active grab\n");
+	    return;
+	}
+
+	pWin = WindowTable[dmxScreen->index];
+	for (;;)
+	{
+	    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+
+	    if (pWinPriv->window == event)
+		break;
+
+	    if (pWin->firstChild)
+	    {
+		pWin = pWin->firstChild;
+		continue;
+	    }
+
+	    while (!pWin->nextSib && (pWin != WindowTable[dmxScreen->index]))
+		pWin = pWin->parent;
+
+	    if (pWin == WindowTable[dmxScreen->index])
+		break;
+
+	    pWin = pWin->nextSib;
+	}
+
+	if (!pWin)
+	    return;
+
+	x += pWin->drawable.x;
+	y += pWin->drawable.y;
+    }
+
+    dmxEndFakeMotion (&dmxScreen->input);
+    dmxUpdateSpritePosition (pDevice, x, y);
+}
+
+static Bool
 dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 			    xcb_generic_event_t *event)
 {
@@ -518,20 +754,20 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	xcb_motion_notify_event_t *xmotion =
 	    (xcb_motion_notify_event_t *) event;
 
-	dmxEndFakeMotion (dmxInput);
-	dmxUpdateSpritePosition (pButtonDev,
-				 xmotion->event_x,
-				 xmotion->event_y);
+	dmxUpdateSpriteFromEvent (pButtonDev,
+				  xmotion->event,
+				  xmotion->event_x,
+				  xmotion->event_y);
     } break;
     case XCB_BUTTON_PRESS:
     case XCB_BUTTON_RELEASE: {
 	xcb_button_press_event_t *xbutton =
 	    (xcb_button_press_event_t *) event;
 
-	dmxEndFakeMotion (dmxInput);
-	dmxUpdateSpritePosition (pButtonDev,
-				 xbutton->event_x,
-				 xbutton->event_y);
+	dmxUpdateSpriteFromEvent (pButtonDev,
+				  xbutton->event,
+				  xbutton->event_x,
+				  xbutton->event_y);
 	dmxChangeButtonState (pButtonDev,
 			      xbutton->detail,
 			      type);
@@ -559,10 +795,10 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    if (id != (xmotion->device_id & DEVICE_BITS))
 		return FALSE;
 
-	    dmxEndFakeMotion (dmxInput);
-	    dmxUpdateSpritePosition (pButtonDev,
-				     xmotion->event_x,
-				     xmotion->event_y);
+	    dmxUpdateSpriteFromEvent (pButtonDev,
+				      xmotion->event,
+				      xmotion->event_x,
+				      xmotion->event_y);
 	} break;
 	case XCB_INPUT_DEVICE_BUTTON_PRESS:
 	case XCB_INPUT_DEVICE_BUTTON_RELEASE: {
@@ -572,10 +808,10 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    if (id != (xbutton->device_id & DEVICE_BITS))
 		return FALSE;
 
-	    dmxEndFakeMotion (dmxInput);
-	    dmxUpdateSpritePosition (pButtonDev,
-				     xbutton->event_x,
-				     xbutton->event_y);
+	    dmxUpdateSpriteFromEvent (pButtonDev,
+				      xbutton->event,
+				      xbutton->event_x,
+				      xbutton->event_y);
 	    dmxChangeButtonState (pButtonDev,
 				  xbutton->detail, XCB_BUTTON_RELEASE +
 				  (reltype -
@@ -622,66 +858,6 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
     return TRUE;
 }
 
-/* not in xcb-xinput yet */
-#define DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE 45
-
-typedef struct dmx_xcb_input_extended_grab_device_request_t {
-    uint8_t         major_opcode;
-    uint8_t         minor_opcode;
-    uint16_t        length;
-    xcb_window_t    grab_window;
-    xcb_timestamp_t time;
-    uint8_t         deviceid;
-    uint8_t         device_mode;
-    uint8_t         owner_events;
-    uint8_t         pad0;
-    xcb_window_t    confine_to;
-    xcb_cursor_t    cursor;
-    uint16_t        event_count;
-    uint16_t        generic_event_count;
-} dmx_xcb_input_extended_grab_device_request_t;
-
-static Bool
-dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
-			    unsigned int        request,
-			    xcb_generic_reply_t *reply)
-{
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-
-    if (request == pDevPriv->grab.sequence)
-    {
-	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
-
-	if (reply->response_type == 1)
-	{
-	    if (pDevPriv->deviceId >= 0)
-	    {
-		xcb_input_grab_device_reply_t *xgrab =
-		    (xcb_input_grab_device_reply_t *) reply;
-
-		status = xgrab->status;
-	    }
-	    else
-	    {
-		xcb_grab_pointer_reply_t *xgrab =
-		    (xcb_grab_pointer_reply_t *) reply;
-
-		status = xgrab->status;
-	    }
-	}
-
-	if (status == XCB_GRAB_STATUS_SUCCESS)
-	{
-	    /* TODO: track state of grabs */
-	}
-
-	pDevPriv->grab.sequence = 0;
-	return TRUE;
-    }
-
-    return FALSE;
-}
-
 static Bool
 dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 			     xcb_generic_event_t *event)
@@ -700,7 +876,10 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 	
 	pButtonDev = dmxGetPairedButtonDevice (pKeyDev);
 	if (pButtonDev)
-	    dmxUpdateSpritePosition (pButtonDev, xkey->event_x, xkey->event_y);
+	    dmxUpdateSpriteFromEvent (pButtonDev,
+				      xkey->event,
+				      xkey->event_x,
+				      xkey->event_y);
 
 	dmxChangeKeyState (pKeyDev,
 			   xkey->detail,
@@ -751,9 +930,10 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 
 	    pButtonDev = dmxGetPairedButtonDevice (pKeyDev);
 	    if (pButtonDev)
-		dmxUpdateSpritePosition (pButtonDev,
-					 xkey->event_x,
-					 xkey->event_y);
+		dmxUpdateSpriteFromEvent (pButtonDev,
+					  xkey->event,
+					  xkey->event_x,
+					  xkey->event_y);
 
 	    dmxChangeKeyState (pKeyDev,
 			       xkey->detail, XCB_KEY_PRESS +
@@ -811,11 +991,21 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
     return TRUE;
 }
 
-static Bool
-dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
-			     unsigned int        request,
-			     xcb_generic_reply_t *reply)
+Bool
+dmxInputEventCheck (DMXInputInfo        *dmxInput,
+		    xcb_generic_event_t *event)
 {
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr     pDevice = dmxInput->devs[i];
+	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+        if ((*pDevPriv->EventCheck) (pDevice, event))
+	    return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -911,126 +1101,6 @@ dmxDeviceUngrabButton (DeviceIntPtr pDevice,
 			   window,
 			   modifiers);
     }
-}
-
-static void
-dmxInputGrabPointerReply (ScreenPtr           pScreen,
-			  unsigned int        sequence,
-			  xcb_generic_reply_t *reply,
-			  xcb_generic_error_t *error,
-			  void                *data)
-{
-    DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
-    int          i;
-
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr     pDevice = dmxInput->devs[i];
-	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-
-	if ((*pDevPriv->ReplyCheck) (pDevice, sequence, reply))
-	    break;
-    }
-}
-
-static void
-dmxDeviceGrabPointer (DeviceIntPtr pDevice,
-		      WindowPtr    pWindow,
-		      WindowPtr    pConfineTo,
-		      CursorPtr    pCursor)
-{
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
-    ScreenPtr        pScreen = screenInfo.screens[dmxScreen->index];
-    Window           window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
-    Window           confineTo = None;
-    Cursor           cursor = None;
-
-    if (pConfineTo)
-	confineTo = (DMX_GET_WINDOW_PRIV (pConfineTo))->window;
-
-    if (pCursor)
-	cursor = (DMX_GET_CURSOR_PRIV (pCursor, pScreen))->cursor;
-
-    if (pDevPriv->deviceId >= 0)
-    {
-	dmx_xcb_input_extended_grab_device_request_t grab = {
-	    .grab_window  = window,
-	    .deviceid     = pDevPriv->deviceId,
-	    .device_mode  = XCB_GRAB_MODE_ASYNC,
-	    .owner_events = TRUE,
-	    .confine_to   = confineTo,
-	    .cursor       = cursor
-	};
-	xcb_protocol_request_t request = {
-	    1,
-	    &xcb_input_id,
-	    DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE,
-	    FALSE
-	};
-	struct iovec vector = { &grab, sizeof (grab) };
-
-	pDevPriv->grab.sequence =
-	    xcb_send_request (dmxScreen->connection,
-			      0,
-			      &vector,
-			      &request);
-    }
-    else
-    {
-	pDevPriv->grab.sequence =
-	    xcb_grab_pointer (dmxScreen->connection,
-			      TRUE,
-			      window,
-			      0,
-			      XCB_GRAB_MODE_ASYNC,
-			      XCB_GRAB_MODE_ASYNC,
-			      confineTo,
-			      cursor,
-			      0).sequence;
-    }
-
-    dmxAddRequest (&dmxScreen->request,
-		   dmxInputGrabPointerReply,
-		   pDevPriv->grab.sequence,
-		   0);
-}
-
-static void
-dmxDeviceUngrabPointer (DeviceIntPtr pDevice,
-			WindowPtr    pWindow)
-{
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
-
-    if (pDevPriv->deviceId >= 0)
-    {
-	xcb_input_ungrab_device (dmxScreen->connection,
-				 0,
-				 pDevPriv->deviceId);
-    }
-    else
-    {
-	xcb_ungrab_pointer (dmxScreen->connection, 0);
-    }
-}
-
-Bool
-dmxInputEventCheck (DMXInputInfo        *dmxInput,
-		    xcb_generic_event_t *event)
-{
-    int i;
-
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr     pDevice = dmxInput->devs[i];
-	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-
-        if ((*pDevPriv->EventCheck) (pDevice, event))
-	    return TRUE;
-    }
-
-    return FALSE;
 }
 
 void
@@ -1178,7 +1248,7 @@ dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 	if (!pExtDevice->button)
 	    continue;
 
-	dmxDeviceUngrabPointer (pExtDevice, pWindow);
+	dmxDeviceUngrabPointer (pExtDevice);
     }
 }
 
