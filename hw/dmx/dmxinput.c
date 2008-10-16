@@ -1780,12 +1780,20 @@ dmxInputEnable (DMXInputInfo *dmxInput)
 int
 dmxInputDisable (DMXInputInfo *dmxInput)
 {
-    int i;
+    char state[32];
+    int  i;
+
+    memset (state, 0, sizeof (state));
     
     for (i = 0; i < dmxInput->numDevs; i++)
     {
         dmxLogInput (dmxInput, "Disable device id %d: %s\n",
 		     dmxInput->devs[i]->id, dmxInput->devs[i]->name);
+
+	if (dmxInput->devs[i]->key)
+	    dmxUpdateKeyState (dmxInput->devs[i], state);
+	else if (dmxInput->devs[i]->button)
+	    dmxUpdateButtonState (dmxInput->devs[i], state);
 
         DisableDevice (dmxInput->devs[i]);
     }
