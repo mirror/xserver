@@ -28,9 +28,6 @@
 
 #include "dmxinput.h"
 
-extern void dmxBEAddPassiveGrab (DMXInputInfo *dmxInput,
-				 GrabPtr      pGrab);
-
 extern void dmxActivatePointerGrab (DeviceIntPtr pDev,
 				    GrabPtr      pGrab,
 				    TimeStamp    time,

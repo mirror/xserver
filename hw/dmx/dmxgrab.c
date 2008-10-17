@@ -38,115 +38,7 @@
 #include "panoramiXsrv.h"
 #endif
 
-unsigned long DMX_PASSIVEGRAB;
-
 static int (*dmxSaveProcVector[256]) (ClientPtr);
-
-void
-dmxBEAddPassiveGrab (DMXInputInfo *dmxInput,
-		     GrabPtr      pGrab)
-{
-    DMXScreenInfo *dmxScreen = (DMXScreenInfo *) dmxInput;
-    WindowPtr     pWin = pGrab->window;
-    WindowPtr     pConfineTo = pGrab->confineTo;
-
-    if (dixLookupResource ((pointer *) &pGrab,
-			   pGrab->resource,
-			   DMX_PASSIVEGRAB,
-			   serverClient,
-			   DixReadAccess) != Success)
-	return;
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	PanoramiXRes *win, *confineToWin;
-
-	if (!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		  serverClient, pWin->drawable.id, XRT_WINDOW,
-		  DixGetAttrAccess)) ||
-	    dixLookupWindow (&pWin,
-			     win->info[dmxScreen->index].id,
-			     serverClient,
-			     DixGetAttrAccess) != Success)
-	    return;
-
-	if (pGrab->confineTo)
-	    if (!(confineToWin = (PanoramiXRes *)SecurityLookupIDByType(
-		      serverClient, pGrab->confineTo->drawable.id, XRT_WINDOW,
-		      DixGetAttrAccess)) ||
-		dixLookupWindow (&pConfineTo,
-				 confineToWin->info[dmxScreen->index].id,
-				 serverClient,
-				 DixGetAttrAccess) != Success)
-		return;
-    }
-    else
-#endif
-	if (dmxScreen->index != pWin->drawable.pScreen->myNum)
-	    return;
-
-    dmxInputGrabButton (dmxInput,
-			pGrab->device,
-			pGrab->modifierDevice,
-			pWin,
-			pConfineTo,
-			pGrab->detail.exact,
-			pGrab->modifiersDetail.exact,
-			pGrab->cursor);
-}
-
-static int
-dmxFreePassiveGrab (pointer value,
-		    XID     id)
-{
-    GrabPtr      pGrab = (GrabPtr) value;
-
-#ifdef PANORAMIX
-    PanoramiXRes *win = NULL;
-#endif
-
-    WindowPtr    pWin = pGrab->window;
-    int		 i;
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	if (!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		  serverClient, pWin->drawable.id, XRT_WINDOW,
-		  DixGetAttrAccess)))
-	    return Success;
-    }
-#endif
-
-    for (i = 0; i < dmxNumScreens; i++)
-    {
-	DMXScreenInfo *dmxScreen = &dmxScreens[i];
-
-	if (!dmxScreen->beDisplay)
-	    continue;
-
-#ifdef PANORAMIX
-	if (!noPanoramiXExtension)
-	    dixLookupWindow (&pWin,
-			     win->info[i].id,
-			     serverClient,
-			     DixGetAttrAccess);
-	else
-#endif
-	    if (i != pWin->drawable.pScreen->myNum)
-		continue;
-
-	dmxInputUngrabButton (&dmxScreen->input,
-			      pGrab->device,
-			      pGrab->modifierDevice,
-			      pWin,
-			      pGrab->detail.exact,
-			      pGrab->modifiersDetail.exact);
-    }
-
-    return Success;
-}
 
 static void
 dmxGrabPointer (DeviceIntPtr pDev,
@@ -324,83 +216,6 @@ dmxDeactivateFakePointerGrab (DeviceIntPtr pDev)
 }
 
 static int
-dmxProcGrabButton (ClientPtr client)
-{
-    GrabPtr      pGrab;
-
-#ifdef PANORAMIX
-    PanoramiXRes *win = NULL, *confineToWin = NULL;
-#endif
-
-    WindowPtr    pWin, pConfineTo = NULL;
-    int          i, err;
-    REQUEST(xGrabButtonReq);
-
-    err = (*dmxSaveProcVector[X_GrabButton]) (client);
-    if (err != Success)
-	return err;
-
-    return Success; /* PASSIVE GRABS DISABLED */
-
-    dixLookupWindow(&pWin, stuff->grabWindow, client, DixSetAttrAccess);
-    pGrab = wPassiveGrabs (pWin);
-
-    pConfineTo = pGrab->confineTo;
-
-#ifdef PANORAMIX
-    if (!noPanoramiXExtension)
-    {
-	if (!(win = (PanoramiXRes *)SecurityLookupIDByType(
-		  client, stuff->grabWindow, XRT_WINDOW, DixSetAttrAccess)))
-	    return Success;
-	if (pConfineTo)
-	    if (!(confineToWin = (PanoramiXRes *)SecurityLookupIDByType(
-		      client, stuff->confineTo, XRT_WINDOW, DixSetAttrAccess)))
-		return Success;
-    }
-#endif
-
-    for (i = 0; i < dmxNumScreens; i++)
-    {
-	DMXScreenInfo *dmxScreen = &dmxScreens[i];
-
-	if (!dmxScreen->beDisplay)
-	    continue;
-
-#ifdef PANORAMIX
-	if (!noPanoramiXExtension)
-	{
-	    dixLookupWindow (&pWin,
-			     win->info[i].id,
-			     client,
-			     DixSetAttrAccess);
-	    if (confineToWin)
-		dixLookupWindow (&pConfineTo,
-				 confineToWin->info[i].id,
-				 client,
-				 DixSetAttrAccess);
-	}
-	else
-#endif
-	    if (i != pWin->drawable.pScreen->myNum)
-		continue;
-
-	dmxInputGrabButton (&dmxScreen->input,
-			    pGrab->device,
-			    pGrab->modifierDevice,
-			    pWin,
-			    pConfineTo,
-			    pGrab->detail.exact,
-			    pGrab->modifiersDetail.exact,
-			    pGrab->cursor);
-    }
-
-    AddResource (pGrab->resource, DMX_PASSIVEGRAB, pGrab);
-
-    return Success;
-}
-
-static int
 dmxProcChangeActivePointerGrab (ClientPtr client)
 {
     DeviceIntPtr pDev;
@@ -423,12 +238,9 @@ void dmxInitGrabs (void)
 {
     int i;
 
-    DMX_PASSIVEGRAB = CreateNewResourceType (dmxFreePassiveGrab);
-
     for (i = 0; i < 256; i++)
 	dmxSaveProcVector[i] = ProcVector[i];
 
-    ProcVector[X_GrabButton]              = dmxProcGrabButton;
     ProcVector[X_ChangeActivePointerGrab] = dmxProcChangeActivePointerGrab;
 }
 

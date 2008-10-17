@@ -63,24 +63,6 @@ dmxInputEventCheck (DMXInputInfo        *dmxInput,
 		    xcb_generic_event_t *event);
 
 void
-dmxInputGrabButton (DMXInputInfo *dmxInput,
-		    DeviceIntPtr pDevice,
-		    DeviceIntPtr pModDevice,
-		    WindowPtr    pWindow,
-		    WindowPtr    pConfineTo,
-		    int	         button,
-		    int	         modifiers,
-		    CursorPtr    pCursor);
-
-void
-dmxInputUngrabButton (DMXInputInfo *dmxInput,
-		      DeviceIntPtr pDevice,
-		      DeviceIntPtr pModDevice,
-		      WindowPtr    pWindow,
-		      int	   button,
-		      int	   modifiers);
-
-void
 dmxInputGrabPointer (DMXInputInfo *dmxInput,
 		     DeviceIntPtr pDevice,
 		     WindowPtr    pWindow,

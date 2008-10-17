@@ -304,14 +304,6 @@ int dmxGetInputAttributes(int deviceId, DMXInputAttributesPtr attr)
     return -1;                  /* Failure */
 }
 
-static void dmxBERestorePassiveGrab(pointer value, XID id, pointer closure)
-{
-    DMXInputInfo *dmxInput = (DMXInputInfo *) closure;
-    GrabPtr      pGrab = value;
-
-    dmxBEAddPassiveGrab (dmxInput, pGrab);
-}
-
 /** Add an input with the specified attributes.  If the input is added,
  * the physical id is returned in \a deviceId. */
 int dmxAddInput(DMXInputAttributesPtr attr, int *id)
@@ -326,19 +318,11 @@ int dmxAddInput(DMXInputAttributesPtr attr, int *id)
 
 	if (dmxScreen->beDisplay)
 	{
-	    int j;
-
 	    ret = dmxInputAttach (&dmxScreen->input);
 	    if (ret != Success)
 		return ret;
 
 	    dmxInputEnable (&dmxScreen->input);
-
-	    for (j = currentMaxClients; --j >= 0; )
-		if (clients[j])
-		    FindClientResourcesByType (clients[j], RT_PASSIVEGRAB,
-					       dmxBERestorePassiveGrab,
-					       (pointer) &dmxScreen->input);
 	}
 	else
 	{
@@ -1657,12 +1641,6 @@ dmxEnableScreen (int idx)
 #endif
 
     dmxInputEnable (&dmxScreen->input);
-
-    for (i = currentMaxClients; --i >= 0; )
-	if (clients[i])
-	    FindClientResourcesByType (clients[i], RT_PASSIVEGRAB,
-				       dmxBERestorePassiveGrab,
-				       (pointer) &dmxScreen->input);
 }
 
 /*
