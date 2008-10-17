@@ -32,6 +32,12 @@ void
 dmxBEDnDRootWindowUpdate (ScreenPtr pScreen,
 			  Window    window);
 
+void
+dmxBEDnDSpriteUpdate (ScreenPtr pScreen,
+		      Window    window,
+		      int       rootX,
+		      int       rootY);
+
 Bool
 dmxScreenEventCheckDnD (ScreenPtr           pScreen,
 			xcb_generic_event_t *event);

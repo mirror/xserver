@@ -31,6 +31,7 @@
 #include "dmxlog.h"
 #include "dmxinput.h"
 #include "dmxgrab.h"
+#include "dmxdnd.h"
 #include "dmxwindow.h"
 #include "dmxcursor.h"
 #include "dmxscrinit.h"
@@ -577,7 +578,8 @@ dmxDeviceGrabPointer (DeviceIntPtr pDevice,
 	    .device_mode  = XCB_GRAB_MODE_ASYNC,
 	    .owner_events = TRUE,
 	    .confine_to   = confineTo,
-	    .cursor       = cursor
+	    .cursor       = cursor,
+	    .event_count  = 3
 	};
 	xcb_protocol_request_t request = {
 	    2,
@@ -685,10 +687,13 @@ static void
 dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
 			  xcb_window_t event,
 			  int          x,
-			  int          y)
+			  int          y,
+			  int          rootX,
+			  int          rootY)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
     DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    ScreenPtr        pScreen = screenInfo.screens[dmxScreen->index];
 
     if (event != dmxScreen->rootWin)
     {
@@ -736,6 +741,7 @@ dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
     }
 
     dmxEndFakeMotion (&dmxScreen->input);
+    dmxBEDnDSpriteUpdate (pScreen, event, rootX, rootY);
     dmxUpdateSpritePosition (pDevice, x, y);
 }
 
@@ -757,7 +763,9 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	dmxUpdateSpriteFromEvent (pButtonDev,
 				  xmotion->event,
 				  xmotion->event_x,
-				  xmotion->event_y);
+				  xmotion->event_y,
+				  xmotion->root_x,
+				  xmotion->root_y);
     } break;
     case XCB_BUTTON_PRESS:
     case XCB_BUTTON_RELEASE: {
@@ -767,7 +775,9 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	dmxUpdateSpriteFromEvent (pButtonDev,
 				  xbutton->event,
 				  xbutton->event_x,
-				  xbutton->event_y);
+				  xbutton->event_y,
+				  xbutton->root_x,
+				  xbutton->root_y);
 	dmxChangeButtonState (pButtonDev,
 			      xbutton->detail,
 			      type);
@@ -798,7 +808,9 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    dmxUpdateSpriteFromEvent (pButtonDev,
 				      xmotion->event,
 				      xmotion->event_x,
-				      xmotion->event_y);
+				      xmotion->event_y,
+				      xmotion->root_x,
+				      xmotion->root_y);
 	} break;
 	case XCB_INPUT_DEVICE_BUTTON_PRESS:
 	case XCB_INPUT_DEVICE_BUTTON_RELEASE: {
@@ -811,7 +823,9 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    dmxUpdateSpriteFromEvent (pButtonDev,
 				      xbutton->event,
 				      xbutton->event_x,
-				      xbutton->event_y);
+				      xbutton->event_y,
+				      xbutton->root_x,
+				      xbutton->root_y);
 	    dmxChangeButtonState (pButtonDev,
 				  xbutton->detail, XCB_BUTTON_RELEASE +
 				  (reltype -
@@ -879,7 +893,9 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 	    dmxUpdateSpriteFromEvent (pButtonDev,
 				      xkey->event,
 				      xkey->event_x,
-				      xkey->event_y);
+				      xkey->event_y,
+				      xkey->root_x,
+				      xkey->root_y);
 
 	dmxChangeKeyState (pKeyDev,
 			   xkey->detail,
@@ -933,7 +949,9 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 		dmxUpdateSpriteFromEvent (pButtonDev,
 					  xkey->event,
 					  xkey->event_x,
-					  xkey->event_y);
+					  xkey->event_y,
+					  xkey->root_x,
+					  xkey->root_y);
 
 	    dmxChangeKeyState (pKeyDev,
 			       xkey->detail, XCB_KEY_PRESS +

@@ -463,7 +463,7 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 
 	    event.u.selectionNotify.property = None;
 
-	    if (reply->response_type)
+	    if (reply)
 	    {
 		Atom     type = dmxAtom (dmxScreen, xproperty->type);
 		uint32_t *data = xcb_get_property_value (xproperty);
@@ -894,6 +894,7 @@ dmxCreateSelectionProxies (void)
     XID       overrideRedirect = TRUE;
     int	      result;
     int       i;
+    Atom      xdndVersion = 5;
 
     for (i = 0; i < DMX_N_SELECTION_PROXY; i++)
     {
@@ -964,6 +965,15 @@ dmxCreateSelectionProxies (void)
 	    dmxScreens[0].pSelectionProxyWin[i] = pWin;
 	}
     }
+
+    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+			  dmxScreens[0].xdndAwareAtom,
+			  XA_ATOM,
+			  32,
+			  PropModeReplace,
+			  1,
+			  &xdndVersion,
+			  TRUE);
 
     return TRUE;
 }

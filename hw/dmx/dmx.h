@@ -143,6 +143,8 @@ typedef struct _DMXInputInfo {
     int          eventBase;
 } DMXInputInfo;
 
+typedef struct _DMXDnDChild DMXDnDChild;
+
 /** Global structure containing information about each backend screen. */
 typedef struct _DMXScreenInfo {
     DMXInputInfo input;
@@ -273,6 +275,9 @@ typedef struct _DMXScreenInfo {
     xcb_get_property_cookie_t          getTypeProp;
     xcb_get_property_cookie_t          getActionListProp;
     xcb_get_property_cookie_t          getActionDescriptionProp;
+    DMXDnDChild                        *dndChildren;
+    int                                dndNChildren;
+    xcb_query_tree_cookie_t            queryTree;
 
     /*---------- Other related information ----------*/
 
