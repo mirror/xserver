@@ -121,7 +121,7 @@ dmxBEDnDUpdateTarget (ScreenPtr pScreen)
     Window        wid = None;
     int           version = 0;
 
-    if (!dmxScreens[0].dndWindow)
+    if (!dmxScreens[0].dndWindow || !dmxScreen->dndSource)
 	return;
 
     if (dmxScreen->dndStatus)
@@ -511,7 +511,7 @@ dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
 
     dmxScreen->dndStatus = 0;
     dmxBEDnDUpdateTarget (pScreen);
-    
+
     UnmapWindow (pProxyWin, FALSE);
 
     if (dmxScreen->dndChildren)
@@ -522,6 +522,7 @@ dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
 	dmxScreen->dndNChildren = 0;
     }
 
+    dmxScreen->dndSource = None;
     dmxScreen->queryTree.sequence = 0;
 }
 
@@ -1466,7 +1467,6 @@ dmxDnDClientMessageEvent (xEvent *event)
 	}
 	else if (type == dmxScreen->xdndEnterAtom)
 	{
-	    dmxScreen->dndSource      = None;
 	    dmxScreen->dndAction      = None;
 	    dmxScreen->dndType[0]     = event->u.clientMessage.u.l.longs2;
 	    dmxScreen->dndType[1]     = event->u.clientMessage.u.l.longs3;
@@ -1506,22 +1506,18 @@ dmxDnDClientMessageEvent (xEvent *event)
 		dmxScreen->dndSource = DMX_GET_WINDOW_PRIV (pWin)->window;
 
 	    dmxScreen->dndWindow = event->u.clientMessage.u.l.longs0;
-
-	    if (dmxScreen->dndAction != event->u.clientMessage.u.l.longs4)
-	    {
-		dmxScreen->dndAction = event->u.clientMessage.u.l.longs4;
-		dmxScreen->dndXPos   = -1;
-		dmxScreen->dndXPos   = -1;
-	    }
+	    dmxScreen->dndAction = event->u.clientMessage.u.l.longs4;
+	    dmxScreen->dndXPos   = -1;
+	    dmxScreen->dndXPos   = -1;
 
 	    if (dmxScreen->dndStatus)
 	    {
+		if (dmxScreen->dndSource != dndSource)
+		    dmxDnDSendDeclineStatus ();
+
 		dmxBEDnDUpdatePosition (screenInfo.screens[i],
 					dmxScreen->dndX,
 					dmxScreen->dndY);
-
-		if (dmxScreen->dndSource != dndSource)
-		    dmxDnDSendDeclineStatus ();
 	    }
 	}
 	else if (type == dmxScreen->xdndDropAtom)
