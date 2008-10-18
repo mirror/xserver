@@ -28,6 +28,12 @@
 
 #include "dmxinput.h"
 
+extern void dmxActivateKeyboardGrab (DeviceIntPtr pDev,
+				     GrabPtr      pGrab,
+				     TimeStamp    time,
+				     Bool         autoGrab);
+extern void dmxDeactivateKeyboardGrab (DeviceIntPtr pDev);
+
 extern void dmxActivatePointerGrab (DeviceIntPtr pDev,
 				    GrabPtr      pGrab,
 				    TimeStamp    time,

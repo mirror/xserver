@@ -383,24 +383,17 @@ dmxSetCursor (DeviceIntPtr pDev,
 {
 }
 
-static Bool dmxDeviceCursorInitialize(DeviceIntPtr pDev, ScreenPtr pScr)
+static Bool
+dmxDeviceCursorInitialize (DeviceIntPtr pDev,
+			   ScreenPtr    pScr)
 {
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
-
-    DMX_WRAP (ActivateGrab, dmxActivatePointerGrab, pDevPriv,
-	      &pDev->deviceGrab);
-    DMX_WRAP (DeactivateGrab, dmxDeactivatePointerGrab, pDevPriv,
-	      &pDev->deviceGrab);
-
     return TRUE;
 }
 
-static void dmxDeviceCursorCleanup(DeviceIntPtr pDev, ScreenPtr pScr)
+static void
+dmxDeviceCursorCleanup (DeviceIntPtr pDev,
+			ScreenPtr    pScr)
 {
-    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
-
-    DMX_UNWRAP (ActivateGrab, pDevPriv, &pDev->deviceGrab);
-    DMX_UNWRAP (DeactivateGrab, pDevPriv, &pDev->deviceGrab);
 }
 
 miPointerSpriteFuncRec dmxPointerSpriteFuncs =

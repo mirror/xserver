@@ -422,6 +422,18 @@ dmxUpdateSpritePosition (DeviceIntPtr pDevice,
 			 int          x,
 			 int          y)
 {
+    ScreenPtr pScreen = miPointerGetScreen (pDevice);
+
+    if (x >= pScreen->width)
+	x = pScreen->width - 1;
+    else if (x < 0)
+	x = 0;
+
+    if (y >= pScreen->height)
+	y = pScreen->height - 1;
+    else if (y < 0)
+	y = 0;
+	
     if (x == pDevice->last.valuators[0] && y == pDevice->last.valuators[1])
 	return 0;
 
@@ -504,20 +516,12 @@ dmxEndFakeMotion (DMXInputInfo *dmxInput)
     }
 }
 
-static Bool
-dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
-			     unsigned int        request,
-			     xcb_generic_reply_t *reply)
-{
-    return FALSE;
-}
-
 static void
-dmxInputGrabPointerReply (ScreenPtr           pScreen,
-			  unsigned int        sequence,
-			  xcb_generic_reply_t *reply,
-			  xcb_generic_error_t *error,
-			  void                *data)
+dmxInputGrabDeviceReply (ScreenPtr           pScreen,
+			 unsigned int        sequence,
+			 xcb_generic_reply_t *reply,
+			 xcb_generic_error_t *error,
+			 void                *data)
 {
     DMXInputInfo *dmxInput = &dmxScreens[pScreen->myNum].input;
     int          i;
@@ -550,6 +554,121 @@ typedef struct dmx_xcb_input_extended_grab_device_request_t {
     uint16_t        event_count;
     uint16_t        generic_event_count;
 } dmx_xcb_input_extended_grab_device_request_t;
+
+static void
+dmxDeviceGrabKeyboard (DeviceIntPtr pDevice,
+		       WindowPtr    pWindow)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    Window           window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
+
+    if (pDevPriv->deviceId >= 0)
+    {
+	dmx_xcb_input_extended_grab_device_request_t grab = {
+	    .grab_window  = window,
+	    .deviceid     = pDevPriv->deviceId,
+	    .device_mode  = XCB_GRAB_MODE_ASYNC,
+	    .owner_events = TRUE,
+	    .event_count  = 2
+	};
+	xcb_protocol_request_t request = {
+	    2,
+	    &xcb_input_id,
+	    DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE,
+	    FALSE
+	};
+	XEventClass  cls[3];
+	int          type;
+	struct iovec vector[] =  {
+	    { &grab, sizeof (grab) },
+	    { cls,   sizeof (cls)  }
+	};
+
+	DeviceKeyPress (pDevPriv->device, type, cls[1]);
+	DeviceKeyRelease (pDevPriv->device, type, cls[2]);
+
+	pDevPriv->grab.sequence =
+	    xcb_send_request (dmxScreen->connection,
+			      0,
+			      vector,
+			      &request);
+    }
+    else
+    {
+	pDevPriv->grab.sequence =
+	    xcb_grab_keyboard (dmxScreen->connection,
+			       TRUE,
+			       window,
+			       0,
+			       XCB_GRAB_MODE_ASYNC,
+			       XCB_GRAB_MODE_ASYNC).sequence;
+    }
+
+    dmxAddRequest (&dmxScreen->request,
+		   dmxInputGrabDeviceReply,
+		   pDevPriv->grab.sequence,
+		   0);
+}
+
+static void
+dmxDeviceUngrabKeyboard (DeviceIntPtr pDevice)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+
+    if (pDevPriv->deviceId >= 0)
+    {
+	xcb_input_ungrab_device (dmxScreen->connection,
+				 0,
+				 pDevPriv->deviceId);
+    }
+    else
+    {
+	xcb_ungrab_keyboard (dmxScreen->connection, 0);
+    }
+}
+
+static Bool
+dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
+			     unsigned int        request,
+			     xcb_generic_reply_t *reply)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (request == pDevPriv->grab.sequence)
+    {
+	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
+
+	if (reply)
+	{
+	    if (pDevPriv->deviceId >= 0)
+	    {
+		xcb_input_grab_device_reply_t *xgrab =
+		    (xcb_input_grab_device_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	    else
+	    {
+		xcb_grab_keyboard_reply_t *xgrab =
+		    (xcb_grab_keyboard_reply_t *) reply;
+
+		status = xgrab->status;
+	    }
+	}
+
+	if (status == XCB_GRAB_STATUS_SUCCESS)
+	{
+	    /* TODO: track state of grabs */
+	}
+
+	pDevPriv->grab.sequence = 0;
+	return TRUE;
+    }
+
+    return FALSE;
+}
 
 static void
 dmxDeviceGrabPointer (DeviceIntPtr pDevice,
@@ -619,7 +738,7 @@ dmxDeviceGrabPointer (DeviceIntPtr pDevice,
     }
 
     dmxAddRequest (&dmxScreen->request,
-		   dmxInputGrabPointerReply,
+		   dmxInputGrabDeviceReply,
 		   pDevPriv->grab.sequence,
 		   0);
 }
@@ -872,12 +991,83 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
     return TRUE;
 }
 
+static void
+dmxUpdateKeyStateFromEvent (DeviceIntPtr pDevice,
+			    xcb_window_t event,
+			    int          detail,
+			    int          x,
+			    int          y,
+			    int          rootX,
+			    int          rootY,
+			    int          type)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    ScreenPtr        pScreen = screenInfo.screens[dmxScreen->index];
+    DeviceIntPtr     pButtonDev;
+
+    if (event != dmxScreen->rootWin)
+    {
+	DeviceIntPtr pMaster = pDevice;
+	WindowPtr    pWin;
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pMaster = pDevice->u.master;
+
+	if (!pMaster->deviceGrab.grab)
+	{
+	    dmxDeviceUngrabKeyboard (pDevice);
+	    dmxLog (dmxWarning, "non-root window event without active grab\n");
+	    return;
+	}
+
+	pWin = WindowTable[dmxScreen->index];
+	for (;;)
+	{
+	    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+
+	    if (pWinPriv->window == event)
+		break;
+
+	    if (pWin->firstChild)
+	    {
+		pWin = pWin->firstChild;
+		continue;
+	    }
+
+	    while (!pWin->nextSib && (pWin != WindowTable[dmxScreen->index]))
+		pWin = pWin->parent;
+
+	    if (pWin == WindowTable[dmxScreen->index])
+		break;
+
+	    pWin = pWin->nextSib;
+	}
+
+	if (!pWin)
+	    return;
+
+	x += pWin->drawable.x;
+	y += pWin->drawable.y;
+    }
+
+    dmxEndFakeMotion (&dmxScreen->input);
+
+    pButtonDev = dmxGetPairedButtonDevice (pDevice);
+    if (pButtonDev)
+    {
+	dmxBEDnDSpriteUpdate (pScreen, event, rootX, rootY);
+	dmxUpdateSpritePosition (pButtonDev, x, y);
+    }
+
+    dmxChangeKeyState (pDevice, detail, type);
+}
+
 static Bool
 dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 			     xcb_generic_event_t *event)
 {
     DeviceIntPtr     pKeyDev = pDevice;
-    DeviceIntPtr     pButtonDev;
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pKeyDev);
     DMXInputInfo     *dmxInput = pDevPriv->dmxInput;
     int              reltype, type = event->response_type & 0x7f;
@@ -887,19 +1077,15 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
     case XCB_KEY_PRESS:
     case XCB_KEY_RELEASE: {
 	xcb_key_press_event_t *xkey = (xcb_key_press_event_t *) event;
-	
-	pButtonDev = dmxGetPairedButtonDevice (pKeyDev);
-	if (pButtonDev)
-	    dmxUpdateSpriteFromEvent (pButtonDev,
-				      xkey->event,
-				      xkey->event_x,
-				      xkey->event_y,
-				      xkey->root_x,
-				      xkey->root_y);
 
-	dmxChangeKeyState (pKeyDev,
-			   xkey->detail,
-			   type);
+	dmxUpdateKeyStateFromEvent (pKeyDev,
+				    xkey->event,
+				    xkey->detail,
+				    xkey->event_x,
+				    xkey->event_y,
+				    xkey->root_x,
+				    xkey->root_y,
+				    type);
     } break;
     case XCB_KEYMAP_NOTIFY: {
 	xcb_keymap_notify_event_t *xkeymap =
@@ -944,18 +1130,15 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 	    if (id != (xkey->device_id & DEVICE_BITS))
 		return FALSE;
 
-	    pButtonDev = dmxGetPairedButtonDevice (pKeyDev);
-	    if (pButtonDev)
-		dmxUpdateSpriteFromEvent (pButtonDev,
-					  xkey->event,
-					  xkey->event_x,
-					  xkey->event_y,
-					  xkey->root_x,
-					  xkey->root_y);
-
-	    dmxChangeKeyState (pKeyDev,
-			       xkey->detail, XCB_KEY_PRESS +
-			       (reltype - XCB_INPUT_DEVICE_KEY_PRESS));
+	    dmxUpdateKeyStateFromEvent (pKeyDev,
+					xkey->event,
+					xkey->detail,
+					xkey->event_x,
+					xkey->event_y,
+					xkey->root_x,
+					xkey->root_y,
+					XCB_KEY_PRESS +
+					(reltype - XCB_INPUT_DEVICE_KEY_PRESS));
 	} break;
 	case XCB_INPUT_DEVICE_STATE_NOTIFY: {
 	    xcb_input_device_state_notify_event_t *xstate =
@@ -1025,6 +1208,48 @@ dmxInputEventCheck (DMXInputInfo        *dmxInput,
     }
 
     return FALSE;
+}
+
+void
+dmxInputGrabKeyboard (DMXInputInfo *dmxInput,
+		      DeviceIntPtr pDevice,
+		      WindowPtr    pWindow)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pExtDevice = dmxInput->devs[i];
+
+	if (pExtDevice->u.master != pDevice)
+	    continue;
+
+	if (!pExtDevice->key)
+	    continue;
+
+	dmxDeviceGrabKeyboard (pExtDevice, pWindow);
+    }
+}
+
+void
+dmxInputUngrabKeyboard (DMXInputInfo *dmxInput,
+			DeviceIntPtr pDevice,
+			WindowPtr    pWindow)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pExtDevice = dmxInput->devs[i];
+
+	if (pExtDevice->u.master != pDevice)
+	    continue;
+
+	if (!pExtDevice->key)
+	    continue;
+
+	dmxDeviceUngrabKeyboard (pExtDevice);
+    }
 }
 
 void
@@ -1663,6 +1888,28 @@ LegalModifier (unsigned int key,
     return TRUE;
 }
 
+static void
+dmxInitMasterKeyboard (DeviceIntPtr pDev)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+
+    DMX_WRAP (ActivateGrab, dmxActivateKeyboardGrab, pDevPriv,
+	      &pDev->deviceGrab);
+    DMX_WRAP (DeactivateGrab, dmxDeactivateKeyboardGrab, pDevPriv,
+	      &pDev->deviceGrab);
+}
+
+static void
+dmxInitMasterPointer (DeviceIntPtr pDev)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+
+    DMX_WRAP (ActivateGrab, dmxActivatePointerGrab, pDevPriv,
+	      &pDev->deviceGrab);
+    DMX_WRAP (DeactivateGrab, dmxDeactivatePointerGrab, pDevPriv,
+	      &pDev->deviceGrab);
+}
+
 void
 InitInput (int argc, char **argv)
 {
@@ -1673,6 +1920,10 @@ InitInput (int argc, char **argv)
     for (i = 0; i < dmxNumScreens; i++)
 	if (dmxScreens[i].beDisplay && !dmxScreens[i].virtualFb)
 	    dmxInputAddDevices (&dmxScreens[i].input);
+
+    /* XXX: init devices created using XChangeDeviceHierarchy */
+    dmxInitMasterKeyboard (inputInfo.keyboard);
+    dmxInitMasterPointer (inputInfo.pointer);
 
     mieqInit ();
 }

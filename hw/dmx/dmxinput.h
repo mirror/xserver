@@ -62,6 +62,24 @@ Bool
 dmxInputEventCheck (DMXInputInfo        *dmxInput,
 		    xcb_generic_event_t *event);
 
+Bool
+dmxFakeMotion (DMXInputInfo *dmxInput,
+	       int          x,
+	       int          y);
+
+void
+dmxEndFakeMotion (DMXInputInfo *dmxInput);
+
+void
+dmxInputGrabKeyboard (DMXInputInfo *dmxInput,
+		      DeviceIntPtr pDevice,
+		      WindowPtr    pWindow);
+
+void
+dmxInputUngrabKeyboard (DMXInputInfo *dmxInput,
+			DeviceIntPtr pDevice,
+			WindowPtr    pWindow);
+
 void
 dmxInputGrabPointer (DMXInputInfo *dmxInput,
 		     DeviceIntPtr pDevice,
@@ -73,14 +91,6 @@ void
 dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 		       DeviceIntPtr pDevice,
 		       WindowPtr    pWindow);
-
-Bool
-dmxFakeMotion (DMXInputInfo *dmxInput,
-	       int          x,
-	       int          y);
-
-void
-dmxEndFakeMotion (DMXInputInfo *dmxInput);
 
 int
 dmxInputEnable (DMXInputInfo *dmxInput);

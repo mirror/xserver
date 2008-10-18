@@ -41,6 +41,129 @@
 static int (*dmxSaveProcVector[256]) (ClientPtr);
 
 static void
+dmxGrabKeyboard (DeviceIntPtr pDev,
+		 GrabPtr      pGrab)
+{
+
+#ifdef PANORAMIX
+    PanoramiXRes *win = NULL;
+#endif
+
+    WindowPtr    pWin;
+    int          i;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	if (!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		  serverClient, pGrab->window->drawable.id, XRT_WINDOW,
+		  DixGetAttrAccess)))
+	    return;
+    }
+#endif
+
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	if (!dmxScreen->beDisplay)
+	    continue;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    dixLookupWindow (&pWin,
+			     win->info[i].id,
+			     serverClient,
+			     DixGetAttrAccess);
+	}
+	else
+#endif
+	    if (i != pWin->drawable.pScreen->myNum)
+		continue;
+
+	dmxInputGrabKeyboard (&dmxScreen->input, pDev, pWin);
+    }
+}
+
+static void
+dmxUngrabKeyboard (DeviceIntPtr pDev,
+		   GrabPtr      pGrab)
+{
+
+#ifdef PANORAMIX
+    PanoramiXRes *win = NULL;
+#endif
+
+    WindowPtr    pWin;
+    int          i;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	if (!(win = (PanoramiXRes *)SecurityLookupIDByType(
+		  serverClient, pGrab->window->drawable.id, XRT_WINDOW,
+		  DixGetAttrAccess)))
+	    return;
+    }
+#endif
+
+    for (i = 0; i < dmxNumScreens; i++)
+    {
+	DMXScreenInfo *dmxScreen = &dmxScreens[i];
+
+	if (!dmxScreen->beDisplay)
+	    continue;
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    dixLookupWindow (&pWin,
+			     win->info[i].id,
+			     serverClient,
+			     DixGetAttrAccess);
+	}
+	else
+#endif
+	    if (i != pWin->drawable.pScreen->myNum)
+		continue;
+
+	dmxInputUngrabKeyboard (&dmxScreen->input, pDev, pWin);
+    }
+}
+
+void
+dmxActivateKeyboardGrab (DeviceIntPtr pDev,
+			 GrabPtr      pGrab,
+			 TimeStamp    time,
+			 Bool         autoGrab)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+
+    dmxGrabKeyboard (pDev, pGrab);
+
+    DMX_UNWRAP (ActivateGrab, pDevPriv, &pDev->deviceGrab);
+    (*pDev->deviceGrab.ActivateGrab) (pDev, pGrab, time, autoGrab);
+    DMX_WRAP (ActivateGrab, dmxActivateKeyboardGrab, pDevPriv,
+	      &pDev->deviceGrab);
+}
+
+void
+dmxDeactivateKeyboardGrab (DeviceIntPtr pDev)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
+    GrabPtr          pGrab = pDev->deviceGrab.grab;
+
+    /* DeactivateGrab might call ActivateGrab so make sure we ungrab here */
+    dmxUngrabKeyboard (pDev, pGrab);
+
+    DMX_UNWRAP (DeactivateGrab, pDevPriv, &pDev->deviceGrab);
+    (*pDev->deviceGrab.DeactivateGrab) (pDev);
+    DMX_WRAP (DeactivateGrab, dmxDeactivateKeyboardGrab, pDevPriv,
+	      &pDev->deviceGrab);
+}
+
+static void
 dmxGrabPointer (DeviceIntPtr pDev,
 		GrabPtr      pGrab)
 {
