@@ -1113,11 +1113,14 @@ void OsVendorInit(void)
 {
     if (!dmxPropTrans)
     {
-	dmxPropTrans = xalloc (sizeof (DMXPropTrans));
-	dmxPropTrans->name = "_COMPIZ_WINDOW_DECOR";
-	dmxPropTrans->format = "xP";
-	dmxPropTrans->type = 0;
-	dmxPropTransNum = 1;
+	dmxPropTrans = xalloc (sizeof (DMXPropTrans) * 2);
+	dmxPropTrans[0].name = "ATOM_PAIR";
+	dmxPropTrans[0].format = "aa..";
+	dmxPropTrans[0].type = 0;
+	dmxPropTrans[1].name = "_COMPIZ_WINDOW_DECOR";
+	dmxPropTrans[1].format = "xP";
+	dmxPropTrans[1].type = 0;
+	dmxPropTransNum = 2;
     }
 
     if (!dmxSelectionMap)

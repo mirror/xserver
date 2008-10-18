@@ -204,7 +204,7 @@ typedef struct _DMXScreenInfo {
     int           beShmEventBase;
 #endif
 
-    Display      *beAttachedDisplay; /**< Disabld X server's display */
+    Display      *beAttachedDisplay; /**< Disabled X server's display */
 
     char          *authType;
     int           authTypeLen;
@@ -239,6 +239,8 @@ typedef struct _DMXScreenInfo {
     Window                           getSelectionOwnerResult;
     XID                              selectionProxyWid[DMX_N_SELECTION_PROXY];
     WindowPtr                        pSelectionProxyWin[DMX_N_SELECTION_PROXY];
+    Atom                             multipleAtom;
+    Atom                             atomPairAtom;
     Atom                             incrAtom;
 
     /*---------- DnD information ----------*/

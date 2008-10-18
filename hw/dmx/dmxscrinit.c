@@ -1036,6 +1036,8 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     dmxScreen->rootEventMask = ExposureMask | StructureNotifyMask |
 	SubstructureRedirectMask;
 
+    dmxScreen->multipleAtom = MakeAtom ("MULTIPLE", strlen ("MULTIPLE"), TRUE);
+    dmxScreen->atomPairAtom = MakeAtom ("ATOM_PAIR", strlen ("ATOM_PAIR"), TRUE);
     dmxScreen->incrAtom = MakeAtom ("INCR", strlen ("INCR"), TRUE);
 
     if (!dmxInitGC(pScreen)) return FALSE;

@@ -493,6 +493,9 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 			*/
 			type = 0;
 		    default:
+			if (type == dmxScreen->atomPairAtom)
+			    for (i = 0; i < length; i++)
+				data[i] = dmxAtom (dmxScreen, data[i]);
 			break;
 		    }
 		}
@@ -710,21 +713,16 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
     return TRUE;
 }
 
-void
-dmxSelectionRequest (ScreenPtr pScreen,
-		     Window    owner,
-		     Window    requestor,
-		     Atom      xSelection,
-		     Atom      xTarget,
-		     Atom      xProperty,
-		     Time      xTime)
+static Bool
+dmxConvertSelection (ScreenPtr    pScreen,
+		     DMXSelection *s,
+		     Window       owner,
+		     int          multipleLength,
+		     uint32_t     *multipleData)
 {
-    DMXScreenInfo                *dmxScreen = &dmxScreens[pScreen->myNum];
-    WindowPtr                    pChild0, pChildN;
-    xcb_selection_notify_event_t xevent;
-    Selection                    *pSel = NULL;
-    Atom                         selection = dmxSelectionAtom (dmxScreen,
-							       xSelection);
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    WindowPtr     pChild0, pChildN;
+    Selection     *pSel = NULL;
 
     pChild0 = WindowTable[0];
     pChildN = WindowTable[pScreen->myNum];
@@ -735,11 +733,10 @@ dmxSelectionRequest (ScreenPtr pScreen,
 
 	if (pWinPriv->window == owner)
 	{
-	    if (ValidAtom (selection))
-		dixLookupSelection (&pSel,
-				    selection,
-				    serverClient,
-				    DixReadAccess);
+	    dixLookupSelection (&pSel,
+				s->selection,
+				serverClient,
+				DixReadAccess);
 	    break;
 	}
 
@@ -765,87 +762,197 @@ dmxSelectionRequest (ScreenPtr pScreen,
 
     if (pSel)
     {
+	WindowPtr pProxy = NullWindow;
+	int       i;
+
+	for (i = 1; i < DMX_N_SELECTION_PROXY; i++)
+	{
+	    DMXSelection *r;
+
+	    pProxy = dmxScreens[0].pSelectionProxyWin[i];
+
+	    for (r = reqHead; pProxy && r; r = r->next)
+		if (r->wid == pProxy->drawable.id)
+		    pProxy = NullWindow;
+
+	    if (pProxy)
+		break;
+	}
+
+	if (pProxy)
+	{
+	    xEvent event;
+
+	    event.u.u.type = SelectionRequest;
+	    event.u.selectionRequest.owner = pSel->window;
+	    event.u.selectionRequest.time = currentTime.milliseconds;
+	    event.u.selectionRequest.requestor = pProxy->drawable.id;
+	    event.u.selectionRequest.selection = s->selection;
+	    event.u.selectionRequest.target = s->target;
+	    event.u.selectionRequest.property = s->property;
+
+	    if (TryClientEvents (pSel->client, NULL, &event, 1,
+				 NoEventMask,
+				 NoEventMask /* CantBeFiltered */,
+				 NullGrab))
+	    {
+		int j;
+
+		s->wid = pProxy->drawable.id;
+
+		for (j = 0; j < dmxNumScreens; j++)
+		{
+		    WindowPtr     pWin = dmxScreens[j].pSelectionProxyWin[i];
+		    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
+			    
+		    s->value[j].in = pWinPriv->window;
+		}
+
+		if (multipleLength)
+		    ChangeWindowProperty (pProxy,
+					  s->property,
+					  dmxScreen->atomPairAtom,
+					  32,
+					  PropModeReplace,
+					  multipleLength,
+					  multipleData,
+					  TRUE);
+
+		dmxAppendSelection (&reqHead, s);
+		return TRUE;
+	    }
+	}
+	else
+	{
+	    /* TODO: wait for proxy window to become available */
+	    dmxLog (dmxWarning,
+		    "dmxSelectionRequest: no proxy window available "
+		    "for conversion of %s selection\n",
+		    NameForAtom (s->selection));
+	}
+    }
+	
+    return FALSE;
+}
+
+static void
+dmxMultipleTargetPropertyReply (ScreenPtr           pScreen,
+				unsigned int        sequence,
+				xcb_generic_reply_t *reply,
+				xcb_generic_error_t *error,
+				void                *data)
+{
+    xcb_selection_notify_event_t xevent;
+    DMXScreenInfo                *dmxScreen = &dmxScreens[pScreen->myNum];
+    DMXSelection                 *s = (DMXSelection  *) data;
+
+    if (reply)
+    {
+	xcb_get_property_reply_t *xproperty = (xcb_get_property_reply_t *) reply;
+
+	if (xproperty->format == 32)
+	{
+	    uint32_t *data = xcb_get_property_value (xproperty);
+	    int      length = xcb_get_property_value_length (xproperty);
+	    int      i;
+
+	    for (i = 0; i < length; i++)
+		data[i] = dmxAtom (dmxScreen, data[i]);
+
+	    if (dmxConvertSelection (pScreen, s, s->wid, length, data))
+		return;
+	}
+    }
+
+    xevent.response_type = XCB_SELECTION_NOTIFY;
+    xevent.pad0 = 0;
+    xevent.sequence = 0;
+    xevent.time = s->time;
+    xevent.requestor = s->requestor;
+    xevent.selection = dmxBESelectionAtom (dmxScreen, s->selection);
+    xevent.target = dmxBEAtom (dmxScreen, s->target);
+    xevent.property = 0;
+
+    xcb_send_event (dmxScreen->connection,
+		    FALSE,
+		    s->requestor,
+		    0,
+		    (const char *) &xevent);
+
+    dmxSync (dmxScreen, FALSE);
+
+    free (s);
+}
+
+void
+dmxSelectionRequest (ScreenPtr pScreen,
+		     Window    owner,
+		     Window    requestor,
+		     Atom      xSelection,
+		     Atom      xTarget,
+		     Atom      xProperty,
+		     Time      xTime)
+{
+    xcb_selection_notify_event_t xevent;
+    DMXScreenInfo                *dmxScreen = &dmxScreens[pScreen->myNum];
+    Atom                         selection =
+	dmxSelectionAtom (dmxScreen, xSelection);
+
+    if (ValidAtom (selection))
+    {
 	Atom target = dmxAtom (dmxScreen, xTarget);
 	Atom property = (xProperty) ? dmxAtom (dmxScreen, xProperty) : None;
 
 	if (ValidAtom (target) && ((property == None) || ValidAtom (property)))
 	{
-	    WindowPtr    pProxy = NullWindow;
 	    DMXSelection *s;
-	    int          i;
 
-	    for (i = 1; i < DMX_N_SELECTION_PROXY; i++)
+	    s = xalloc (sizeof (DMXSelection));
+	    if (s)
 	    {
-		pProxy = dmxScreens[0].pSelectionProxyWin[i];
+		s->wid       = 0;
+		s->requestor = requestor;
+		s->selection = selection;
+		s->target    = target;
+		s->property  = property;
+		s->time      = xTime;
+		s->next      = 0;
+		s->timer     = 0;
 
-		for (s = reqHead; pProxy && s; s = s->next)
-		    if (s->wid == pProxy->drawable.id)
-			pProxy = NullWindow;
+		memset (s->value, 0, sizeof (s->value));
 
-		if (pProxy)
-		    break;
-	    }
+		s->value[pScreen->myNum].out = requestor;
 
-	    if (pProxy)
-	    {
-		xEvent event;
-
-		event.u.u.type = SelectionRequest;
-		event.u.selectionRequest.owner = pSel->window;
-		event.u.selectionRequest.time = currentTime.milliseconds;
-		event.u.selectionRequest.requestor = pProxy->drawable.id;
-		event.u.selectionRequest.selection = selection;
-		event.u.selectionRequest.target = target;
-		event.u.selectionRequest.property = property;
-
-		s = xalloc (sizeof (DMXSelection));
-		if (s)
+		if (target == dmxScreen->multipleAtom)
 		{
-		    if (TryClientEvents (pSel->client, NULL, &event, 1,
-					 NoEventMask,
-					 NoEventMask /* CantBeFiltered */,
-					 NullGrab))
+		    if (ValidAtom (property))
 		    {
-			int j;
+			xcb_get_property_cookie_t prop;
 
-			s->wid       = pProxy->drawable.id;
-			s->requestor = requestor;
-			s->selection = selection;
-			s->target    = target;
-			s->property  = property;
-			s->time      = xTime;
-			s->next      = 0;
-			s->timer     = 0;
+			prop = xcb_get_property (dmxScreen->connection,
+						 xFalse,
+						 requestor,
+						 xProperty,
+						 XCB_GET_PROPERTY_TYPE_ANY,
+						 0,
+						 0xffffffff);
 
-			memset (s->value, 0, sizeof (s->value));
+			s->wid = owner;
 
-			for (j = 0; j < dmxNumScreens; j++)
-			{
-			    WindowPtr     pWin =
-				dmxScreens[j].pSelectionProxyWin[i];
-			    dmxWinPrivPtr pWinPriv =
-				DMX_GET_WINDOW_PRIV (pWin);
-			    
-			    s->value[j].in = pWinPriv->window;
-			    if (j == pScreen->myNum)
-				s->value[j].out = requestor;
-			}
-
-			dmxAppendSelection (&reqHead, s);
-			return;
+			dmxAddRequest (&dmxScreen->request,
+				       dmxMultipleTargetPropertyReply,
+				       prop.sequence,
+				       (void *) s);
 		    }
-
-		    xfree (s);
+		}
+		else
+		{
+		    if (dmxConvertSelection (pScreen, s, owner, 0, 0))
+			return;
 		}
 	    }
-	    else
-	    {
-		/* TODO: wait for proxy window to become available */
-		dmxLog (dmxWarning,
-			"dmxSelectionRequest: no proxy window available "
-			"for conversion of %s selection\n",
-			NameForAtom (selection));
-	    }
+
+	    xfree (s);
 	}
     }
 	
