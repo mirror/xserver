@@ -1033,6 +1033,8 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     dmxScreen->request.head = NULL;
     dmxScreen->request.tail = &dmxScreen->request.head;
 
+    dmxScreen->scrnEventMask = 0;
+
     dmxScreen->rootEventMask = ExposureMask | StructureNotifyMask |
 	SubstructureRedirectMask;
 
@@ -1153,9 +1155,10 @@ Bool dmxScreenInit(int idx, ScreenPtr pScreen, int argc, char *argv[])
     if (!dmxScreen->scrnWin && dmxScreen->beDisplay)
     {
 	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
+	dmxScreen->scrnEventMask |= StructureNotifyMask;
 	XSelectInput (dmxScreen->beDisplay,
 		      dmxScreen->scrnWin,
-		      StructureNotifyMask);
+		      dmxScreen->scrnEventMask);
     }
 
 #ifdef MITSHM

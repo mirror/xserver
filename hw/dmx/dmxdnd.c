@@ -487,6 +487,10 @@ dmxBEDnDUpdatePosition (ScreenPtr pScreen,
 	{
 	    Window root = DefaultRootWindow (dmxScreen->beDisplay);
 
+	    XSelectInput (dmxScreen->beDisplay, root,
+			  dmxScreen->scrnEventMask |
+			  StructureNotifyMask | SubstructureNotifyMask);
+
 	    dmxScreen->queryTree = xcb_query_tree (dmxScreen->connection,
 						   root);
 	    dmxAddRequest (&dmxScreen->request,
@@ -513,6 +517,11 @@ dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
     dmxBEDnDUpdateTarget (pScreen);
 
     UnmapWindow (pProxyWin, FALSE);
+
+    if (dmxScreen->dndChildren || dmxScreen->queryTree.sequence)
+	XSelectInput (dmxScreen->beDisplay,
+		      DefaultRootWindow (dmxScreen->beDisplay),
+		      dmxScreen->scrnEventMask);
 
     if (dmxScreen->dndChildren)
     {
@@ -1274,9 +1283,33 @@ Bool
 dmxScreenEventCheckDnD (ScreenPtr           pScreen,
 			xcb_generic_event_t *event)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    DMXScreenInfo          *dmxScreen = &dmxScreens[pScreen->myNum];
+    xcb_map_notify_event_t *xmap = (xcb_map_notify_event_t *) event;
 
     switch (event->response_type & ~0x80) {
+    case XCB_MAP_NOTIFY:
+	if (xmap->window == dmxScreen->rootWin)
+	    return FALSE;
+
+	/* fall-through */
+    case XCB_UNMAP_NOTIFY:
+    case XCB_CONFIGURE_NOTIFY:
+	if (xmap->event != DefaultRootWindow (dmxScreen->beDisplay))
+	    return FALSE;
+	
+	if (dmxScreen->dndChildren)
+	{
+	    xfree (dmxScreen->dndChildren);
+
+	    dmxScreen->dndChildren  = NULL;
+	    dmxScreen->dndNChildren = 0;
+	}
+
+	dmxScreen->queryTree.sequence = 0;
+
+	if (dmxScreen->dndStatus)
+	    dmxBEDnDUpdatePosition (pScreen, dmxScreen->dndX, dmxScreen->dndY);
+	break;
     case XCB_CLIENT_MESSAGE: {
 	xcb_client_message_event_t *xclient =
 	    (xcb_client_message_event_t *) event;

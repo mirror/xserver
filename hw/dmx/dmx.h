@@ -218,6 +218,7 @@ typedef struct _DMXScreenInfo {
     Window        scrnWin;        /**< "Screen" window on backend display */
     int           scrnWidth;      /**< Width of "screen" */
     int           scrnHeight;     /**< Height of "screen" */
+    int           scrnEventMask;
 
                                   /** Default drawables for "screen" */
     Drawable      scrnDefDrawables[MAXFORMATS];
