@@ -478,14 +478,14 @@ do {									\
 #define _MAXSCREENSALLOCF(o,size,fatal)                                 \
     do {                                                                \
         if (!o) {                                                       \
-            o = xcalloc((size), sizeof(*(o)));                          \
+            o = calloc((size), sizeof(*(o)));                           \
             if (!o && fatal) FatalError(MAXSCREEN_FAILED_TXT #o);       \
         }                                                               \
     } while (0)
 #define _MAXSCREENSALLOCR(o,size,retval)                                \
     do {                                                                \
         if (!o) {                                                       \
-            o = xcalloc((size), sizeof(*(o)));                          \
+            o = calloc((size), sizeof(*(o)));                           \
             if (!o) return retval;                                      \
         }                                                               \
     } while (0)
