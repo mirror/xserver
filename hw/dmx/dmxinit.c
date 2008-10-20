@@ -77,7 +77,6 @@
 #endif
 
 #include <signal.h>             /* For SIGQUIT */
-#include <execinfo.h>
 
 #ifdef GLXEXT
 #include <GL/glx.h>
@@ -151,25 +150,11 @@ int             dmxXvImageFormatsNum = 0;
 
 char            dmxDigest[64];
 
-#include <execinfo.h>
-
 static void
 dmxSigHandler (int signo)
 {
-    void   *array[64];
-    size_t size, i;
-    char   **strings;
-
-    ErrorF ("\nBacktrace:\n");
-
-    size    = backtrace (array, 64);
-    strings = backtrace_symbols (array, size);
-
-    for (i = 0; i < size; i++)
-	ErrorF ("%d: %s\n", i, strings[i]);
-
-    free (strings);
-
+    signal (signo, SIG_IGN);
+    xorg_backtrace ();
     FatalError ("Caught signal %d.  Server aborting\n", signo);
 }
 
