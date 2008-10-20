@@ -115,7 +115,7 @@
 /** Initialize the private area for the cursor functions. */
 Bool dmxInitCursor(ScreenPtr pScreen)
 {
-    if (!dixRequestPrivate(pScreen, sizeof(dmxCursorPrivRec)))
+    if (!dixRequestPrivate(CursorScreenKey(pScreen), sizeof(dmxCursorPrivRec)))
 	return FALSE;
 
     if (!dixRequestPrivate (dmxDevicePrivateKey, sizeof(dmxDevicePrivRec)))
