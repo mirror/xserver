@@ -165,6 +165,13 @@ dmxProcDeleteProperty (ClientPtr client)
     if (err != Success)
 	return err;
 
+    if (dixLookupWindow (&pWin,
+			 stuff->window,
+			 serverClient,
+			 DixReadAccess) != Success)
+	return err;
+
+
 #ifdef PANORAMIX
     if (!noPanoramiXExtension)
     {
@@ -176,24 +183,30 @@ dmxProcDeleteProperty (ClientPtr client)
 							    XRT_WINDOW,
 							    DixReadAccess)))
 	{
-	    FOR_NSCREENS_FORWARD(j) {
-		if (dixLookupWindow (&pWin,
+	    FOR_NSCREENS_BACKWARD(j) {
+		WindowPtr pScrWin;
+
+		if (dixLookupWindow (&pScrWin,
 				     win->info[j].id,
 				     serverClient,
 				     DixReadAccess) == Success)
-		    dmxDeleteProperty (pWin, stuff->property);
+		    dmxDeleteProperty (pScrWin, stuff->property);
 	    }
 	}
+
+	dmxSelectionPropertyChangeCheck (pWin,
+					 stuff->property,
+					 -1);
 
 	return Success;
     }
 #endif
 
-    if (dixLookupWindow (&pWin,
-			 stuff->window,
-			 serverClient,
-			 DixReadAccess) == Success)
-	dmxDeleteProperty (pWin, stuff->property);
+    dmxDeleteProperty (pWin, stuff->property);
+
+    dmxSelectionPropertyChangeCheck (pWin,
+				     stuff->property,
+				     -1);
 
     return Success;
 }
@@ -232,22 +245,32 @@ dmxProcGetProperty (ClientPtr client)
 							    XRT_WINDOW,
 							    DixReadAccess)))
 	{
-	    FOR_NSCREENS_FORWARD(j) {
-		if (dixLookupWindow (&pWin,
+	    FOR_NSCREENS_BACKWARD(j) {
+		WindowPtr pScrWin;
+
+		if (dixLookupWindow (&pScrWin,
 				     win->info[j].id,
 				     serverClient,
 				     DixReadAccess) == Success)
 		{
-		    dmxDeleteProperty (pWin, stuff->property);
+		    dmxDeleteProperty (pScrWin, stuff->property);
 		}
 	    }
 	}
+
+	dmxSelectionPropertyChangeCheck (pWin,
+					 stuff->property,
+					 -1);
 
 	return Success;
     }
 #endif
 
     dmxDeleteProperty (pWin, stuff->property);
+
+    dmxSelectionPropertyChangeCheck (pWin,
+				     stuff->property,
+				     -1);
 
     return Success;
 }

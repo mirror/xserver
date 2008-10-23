@@ -43,7 +43,7 @@
 #include "panoramiXsrv.h"
 #endif
 
-#define DMX_SELECTION_TIMEOUT (60 * 1000) /* 60 seconds */
+#define DMX_SELECTION_TIMEOUT (2 * 1000) /* 60 seconds */
 
 typedef struct _DMXSelection {
     struct _DMXSelection *next;
@@ -54,6 +54,7 @@ typedef struct _DMXSelection {
     Atom target;
     Atom property;
     Time time;
+    Bool incr;
 
     struct {
 	unsigned int in;
@@ -131,7 +132,7 @@ dmxSelectionDeleteProp (DMXSelection *s)
     {
 	DMXScreenInfo *dmxScreen = &dmxScreens[i];
 	
-	if (s->property == dmxScreen->incrAtom && s->value[i].out)
+	if (s->incr && s->value[i].out)
 	{
 	    const uint32_t value = 0;
 
@@ -159,17 +160,13 @@ dmxSelectionDeleteReq (DMXSelection *s)
     {
 	if (s->value[i].out)
 	{
-	    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+	    DMXScreenInfo  *dmxScreen = &dmxScreens[i];
+	    const uint32_t value = 0;
 
-	    if (s->property == dmxScreen->incrAtom)
-	    {
-		const uint32_t value = 0;
-	
-		xcb_change_window_attributes (dmxScreen->connection,
-					      s->value[i].out,
-					      XCB_CW_EVENT_MASK,
-					      &value);
-	    }
+	    xcb_change_window_attributes (dmxScreen->connection,
+					  s->value[i].out,
+					  XCB_CW_EVENT_MASK,
+					  &value);
 	}
     }
 
@@ -524,7 +521,7 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 				 NoEventMask /* CantBeFiltered */, NullGrab);
 	    }
 
-	    if (event.u.selectionNotify.property == dmxScreen->incrAtom)
+	    if (s->incr)
 	    {	
 		/* end of incremental selection transfer when size is 0 */
 		if (xproperty->value_len != 0)
@@ -551,13 +548,11 @@ dmxSelectionNotify (ScreenPtr pScreen,
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     Atom          selection = dmxSelectionAtom (dmxScreen, xSelection);
-    Atom          target = dmxAtom (dmxScreen, xTarget);
     DMXSelection  *s;
 
     for (s = convHead; s; s = s->next)
 	if (s->value[pScreen->myNum].out == requestor &&
-	    s->selection                 == selection &&
-	    s->target                    == target)
+	    s->selection                 == selection)
 	    break;
 
     if (s)
@@ -591,7 +586,10 @@ dmxSelectionNotify (ScreenPtr pScreen,
 	    s->property = property;
 	    s->target = target;
 
-	    if (property == dmxScreen->incrAtom)
+	    if (target == dmxScreen->incrAtom)
+		s->incr = TRUE;
+
+	    if (s->incr)
 		xcb_change_window_attributes (dmxScreen->connection,
 					      requestor,
 					      XCB_CW_EVENT_MASK,
@@ -624,12 +622,10 @@ Bool
 dmxSelectionDestroyNotify (ScreenPtr pScreen,
 			   Window    window)
 {
-    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    DMXSelection  *s;
+    DMXSelection *s;
 
     for (s = reqHead; s; s = s->next)
-	if (s->value[pScreen->myNum].out == window &&
-	    s->property                  == dmxScreen->incrAtom)
+	if (s->value[pScreen->myNum].out == window)
 	    break;
 
     if (s)
@@ -649,17 +645,12 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
 			    Time      xTime)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    Atom          property = dmxAtom (dmxScreen, xProperty);
     DMXSelection  *s;
-
-    if (property != dmxScreen->incrAtom)
-	return FALSE;
 
     if (state == XCB_PROPERTY_NEW_VALUE)
     {
 	for (s = propHead; s; s = s->next)
-	    if (s->value[pScreen->myNum].out == window &&
-		s->property                  == dmxScreen->incrAtom)
+	    if (s->value[pScreen->myNum].out == window)
 		break;
 
 	if (s)
@@ -692,8 +683,7 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
     else
     {
 	for (s = reqHead; s; s = s->next)
-	    if (s->value[pScreen->myNum].out == window &&
-		s->property                  == dmxScreen->incrAtom)
+	    if (s->value[pScreen->myNum].out == window)
 		break;
 
 	if (s)
@@ -706,7 +696,10 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
 				 DixReadAccess) == Success)
 		DeleteProperty (serverClient, pWin, s->property);
 
-	    dmxSelectionResetTimer (s);
+	    if (s->incr)
+		TimerCancel (s->timer);
+	    else
+		dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
 	}
     }
 
@@ -848,7 +841,8 @@ dmxMultipleTargetPropertyReply (ScreenPtr           pScreen,
 
     if (reply)
     {
-	xcb_get_property_reply_t *xproperty = (xcb_get_property_reply_t *) reply;
+	xcb_get_property_reply_t *xproperty =
+	    (xcb_get_property_reply_t *) reply;
 
 	if (xproperty->format == 32)
 	{
@@ -857,7 +851,11 @@ dmxMultipleTargetPropertyReply (ScreenPtr           pScreen,
 	    int      i;
 
 	    for (i = 0; i < length; i++)
+	    {
 		data[i] = dmxAtom (dmxScreen, data[i]);
+		if ((i & 1) == 0 && data[i] == dmxScreen->incrAtom)
+		    s->incr = TRUE;
+	    }
 
 	    if (dmxConvertSelection (pScreen, s, s->wid, length, data))
 		return;
@@ -916,6 +914,7 @@ dmxSelectionRequest (ScreenPtr pScreen,
 		s->target    = target;
 		s->property  = property;
 		s->time      = xTime;
+		s->incr      = FALSE;
 		s->next      = 0;
 		s->timer     = 0;
 
@@ -943,6 +942,8 @@ dmxSelectionRequest (ScreenPtr pScreen,
 				       dmxMultipleTargetPropertyReply,
 				       prop.sequence,
 				       (void *) s);
+
+			return;
 		    }
 		}
 		else
@@ -981,15 +982,25 @@ dmxSelectionPropertyChangeCheck (WindowPtr pWin,
 {
     DMXSelection *s;
 
-    /* check for end of incremental selection conversion */
-    for (s = reqHead; s; s = s->next)
-	if (s->wid                 == pWin->drawable.id &&
-	    dmxScreens[0].incrAtom == property &&
-	    nUnits                 == 0)
-	    break;
+    if (nUnits == -1)
+    {
+	for (s = propHead; s; s = s->next)
+	    if (s->wid == pWin->drawable.id)
+		break;
 
-    if (s)
-	dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
+	if (s && s->incr)
+	    TimerCancel (s->timer);
+    }
+    else if (nUnits == 0)
+    {
+	for (s = reqHead; s; s = s->next)
+	    if (s->wid == pWin->drawable.id)
+		break;
+
+	/* end of incremental selection conversion */
+	if (s && s->incr)
+	    dmxSelectionDeleteProp (dmxUnhookSelection (&reqHead, s));
+    }
 }
 
 Bool
@@ -1283,10 +1294,31 @@ dmxProcConvertSelection (ClientPtr client)
     s->target    = stuff->target;
     s->property  = stuff->property;
     s->time      = stuff->time;
+    s->incr      = FALSE;
     s->next      = 0;
     s->timer     = 0;
 
     memset (s->value, 0, sizeof (s->value));
+
+    if (stuff->target == dmxScreens[0].multipleAtom)
+    {
+	PropertyPtr pProp;
+
+	if (dixLookupProperty (&pProp,
+			       pWin,
+			       stuff->property,
+			       serverClient,
+			       DixReadAccess) == Success &&
+	    pProp->format == 32)
+	{
+	    Atom *data = (Atom *) pProp->data;
+	    int  i;
+
+	    for (i = 0; i < pProp->size; i++)
+		if ((i & 1) == 0 && data[i] == dmxScreens[0].incrAtom)
+		    s->incr = TRUE;
+	}
+    }
 
     rc = dixLookupSelection (&pSel, stuff->selection, client, DixReadAccess);
     if (rc == Success)
@@ -1403,10 +1435,18 @@ dmxProcSendEvent (ClientPtr client)
 	    {
 		int i;
 
+		if (target == dmxScreens[0].incrAtom)
+		    s->incr = TRUE;
+
+		s->property = property;
+
 		for (i = 0; i < dmxNumScreens; i++)
 		{
 		    xcb_selection_notify_event_t xevent;
 		    DMXScreenInfo                *dmxScreen = &dmxScreens[i];
+		    const uint32_t               value =
+			XCB_EVENT_MASK_STRUCTURE_NOTIFY |
+			XCB_EVENT_MASK_PROPERTY_CHANGE;
 
 		    if (!s->value[i].out)
 			continue;
@@ -1428,19 +1468,10 @@ dmxProcSendEvent (ClientPtr client)
 		    else
 			xevent.property = None;
 
-		    if (property == dmxScreen->incrAtom)
-		    {
-			const uint32_t value =
-			    XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-			    XCB_EVENT_MASK_PROPERTY_CHANGE;
-
-			xcb_change_window_attributes (dmxScreen->connection,
-						      s->requestor,
-						      XCB_CW_EVENT_MASK,
-						      &value);
-
-			s->property = dmxScreen->incrAtom;
-		    }
+		    xcb_change_window_attributes (dmxScreen->connection,
+						  s->requestor,
+						  XCB_CW_EVENT_MASK,
+						  &value);
 
 		    xcb_send_event (dmxScreen->connection,
 				    FALSE,
@@ -1450,20 +1481,11 @@ dmxProcSendEvent (ClientPtr client)
 
 		    dmxSync (dmxScreen, FALSE);
 
-		    if (property == dmxScreen->incrAtom)
-			dmxSelectionResetTimer (s);
-		    else
-			dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead,
-								   s));
-
+		    dmxSelectionResetTimer (s);
 		    return client->noClientException;
 		}
-	    
-		s->property = property;
-		if (property == dmxScreens[0].incrAtom)
-		    dmxSelectionResetTimer (s);
-		else
-		    dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
+
+		dmxSelectionResetTimer (s);
 	    }
 	}
 	break;
