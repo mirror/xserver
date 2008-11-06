@@ -706,6 +706,7 @@ dmxRRScreenSetSize (ScreenPtr pScreen,
 				      0, 0, width, height);
 
 	dmxSetWidthHeight (width, height);
+	XineramaReinitData (pScreen);
         dmxConnectionBlockCallback ();
     }
     else
