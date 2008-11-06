@@ -589,10 +589,9 @@ static DMXScreenInfo *dmxFindAlternatePixmap(DrawablePtr pDrawable, XID *draw)
 void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 		 unsigned int format, unsigned long planeMask, char *pdstLine)
 {
-    DMXScreenInfo          *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
-    Drawable               draw;
-    xcb_get_image_cookie_t cookie;
-    xcb_get_image_reply_t  *reply;
+    DMXScreenInfo         *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
+    Drawable              draw;
+    xcb_get_image_reply_t *reply;
 
     /* Cannot get image from unviewable window */
     if (pDrawable->type == DRAWABLE_WINDOW) {
@@ -619,22 +618,13 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
         }
     }
 
-    cookie = xcb_get_image (dmxScreen->connection,
-			    format,
-			    draw,
-			    sx, sy, w, h,
-			    planeMask);
-
-    do {
-	dmxDispatch ();
-
-	if (xcb_poll_for_reply (dmxScreen->connection,
-				cookie.sequence,
-				(void **) &reply,
-				NULL))
-	    break;
-    } while (dmxWaitForResponse () && dmxScreen->alive);
-
+    reply = xcb_get_image_reply (dmxScreen->connection,
+				 xcb_get_image (dmxScreen->connection,
+						format,
+						draw,
+						sx, sy, w, h,
+						planeMask),
+				 NULL);
     if (reply)
     {
 	const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
