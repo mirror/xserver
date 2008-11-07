@@ -545,39 +545,67 @@ void dmxPushPixels(GCPtr pGC, PixmapPtr pBitmap, DrawablePtr pDst,
  * Miscellaneous drawing commands
  */
 
-/** When Xinerama is active, the client pixmaps are always obtained from
- * screen 0.  When screen 0 is detached, the pixmaps must be obtained
- * from any other screen that is not detached.  Usually, this is screen
- * 1. */
-static DMXScreenInfo *dmxFindAlternatePixmap(DrawablePtr pDrawable, XID *draw)
+static DMXScreenInfo *
+dmxGetAlternateWindow (DrawablePtr pDrawable,
+		       int         i,
+		       XID         *draw)
 {
-#ifdef PANORAMIX
-    PanoramiXRes  *pXinPix;
-    int           i;
-    DMXScreenInfo *dmxScreen;
-            
-    if (noPanoramiXExtension)               return NULL;
-    if (pDrawable->type != DRAWABLE_PIXMAP) return NULL;
-    
-    if (!(pXinPix = (PanoramiXRes *)LookupIDByType(pDrawable->id, XRT_PIXMAP)))
-        return NULL;
 
-    for (i = 1; i < PanoramiXNumScreens; i++) {
-        dmxScreen = &dmxScreens[i];
-        if (dmxScreen->beDisplay) {
-            PixmapPtr     pSrc;
-            dmxPixPrivPtr pSrcPriv;
+#ifdef PANORAMIX
+    PanoramiXRes  *pXinWin;
+    DMXScreenInfo *dmxScreen = &dmxScreens[i];
             
-            pSrc = (PixmapPtr)LookupIDByType(pXinPix->info[i].id,
-                                             RT_PIXMAP);
-            pSrcPriv = DMX_GET_PIXMAP_PRIV(pSrc);
-            if (pSrcPriv->pixmap) {
-                *draw = pSrcPriv->pixmap;
-                return dmxScreen;
-            }
-        }
+    if (noPanoramiXExtension) return NULL;
+    if (!dmxScreen->beDisplay) return NULL;
+    
+    if ((pXinWin = (PanoramiXRes *) LookupIDByType (pDrawable->id,
+						    XRT_WINDOW)))
+    {
+	WindowPtr     pSrc;
+	dmxWinPrivPtr pSrcPriv;
+            
+	pSrc = (WindowPtr) LookupIDByType (pXinWin->info[i].id, RT_WINDOW);
+	pSrcPriv = DMX_GET_WINDOW_PRIV (pSrc);
+	if (pSrcPriv->window)
+	{
+	    *draw = pSrcPriv->window;
+	    return dmxScreen;
+	}
     }
 #endif
+
+    return NULL;
+}
+
+static DMXScreenInfo *
+dmxGetAlternatePixmap (DrawablePtr pDrawable,
+		       int         i,
+		       XID         *draw)
+{
+
+#ifdef PANORAMIX
+    PanoramiXRes  *pXinPix;
+    DMXScreenInfo *dmxScreen = &dmxScreens[i];
+            
+    if (noPanoramiXExtension) return NULL;
+    if (!dmxScreen->beDisplay) return NULL;
+    
+    if ((pXinPix = (PanoramiXRes *) LookupIDByType (pDrawable->id,
+						    XRT_PIXMAP)))
+    {
+	PixmapPtr     pSrc;
+	dmxPixPrivPtr pSrcPriv;
+            
+	pSrc = (PixmapPtr) LookupIDByType (pXinPix->info[i].id, RT_PIXMAP);
+	pSrcPriv = DMX_GET_PIXMAP_PRIV (pSrc);
+	if (pSrcPriv->pixmap)
+	{
+	    *draw = pSrcPriv->pixmap;
+	    return dmxScreen;
+	}
+    }
+#endif
+
     return NULL;
 }
 
@@ -589,9 +617,9 @@ static DMXScreenInfo *dmxFindAlternatePixmap(DrawablePtr pDrawable, XID *draw)
 void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 		 unsigned int format, unsigned long planeMask, char *pdstLine)
 {
-    DMXScreenInfo         *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
-    Drawable              draw;
-    xcb_get_image_reply_t *reply;
+    DMXScreenInfo *dmxScreen = &dmxScreens[pDrawable->pScreen->myNum];
+    Drawable      draw;
+    int           i = 0;
 
     /* Cannot get image from unviewable window */
     if (pDrawable->type == DRAWABLE_WINDOW) {
@@ -606,72 +634,90 @@ void dmxGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 		return;
 	    }
 	}
-	DMX_GCOPS_SET_DRAWABLE(&pWindow->drawable, draw);
+	DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
 	if (DMX_GCOPS_OFFSCREEN(&pWindow->drawable))
-	    return;
+	    draw = None;
     } else {
 	DMX_GCOPS_SET_DRAWABLE(pDrawable, draw);
-	if (DMX_GCOPS_OFFSCREEN(pDrawable)) {
-            /* Try to find the pixmap on a non-detached Xinerama screen */
-            dmxScreen = dmxFindAlternatePixmap(pDrawable, &draw);
-            if (!dmxScreen) return;
-        }
+	if (DMX_GCOPS_OFFSCREEN(pDrawable))
+	    draw = None;
     }
-
-    reply = xcb_get_image_reply (dmxScreen->connection,
-				 xcb_get_image (dmxScreen->connection,
-						format,
-						draw,
-						sx, sy, w, h,
-						planeMask),
-				 NULL);
-    if (reply)
+    
+    while (i < dmxNumScreens)
     {
-	const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
-	uint32_t          bytes = xcb_get_image_data_length (reply);
-	uint8_t           *data = xcb_get_image_data (reply);
+	xcb_get_image_reply_t *reply;
 
-	/* based on code in xcb_image.c, Copyright (C) 2007 Bart Massey */
-	switch (format) {
-	case XCB_IMAGE_FORMAT_XY_PIXMAP:
-	    planeMask &= xcb_mask (reply->depth);
-	    if (planeMask != xcb_mask (reply->depth))
-	    {
-		uint32_t rpm = planeMask;
-		uint8_t  *src_plane = data;
-		uint8_t  *dst_plane = (uint8_t *) pdstLine;
-		uint32_t scanline_pad = setup->bitmap_format_scanline_pad;
-		uint32_t stride = xcb_roundup (w, scanline_pad) >> 3;
-		uint32_t size = h * stride;
-		int      i;
+	if (!draw)
+	{
+	    if (pDrawable->type == DRAWABLE_WINDOW)
+		dmxScreen = dmxGetAlternateWindow (pDrawable, i++, &draw);
+	    else
+		dmxScreen = dmxGetAlternatePixmap (pDrawable, i++, &draw);
 
-		if (setup->image_byte_order == XCB_IMAGE_ORDER_MSB_FIRST)
-		    rpm = xcb_bit_reverse (planeMask, reply->depth);
+	    if (!dmxScreen) continue;
+	}
 
-		for (i = 0; i < reply->depth; i++)
+	reply = xcb_get_image_reply (dmxScreen->connection,
+				     xcb_get_image (dmxScreen->connection,
+						    format,
+						    draw,
+						    sx, sy, w, h,
+						    planeMask),
+				     NULL);
+	if (reply)
+	{
+	    const xcb_setup_t *setup = xcb_get_setup (dmxScreen->connection);
+	    uint32_t          bytes = xcb_get_image_data_length (reply);
+	    uint8_t           *data = xcb_get_image_data (reply);
+
+	    /* based on code in xcb_image.c, Copyright (C) 2007 Bart Massey */
+	    switch (format) {
+	    case XCB_IMAGE_FORMAT_XY_PIXMAP:
+		planeMask &= xcb_mask (reply->depth);
+		if (planeMask != xcb_mask (reply->depth))
 		{
-		    if (rpm & 1)
-		    {
-			memcpy (dst_plane, src_plane, size);
-			src_plane += size;
-		    }
-		    else
-		    {
-			memset (dst_plane, 0, size);
-		    }
+		    uint32_t rpm = planeMask;
+		    uint8_t  *src_plane = data;
+		    uint8_t  *dst_plane = (uint8_t *) pdstLine;
+		    uint32_t scanline_pad = setup->bitmap_format_scanline_pad;
+		    uint32_t stride = xcb_roundup (w, scanline_pad) >> 3;
+		    uint32_t size = h * stride;
+		    int      i;
 
-		    dst_plane += size;
+		    if (setup->image_byte_order == XCB_IMAGE_ORDER_MSB_FIRST)
+			rpm = xcb_bit_reverse (planeMask, reply->depth);
+
+		    for (i = 0; i < reply->depth; i++)
+		    {
+			if (rpm & 1)
+			{
+			    memcpy (dst_plane, src_plane, size);
+			    src_plane += size;
+			}
+			else
+			{
+			    memset (dst_plane, 0, size);
+			}
+
+			dst_plane += size;
+		    }
+		    break;
 		}
+
+		/* fall through */
+	    case XCB_IMAGE_FORMAT_Z_PIXMAP:
+		memmove (pdstLine, data, bytes);
+	    default:
 		break;
 	    }
 
-	    /* fall through */
-	case XCB_IMAGE_FORMAT_Z_PIXMAP:
-	    memmove (pdstLine, data, bytes);
-	default:
+	    free (reply);
 	    break;
 	}
 
-	free (reply);
+	if (pDrawable->type != DRAWABLE_WINDOW)
+	    break;
+
+	draw = None;
     }
 }
