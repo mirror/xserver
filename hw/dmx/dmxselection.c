@@ -43,7 +43,7 @@
 #include "panoramiXsrv.h"
 #endif
 
-#define DMX_SELECTION_TIMEOUT (2 * 1000) /* 60 seconds */
+#define DMX_SELECTION_TIMEOUT (30 * 1000) /* 30 seconds */
 
 typedef struct _DMXSelection {
     struct _DMXSelection *next;
@@ -153,8 +153,7 @@ dmxSelectionDeleteProp (DMXSelection *s)
 static int
 dmxSelectionDeleteReq (DMXSelection *s)
 {
-    WindowPtr pWin;
-    int       i;
+    int i;
 
     for (i = 0; i < dmxNumScreens; i++)
     {
@@ -170,11 +169,33 @@ dmxSelectionDeleteReq (DMXSelection *s)
 	}
     }
 
-    if (s->wid && dixLookupWindow (&pWin,
-				   s->wid,
-				   serverClient,
-				   DixReadAccess) == Success)
-	DeleteProperty (serverClient, pWin, s->property);
+    if (s->wid)
+    {
+
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
+	{
+	    PanoramiXRes *win;
+
+	    win = (PanoramiXRes *) SecurityLookupIDByType (serverClient,
+							   s->wid,
+							   XRT_WINDOW,
+							   DixDestroyAccess);
+
+	    if (win)
+	    {
+		int j;
+
+		FOR_NSCREENS_BACKWARD(j) {
+		    FreeResource (win->info[j].id, RT_NONE);
+		}
+	    }
+	}
+	else
+#endif
+
+	    FreeResource (s->wid, RT_NONE);
+    }
 
     if (s->timer)
 	TimerFree (s->timer);
@@ -191,9 +212,10 @@ dmxSelectionCallback (OsTimerPtr timer,
     DMXSelection *r = (DMXSelection *) arg;
     DMXSelection *s;
 
-    dmxLog (dmxWarning,
-	    "selection conversion for %s timed out\n",
-	    NameForAtom (r->selection));
+    if (time)
+	dmxLog (dmxWarning,
+		"selection conversion for %s timed out\n",
+		NameForAtom (r->selection));
 
     for (s = convHead; s; s = s->next)
 	if (s == r)
@@ -230,9 +252,13 @@ dmxAppendSelection (DMXSelection **head,
 	for (last = NULL, p = *head; p; p = p->next)
 	{
 	    /* avoid duplicates */
-	    if (p->timer && p->selection == s->selection)
+	    if (p->selection == s->selection &&
+		p->requestor == s->requestor)
 	    {
-		TimerForce (p->timer);
+		if (p->timer)
+		    TimerCancel (p->timer);
+
+		dmxSelectionCallback (s->timer, 0, p);
 		break;
 	    }
 
@@ -421,7 +447,7 @@ dmxSelectionClear (ScreenPtr pScreen,
 			 NoEventMask /* CantBeFiltered */, NullGrab);
 
 	pSel->lastTimeChanged = currentTime;
-	pSel->window = dmxScreen->selectionProxyWid[0];
+	pSel->window = dmxScreen->inputOverlayWid;
 	pSel->pWin = NULL;
 	pSel->client = NullClient;
 
@@ -509,7 +535,7 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 		    event.u.selectionNotify.property = s->property;
 	    }
 
-	    if (s->selection)
+	    if (s->target)
 	    {
 		event.u.u.type = SelectionNotify | 0x80;
 		event.u.selectionNotify.time = s->time;
@@ -527,7 +553,7 @@ dmxSelectionPropertyReply (ScreenPtr           pScreen,
 		if (xproperty->value_len != 0)
 		{
 		    /* don't send another selection notify event */
-		    s->selection = None;
+		    s->target = None;
 		    dmxSelectionResetTimer (s);
 		    return;
 		}
@@ -634,6 +660,16 @@ dmxSelectionDestroyNotify (ScreenPtr pScreen,
 	return TRUE;
     }
 
+    for (s = propHead; s; s = s->next)
+	if (s->value[pScreen->myNum].out == window)
+	    break;
+
+    if (s)
+    {
+	s->value[pScreen->myNum].out = None;
+	return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -683,7 +719,8 @@ dmxSelectionPropertyNotify (ScreenPtr pScreen,
     else
     {
 	for (s = reqHead; s; s = s->next)
-	    if (s->value[pScreen->myNum].out == window)
+	    if (s->value[pScreen->myNum].out == window &&
+		s->property                  == dmxAtom (dmxScreen, xProperty))
 		break;
 
 	if (s)
@@ -755,23 +792,61 @@ dmxConvertSelection (ScreenPtr    pScreen,
 
     if (pSel)
     {
+	XID       overrideRedirect = TRUE;
 	WindowPtr pProxy = NullWindow;
-	int       i;
+	int       result;
 
-	for (i = 1; i < DMX_N_SELECTION_PROXY; i++)
+#ifdef PANORAMIX
+	if (!noPanoramiXExtension)
 	{
-	    DMXSelection *r;
+	    PanoramiXRes *newWin;
+	    int          j;
 
-	    pProxy = dmxScreens[0].pSelectionProxyWin[i];
+	    if (!(newWin = (PanoramiXRes *) xalloc (sizeof (PanoramiXRes))))
+		return FALSE;
 
-	    for (r = reqHead; pProxy && r; r = r->next)
-		if (r->wid == pProxy->drawable.id)
-		    pProxy = NullWindow;
+	    newWin->type = XRT_WINDOW;
+	    newWin->u.win.visibility = VisibilityNotViewable;
+	    newWin->u.win.class = InputOnly;
+	    newWin->u.win.root = FALSE;
+	    for (j = 0; j < PanoramiXNumScreens; j++)
+		newWin->info[j].id = FakeClientID (0);
 
-	    if (pProxy)
-		break;
+	    FOR_NSCREENS_BACKWARD(j) {
+		pProxy = CreateWindow (newWin->info[j].id,
+				       dmxScreens[j].pInputOverlayWin,
+				       0, 0, 1, 1, 0, InputOnly, 
+				       CWOverrideRedirect, &overrideRedirect,
+				       0, serverClient, CopyFromParent, 
+				       &result);
+		if (result != Success)
+		    return FALSE;
+		if (!AddResource (pProxy->drawable.id, RT_WINDOW, pProxy))
+		    return FALSE;
+
+		s->value[j].in = DMX_GET_WINDOW_PRIV (pProxy)->window;
+	    }
+	    
+	    AddResource (newWin->info[0].id, XRT_WINDOW, newWin);
 	}
+	else
+#endif
+	
+	{
+	    pProxy = CreateWindow (FakeClientID (0),
+				   dmxScreens[0].pInputOverlayWin,
+				   0, 0, 1, 1, 0, InputOnly, 
+				   CWOverrideRedirect, &overrideRedirect,
+				   0, serverClient, CopyFromParent, 
+				   &result);
+	    if (result != Success)
+		return FALSE;
+	    if (!AddResource (pProxy->drawable.id, RT_WINDOW, pProxy))
+		return FALSE;
 
+	    s->value[0].in = DMX_GET_WINDOW_PRIV (pProxy)->window;
+	}
+	
 	if (pProxy)
 	{
 	    xEvent event;
@@ -784,23 +859,14 @@ dmxConvertSelection (ScreenPtr    pScreen,
 	    event.u.selectionRequest.target = s->target;
 	    event.u.selectionRequest.property = s->property;
 
+	    s->wid       = pProxy->drawable.id;
+	    s->requestor = pProxy->drawable.id;
+
 	    if (TryClientEvents (pSel->client, NULL, &event, 1,
 				 NoEventMask,
 				 NoEventMask /* CantBeFiltered */,
 				 NullGrab))
 	    {
-		int j;
-
-		s->wid = pProxy->drawable.id;
-
-		for (j = 0; j < dmxNumScreens; j++)
-		{
-		    WindowPtr     pWin = dmxScreens[j].pSelectionProxyWin[i];
-		    dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV (pWin);
-			    
-		    s->value[j].in = pWinPriv->window;
-		}
-
 		if (multipleLength)
 		    ChangeWindowProperty (pProxy,
 					  s->property,
@@ -815,14 +881,8 @@ dmxConvertSelection (ScreenPtr    pScreen,
 		return TRUE;
 	    }
 	}
-	else
-	{
-	    /* TODO: wait for proxy window to become available */
-	    dmxLog (dmxWarning,
-		    "dmxSelectionRequest: no proxy window available "
-		    "for conversion of %s selection\n",
-		    NameForAtom (s->selection));
-	}
+
+	dmxSelectionDeleteReq (s);
     }
 	
     return FALSE;
@@ -866,14 +926,14 @@ dmxMultipleTargetPropertyReply (ScreenPtr           pScreen,
     xevent.pad0 = 0;
     xevent.sequence = 0;
     xevent.time = s->time;
-    xevent.requestor = s->requestor;
+    xevent.requestor = s->value[pScreen->myNum].out;
     xevent.selection = dmxBESelectionAtom (dmxScreen, s->selection);
     xevent.target = dmxBEAtom (dmxScreen, s->target);
     xevent.property = 0;
 
     xcb_send_event (dmxScreen->connection,
 		    FALSE,
-		    s->requestor,
+		    s->value[pScreen->myNum].out,
 		    0,
 		    (const char *) &xevent);
 
@@ -909,7 +969,7 @@ dmxSelectionRequest (ScreenPtr pScreen,
 	    if (s)
 	    {
 		s->wid       = 0;
-		s->requestor = requestor;
+		s->requestor = 0;
 		s->selection = selection;
 		s->target    = target;
 		s->property  = property;
@@ -984,116 +1044,63 @@ dmxSelectionPropertyChangeCheck (WindowPtr pWin,
 
     if (nUnits == -1)
     {
+	for (s = reqHead; s; s = s->next)
+	    if (s->requestor == pWin->drawable.id &&
+		s->property  == property)
+		break;
+
+	if (s)
+	{
+	    if (s->incr)
+		TimerCancel (s->timer);
+	    else
+		dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
+
+	    return;
+	}
+
 	for (s = propHead; s; s = s->next)
-	    if (s->wid == pWin->drawable.id)
+	    if (s->requestor == pWin->drawable.id &&
+		s->property  == property)
 		break;
 
 	if (s && s->incr)
+	{
+	    int i;
+
 	    TimerCancel (s->timer);
+
+	    for (i = 0; i < dmxNumScreens; i++)
+		if (s->value[i].out)
+		    break;
+
+	    /* owner doesn't exist anymore */
+	    if (i == dmxNumScreens)
+	    {
+		ChangeWindowProperty (pWin,
+				      s->property,
+				      XA_ATOM,
+				      32,
+				      PropModeReplace,
+				      0,
+				      NULL,
+				      TRUE);
+
+		dmxSelectionDeleteProp (dmxUnhookSelection (&propHead, s));
+	    }
+	}
     }
     else if (nUnits == 0)
     {
 	for (s = reqHead; s; s = s->next)
-	    if (s->wid == pWin->drawable.id)
+	    if (s->requestor == pWin->drawable.id &&
+		s->property  == property)
 		break;
 
 	/* end of incremental selection conversion */
 	if (s && s->incr)
-	    dmxSelectionDeleteProp (dmxUnhookSelection (&reqHead, s));
+	    dmxSelectionDeleteReq (dmxUnhookSelection (&reqHead, s));
     }
-}
-
-Bool
-dmxCreateSelectionProxies (void)
-{
-    WindowPtr pWin;
-    WindowPtr pParent;
-    XID       selectionProxyWid;
-    XID       overrideRedirect = TRUE;
-    int	      result;
-    int       i;
-    Atom      xdndVersion = 5;
-
-    for (i = 0; i < DMX_N_SELECTION_PROXY; i++)
-    {
-	if (dmxScreens[0].selectionProxyWid[i])
-	    continue;
-
-	selectionProxyWid = FakeClientID (0);
-
-#ifdef PANORAMIX
-	if (!noPanoramiXExtension)
-	{
-	    PanoramiXRes *newWin;
-	    int          j;
-
-	    if(!(newWin = (PanoramiXRes *) xalloc (sizeof (PanoramiXRes))))
-		return BadAlloc;
-
-	    newWin->type = XRT_WINDOW;
-	    newWin->u.win.visibility = VisibilityNotViewable;
-	    newWin->u.win.class = InputOnly;
-	    newWin->u.win.root = FALSE;
-	    newWin->info[0].id = selectionProxyWid;
-	    for(j = 1; j < PanoramiXNumScreens; j++)
-		newWin->info[j].id = FakeClientID (0);
-
-	    FOR_NSCREENS_BACKWARD(j) {
-		if (i)
-		    pParent = dmxScreens[j].pSelectionProxyWin[0];
-		else
-		    pParent = WindowTable[j];
-
-		pWin = CreateWindow (newWin->info[j].id, pParent,
-				     0, 0, 1, 1, 0, InputOnly, 
-				     CWOverrideRedirect, &overrideRedirect,
-				     0, serverClient, CopyFromParent, 
-				     &result);
-		if (result != Success)
-		    return FALSE;
-		if (!AddResource (pWin->drawable.id, RT_WINDOW, pWin))
-		    return FALSE;
-
-		dmxScreens[j].selectionProxyWid[i] = selectionProxyWid;
-		dmxScreens[j].pSelectionProxyWin[i] = pWin;
-	    }
-
-	    AddResource(newWin->info[0].id, XRT_WINDOW, newWin);
-	}
-	else
-#endif
-	
-	{
-	    if (i)
-		pParent = dmxScreens[0].pSelectionProxyWin[0];
-	    else
-		pParent = WindowTable[0];
-
-	    pWin = CreateWindow (selectionProxyWid, pParent,
-				 0, 0, 1, 1, 0, InputOnly, 
-				 CWOverrideRedirect, &overrideRedirect,
-				 0, serverClient, CopyFromParent, 
-				 &result);
-	    if (result != Success)
-		return FALSE;
-	    if (!AddResource (pWin->drawable.id, RT_WINDOW, pWin))
-		return FALSE;
-
-	    dmxScreens[0].selectionProxyWid[i] = selectionProxyWid;
-	    dmxScreens[0].pSelectionProxyWin[i] = pWin;
-	}
-    }
-
-    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
-			  dmxScreens[0].xdndAwareAtom,
-			  XA_ATOM,
-			  32,
-			  PropModeReplace,
-			  1,
-			  &xdndVersion,
-			  TRUE);
-
-    return TRUE;
 }
 
 static int (*dmxSaveProcVector[256]) (ClientPtr);
@@ -1236,7 +1243,7 @@ dmxProcGetSelectionOwner (ClientPtr client)
 
 	/* at least one back-end server has an owner for this selection */
 	if (j >= 0)
-	    reply.owner = dmxScreens[0].selectionProxyWid[0];
+	    reply.owner = dmxScreens[0].inputOverlayWid;
     }
 #endif
 
@@ -1289,7 +1296,7 @@ dmxProcConvertSelection (ClientPtr client)
 	return BadAlloc;
 
     s->wid       = 0;
-    s->requestor = 0;
+    s->requestor = stuff->requestor;
     s->selection = stuff->selection;
     s->target    = stuff->target;
     s->property  = stuff->property;
@@ -1427,7 +1434,7 @@ dmxProcSendEvent (ClientPtr client)
 	    DMXSelection *s;
 
 	    for (s = reqHead; s; s = s->next)
-		if (s->wid       == stuff->destination &&
+		if (s->requestor == stuff->destination &&
 		    s->selection == stuff->event.u.selectionNotify.selection)
 		    break;
 
@@ -1455,7 +1462,7 @@ dmxProcSendEvent (ClientPtr client)
 		    xevent.pad0 = 0;
 		    xevent.sequence = 0;
 		    xevent.time = s->time;
-		    xevent.requestor = s->requestor;
+		    xevent.requestor = s->value[i].out;
 		    xevent.selection = dmxBESelectionAtom (dmxScreen,
 							   s->selection);
 		    if (target)
@@ -1469,13 +1476,13 @@ dmxProcSendEvent (ClientPtr client)
 			xevent.property = None;
 
 		    xcb_change_window_attributes (dmxScreen->connection,
-						  s->requestor,
+						  s->value[i].out,
 						  XCB_CW_EVENT_MASK,
 						  &value);
 
 		    xcb_send_event (dmxScreen->connection,
 				    FALSE,
-				    s->requestor,
+				    s->value[i].out,
 				    0,
 				    (const char *) &xevent);
 
@@ -1498,7 +1505,7 @@ dmxProcSendEvent (ClientPtr client)
 	    return BadValue;
 	}
 
-	if (stuff->destination == dmxScreens[0].selectionProxyWid[0])
+	if (stuff->destination == dmxScreens[0].inputOverlayWid)
 	    dmxDnDClientMessageEvent (&stuff->event);
 
 	break;

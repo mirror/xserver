@@ -98,7 +98,7 @@ dmxDnDSendDeclineStatus (void)
 	x.u.u.detail                 = 32;
 	x.u.clientMessage.window     = dmxScreens[0].dndWindow;
 	x.u.clientMessage.u.l.type   = dmxScreens[0].xdndStatusAtom;
-	x.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
+	x.u.clientMessage.u.l.longs0 = dmxScreens[0].inputOverlayWid;
 	x.u.clientMessage.u.l.longs1 = 0;
 	x.u.clientMessage.u.l.longs2 = 0;
 	x.u.clientMessage.u.l.longs3 = 0;
@@ -508,7 +508,7 @@ static void
 dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    WindowPtr     pProxyWin = dmxScreen->pSelectionProxyWin[0];
+    WindowPtr     pProxyWin = dmxScreen->pInputOverlayWin;
 
     if (!pProxyWin->mapped)
 	return;
@@ -542,7 +542,7 @@ dmxBEDnDSpriteUpdate (ScreenPtr pScreen,
 		      int       rootY)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
-    WindowPtr     pProxyWin = dmxScreen->pSelectionProxyWin[0];
+    WindowPtr     pProxyWin = dmxScreen->pInputOverlayWin;
 
     if (event != dmxScreen->rootWin)
     {
@@ -572,13 +572,12 @@ dmxBEDnDSpriteUpdate (ScreenPtr pScreen,
 		int j;
 
 		FOR_NSCREENS_BACKWARD(j) {
-		    ConfigureWindow (dmxScreens[j].pSelectionProxyWin[0],
+		    ConfigureWindow (dmxScreens[j].pInputOverlayWin,
 				     CWX | CWY | CWWidth | CWHeight |
 				     CWStackMode,
 				     vlist,
 				     serverClient);
-		    MapWindow (dmxScreens[j].pSelectionProxyWin[0],
-			       serverClient);
+		    MapWindow (dmxScreens[j].pInputOverlayWin, serverClient);
 
 		    dmxScreens[j].dndSource = None;
 		    dmxScreens[j].dndTarget = None;
@@ -635,7 +634,7 @@ dmxDnDUpdatePosition (DMXScreenInfo *dmxScreen,
     event.u.u.type   = ClientMessage | 0x80;
     event.u.u.detail = 32;
     
-    event.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
+    event.u.clientMessage.u.l.longs0 = dmxScreens[0].inputOverlayWid;
 
     if (pWin)
     {
@@ -893,7 +892,7 @@ dmxDnDGetTypePropReply (ScreenPtr           pScreen,
 	    for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
 		data[i] = dmxAtom (dmxScreen, data[i]);
 
-	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+	    ChangeWindowProperty (dmxScreens[0].pInputOverlayWin,
 				  dmxScreen->xdndTypeListAtom,
 				  XA_ATOM,
 				  32,
@@ -947,7 +946,7 @@ dmxDnDGetActionListPropReply (ScreenPtr           pScreen,
 	    for (i = 0; i < xcb_get_property_value_length (xproperty); i++)
 		data[i] = dmxAtom (dmxScreen, data[i]);
 
-	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+	    ChangeWindowProperty (dmxScreens[0].pInputOverlayWin,
 				  dmxScreen->xdndActionListAtom,
 				  XA_ATOM,
 				  32,
@@ -978,7 +977,7 @@ dmxDnDGetActionDescriptionPropReply (ScreenPtr           pScreen,
 	if (xproperty->format                    == 8 &&
 	    dmxAtom (dmxScreen, xproperty->type) == XA_STRING)
 	{
-	    ChangeWindowProperty (dmxScreens[0].pSelectionProxyWin[0],
+	    ChangeWindowProperty (dmxScreens[0].pInputOverlayWin,
 				  dmxScreen->xdndActionDescriptionAtom,
 				  XA_STRING,
 				  8,
@@ -1129,7 +1128,7 @@ dmxDnDDropMessage (ScreenPtr pScreen,
 	event.u.clientMessage.window   = dmxScreen->dndTarget;
 	event.u.clientMessage.u.l.type = dmxScreen->xdndDropAtom;
 
-	event.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
+	event.u.clientMessage.u.l.longs0 = dmxScreens[0].inputOverlayWid;
 	event.u.clientMessage.u.l.longs1 = 0;
 	event.u.clientMessage.u.l.longs2 = currentTime.milliseconds;
 	event.u.clientMessage.u.l.longs3 = 0;
@@ -1211,7 +1210,7 @@ dmxDnDStatusMessage (ScreenPtr pScreen,
 	x.u.u.detail                 = 32;
 	x.u.clientMessage.window     = dmxScreens[0].dndWindow;
 	x.u.clientMessage.u.l.type   = dmxScreens[0].xdndStatusAtom;
-	x.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
+	x.u.clientMessage.u.l.longs0 = dmxScreens[0].inputOverlayWid;
 	x.u.clientMessage.u.l.longs1 = 0;
 	x.u.clientMessage.u.l.longs2 = 0;
 	x.u.clientMessage.u.l.longs3 = 0;
@@ -1258,7 +1257,7 @@ dmxDnDFinishedMessage (ScreenPtr pScreen,
 	x.u.u.detail                 = 32;
 	x.u.clientMessage.window     = dmxScreens[0].dndWindow;
 	x.u.clientMessage.u.l.type   = dmxScreens[0].xdndFinishedAtom;
-	x.u.clientMessage.u.l.longs0 = dmxScreens[0].selectionProxyWid[0];
+	x.u.clientMessage.u.l.longs0 = dmxScreens[0].inputOverlayWid;
 	x.u.clientMessage.u.l.longs1 = 0;
 	x.u.clientMessage.u.l.longs2 = 0;
 	x.u.clientMessage.u.l.longs3 = 0;
@@ -1599,7 +1598,7 @@ dmxDnDClientMessageEvent (xEvent *event)
 		    x.u.clientMessage.u.l.type   =
 			dmxScreens[0].xdndFinishedAtom;
 		    x.u.clientMessage.u.l.longs0 =
-			dmxScreens[0].selectionProxyWid[0];
+			dmxScreens[0].inputOverlayWid;
 		    x.u.clientMessage.u.l.longs1 = 0;
 		    x.u.clientMessage.u.l.longs2 = 0;
 		    x.u.clientMessage.u.l.longs3 = 0;

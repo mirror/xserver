@@ -42,7 +42,7 @@
 #include "dmxcb.h"
 #include "dmxinput.h"
 #include "dmxlog.h"
-#include "dmxselection.h"
+#include "dmxwindow.h"
 
 extern int     connBlockScreenStart;
 
@@ -50,6 +50,8 @@ extern int     connBlockScreenStart;
 extern int     PanoramiXPixWidth;
 extern int     PanoramiXPixHeight;
 extern int     PanoramiXNumScreens;
+#include "panoramiX.h"
+#include "panoramiXsrv.h"
 #endif
 
        int     dmxGlobalWidth, dmxGlobalHeight;
@@ -80,6 +82,84 @@ void dmxComputeWidthHeight(void)
     }
 
     dmxSetWidthHeight (w, h);
+}
+
+static Bool
+dmxCreateInputOverlayWindow (void)
+{
+    WindowPtr pWin;
+    XID       inputOverlayWid;
+    XID       overrideRedirect = TRUE;
+    int	      result;
+    Atom      xdndVersion = 5;
+
+    if (dmxScreens[0].inputOverlayWid)
+	return TRUE;
+
+    inputOverlayWid = FakeClientID (0);
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+    {
+	PanoramiXRes *newWin;
+	int          j;
+
+	if (!(newWin = (PanoramiXRes *) xalloc (sizeof (PanoramiXRes))))
+	    return BadAlloc;
+
+	newWin->type = XRT_WINDOW;
+	newWin->u.win.visibility = VisibilityNotViewable;
+	newWin->u.win.class = InputOnly;
+	newWin->u.win.root = FALSE;
+	newWin->info[0].id = inputOverlayWid;
+	for(j = 1; j < PanoramiXNumScreens; j++)
+	    newWin->info[j].id = FakeClientID (0);
+
+	FOR_NSCREENS_BACKWARD(j) {
+	    pWin = CreateWindow (newWin->info[j].id, WindowTable[j],
+				 0, 0, 1, 1, 0, InputOnly, 
+				 CWOverrideRedirect, &overrideRedirect,
+				 0, serverClient, CopyFromParent, 
+				 &result);
+	    if (result != Success)
+		return FALSE;
+	    if (!AddResource (pWin->drawable.id, RT_WINDOW, pWin))
+		return FALSE;
+
+	    dmxScreens[j].inputOverlayWid = inputOverlayWid;
+	    dmxScreens[j].pInputOverlayWin = pWin;
+	}
+
+	AddResource (newWin->info[0].id, XRT_WINDOW, newWin);
+    }
+    else
+#endif
+	
+    {
+	pWin = CreateWindow (inputOverlayWid, WindowTable[0],
+			     0, 0, 1, 1, 0, InputOnly, 
+			     CWOverrideRedirect, &overrideRedirect,
+			     0, serverClient, CopyFromParent, 
+			     &result);
+	if (result != Success)
+	    return FALSE;
+	if (!AddResource (pWin->drawable.id, RT_WINDOW, pWin))
+	    return FALSE;
+
+	dmxScreens[0].inputOverlayWid = inputOverlayWid;
+	dmxScreens[0].pInputOverlayWin = pWin;
+    }
+
+    ChangeWindowProperty (dmxScreens[0].pInputOverlayWin,
+			  dmxScreens[0].xdndAwareAtom,
+			  XA_ATOM,
+			  32,
+			  PropModeReplace,
+			  1,
+			  &xdndVersion,
+			  TRUE);
+
+    return TRUE;
 }
 
 /** A callback routine that hooks into Xinerama and provides a
@@ -196,5 +276,6 @@ void dmxConnectionBlockCallback(void)
 #endif
     MAXSCREENSFREE(found);
 
-    dmxCreateSelectionProxies ();
+    if (!dmxCreateInputOverlayWindow ())
+	dmxLog (dmxFatal, "dmxCreateInputOverlayWindow: failed");
 }

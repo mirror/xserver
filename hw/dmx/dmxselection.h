@@ -70,9 +70,6 @@ dmxSelectionPropertyChangeCheck (WindowPtr pWin,
 				 Atom      property,
 				 int       nUnits);
 
-Bool
-dmxCreateSelectionProxies (void);
-
 void
 dmxInitSelections (void);
 

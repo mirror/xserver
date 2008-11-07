@@ -1145,7 +1145,7 @@ dmxScreenEventCheckRR (ScreenPtr           pScreen,
 		       DefaultScreen (dmxScreen->beDisplay));
 
     /* only call RRGetInfo when server is fully initialized */
-    if (dmxScreens[0].selectionProxyWid[0])
+    if (dmxScreens[0].inputOverlayWid)
 	RRGetInfo (screenInfo.screens[0]);
 
     return TRUE;

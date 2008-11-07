@@ -1319,9 +1319,9 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[idx];
 
-    /* Free selection proxy window tree */
-    if (dmxScreen->selectionProxyWid[0])
-	FreeResource (dmxScreen->selectionProxyWid[0], RT_NONE);
+        /* Free input overlay window tree */
+    if (dmxScreen->inputOverlayWid)
+	FreeResource (dmxScreen->inputOverlayWid, RT_NONE);
 
     /* Reset the proc vectors */
     if (idx == 0) {

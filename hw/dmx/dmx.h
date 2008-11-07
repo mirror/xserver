@@ -129,10 +129,6 @@ typedef struct _DMXSelectionMap {
 
 #define DMX_DETACHED 0xff
 
-/** Number of backend selection conversion requests that can be
-    processed simultaneously . */
-#define DMX_N_SELECTION_PROXY 10
-
 /** Provide the typedef globally, but keep the contents opaque outside
  * of the XSync statistic routines.  \see dmxstat.c */
 typedef struct _DMXStatInfo DMXStatInfo;
@@ -233,13 +229,15 @@ typedef struct _DMXScreenInfo {
     int           rootY;          /**< Y offset of "root" window WRT "screen"*/
     int           rootEventMask;
 
+    /*---------- Input overlay ----------*/
+    XID                              inputOverlayWid;
+    WindowPtr                        pInputOverlayWin;
+
     /*---------- Selection information ----------*/
     Atom                             beSelectionAtom;
     Window                           selectionOwner;
     xcb_get_selection_owner_cookie_t getSelectionOwner;
     Window                           getSelectionOwnerResult;
-    XID                              selectionProxyWid[DMX_N_SELECTION_PROXY];
-    WindowPtr                        pSelectionProxyWin[DMX_N_SELECTION_PROXY];
     Atom                             multipleAtom;
     Atom                             atomPairAtom;
     Atom                             incrAtom;
