@@ -414,6 +414,9 @@ dmxProcShmGetImage (ClientPtr client)
 	length = lenPer * Ones(stuff->planeMask & (plane | (plane - 1)));
     }
 
+    if (!draw)
+	return (*dmxSaveProcVector[X_ShmGetImage]) (client);
+
     VERIFY_SHMSIZE(shmdesc, stuff->offset, length, client);
     xgi.size = length;
 
@@ -424,6 +427,7 @@ dmxProcShmGetImage (ClientPtr client)
 	DMXScreenInfo		   *dmxScreen =
 	    &dmxScreens[pDraw->pScreen->myNum];
 
+	rc = BadValue;
 	cookie = xcb_shm_get_image (dmxScreen->connection, draw,
 				    stuff->x, stuff->y,
 				    stuff->width, stuff->height,
@@ -437,10 +441,20 @@ dmxProcShmGetImage (ClientPtr client)
 				    cookie.sequence,
 				    (void **) &reply,
 				    NULL))
+	    {
+		if (reply)
+		{
+		    rc = Success;
+		    free (reply);
+		}
 		break;
+	    }
 	} while (dmxWaitForResponse () && dmxScreen->alive);
+
+	if (rc != Success)
+	    return (*dmxSaveProcVector[X_ShmGetImage]) (client);
     }
-    
+
     if (client->swapped) {
     	swaps(&xgi.sequenceNumber, n);
     	swapl(&xgi.length, n);
