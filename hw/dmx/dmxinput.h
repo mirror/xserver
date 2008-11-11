@@ -40,6 +40,7 @@ typedef struct _dmxDevicePriv {
     KeyCode                  *keycode;
     xcb_void_cookie_t        grab;
     Bool                     fakeGrab;
+    Bool                     active;
 
     Bool (*EventCheck) (DeviceIntPtr, xcb_generic_event_t *);
     Bool (*ReplyCheck) (DeviceIntPtr, unsigned int, xcb_generic_reply_t *);

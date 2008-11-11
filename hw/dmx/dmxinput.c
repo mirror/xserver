@@ -47,11 +47,12 @@
 #include <X11/keysym.h>
 #include <xcb/xinput.h>
 
-#define DMX_KEYBOARD_EVENT_MASK				\
-    (KeyPressMask | KeyReleaseMask | KeymapStateMask)
+#define DMX_KEYBOARD_EVENT_MASK					        \
+    (KeyPressMask | KeyReleaseMask | KeymapStateMask | FocusChangeMask)
 
-#define DMX_POINTER_EVENT_MASK					\
-    (ButtonPressMask | ButtonReleaseMask | PointerMotionMask)
+#define DMX_POINTER_EVENT_MASK				       \
+    (ButtonPressMask | ButtonReleaseMask | PointerMotionMask | \
+     LeaveWindowMask)
 
 static EventListPtr dmxEvents = NULL;
 
@@ -555,6 +556,27 @@ typedef struct dmx_xcb_input_extended_grab_device_request_t {
     uint16_t        generic_event_count;
 } dmx_xcb_input_extended_grab_device_request_t;
 
+#define DMX_XCB_INPUT_DEVICE_LEAVE_NOTIFY 17
+
+typedef struct dmx_xcb_input_device_state_notify_event_t {
+    uint8_t         response_type;
+    uint8_t         detail;
+    uint16_t        sequence;
+    xcb_timestamp_t time;
+    xcb_window_t    root;
+    xcb_window_t    event;
+    xcb_window_t    child;
+    int16_t         root_x;
+    int16_t         root_y;
+    int16_t         event_x;
+    int16_t         event_y;
+    uint16_t        state;
+    uint8_t         mode;
+    uint8_t         device_id;
+} dmx_xcb_input_device_state_notify_event_t;
+
+typedef xcb_input_focus_in_event_t dmx_xcb_input_focus_out_event_t;
+
 static void
 dmxDeviceGrabKeyboard (DeviceIntPtr pDevice,
 		       WindowPtr    pWindow)
@@ -803,6 +825,23 @@ dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
 }
 
 static void
+dmxDevicePointerActivate (DeviceIntPtr pDevice)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (pDevPriv->active)
+	return;
+
+    pDevPriv->active = TRUE;
+}
+
+static void
+dmxDevicePointerDeactivate (DeviceIntPtr pDevice)
+{
+    DMX_GET_DEVICE_PRIV (pDevice)->active = FALSE;
+}
+
+static void
 dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
 			  xcb_window_t event,
 			  int          x,
@@ -859,6 +898,7 @@ dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
 	y += pWin->drawable.y;
     }
 
+    dmxDevicePointerActivate (pDevice);
     dmxEndFakeMotion (&dmxScreen->input);
     dmxBEDnDSpriteUpdate (pScreen, event, rootX, rootY);
     dmxUpdateSpritePosition (pDevice, x, y);
@@ -900,6 +940,13 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	dmxChangeButtonState (pButtonDev,
 			      xbutton->detail,
 			      type);
+    } break;
+    case XCB_LEAVE_NOTIFY: {
+	xcb_leave_notify_event_t *xcrossing =
+	    (xcb_leave_notify_event_t *) event;
+
+	if (xcrossing->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+	    dmxDevicePointerDeactivate (pButtonDev);
     } break;
     default:
 	if (id < 0)
@@ -983,12 +1030,39 @@ dmxDevicePointerEventCheck (DeviceIntPtr        pDevice,
 	    memcpy (&pDevPriv->keysbuttons[4], xstate->buttons, 28);
 	    dmxUpdateButtonState (pButtonDev, pDevPriv->keysbuttons);
 	} break;
+	case DMX_XCB_INPUT_DEVICE_LEAVE_NOTIFY: {
+	    dmx_xcb_input_device_state_notify_event_t *xcrossing =
+		(dmx_xcb_input_device_state_notify_event_t *) event;
+
+	    if (id != (xcrossing->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (xcrossing->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+		dmxDevicePointerDeactivate (pButtonDev);
+	} break;
 	default:
 	    return FALSE;
 	}
     }
 
     return TRUE;
+}
+
+static void
+dmxDeviceKeyboardActivate (DeviceIntPtr pDevice)
+{
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (pDevPriv->active)
+	return;
+
+    pDevPriv->active = TRUE;
+}
+
+static void
+dmxDeviceKeyboardDeactivate (DeviceIntPtr pDevice)
+{
+    DMX_GET_DEVICE_PRIV (pDevice)->active = FALSE;
 }
 
 static void
@@ -1106,6 +1180,18 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 				      xmapping->first_keycode,
 				      xmapping->count);
     } break;
+    case XCB_FOCUS_IN: {
+	xcb_focus_in_event_t *xfocus = (xcb_focus_in_event_t *) event;
+
+	if (xfocus->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+	    dmxDeviceKeyboardActivate (pKeyDev);
+    } break;
+    case XCB_FOCUS_OUT: {
+	xcb_focus_out_event_t *xfocus = (xcb_focus_out_event_t *) event;
+
+	if (xfocus->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+	    dmxDeviceKeyboardDeactivate (pKeyDev);
+    } break;
     default:
 	if (id < 0)
 	    return FALSE;
@@ -1183,6 +1269,26 @@ dmxDeviceKeyboardEventCheck (DeviceIntPtr        pDevice,
 		dmxUpdateKeyboardMapping (pKeyDev,
 					  xmapping->first_keycode,
 					  xmapping->count);
+	} break;
+	case XCB_INPUT_FOCUS_IN: {
+	    xcb_input_focus_in_event_t *xfocus =
+		(xcb_input_focus_in_event_t *) event;
+
+	    if (id != (xfocus->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (xfocus->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+		dmxDeviceKeyboardActivate (pKeyDev);
+	} break;
+	case XCB_INPUT_FOCUS_OUT: {
+	    dmx_xcb_input_focus_out_event_t *xfocus =
+		(dmx_xcb_input_focus_out_event_t *) event;
+
+	    if (id != (xfocus->device_id & DEVICE_BITS))
+		return FALSE;
+
+	    if (xfocus->detail != XCB_NOTIFY_DETAIL_INFERIOR)
+		dmxDeviceKeyboardDeactivate (pKeyDev);
 	} break;
 	default:
 	    return FALSE;
@@ -1333,7 +1439,7 @@ dmxKeyboardOn (DeviceIntPtr pDevice)
 
     if (pDevPriv->deviceId >= 0)
     {
-	XEventClass cls[3];
+	XEventClass cls[5];
 	int         type;
 
 	pDevPriv->device = XOpenDevice (dmxScreen->beDisplay,
@@ -1349,10 +1455,12 @@ dmxKeyboardOn (DeviceIntPtr pDevice)
 	DeviceKeyPress (pDevPriv->device, type, cls[0]);
 	DeviceKeyRelease (pDevPriv->device, type, cls[1]);
 	DeviceStateNotify (pDevPriv->device, type, cls[2]);
+	DeviceFocusIn (pDevPriv->device, type, cls[3]);
+	DeviceFocusOut (pDevPriv->device, type, cls[4]);
 
 	XLIB_PROLOGUE (dmxScreen);
 	XSelectExtensionEvent (dmxScreen->beDisplay, dmxScreen->rootWin,
-			       cls, 3);
+			       cls, 5);
 	XLIB_EPILOGUE (dmxScreen);
     }
     else
@@ -1483,11 +1591,12 @@ static int
 dmxPointerOn (DeviceIntPtr pDevice)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
-    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
+    DMXInputInfo     *dmxInput = pDevPriv->dmxInput;
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) dmxInput;
 
     if (pDevPriv->deviceId >= 0)
     {
-	XEventClass cls[5];
+	XEventClass cls[6];
 	int         type;
 
 	pDevPriv->device = XOpenDevice (dmxScreen->beDisplay,
@@ -1505,9 +1614,12 @@ dmxPointerOn (DeviceIntPtr pDevice)
 	DeviceButtonPressGrab (pDevPriv->device, type, cls[3]);
 	DeviceStateNotify (pDevPriv->device, type, cls[4]);
 
+	cls[5] = (pDevPriv->device->device_id << 8) |
+	    (dmxInput->eventBase + DMX_XCB_INPUT_DEVICE_LEAVE_NOTIFY);
+
 	XLIB_PROLOGUE (dmxScreen);
 	XSelectExtensionEvent (dmxScreen->beDisplay, dmxScreen->rootWin,
-			       cls, 5);
+			       cls, 6);
 	XLIB_EPILOGUE (dmxScreen);
     }
     else
@@ -1665,6 +1777,7 @@ dmxAddInputDevice (DMXInputInfo *dmxInput,
 	pDevPriv->masterId   = masterId;
 	pDevPriv->device     = NULL;
 	pDevPriv->fakeGrab   = xFalse;
+	pDevPriv->active     = xFalse;
 	pDevPriv->EventCheck = EventCheck;
 	pDevPriv->ReplyCheck = ReplyCheck;
 
