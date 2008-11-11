@@ -44,6 +44,11 @@
 #include "XIstubs.h"
 #include "xace.h"
 
+#ifdef PANORAMIX
+#include "panoramiX.h"
+#include "panoramiXsrv.h"
+#endif
+
 #include <X11/keysym.h>
 #include <xcb/xinput.h>
 
@@ -585,6 +590,9 @@ dmxDeviceGrabKeyboard (DeviceIntPtr pDevice,
     DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
     Window           window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
 
+    if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS && !pDevPriv->active)
+	return;
+
     if (pDevPriv->deviceId >= 0)
     {
 	dmx_xcb_input_extended_grab_device_request_t grab = {
@@ -649,6 +657,8 @@ dmxDeviceUngrabKeyboard (DeviceIntPtr pDevice)
     {
 	xcb_ungrab_keyboard (dmxScreen->connection, 0);
     }
+
+    pDevPriv->grabStatus = !XCB_GRAB_STATUS_SUCCESS;
 }
 
 static Bool
@@ -660,8 +670,6 @@ dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
 
     if (request == pDevPriv->grab.sequence)
     {
-	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
-
 	if (reply)
 	{
 	    if (pDevPriv->deviceId >= 0)
@@ -669,20 +677,15 @@ dmxDeviceKeyboardReplyCheck (DeviceIntPtr        pDevice,
 		xcb_input_grab_device_reply_t *xgrab =
 		    (xcb_input_grab_device_reply_t *) reply;
 
-		status = xgrab->status;
+		pDevPriv->grabStatus = xgrab->status;
 	    }
 	    else
 	    {
 		xcb_grab_keyboard_reply_t *xgrab =
 		    (xcb_grab_keyboard_reply_t *) reply;
 
-		status = xgrab->status;
+		pDevPriv->grabStatus = xgrab->status;
 	    }
-	}
-
-	if (status == XCB_GRAB_STATUS_SUCCESS)
-	{
-	    /* TODO: track state of grabs */
 	}
 
 	pDevPriv->grab.sequence = 0;
@@ -704,6 +707,9 @@ dmxDeviceGrabPointer (DeviceIntPtr pDevice,
     Window           window = (DMX_GET_WINDOW_PRIV (pWindow))->window;
     Window           confineTo = None;
     Cursor           cursor = None;
+
+    if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS && !pDevPriv->active)
+	return;
 
     if (pConfineTo)
 	confineTo = (DMX_GET_WINDOW_PRIV (pConfineTo))->window;
@@ -781,6 +787,8 @@ dmxDeviceUngrabPointer (DeviceIntPtr pDevice)
     {
 	xcb_ungrab_pointer (dmxScreen->connection, 0);
     }
+
+    pDevPriv->grabStatus = !XCB_GRAB_STATUS_SUCCESS;
 }
 
 static Bool
@@ -792,8 +800,6 @@ dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
 
     if (request == pDevPriv->grab.sequence)
     {
-	xcb_grab_status_t status = XCB_GRAB_STATUS_FROZEN;
-
 	if (reply->response_type == 1)
 	{
 	    if (pDevPriv->deviceId >= 0)
@@ -801,20 +807,15 @@ dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
 		xcb_input_grab_device_reply_t *xgrab =
 		    (xcb_input_grab_device_reply_t *) reply;
 
-		status = xgrab->status;
+		pDevPriv->grabStatus = xgrab->status;
 	    }
 	    else
 	    {
 		xcb_grab_pointer_reply_t *xgrab =
 		    (xcb_grab_pointer_reply_t *) reply;
 
-		status = xgrab->status;
+		pDevPriv->grabStatus = xgrab->status;
 	    }
-	}
-
-	if (status == XCB_GRAB_STATUS_SUCCESS)
-	{
-	    /* TODO: track state of grabs */
 	}
 
 	pDevPriv->grab.sequence = 0;
@@ -828,11 +829,70 @@ static void
 dmxDevicePointerActivate (DeviceIntPtr pDevice)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
 
     if (pDevPriv->active)
 	return;
 
     pDevPriv->active = TRUE;
+
+    if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS &&
+	pDevPriv->grab.sequence == 0)
+    {
+	DeviceIntPtr pMaster = pDevice;
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pMaster = pDevice->u.master;
+
+	if (pMaster->deviceGrab.grab)
+	{
+	    GrabPtr   pGrab = pMaster->deviceGrab.grab;
+	    WindowPtr pWin, pConfineTo = NULL;
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		PanoramiXRes *win, *confineToWin = NULL;
+		int          i = dmxScreen->index;
+
+		if (!(win = (PanoramiXRes *)
+		      SecurityLookupIDByType(
+			  serverClient, pGrab->window->drawable.id, XRT_WINDOW,
+			  DixGetAttrAccess)))
+		    return;
+		if (pGrab->confineTo)
+		    if (!(confineToWin = (PanoramiXRes *)
+			  SecurityLookupIDByType(
+			      serverClient, pGrab->confineTo->drawable.id,
+			      XRT_WINDOW, DixGetAttrAccess)))
+			return;
+
+		if (dixLookupWindow (&pWin,
+				     win->info[i].id,
+				     serverClient,
+				     DixGetAttrAccess) != Success)
+		    return;
+
+		if (confineToWin)
+		    if (dixLookupWindow (&pConfineTo,
+					 confineToWin->info[i].id,
+					 serverClient,
+					 DixGetAttrAccess) != Success)
+			return;
+	    }
+	    else
+#endif
+	    {
+		pWin       = pGrab->window;
+		pConfineTo = pGrab->confineTo;
+	    }
+
+	    dmxDeviceGrabPointer (pDevice,
+				  pWin,
+				  pConfineTo,
+				  pGrab->cursor);
+	}
+    }
 }
 
 static void
@@ -898,10 +958,10 @@ dmxUpdateSpriteFromEvent (DeviceIntPtr pDevice,
 	y += pWin->drawable.y;
     }
 
-    dmxDevicePointerActivate (pDevice);
     dmxEndFakeMotion (&dmxScreen->input);
     dmxBEDnDSpriteUpdate (pScreen, event, rootX, rootY);
     dmxUpdateSpritePosition (pDevice, x, y);
+    dmxDevicePointerActivate (pDevice);
 }
 
 static Bool
@@ -1052,11 +1112,53 @@ static void
 dmxDeviceKeyboardActivate (DeviceIntPtr pDevice)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+    DMXScreenInfo    *dmxScreen = (DMXScreenInfo *) pDevPriv->dmxInput;
 
     if (pDevPriv->active)
 	return;
 
     pDevPriv->active = TRUE;
+
+    if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS &&
+	pDevPriv->grab.sequence == 0)
+    {
+	DeviceIntPtr pMaster = pDevice;
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pMaster = pDevice->u.master;
+
+	if (pMaster->deviceGrab.grab)
+	{
+	    GrabPtr   pGrab = pMaster->deviceGrab.grab;
+	    WindowPtr pWin;
+
+#ifdef PANORAMIX
+	    if (!noPanoramiXExtension)
+	    {
+		PanoramiXRes *win;
+		int          i = dmxScreen->index;
+
+		if (!(win = (PanoramiXRes *)
+		      SecurityLookupIDByType(
+			  serverClient, pGrab->window->drawable.id, XRT_WINDOW,
+			  DixGetAttrAccess)))
+		    return;
+
+		if (dixLookupWindow (&pWin,
+				     win->info[i].id,
+				     serverClient,
+				     DixGetAttrAccess) != Success)
+		    return;
+	    }
+	    else
+#endif
+	    {
+		pWin = pGrab->window;
+	    }
+
+	    dmxDeviceGrabKeyboard (pDevice, pWin);
+	}
+    }
 }
 
 static void
@@ -1777,6 +1879,7 @@ dmxAddInputDevice (DMXInputInfo *dmxInput,
 	pDevPriv->masterId   = masterId;
 	pDevPriv->device     = NULL;
 	pDevPriv->fakeGrab   = xFalse;
+	pDevPriv->grabStatus = !XCB_GRAB_STATUS_SUCCESS;
 	pDevPriv->active     = xFalse;
 	pDevPriv->EventCheck = EventCheck;
 	pDevPriv->ReplyCheck = ReplyCheck;

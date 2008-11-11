@@ -39,6 +39,7 @@ typedef struct _dmxDevicePriv {
     KeySymsRec               keySyms;
     KeyCode                  *keycode;
     xcb_void_cookie_t        grab;
+    int                      grabStatus;
     Bool                     fakeGrab;
     Bool                     active;
 
