@@ -85,7 +85,7 @@ teardown(void)
      * completeness.  But then it gets awkward, given that you can't
      * guarantee that they'll be called ... */
     if (bus_info.connection)
-        dbus_connection_unref(bus_info.connection);
+        dbus_connection_close(bus_info.connection);
 
     RemoveBlockAndWakeupHandlers(block_handler, wakeup_handler, &bus_info);
     if (bus_info.fd != -1)
@@ -140,7 +140,7 @@ connect_to_bus(void)
     struct config_dbus_core_hook *hook;
 
     dbus_error_init(&error);
-    bus_info.connection = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
+    bus_info.connection = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
     if (!bus_info.connection || dbus_error_is_set(&error)) {
         DebugF("[config/dbus-core] error connecting to system bus: %s (%s)\n",
                error.name, error.message);
