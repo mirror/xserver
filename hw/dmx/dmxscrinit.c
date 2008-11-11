@@ -60,6 +60,7 @@
 #include "dmxatom.h"
 #include "dmxshm.h"
 #include "dmxdnd.h"
+#include "dmxlaunch.h"
 
 #ifdef PANORAMIX
 #include "panoramiX.h"
@@ -1404,6 +1405,9 @@ Bool dmxCloseScreen(int idx, ScreenPtr pScreen)
 	XFree(dmxScreen->bePixmapFormats);
 	dmxScreen->bePixmapFormats = NULL;
     }
+
+    if (idx == 0)
+	dmxAbortDisplay ();
 
     DMX_UNWRAP(CloseScreen, dmxScreen, pScreen);
     return pScreen->CloseScreen(idx, pScreen);
