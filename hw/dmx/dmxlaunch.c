@@ -135,6 +135,8 @@ dmxAbortDisplay (void)
 
     if (xbeAuth)
 	unlink (xbeAuth);
+
+    xbePid = 0;
 }
 
 static void
@@ -148,13 +150,13 @@ static void
 sigUsr1Jump (int sig)
 {
 
-#ifdef HAVE_SIGPROCMASK
+#ifdef SIG_BLOCK
     sigset_t set;
 #endif
 
     signal (sig, sigUsr1Waiting);
 
-#ifdef HAVE_SIGPROCMASK
+#ifdef SIG_BLOCK
     sigemptyset (&set);
     sigaddset (&set, SIGUSR1);
     sigprocmask (SIG_UNBLOCK, &set, NULL);
@@ -285,7 +287,16 @@ dmxLaunchDisplay (int argc, char *argv[], int index, char *vt)
     int		 mask;
 
     if (xbePid)
-	return TRUE;
+	return FALSE;
+
+    if (xbeArgv)
+    {
+	free (xbeArgv);
+	xbeArgv = NULL;
+	nXbeArgv = 0;
+    }
+
+    receivedUsr1 = 0;
 
     strcpy (xbeAuthBuf, xbeAuthTempl);
     mask = umask (0077);
