@@ -225,7 +225,12 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
     XLIB_EPILOGUE (dmxScreen);
 
     if (!gamma)
+    {
+	if (mode)
+	    RRModeDestroy (mode);
+	
 	return FALSE;
+    }
 
     RRCrtcGammaSet (crtc, gamma->red, gamma->green, gamma->blue);
 
@@ -235,6 +240,9 @@ dmxRRUpdateCrtc (ScreenPtr	    pScreen,
 
     if (outputs)
 	xfree (outputs);
+
+    if (mode)
+	RRModeDestroy (mode);
 
     XRRFreeCrtcInfo (c);
 
@@ -634,6 +642,9 @@ dmxRRGetInfo (ScreenPtr pScreen,
 			      dmxScreen->rootX, dmxScreen->rootY,
 			      RR_Rotate_0, 1,
 			      &pScrPriv->outputs[baseOutput]);
+
+		if (mode)
+		    RRModeDestroy (mode);
 	    }
 	    else
 	    {
