@@ -33,50 +33,9 @@
  *
  */
 
-/** \file
- * This file contains code than supports cursor movement, including the
- * code that initializes and reinitializes the screen positions and
- * computes screen overlap.
- *
- * "This code is based very closely on the XFree86 equivalent
- * (xfree86/common/xf86Cursor.c)."  --David Dawes.
- *
- * "This code was then extensively re-written, as explained here."
- * --Rik Faith
- *
- * The code in xf86Cursor.c used edge lists to implement the
- * CursorOffScreen function.  The edge list computation was complex
- * (especially in the face of arbitrarily overlapping screens) compared
- * with the speed savings in the CursorOffScreen function.  The new
- * implementation has erred on the side of correctness, readability, and
- * maintainability over efficiency.  For the common (non-edge) case, the
- * dmxCursorOffScreen function does avoid a loop over all the screens.
- * When the cursor has left the screen, all the screens are searched,
- * and the first screen (in dmxScreens order) containing the cursor will
- * be returned.  If run-time profiling shows that this routing is a
- * performance bottle-neck, then an edge list may have to be
- * reimplemented.  An edge list algorithm is O(edges) whereas the new
- * algorithm is O(dmxNumScreens).  Since edges is usually 1-3 and
- * dmxNumScreens may be 30-60 for large backend walls, this trade off
- * may be compelling.
- *
- * The xf86InitOrigins routine uses bit masks during the computation and
- * is therefore limited to the length of a word (e.g., 32 or 64 bits)
- * screens.  Because Xdmx is expected to be used with a large number of
- * backend displays, this limitation was removed.  The new
- * implementation has erred on the side of readability over efficiency,
- * using the dmxSL* routines to manage a screen list instead of a
- * bitmap, and a function call to decrease the length of the main
- * routine.  Both algorithms are of the same order, and both are called
- * only at server generation time, so trading clarity and long-term
- * maintainability for efficiency does not seem justified in this case.
- */
-
 #ifdef HAVE_DMX_CONFIG_H
 #include <dmx-config.h>
 #endif
-
-#define DMX_CURSOR_DEBUG 0
 
 #include "dmx.h"
 #include "dmxsync.h"
@@ -90,50 +49,38 @@
 #include "windowstr.h"
 #include "globals.h"
 #include "cursorstr.h"
-#include "dixevents.h"          /* For GetSpriteCursor() */
 
-#if DMX_CURSOR_DEBUG
-#define DMXDBG0(f)               dmxLog(dmxDebug,f)
-#define DMXDBG1(f,a)             dmxLog(dmxDebug,f,a)
-#define DMXDBG2(f,a,b)           dmxLog(dmxDebug,f,a,b)
-#define DMXDBG3(f,a,b,c)         dmxLog(dmxDebug,f,a,b,c)
-#define DMXDBG4(f,a,b,c,d)       dmxLog(dmxDebug,f,a,b,c,d)
-#define DMXDBG5(f,a,b,c,d,e)     dmxLog(dmxDebug,f,a,b,c,d,e)
-#define DMXDBG6(f,a,b,c,d,e,g)   dmxLog(dmxDebug,f,a,b,c,d,e,g)
-#define DMXDBG7(f,a,b,c,d,e,g,h) dmxLog(dmxDebug,f,a,b,c,d,e,g,h)
-#else
-#define DMXDBG0(f)
-#define DMXDBG1(f,a)
-#define DMXDBG2(f,a,b)
-#define DMXDBG3(f,a,b,c)
-#define DMXDBG4(f,a,b,c,d)
-#define DMXDBG5(f,a,b,c,d,e)
-#define DMXDBG6(f,a,b,c,d,e,g)
-#define DMXDBG7(f,a,b,c,d,e,g,h)
-#endif
-
-/** Initialize the private area for the cursor functions. */
-Bool dmxInitCursor(ScreenPtr pScreen)
+Bool
+dmxInitCursor (ScreenPtr pScreen)
 {
-    if (!dixRequestPrivate(CursorScreenKey(pScreen), sizeof(dmxCursorPrivRec)))
+    if (!dixRequestPrivate (CursorScreenKey (pScreen), sizeof (dmxCursorPrivRec)))
 	return FALSE;
 
-    if (!dixRequestPrivate (dmxDevicePrivateKey, sizeof(dmxDevicePrivRec)))
+    if (!dixRequestPrivate (dmxDevicePrivateKey, sizeof (dmxDevicePrivRec)))
 	return FALSE;
 
     return TRUE;
 }
 
-static Bool dmxCursorOffScreen(ScreenPtr *ppScreen, int *x, int *y)
+static Bool
+dmxCursorOffScreen (ScreenPtr *ppScreen,
+		    int       *x,
+		    int       *y)
 {
     return FALSE;
 }
 
-static void dmxCrossScreen(ScreenPtr pScreen, Bool entering)
+static void
+dmxCrossScreen (ScreenPtr pScreen,
+		Bool      entering)
 {
 }
 
-static void dmxWarpCursor(DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
+static void
+dmxWarpCursor (DeviceIntPtr pDev,
+	       ScreenPtr    pScreen,
+	       int          x,
+	       int          y)
 {
     int i;
 
@@ -144,10 +91,7 @@ static void dmxWarpCursor(DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
 	if (!dmxScreen->beDisplay)
 	    continue;
 
-	XLIB_PROLOGUE (dmxScreen);
-	XWarpPointer (dmxScreen->beDisplay, None, dmxScreen->scrnWin,
-		      0, 0, 0, 0, x, y);
-	XLIB_EPILOGUE (dmxScreen);
+	dmxInputWarpPointer (&dmxScreen->input, pDev, x, y);
     }
 }
 
@@ -166,7 +110,9 @@ dmxCreateARGBCursor (ScreenPtr pScreen,
 #endif
 
 /** Create \a pCursor on the back-end associated with \a pScreen. */
-void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
+void
+dmxBECreateCursor (ScreenPtr pScreen,
+		   CursorPtr pCursor)
 {
     DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
@@ -291,33 +237,36 @@ void dmxBECreateCursor(ScreenPtr pScreen, CursorPtr pCursor)
     XLIB_EPILOGUE (dmxScreen);
 }
 
-static Bool _dmxRealizeCursor(ScreenPtr pScreen, CursorPtr pCursor)
+static Bool
+_dmxRealizeCursor (ScreenPtr pScreen,
+		   CursorPtr pCursor)
 {
     DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxCursorPrivPtr  pCursorPriv;
+    dmxCursorPrivPtr pCursorPriv;
 
-    DMXDBG2("_dmxRealizeCursor(%d,%p)\n", pScreen->myNum, pCursor);
-
-    pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
-    pCursorPriv->cursor = (Cursor)0;
+    pCursorPriv = DMX_GET_CURSOR_PRIV (pCursor, pScreen);
+    pCursorPriv->cursor = (Cursor) 0;
 
     if (dmxScreen->beDisplay)
-	dmxBECreateCursor(pScreen, pCursor);
+	dmxBECreateCursor (pScreen, pCursor);
 
     return TRUE;
 }
 
 /** Free \a pCursor on the back-end associated with \a pScreen. */
-Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor)
+Bool
+dmxBEFreeCursor (ScreenPtr pScreen,
+		 CursorPtr pCursor)
 {
     DMXScreenInfo    *dmxScreen = &dmxScreens[pScreen->myNum];
-    dmxCursorPrivPtr  pCursorPriv = DMX_GET_CURSOR_PRIV(pCursor, pScreen);
+    dmxCursorPrivPtr pCursorPriv = DMX_GET_CURSOR_PRIV (pCursor, pScreen);
 
     if (pCursorPriv->cursor)
     {
 	XLIB_PROLOGUE (dmxScreen);
-	XFreeCursor(dmxScreen->beDisplay, pCursorPriv->cursor);
+	XFreeCursor (dmxScreen->beDisplay, pCursorPriv->cursor);
 	XLIB_EPILOGUE (dmxScreen);
+
 	pCursorPriv->cursor = (Cursor) 0;
 
 	if (IsAnimCur (pCursor))
@@ -336,18 +285,17 @@ Bool dmxBEFreeCursor(ScreenPtr pScreen, CursorPtr pCursor)
 }
 
 static Bool
-_dmxUnrealizeCursor (ScreenPtr pScreen, CursorPtr pCursor)
+_dmxUnrealizeCursor (ScreenPtr pScreen,
+		     CursorPtr pCursor)
 {
-    DMXDBG2("_dmxUnrealizeCursor(%d,%p)\n",
-            pScreen->myNum, pCursor);
-
-    dmxBEFreeCursor(pScreen, pCursor);
-
+    dmxBEFreeCursor (pScreen, pCursor);
     return TRUE;
 }
 
 static Bool
-dmxRealizeCursor(DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor)
+dmxRealizeCursor (DeviceIntPtr pDev,
+		  ScreenPtr    pScreen,
+		  CursorPtr    pCursor)
 {
     if (pDev == inputInfo.pointer)
 	return _dmxRealizeCursor (pScreen, pCursor);

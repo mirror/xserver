@@ -94,6 +94,12 @@ dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 		       DeviceIntPtr pDevice,
 		       WindowPtr    pWindow);
 
+void
+dmxInputWarpPointer (DMXInputInfo *dmxInput,
+		     DeviceIntPtr pDevice,
+		     int          x,
+		     int          y);
+
 int
 dmxInputEnable (DMXInputInfo *dmxInput);
 

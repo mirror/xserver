@@ -543,6 +543,26 @@ dmxInputGrabDeviceReply (ScreenPtr           pScreen,
 }
 
 /* not in xcb-xinput yet */
+
+#define DMX_XCB_WARP_DEVICE_POINTER 41
+
+typedef struct dmx_xcb_warp_device_pointer_request_t {
+    uint8_t      major_opcode;
+    uint8_t      minor_opcode;
+    uint16_t     length;
+    xcb_window_t src_win;
+    xcb_window_t dst_win;
+    int16_t      src_x;
+    int16_t      src_y;
+    uint16_t     src_width;
+    uint16_t     src_height;
+    int16_t      dst_x;
+    int16_t      dst_y;
+    uint8_t      deviceid;
+    uint8_t      pad0;
+    uint16_t     pad1;
+} dmx_xcb_warp_device_pointer_request_t;
+
 #define DMX_XCB_INPUT_EXTENDED_GRAB_DEVICE 45
 
 typedef struct dmx_xcb_input_extended_grab_device_request_t {
@@ -1504,6 +1524,64 @@ dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 	    continue;
 
 	dmxDeviceUngrabPointer (pExtDevice);
+    }
+}
+
+void
+dmxInputWarpPointer (DMXInputInfo *dmxInput,
+		     DeviceIntPtr pDevice,
+		     int          x,
+		     int          y)
+{
+    DMXScreenInfo *dmxScreen = (DMXScreenInfo *) dmxInput;
+    int           i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr     pExtDevice = dmxInput->devs[i];
+	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pExtDevice);
+
+	if (pExtDevice->u.master != pDevice)
+	    continue;
+
+	if (!pExtDevice->button)
+	    continue;
+
+	if (!pDevPriv->active)
+	    continue;
+
+	if (pDevPriv->deviceId >= 0)
+	{
+	    dmx_xcb_warp_device_pointer_request_t warp = {
+		.src_win  = dmxScreen->rootWin,
+		.dst_win  = dmxScreen->rootWin,
+		.dst_x    = x,
+		.dst_y    = y,
+		.deviceid = pDevPriv->deviceId
+	    };
+	    xcb_protocol_request_t request = {
+		1,
+		&xcb_input_id,
+		DMX_XCB_WARP_DEVICE_POINTER,
+		FALSE
+	    };
+	    struct iovec vector[] =  {
+		{ &warp, sizeof (warp) }
+	    };
+
+	    xcb_send_request (dmxScreen->connection,
+			      0,
+			      vector,
+			      &request);
+	}
+	else
+	{
+	    xcb_warp_pointer (dmxScreen->connection,
+			      dmxScreen->rootWin, dmxScreen->rootWin,
+			      0, 0,
+			      0, 0,
+			      x, y);
+	}
     }
 }
 
