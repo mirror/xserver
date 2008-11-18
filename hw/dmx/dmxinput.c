@@ -820,7 +820,7 @@ dmxDevicePointerReplyCheck (DeviceIntPtr        pDevice,
 
     if (request == pDevPriv->grab.sequence)
     {
-	if (reply->response_type == 1)
+	if (reply)
 	{
 	    if (pDevPriv->deviceId >= 0)
 	    {
