@@ -263,6 +263,7 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
     XSetWindowAttributes  attribs;
     dmxWinPrivPtr         pParentPriv = DMX_GET_WINDOW_PRIV(pWindow->parent);
     Window                win = None;
+    int                   x, y, w, h, bw;
 
     /* Avoid to create windows on back-end servers with virtual framebuffer */
     if (dmxScreen->virtualFb)
@@ -309,14 +310,29 @@ static Window dmxCreateNonRootWindow(WindowPtr pWindow)
        be created on top of the stack, so we must restack the windows */
     pWinPriv->restacked = (pWindow->prevSib != NullWindow);
 
+    if (pWindow != dmxScreen->pInputOverlayWin)
+    {
+	x = pWindow->origin.x - wBorderWidth(pWindow);
+	y = pWindow->origin.y - wBorderWidth(pWindow);
+	w = pWindow->drawable.width;
+	h = pWindow->drawable.height;
+	bw = pWindow->borderWidth;
+    }
+    else
+    {
+	x = y = -1;
+	w = h = 1;
+	bw = 0;
+    }
+
     XLIB_PROLOGUE (dmxScreen);
     win = XCreateWindow(dmxScreen->beDisplay,
 			parent,
-			pWindow->origin.x - wBorderWidth(pWindow),
-			pWindow->origin.y - wBorderWidth(pWindow),
-			pWindow->drawable.width,
-			pWindow->drawable.height,
-			pWindow->borderWidth,
+			x,
+			y,
+			w,
+			h,
+			bw,
 			pWindow->drawable.depth,
 			pWindow->drawable.class,
 			pWinPriv->visual,
@@ -514,7 +530,7 @@ Bool dmxPositionWindow(WindowPtr pWindow, int x, int y)
        been created yet, create it and map it */
     if (!pWinPriv->window && pWinPriv->mapped && !pWinPriv->offscreen) {
 	dmxCreateAndRealizeWindow(pWindow, TRUE);
-    } else if (pWinPriv->window) {
+    } else if (pWinPriv->window && pWindow != dmxScreen->pInputOverlayWin) {
 	/* Position window on back-end server */
 	m = CWX | CWY | CWWidth | CWHeight;
 	c.x = pWindow->origin.x - wBorderWidth(pWindow);
@@ -897,7 +913,7 @@ void dmxResizeWindow(WindowPtr pWindow, int x, int y,
        been created yet, create it and map it */
     if (!pWinPriv->window && pWinPriv->mapped && !pWinPriv->offscreen) {
 	dmxCreateAndRealizeWindow(pWindow, TRUE);
-    } else if (pWinPriv->window) {
+    } else if (pWinPriv->window && pWindow != dmxScreen->pInputOverlayWin) {
 	/* Handle resizing on back-end server */
 	m = CWX | CWY | CWWidth | CWHeight;
 	c.x = pWindow->origin.x - wBorderWidth(pWindow);
@@ -960,7 +976,7 @@ void dmxChangeBorderWidth(WindowPtr pWindow, unsigned int width)
 
     /* NOTE: Do we need to check for on/off screen here? */
 
-    if (pWinPriv->window) {
+    if (pWinPriv->window && pWindow != dmxScreen->pInputOverlayWin) {
 	/* Handle border width change on back-end server */
 	m = CWBorderWidth;
 	c.border_width = width;
