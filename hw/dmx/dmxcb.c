@@ -117,7 +117,7 @@ dmxCreateInputOverlayWindow (void)
 
 	FOR_NSCREENS_BACKWARD(j) {
 	    pWin = CreateWindow (newWin->info[j].id, WindowTable[j],
-				 0, 0, 1, 1, 0, InputOnly, 
+				 -1, -1, 1, 1, 0, InputOnly, 
 				 CWOverrideRedirect, &overrideRedirect,
 				 0, serverClient, CopyFromParent, 
 				 &result);
@@ -137,7 +137,7 @@ dmxCreateInputOverlayWindow (void)
 	
     {
 	pWin = CreateWindow (inputOverlayWid, WindowTable[0],
-			     0, 0, 1, 1, 0, InputOnly, 
+			     -1, -1, 1, 1, 0, InputOnly, 
 			     CWOverrideRedirect, &overrideRedirect,
 			     0, serverClient, CopyFromParent, 
 			     &result);
