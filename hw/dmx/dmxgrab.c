@@ -79,8 +79,12 @@ dmxGrabKeyboard (DeviceIntPtr pDev,
 	}
 	else
 #endif
+
+	{
+	    pWin = pGrab->window;
 	    if (i != pWin->drawable.pScreen->myNum)
 		continue;
+	}
 
 	dmxInputGrabKeyboard (&dmxScreen->input, pDev, pWin);
     }
@@ -125,8 +129,12 @@ dmxUngrabKeyboard (DeviceIntPtr pDev,
 	}
 	else
 #endif
+
+	{
+	    pWin = pGrab->window;
 	    if (i != pWin->drawable.pScreen->myNum)
 		continue;
+	}
 
 	dmxInputUngrabKeyboard (&dmxScreen->input, pDev, pWin);
     }
@@ -212,8 +220,12 @@ dmxGrabPointer (DeviceIntPtr pDev,
 	}
 	else
 #endif
+
+	{
+	    pWin = pGrab->window;
 	    if (i != pWin->drawable.pScreen->myNum)
 		continue;
+	}
 
 	dmxInputGrabPointer (&dmxScreen->input,
 			     pDev,
@@ -262,8 +274,12 @@ dmxUngrabPointer (DeviceIntPtr pDev,
 	}
 	else
 #endif
+
+	{
+	    pWin = pGrab->window;
 	    if (i != pWin->drawable.pScreen->myNum)
 		continue;
+	}
 
 	dmxInputUngrabPointer (&dmxScreen->input, pDev, pWin);
     }
