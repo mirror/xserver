@@ -45,13 +45,16 @@
 #endif
 
 #include <xcb/xinput.h>
+#include <xcb/shape.h>
 
 struct _DMXDnDChild {
-    Window target;
-    Window wid;
-    BoxRec box;
-    int    map_state;
-    int    version;
+    Window    target;
+    Window    wid;
+    BoxRec    box;
+    RegionPtr boundingShape;
+    RegionPtr inputShape;
+    int       map_state;
+    int       version;
 };
 
 void
@@ -138,7 +141,27 @@ dmxBEDnDUpdateTarget (ScreenPtr pScreen)
 		dmxScreen->dndChildren[n].box.y1 <= dmxScreen->dndY &&
 		dmxScreen->dndChildren[n].box.x2 >  dmxScreen->dndX &&
 		dmxScreen->dndChildren[n].box.y2 >  dmxScreen->dndY)
-		break;
+	    {
+		BoxRec box;
+
+		if ((!dmxScreen->dndChildren[n].boundingShape ||
+		     POINT_IN_REGION (pScreen,
+				      dmxScreen->dndChildren[n].boundingShape,
+				      dmxScreen->dndX -
+				      dmxScreen->dndChildren[n].box.x1,
+				      dmxScreen->dndY -
+				      dmxScreen->dndChildren[n].box.y1,
+				      &box)) &&
+		    (!dmxScreen->dndChildren[n].inputShape ||
+		     POINT_IN_REGION (pScreen,
+				      dmxScreen->dndChildren[n].inputShape,
+				      dmxScreen->dndX -
+				      dmxScreen->dndChildren[n].box.x1,
+				      dmxScreen->dndY -
+				      dmxScreen->dndChildren[n].box.y1,
+				      &box)))
+		    break;
+	    }
 	}
 
 	if (n >= 0 && dmxScreen->dndChildren[n].version >= 3)
@@ -353,6 +376,103 @@ dmxDnDGeometryReply (ScreenPtr           pScreen,
     }
 }
 
+typedef struct dmx_xcb_shape_get_rectangles_reply_t {
+    uint8_t  response_type;
+    uint8_t  ordering;
+    uint16_t sequence;
+    uint32_t length;
+    uint32_t rectangles_len;
+    uint32_t pad1;
+    uint32_t pad2;
+    uint32_t pad3;
+    uint32_t pad4;
+    uint32_t pad5;
+} dmx_xcb_shape_get_rectangles_reply_t;
+
+static void
+dmxDnDBoundingShapeReply (ScreenPtr           pScreen,
+			  unsigned int        sequence,
+			  xcb_generic_reply_t *reply,
+			  xcb_generic_error_t *error,
+			  void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    int           n = (int) data;
+    RegionPtr     pRegion;
+
+    if (!dmxScreen->dndChildren || n >= dmxScreen->dndNChildren)
+	return;
+
+    if (reply)
+    {
+	dmx_xcb_shape_get_rectangles_reply_t *xshape =
+	    (dmx_xcb_shape_get_rectangles_reply_t *) reply;
+
+	pRegion = RECTS_TO_REGION (pScreen,
+				   xshape->rectangles_len,
+				   (xRectangle *) (xshape + 1),
+				   xshape->ordering);
+
+	if (dmxScreen->dndChildren[n].boundingShape)
+	    REGION_DESTROY (pScreen, dmxScreen->dndChildren[n].boundingShape);
+
+	dmxScreen->dndChildren[n].boundingShape = pRegion;
+    }
+}
+
+static void
+dmxDnDInputShapeReply (ScreenPtr           pScreen,
+		       unsigned int        sequence,
+		       xcb_generic_reply_t *reply,
+		       xcb_generic_error_t *error,
+		       void                *data)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+    int           n = (int) data;
+    RegionPtr     pRegion;
+
+    if (!dmxScreen->dndChildren || n >= dmxScreen->dndNChildren)
+	return;
+
+    if (reply)
+    {
+	dmx_xcb_shape_get_rectangles_reply_t *xshape =
+	    (dmx_xcb_shape_get_rectangles_reply_t *) reply;
+
+	pRegion = RECTS_TO_REGION (pScreen,
+				   xshape->rectangles_len,
+				   (xRectangle *) (xshape + 1),
+				   xshape->ordering);
+
+	if (dmxScreen->dndChildren[n].inputShape)
+	    REGION_DESTROY (pScreen, dmxScreen->dndChildren[n].inputShape);
+
+	dmxScreen->dndChildren[n].inputShape = pRegion;
+    }
+}
+
+static void
+dmxDnDBoundingShapeUpdateReply (ScreenPtr           pScreen,
+				unsigned int        sequence,
+				xcb_generic_reply_t *reply,
+				xcb_generic_error_t *error,
+				void                *data)
+{
+    dmxDnDBoundingShapeReply (pScreen, sequence, reply, error, data);
+    dmxBEDnDUpdateTarget (pScreen);
+}
+
+static void
+dmxDnDInputShapeUpdateReply (ScreenPtr           pScreen,
+			     unsigned int        sequence,
+			     xcb_generic_reply_t *reply,
+			     xcb_generic_error_t *error,
+			     void                *data)
+{
+    dmxDnDInputShapeReply (pScreen, sequence, reply, error, data);
+    dmxBEDnDUpdateTarget (pScreen);
+}
+
 static void
 dmxDnDWindowAttributesReply (ScreenPtr           pScreen,
 			     unsigned int        sequence,
@@ -415,15 +535,18 @@ dmxDnDQueryTreeReply (ScreenPtr           pScreen,
 	{
 	    xcb_get_property_cookie_t          prop;
 	    xcb_get_geometry_cookie_t          geometry;
+	    xcb_shape_get_rectangles_cookie_t  shape;
 	    xcb_get_window_attributes_cookie_t attr;
 
-	    children[n].box.x1  = 0;
-	    children[n].box.y1  = 0;
-	    children[n].box.x2  = 0;
-	    children[n].box.y2  = 0;
-	    children[n].version = 0;
-	    children[n].target  = c[n];
-	    children[n].wid     = c[n];
+	    children[n].box.x1        = 0;
+	    children[n].box.y1        = 0;
+	    children[n].box.x2        = 0;
+	    children[n].box.y2        = 0;
+	    children[n].boundingShape = NULL;
+	    children[n].inputShape    = NULL;
+	    children[n].version       = 0;
+	    children[n].target        = c[n];
+	    children[n].wid           = c[n];
 
 	    prop = xcb_get_property (dmxScreen->connection,
 				     xFalse,
@@ -455,6 +578,22 @@ dmxDnDQueryTreeReply (ScreenPtr           pScreen,
 	    dmxAddRequest (&dmxScreen->request,
 			   dmxDnDGeometryReply,
 			   geometry.sequence,
+			   (void *) n);
+
+	    xcb_shape_select_input (dmxScreen->connection, c[n], 1);
+
+	    shape = xcb_shape_get_rectangles (dmxScreen->connection, c[n],
+					      ShapeBounding);
+	    dmxAddRequest (&dmxScreen->request,
+			   dmxDnDBoundingShapeReply,
+			   shape.sequence,
+			   (void *) n);
+
+	    shape = xcb_shape_get_rectangles (dmxScreen->connection, c[n],
+					      ShapeInput);
+	    dmxAddRequest (&dmxScreen->request,
+			   dmxDnDInputShapeReply,
+			   shape.sequence,
 			   (void *) n);
 
 	    attr = xcb_get_window_attributes (dmxScreen->connection, c[n]);
@@ -505,6 +644,37 @@ dmxBEDnDUpdatePosition (ScreenPtr pScreen,
 }
 
 static void
+dmxDnDFreeChildren (ScreenPtr pScreen)
+{
+    DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
+
+    if (dmxScreen->dndChildren)
+    {
+	int i;
+
+	for (i = 0; i < dmxScreen->dndNChildren; i++)
+	{
+	    if (dmxScreen->dndChildren[i].boundingShape)
+		REGION_DESTROY (pScreen,
+				dmxScreen->dndChildren[i].boundingShape);
+
+	    if (dmxScreen->dndChildren[i].inputShape)
+		REGION_DESTROY (pScreen,
+				dmxScreen->dndChildren[i].inputShape);
+
+	    xcb_shape_select_input (dmxScreen->connection,
+				    dmxScreen->dndChildren[i].target,
+				    0);
+	}
+
+	xfree (dmxScreen->dndChildren);
+
+	dmxScreen->dndChildren  = NULL;
+	dmxScreen->dndNChildren = 0;
+    }
+}
+
+static void
 dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
 {
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
@@ -523,13 +693,7 @@ dmxBEDnDHideProxyWindow (ScreenPtr pScreen)
 		      DefaultRootWindow (dmxScreen->beDisplay),
 		      dmxScreen->scrnEventMask);
 
-    if (dmxScreen->dndChildren)
-    {
-	xfree (dmxScreen->dndChildren);
-
-	dmxScreen->dndChildren  = NULL;
-	dmxScreen->dndNChildren = 0;
-    }
+    dmxDnDFreeChildren (pScreen);
 
     dmxScreen->dndSource = None;
     dmxScreen->queryTree.sequence = 0;
@@ -1284,8 +1448,9 @@ dmxScreenEventCheckDnD (ScreenPtr           pScreen,
 {
     DMXScreenInfo          *dmxScreen = &dmxScreens[pScreen->myNum];
     xcb_map_notify_event_t *xmap = (xcb_map_notify_event_t *) event;
+    int                    reltype, type = event->response_type & 0x7f;
 
-    switch (event->response_type & ~0x80) {
+    switch (type) {
     case XCB_MAP_NOTIFY:
 	if (xmap->window == dmxScreen->rootWin)
 	    return FALSE;
@@ -1295,14 +1460,8 @@ dmxScreenEventCheckDnD (ScreenPtr           pScreen,
     case XCB_CONFIGURE_NOTIFY:
 	if (xmap->event != DefaultRootWindow (dmxScreen->beDisplay))
 	    return FALSE;
-	
-	if (dmxScreen->dndChildren)
-	{
-	    xfree (dmxScreen->dndChildren);
 
-	    dmxScreen->dndChildren  = NULL;
-	    dmxScreen->dndNChildren = 0;
-	}
+	dmxDnDFreeChildren (pScreen);
 
 	dmxScreen->queryTree.sequence = 0;
 
@@ -1364,7 +1523,52 @@ dmxScreenEventCheckDnD (ScreenPtr           pScreen,
 	}
     } break;
     default:
-	return FALSE;
+	reltype = type - dmxScreen->beShapeEventBase;
+
+	switch (reltype) {
+	case XCB_SHAPE_NOTIFY: {
+	    xcb_shape_notify_event_t *xshape =
+		(xcb_shape_notify_event_t *) event;
+	    int                      i;
+
+	    for (i = 0; i < dmxScreen->dndNChildren; i++)
+		if (dmxScreen->dndChildren[i].target == xshape->affected_window)
+		    break;
+
+	    if (i < dmxScreen->dndNChildren)
+	    {
+		xcb_shape_get_rectangles_cookie_t shape;
+
+		switch (xshape->shape_kind) {
+		case ShapeBounding:
+		    shape = xcb_shape_get_rectangles (dmxScreen->connection,
+						      xshape->affected_window,
+						      ShapeBounding);
+		    dmxAddRequest (&dmxScreen->request,
+				   dmxDnDBoundingShapeUpdateReply,
+				   shape.sequence,
+				   (void *) i);
+
+		case ShapeInput:
+		    shape = xcb_shape_get_rectangles (dmxScreen->connection,
+						      xshape->affected_window,
+						      ShapeInput);
+		    dmxAddRequest (&dmxScreen->request,
+				   dmxDnDInputShapeUpdateReply,
+				   shape.sequence,
+				   (void *) i);
+		default:
+		    break;
+		}
+	    }
+	    else
+	    {
+		return FALSE;
+	    }
+	} break;
+	default:
+	    return FALSE;
+	}
     }
 
     return TRUE;

@@ -1433,6 +1433,8 @@ dmxAttachScreen (int                    idx,
     ScreenPtr     pScreen;
     DMXScreenInfo *dmxScreen;
     DMXScreenInfo oldDMXScreen;
+    Bool          beShape = FALSE;
+    int           errorBase;
 
     /* Return failure if dynamic addition/removal of screens is disabled */
     if (!dmxAddRemoveScreens) {
@@ -1487,6 +1489,23 @@ dmxAttachScreen (int                    idx,
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
 			"Can't open display: %s",
 			attr->displayName);
+
+	/* Restore the old screen */
+	*dmxScreen = oldDMXScreen;
+	return 1;
+    }
+
+    XLIB_PROLOGUE (dmxScreens);
+    beShape = XShapeQueryExtension (dmxScreen->beDisplay,
+				    &dmxScreen->beShapeEventBase,
+				    &errorBase);
+    XLIB_EPILOGUE (dmxScreen);
+
+    if (!beShape)
+    {
+	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			"SHAPE extension missing");
+	dmxCloseDisplay (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;

@@ -189,6 +189,8 @@ typedef struct _DMXScreenInfo {
     Pixel         beBlackPixel;   /**< Default black pixel for BE */
     Pixel         beWhitePixel;   /**< Default white pixel for BE */
 
+    int           beShapeEventBase;
+
 #ifdef RANDR
     Bool          beRandr;        /**< Use RANDR support on BE server */
     Bool          beRandrPending;
