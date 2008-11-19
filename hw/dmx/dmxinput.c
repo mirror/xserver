@@ -510,6 +510,70 @@ dmxReleaseFakePointerGrab (DMXInputInfo *dmxInput)
     }
 }
 
+static Bool
+dmxFakeKeyboardGrab (DMXInputInfo *dmxInput)
+{
+    DMXScreenInfo *dmxScreen = (DMXScreenInfo *) dmxInput;
+    WindowPtr     pWin = WindowTable[dmxScreen->index];
+    GrabRec       newGrab;
+    int           i;
+
+#ifdef PANORAMIX
+    if (!noPanoramiXExtension)
+	pWin = WindowTable[0];
+#endif
+
+    memset (&newGrab, 0, sizeof (GrabRec));	    
+
+    newGrab.window       = pWin;
+    newGrab.resource     = 0;
+    newGrab.ownerEvents  = xFalse;
+    newGrab.cursor       = NULL;
+    newGrab.confineTo    = NullWindow;
+    newGrab.eventMask    = NoEventMask;
+    newGrab.genericMasks = NULL;
+    newGrab.next         = NULL;
+    newGrab.keyboardMode = GrabModeAsync;
+    newGrab.pointerMode  = GrabModeAsync;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pDevice = pDevice->u.master;
+
+	if (!pDevice->key)
+	    continue;
+
+	newGrab.device = pDevice;
+
+	if (!dmxActivateFakeGrab (pDevice, &newGrab))
+	    return FALSE;
+    }
+
+    return TRUE;
+}
+
+static void
+dmxReleaseFakeKeyboardGrab (DMXInputInfo *dmxInput)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pDevice = pDevice->u.master;
+
+	if (!pDevice->key)
+	    continue;
+
+	dmxDeactivateFakeGrab (pDevice);
+    }
+}
+
 Bool
 dmxFakeMotion (DMXInputInfo *dmxInput,
 	       int          x,
@@ -1163,6 +1227,8 @@ dmxDeviceKeyboardActivate (DeviceIntPtr pDevice)
     if (pDevPriv->active)
 	return;
 
+    dmxReleaseFakeKeyboardGrab (pDevPriv->dmxInput);
+
     pDevPriv->active = TRUE;
 
     if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS &&
@@ -1210,7 +1276,14 @@ dmxDeviceKeyboardActivate (DeviceIntPtr pDevice)
 static void
 dmxDeviceKeyboardDeactivate (DeviceIntPtr pDevice)
 {
-    DMX_GET_DEVICE_PRIV (pDevice)->active = FALSE;
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (!pDevPriv->active)
+	return;
+
+    pDevPriv->active = FALSE;
+
+    dmxFakeKeyboardGrab (pDevPriv->dmxInput);
 }
 
 static void
@@ -1273,11 +1346,10 @@ dmxUpdateKeyStateFromEvent (DeviceIntPtr pDevice,
 	y += pWin->drawable.y;
     }
 
-    dmxEndFakeMotion (&dmxScreen->input);
-
     pButtonDev = dmxGetPairedButtonDevice (pDevice);
-    if (pButtonDev)
+    if (pButtonDev && DMX_GET_DEVICE_PRIV (pButtonDev)->active)
     {
+	dmxEndFakeMotion (&dmxScreen->input);
 	dmxBEDnDSpriteUpdate (pScreen, event, rootX, rootY);
 	dmxUpdateSpritePosition (pButtonDev, x, y);
     }
