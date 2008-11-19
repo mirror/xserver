@@ -873,6 +873,8 @@ dmxDevicePointerActivate (DeviceIntPtr pDevice)
 
     pDevPriv->active = TRUE;
 
+    dmxReleaseFakePointerGrab (pDevPriv->dmxInput);
+
     if (pDevPriv->grabStatus != XCB_GRAB_STATUS_SUCCESS &&
 	pDevPriv->grab.sequence == 0)
     {
@@ -935,7 +937,14 @@ dmxDevicePointerActivate (DeviceIntPtr pDevice)
 static void
 dmxDevicePointerDeactivate (DeviceIntPtr pDevice)
 {
-    DMX_GET_DEVICE_PRIV (pDevice)->active = FALSE;
+    dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDevice);
+
+    if (!pDevPriv->active)
+	return;
+
+    pDevPriv->active = FALSE;
+
+    dmxFakePointerGrab (pDevPriv->dmxInput);
 }
 
 static void
