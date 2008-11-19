@@ -1233,9 +1233,9 @@ dmxRRScreenInit (ScreenPtr pScreen)
 
 	if (display && beRandr)
 	{
-	    XLIB_PROLOGUE (dmxScreens);
+	    XLIB_PROLOGUE (dmxScreen);
 	    r = XRRGetScreenResources (display, DefaultRootWindow (display));
-	    XLIB_EPILOGUE (dmxScreens);
+	    XLIB_EPILOGUE (dmxScreen);
 	}
 
 	if (r)

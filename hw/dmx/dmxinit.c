@@ -323,8 +323,17 @@ Bool dmxOpenDisplay(DMXScreenInfo *dmxScreen,
 	XSetAuthorization ((char *) authType, authTypeLen,
 			   (char *) authData, authDataLen);
 
-    if (!(dmxScreen->beDisplay = XOpenDisplay(display)))
+    dmxScreen->alive = 1;
+
+    XLIB_PROLOGUE (dmxScreen);
+    dmxScreen->beDisplay = XOpenDisplay (display);
+    XLIB_EPILOGUE (dmxScreen);
+
+    if (!dmxScreen->beDisplay)
+    {
+        dmxScreen->alive = 0;	
 	return FALSE;
+    }
 
     dmxScreen->alive      = 1;
     dmxScreen->broken     = 0;

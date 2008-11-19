@@ -150,7 +150,7 @@ void dmxBEScreenInit(ScreenPtr pScreen)
     while (--i)
 	dmxBEPrefetchAtom (dmxScreen, (Atom) i);
     
-    XLIB_PROLOGUE (dmxScreens);
+    XLIB_PROLOGUE (dmxScreen);
     dmxScreen->beSelectionAtom = XInternAtom (dmxScreen->beDisplay, buf, 0);
     XLIB_EPILOGUE (dmxScreen);
 
@@ -175,7 +175,7 @@ void dmxBEScreenInit(ScreenPtr pScreen)
 	    if ((dmxScreen->bePixmapFormats[i].depth == 1) ||
 		(dmxScreen->bePixmapFormats[i].depth ==
 		 dmxScreen->beDepths[j])) {
-		XLIB_PROLOGUE (dmxScreens);
+		XLIB_PROLOGUE (dmxScreen);
 		dmxScreen->scrnDefDrawables[i] = (Drawable)
 		    XCreatePixmap(dmxScreen->beDisplay, dmxScreen->scrnWin,
 				  1, 1, dmxScreen->bePixmapFormats[i].depth);

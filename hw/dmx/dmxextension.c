@@ -1495,7 +1495,7 @@ dmxAttachScreen (int                    idx,
 	return 1;
     }
 
-    XLIB_PROLOGUE (dmxScreens);
+    XLIB_PROLOGUE (dmxScreen);
     beShape = XShapeQueryExtension (dmxScreen->beDisplay,
 				    &dmxScreen->beShapeEventBase,
 				    &errorBase);
@@ -1515,9 +1515,11 @@ dmxAttachScreen (int                    idx,
     if (!dmxScreen->scrnWin)
 	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
 
+    XLIB_PROLOGUE (dmxScreen);
     XSelectInput (dmxScreen->beDisplay,
 		  dmxScreen->scrnWin,
 		  StructureNotifyMask);
+    XLIB_EPILOGUE (dmxScreen);
 
     dmxSetErrorHandler(dmxScreen);
     dmxGetScreenAttribs(dmxScreen);
