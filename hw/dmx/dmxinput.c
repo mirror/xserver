@@ -72,8 +72,11 @@ dmxUpdateKeycodeMap (DeviceIntPtr pDevice)
     int               width = src->mapWidth;
     int               i;
 
-    if (!pDevice->isMaster && pDevice->u.master && pDevice->u.master->key)
-	dst = &pDevice->u.master->key->curKeySyms;
+    if (!pDevice->isMaster && pDevice->u.master)
+    {
+	if (IsKeyboardDevice (pDevice->u.master))
+	    dst = &pDevice->u.master->key->curKeySyms;
+    }
 
     if (dst->mapWidth < width)
 	width = dst->mapWidth;
@@ -193,7 +196,7 @@ dmxGetButtonDevice (DMXInputInfo *dmxInput,
     {
 	dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (dmxInput->devs[i]);
 
-	if (!dmxInput->devs[i]->button)
+	if (!IsPointerDevice (dmxInput->devs[i]))
 	    continue;
 	
 	if (deviceId >= 0)
@@ -479,7 +482,7 @@ dmxFakePointerGrab (DMXInputInfo *dmxInput)
 	if (!pDevice->isMaster && pDevice->u.master)
 	    pDevice = pDevice->u.master;
 
-	if (!pDevice->button)
+	if (!IsPointerDevice (pDevice))
 	    continue;
 
 	newGrab.device = pDevice;
@@ -503,7 +506,7 @@ dmxReleaseFakePointerGrab (DMXInputInfo *dmxInput)
 	if (!pDevice->isMaster && pDevice->u.master)
 	    pDevice = pDevice->u.master;
 
-	if (!pDevice->button)
+	if (!IsPointerDevice (pDevice))
 	    continue;
 
 	dmxDeactivateFakeGrab (pDevice);
@@ -543,7 +546,7 @@ dmxFakeKeyboardGrab (DMXInputInfo *dmxInput)
 	if (!pDevice->isMaster && pDevice->u.master)
 	    pDevice = pDevice->u.master;
 
-	if (!pDevice->key)
+	if (!IsKeyboardDevice (pDevice))
 	    continue;
 
 	newGrab.device = pDevice;
@@ -567,7 +570,7 @@ dmxReleaseFakeKeyboardGrab (DMXInputInfo *dmxInput)
 	if (!pDevice->isMaster && pDevice->u.master)
 	    pDevice = pDevice->u.master;
 
-	if (!pDevice->key)
+	if (!IsKeyboardDevice (pDevice))
 	    continue;
 
 	dmxDeactivateFakeGrab (pDevice);
@@ -588,7 +591,7 @@ dmxFakeMotion (DMXInputInfo *dmxInput,
     {
 	DeviceIntPtr pDevice = dmxInput->devs[i];
 
-	if (!pDevice->button)
+	if (!IsPointerDevice (pDevice))
 	    continue;
 
 	dmxUpdateSpritePosition (pDevice, x, y);
@@ -1550,7 +1553,7 @@ dmxInputGrabKeyboard (DMXInputInfo *dmxInput,
 	if (pExtDevice->u.master != pDevice)
 	    continue;
 
-	if (!pExtDevice->key)
+	if (!IsKeyboardDevice (pExtDevice))
 	    continue;
 
 	dmxDeviceGrabKeyboard (pExtDevice, pWindow);
@@ -1571,7 +1574,7 @@ dmxInputUngrabKeyboard (DMXInputInfo *dmxInput,
 	if (pExtDevice->u.master != pDevice)
 	    continue;
 
-	if (!pExtDevice->key)
+	if (!IsKeyboardDevice (pExtDevice))
 	    continue;
 
 	dmxDeviceUngrabKeyboard (pExtDevice);
@@ -1594,7 +1597,7 @@ dmxInputGrabPointer (DMXInputInfo *dmxInput,
 	if (pExtDevice->u.master != pDevice)
 	    continue;
 
-	if (!pExtDevice->button)
+	if (!IsPointerDevice (pExtDevice))
 	    continue;
 
 	dmxDeviceGrabPointer (pExtDevice,
@@ -1618,7 +1621,7 @@ dmxInputUngrabPointer (DMXInputInfo *dmxInput,
 	if (pExtDevice->u.master != pDevice)
 	    continue;
 
-	if (!pExtDevice->button)
+	if (!IsPointerDevice (pExtDevice))
 	    continue;
 
 	dmxDeviceUngrabPointer (pExtDevice);
@@ -1642,7 +1645,7 @@ dmxInputWarpPointer (DMXInputInfo *dmxInput,
 	if (pExtDevice->u.master != pDevice)
 	    continue;
 
-	if (!pExtDevice->button)
+	if (!IsPointerDevice (pExtDevice))
 	    continue;
 
 	if (!pDevPriv->active)
@@ -2229,9 +2232,9 @@ dmxInputDisable (DMXInputInfo *dmxInput)
         dmxLogInput (dmxInput, "Disable device id %d: %s\n",
 		     dmxInput->devs[i]->id, dmxInput->devs[i]->name);
 
-	if (dmxInput->devs[i]->key)
+	if (IsKeyboardDevice (dmxInput->devs[i]))
 	    dmxUpdateKeyState (dmxInput->devs[i], state);
-	else if (dmxInput->devs[i]->button)
+	else if (IsPointerDevice (dmxInput->devs[i]))
 	    dmxUpdateButtonState (dmxInput->devs[i], state);
 
         DisableDevice (dmxInput->devs[i]);
