@@ -301,8 +301,8 @@ dmxDeactivatePointerGrab (DeviceIntPtr pDev)
 }
 
 Bool
-dmxActivateFakePointerGrab (DeviceIntPtr pDev,
-			    GrabPtr      pGrab)
+dmxActivateFakeGrab (DeviceIntPtr pDev,
+		     GrabPtr      pGrab)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
 
@@ -323,7 +323,7 @@ dmxActivateFakePointerGrab (DeviceIntPtr pDev,
 }
 
 void
-dmxDeactivateFakePointerGrab (DeviceIntPtr pDev)
+dmxDeactivateFakeGrab (DeviceIntPtr pDev)
 {
     dmxDevicePrivPtr pDevPriv = DMX_GET_DEVICE_PRIV (pDev);
 

@@ -484,7 +484,7 @@ dmxFakePointerGrab (DMXInputInfo *dmxInput)
 
 	newGrab.device = pDevice;
 
-	if (!dmxActivateFakePointerGrab (pDevice, &newGrab))
+	if (!dmxActivateFakeGrab (pDevice, &newGrab))
 	    return FALSE;
     }
 
@@ -506,7 +506,7 @@ dmxReleaseFakePointerGrab (DMXInputInfo *dmxInput)
 	if (!pDevice->button)
 	    continue;
 
-	dmxDeactivateFakePointerGrab (pDevice);
+	dmxDeactivateFakeGrab (pDevice);
     }
 }
 
