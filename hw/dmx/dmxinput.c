@@ -446,10 +446,8 @@ dmxUpdateSpritePosition (DeviceIntPtr pDevice,
     return dmxButtonEvent (pDevice, 0, x, y, XCB_MOTION_NOTIFY);
 }
 
-Bool
-dmxFakeMotion (DMXInputInfo *dmxInput,
-	       int          x,
-	       int          y)
+static Bool
+dmxFakePointerGrab (DMXInputInfo *dmxInput)
 {
     DMXScreenInfo *dmxScreen = (DMXScreenInfo *) dmxInput;
     WindowPtr     pWin = WindowTable[dmxScreen->index];
@@ -490,6 +488,38 @@ dmxFakeMotion (DMXInputInfo *dmxInput,
 	    return FALSE;
     }
 
+    return TRUE;
+}
+
+static void
+dmxReleaseFakePointerGrab (DMXInputInfo *dmxInput)
+{
+    int i;
+
+    for (i = 0; i < dmxInput->numDevs; i++)
+    {
+	DeviceIntPtr pDevice = dmxInput->devs[i];
+
+	if (!pDevice->isMaster && pDevice->u.master)
+	    pDevice = pDevice->u.master;
+
+	if (!pDevice->button)
+	    continue;
+
+	dmxDeactivateFakePointerGrab (pDevice);
+    }
+}
+
+Bool
+dmxFakeMotion (DMXInputInfo *dmxInput,
+	       int          x,
+	       int          y)
+{
+    int i;
+
+    if (!dmxFakePointerGrab (dmxInput))
+	return FALSE;
+
     for (i = 0; i < dmxInput->numDevs; i++)
     {
 	DeviceIntPtr pDevice = dmxInput->devs[i];
@@ -506,20 +536,7 @@ dmxFakeMotion (DMXInputInfo *dmxInput,
 void
 dmxEndFakeMotion (DMXInputInfo *dmxInput)
 {
-    int i;
-
-    for (i = 0; i < dmxInput->numDevs; i++)
-    {
-	DeviceIntPtr pDevice = dmxInput->devs[i];
-
-	if (!pDevice->isMaster && pDevice->u.master)
-	    pDevice = pDevice->u.master;
-
-	if (!pDevice->button)
-	    continue;
-
-	dmxDeactivateFakePointerGrab (pDevice);
-    }
+    dmxReleaseFakePointerGrab (dmxInput);
 }
 
 static void
