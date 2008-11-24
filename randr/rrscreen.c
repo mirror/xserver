@@ -314,6 +314,7 @@ ProcRRSetScreenSize (ClientPtr client)
     return Success;
 }
 
+/* This handles GetScreenResourcesCurrent too */
 int
 ProcRRGetScreenResources (ClientPtr client)
 {
@@ -339,7 +340,7 @@ ProcRRGetScreenResources (ClientPtr client)
     pScrPriv = rrGetScrPriv(pScreen);
     rep.pad = 0;
     
-    if (pScrPriv)
+    if (pScrPriv && stuff->randrReqType != X_RRGetScreenResourcesCurrent)
 	if (!RRGetInfo (pScreen))
 	    return BadAlloc;
 

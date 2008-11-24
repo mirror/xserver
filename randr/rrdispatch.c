@@ -211,5 +211,6 @@ int (*ProcRandrVector[RRNumberRequests])(ClientPtr) = {
     ProcRRGetCrtcGammaSize,	/* 22 */
     ProcRRGetCrtcGamma,		/* 23 */
     ProcRRSetCrtcGamma,		/* 24 */
+    ProcRRGetScreenResources,	/* 25 */
 };
 
