@@ -1504,13 +1504,38 @@ dmxAttachScreen (int                    idx,
     if (!beShape)
     {
 	dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
-			"SHAPE extension missing");
+			"SHAPE extension missing on back-end server");
 	dmxCloseDisplay (dmxScreen);
 
 	/* Restore the old screen */
 	*dmxScreen = oldDMXScreen;
 	return 1;
     }
+
+#ifdef COMPOSITE
+    if (!noCompositeExtension)
+    {
+	Bool beComposite = FALSE;
+	int  eventBase;
+
+	XLIB_PROLOGUE (dmxScreen);
+	beComposite = XCompositeQueryExtension (dmxScreen->beDisplay,
+						&eventBase,
+						&errorBase);
+	XLIB_EPILOGUE (dmxScreen);
+
+	if (!beComposite)
+	{
+	    dmxLogErrorSet (dmxWarning, errorSet, error, errorName,
+			    "Composite extension missing on back-end server");
+	    dmxCloseDisplay (dmxScreen);
+
+	    /* Restore the old screen */
+	    *dmxScreen = oldDMXScreen;
+	    return 1;
+	}
+    }
+#endif
 
     if (!dmxScreen->scrnWin)
 	dmxScreen->scrnWin = DefaultRootWindow (dmxScreen->beDisplay);
