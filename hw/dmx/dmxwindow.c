@@ -141,7 +141,9 @@ Window dmxCreateRootWindow(WindowPtr pWindow)
     XLIB_PROLOGUE (dmxScreen);
     win = XCreateWindow(dmxScreen->beDisplay,
 			parent,
+			dmxScreen->rootX +
 			pWindow->origin.x - wBorderWidth(pWindow),
+			dmxScreen->rootY +
 			pWindow->origin.y - wBorderWidth(pWindow),
 			w,
 			h,

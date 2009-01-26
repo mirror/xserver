@@ -1622,6 +1622,9 @@ dmxAttachScreen (int                    idx,
     dmxScreen->beAttachedDisplay = dmxScreen->beDisplay;
     dmxScreen->beDisplay = NULL;
 
+    dmxScreen->rootX = attr->rootWindowXoffset;
+    dmxScreen->rootY = attr->rootWindowYoffset;
+
     return 0; /* Success */
 }
 

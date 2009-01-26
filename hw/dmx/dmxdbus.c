@@ -137,33 +137,21 @@ disable_screen (DBusMessage *message,
 }
 
 static int
-attach_screen (DBusMessage *message,
+attach_screen (uint32_t    window,
+	       uint32_t    screen,
+	       uint32_t    auth_type_len,
+	       uint32_t    auth_data_len,
+	       const char  *display,
+	       const char  *auth_type,
+	       const char  *auth_data,
+	       const char  *name,
+	       int32_t     x,
+	       int32_t     y,
 	       DBusMessage *reply,
 	       DBusError   *error)
 {
     DMXScreenAttributesRec attr;
-    uint32_t               window, screen, auth_type_len, auth_data_len;
-    char                   *display, *auth_type, *auth_data, *name;
     int                    ret;
-
-    if (!dbus_message_get_args (message, error,
-				DBUS_TYPE_UINT32,
-				&screen,
-				DBUS_TYPE_STRING,
-				&display,
-				DBUS_TYPE_STRING,
-				&name,
-				DBUS_TYPE_UINT32,
-				&window,
-				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
-				&auth_type, &auth_type_len,
-				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
-				&auth_data, &auth_data_len,
-				DBUS_TYPE_INVALID))
-    {
-	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
-	return BadValue;
-    }
 
     if (!*name)
     {
@@ -194,8 +182,10 @@ attach_screen (DBusMessage *message,
 
     memset (&attr, 0, sizeof (attr));
 
-    attr.name        = name;
-    attr.displayName = display;
+    attr.name              = name;
+    attr.displayName       = display;
+    attr.rootWindowXoffset = x;
+    attr.rootWindowYoffset = y;
 
     ret = dmxAttachScreen (screen,
 			   &attr,
@@ -215,6 +205,83 @@ attach_screen (DBusMessage *message,
     }
 
     return Success;
+}
+
+static int
+attach_screen_without_offset (DBusMessage *message,
+			      DBusMessage *reply,
+			      DBusError   *error)
+{
+    uint32_t window, screen, auth_type_len, auth_data_len;
+    char     *display, *auth_type, *auth_data, *name;
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_STRING,
+				&display,
+				DBUS_TYPE_STRING,
+				&name,
+				DBUS_TYPE_UINT32,
+				&window,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_type, &auth_type_len,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_data, &auth_data_len,
+				DBUS_TYPE_INVALID))
+    {
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
+    }
+
+    return attach_screen (window, screen,
+			  auth_type_len, auth_data_len,
+			  display,
+			  auth_type, auth_data,
+			  name,
+			  0, 0,
+			  reply, error);
+}
+
+static int
+attach_screen_with_offset (DBusMessage *message,
+			   DBusMessage *reply,
+			   DBusError   *error)
+{
+    uint32_t window, screen, auth_type_len, auth_data_len;
+    int32_t  x, y;
+    char     *display, *auth_type, *auth_data, *name;
+
+    if (!dbus_message_get_args (message, error,
+				DBUS_TYPE_UINT32,
+				&screen,
+				DBUS_TYPE_STRING,
+				&display,
+				DBUS_TYPE_STRING,
+				&name,
+				DBUS_TYPE_UINT32,
+				&window,
+				DBUS_TYPE_INT32,
+				&x,
+				DBUS_TYPE_INT32,
+				&y,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_type, &auth_type_len,
+				DBUS_TYPE_ARRAY,  DBUS_TYPE_BYTE,
+				&auth_data, &auth_data_len,
+				DBUS_TYPE_INVALID))
+    {
+	DebugF (MALFORMED_MSG ": %s, %s", error->name, error->message);
+	return BadValue;
+    }
+
+    return attach_screen (window, screen,
+			  auth_type_len, auth_data_len,
+			  display,
+			  auth_type, auth_data,
+			  name,
+			  x, y,
+			  reply, error);
 }
 
 static int
@@ -425,7 +492,9 @@ message_handler (DBusConnection *connection,
     else if (strcmp (dbus_message_get_member (message), "disableScreen") == 0)
         err = disable_screen (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "attachScreen") == 0)
-        err = attach_screen (message, reply, &error);
+        err = attach_screen_without_offset (message, reply, &error);
+    else if (strcmp (dbus_message_get_member (message), "attachScreenAt") == 0)
+        err = attach_screen_with_offset (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "detachScreen") == 0)
         err = detach_screen (message, reply, &error);
     else if (strcmp (dbus_message_get_member (message), "addInput") == 0)

@@ -710,7 +710,9 @@ dmxRRScreenSetSize (ScreenPtr pScreen,
 	int i;
 
 	for (i = 0; i < dmxNumScreens; i++)
-	    dmxResizeRootWindow (WindowTable[i], 0, 0, width, height);
+	    dmxResizeRootWindow (WindowTable[i],
+				 dmxScreens[i].rootX, dmxScreens[i].rootY,
+				 width, height);
 
 	for (i = 0; i < dmxNumScreens; i++)
 	    dmxUpdateScreenResources (screenInfo.screens[i],
@@ -723,7 +725,10 @@ dmxRRScreenSetSize (ScreenPtr pScreen,
     else
 #endif
     {
-	dmxResizeRootWindow (WindowTable[pScreen->myNum], 0, 0, width, height);
+	dmxResizeRootWindow (WindowTable[pScreen->myNum],
+			     dmxScreens[pScreen->myNum].rootX,
+			     dmxScreens[pScreen->myNum].rootY,
+			     width, height);
 	dmxUpdateScreenResources (pScreen, 0, 0, width, height);
     }
 
