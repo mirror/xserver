@@ -74,7 +74,7 @@ typedef void		(*DRI2DestroyBufferProcPtr)(DrawablePtr pDraw,
 /**
  * Version of the DRI2InfoRec structure defined in this header
  */
-#define DRI2INFOREC_VERSION 3
+#define DRI2INFOREC_VERSION 4
 
 typedef struct {
     unsigned int version;	/**< Version of this struct */
