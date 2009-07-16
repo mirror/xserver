@@ -330,6 +330,24 @@ ProcDRI2CopyRegion(ClientPtr client)
 }
 
 static int
+ProcDRI2SwapBuffers(ClientPtr client)
+{
+    REQUEST(xDRI2SwapBuffersReq);
+    DrawablePtr pDrawable;
+    int status;
+
+    REQUEST_SIZE_MATCH(xDRI2SwapBuffersReq);
+
+    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+	return status;
+
+    if (!DRI2SwapBuffers(pDrawable))
+	return BadAlloc;
+
+    return client->noClientException;
+}
+
+static int
 ProcDRI2Dispatch (ClientPtr client)
 {
     REQUEST(xReq);
@@ -357,6 +375,8 @@ ProcDRI2Dispatch (ClientPtr client)
 	return ProcDRI2CopyRegion(client);
     case X_DRI2GetBuffersWithFormat:
 	return ProcDRI2GetBuffersWithFormat(client);
+    case X_DRI2SwapBuffers:
+	return ProcDRI2SwapBuffers(client);
     default:
 	return BadRequest;
     }

@@ -70,6 +70,7 @@ struct __GLXDRIscreen {
 
     const __DRIcoreExtension *core;
     const __DRIdri2Extension *dri2;
+    const __DRI2flushExtension *flush;
     const __DRIcopySubBufferExtension *copySubBuffer;
     const __DRIswapControlExtension *swapControl;
     const __DRItexBufferExtension *texBuffer;
@@ -132,17 +133,6 @@ __glXDRIdrawableCopySubBuffer(__GLXdrawable *drawable,
 		   DRI2BufferFrontLeft, DRI2BufferBackLeft);
 }
 
-static GLboolean
-__glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
-{
-    __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
-
-    __glXDRIdrawableCopySubBuffer(drawable, 0, 0,
-				  private->width, private->height);
-
-    return TRUE;
-}
-
 static void
 __glXDRIdrawableWaitX(__GLXdrawable *drawable)
 {
@@ -175,6 +165,20 @@ __glXDRIdrawableWaitGL(__GLXdrawable *drawable)
 
     DRI2CopyRegion(drawable->pDraw, &region,
 		   DRI2BufferFrontLeft, DRI2BufferFakeFrontLeft);
+}
+
+static GLboolean
+__glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
+{
+    __GLXDRIdrawable *priv = (__GLXDRIdrawable *) drawable;
+    __GLXDRIscreen *screen = priv->screen;
+
+    if (!DRI2SwapBuffers(drawable->pDraw))
+	return FALSE;
+
+    (*screen->flush->flushInvalidate)(priv->driDrawable);
+
+    return TRUE;
 }
 
 static int
@@ -642,6 +646,10 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
         if (strcmp(extensions[i]->name, __DRI_DRI2) == 0 &&
 	    extensions[i]->version >= __DRI_DRI2_VERSION) {
 		screen->dri2 = (const __DRIdri2Extension *) extensions[i];
+	}
+	if (strcmp(extensions[i]->name, __DRI2_FLUSH) == 0 &&
+	    extensions[i]->version >= __DRI2_FLUSH_VERSION) {
+		screen->flush = (__DRI2flushExtension *) extensions[i];
 	}
     }
 

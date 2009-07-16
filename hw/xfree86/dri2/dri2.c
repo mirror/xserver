@@ -68,6 +68,7 @@ typedef struct _DRI2Screen {
     DRI2CreateBufferProcPtr	 CreateBuffer;
     DRI2DestroyBufferProcPtr	 DestroyBuffer;
     DRI2CopyRegionProcPtr	 CopyRegion;
+    DRI2SwapBuffersProcPtr	 SwapBuffers;
 
     HandleExposuresProcPtr       HandleExposures;
 } DRI2ScreenRec, *DRI2ScreenPtr;
@@ -338,6 +339,46 @@ DRI2CopyRegion(DrawablePtr pDraw, RegionPtr pRegion,
     return Success;
 }
 
+Bool
+DRI2SwapBuffers(DrawablePtr pDraw)
+{
+    DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
+    DRI2DrawablePtr pPriv;
+    DRI2BufferPtr   pDestBuffer, pSrcBuffer;
+    int		    i;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return FALSE;
+
+    pDestBuffer = NULL;
+    pSrcBuffer = NULL;
+    for (i = 0; i < pPriv->bufferCount; i++)
+    {
+	if (pPriv->buffers[i]->attachment == DRI2BufferFrontLeft)
+	    pDestBuffer = pPriv->buffers[i];
+	if (pPriv->buffers[i]->attachment == DRI2BufferBackLeft)
+	    pSrcBuffer = pPriv->buffers[i];
+    }
+    if (pSrcBuffer == NULL || pDestBuffer == NULL)
+	return FALSE;
+
+    if (!(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer)) {
+	BoxRec box;
+	RegionRec region;
+
+	box.x1 = 0;
+	box.y1 = 0;
+	box.x2 = pDraw->width;
+	box.y2 = pDraw->height;
+	REGION_INIT(drawable->pDraw->pScreen, &region, &box, 0);
+	if (DRI2CopyRegion(pDraw, &region, DRI2BufferFrontLeft, DRI2BufferBackLeft) != Success)
+	    return FALSE;
+    }
+
+    return TRUE;
+}
+
 void
 DRI2DestroyDrawable(DrawablePtr pDraw)
 {
@@ -421,7 +462,7 @@ DRI2ScreenInit(ScreenPtr pScreen, DRI2InfoPtr info)
         return FALSE;
     }
 
-    ds = xalloc(sizeof *ds);
+    ds = xcalloc(1, sizeof *ds);
     if (!ds)
 	return FALSE;
 
@@ -432,6 +473,9 @@ DRI2ScreenInit(ScreenPtr pScreen, DRI2InfoPtr info)
     ds->CreateBuffer   = info->CreateBuffer;
     ds->DestroyBuffer  = info->DestroyBuffer;
     ds->CopyRegion     = info->CopyRegion;
+
+    if (info->version >= 4)
+	ds->SwapBuffers = info->SwapBuffers;
 
     dixSetPrivate(&pScreen->devPrivates, dri2ScreenPrivateKey, ds);
 

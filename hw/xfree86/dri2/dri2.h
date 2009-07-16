@@ -58,6 +58,9 @@ typedef void		(*DRI2CopyRegionProcPtr)(DrawablePtr pDraw,
 						 RegionPtr pRegion,
 						 DRI2BufferPtr pDestBuffer,
 						 DRI2BufferPtr pSrcBuffer);
+typedef Bool		(*DRI2SwapBuffersProcPtr)(DrawablePtr pDraw,
+						  DRI2BufferPtr pFrontBuffer,
+						  DRI2BufferPtr pBackBuffer);
 
 typedef void		(*DRI2WaitProcPtr)(WindowPtr pWin,
 					   unsigned int sequence);
@@ -82,7 +85,7 @@ typedef struct {
     DRI2CreateBufferProcPtr	CreateBuffer;
     DRI2DestroyBufferProcPtr	DestroyBuffer;
     DRI2CopyRegionProcPtr	CopyRegion;
-    DRI2WaitProcPtr		Wait;
+    DRI2SwapBuffersProcPtr	SwapBuffers;
 
 }  DRI2InfoRec, *DRI2InfoPtr;
 
@@ -136,5 +139,7 @@ extern _X_EXPORT void DRI2Version(int *major, int *minor);
 extern _X_EXPORT DRI2BufferPtr *DRI2GetBuffersWithFormat(DrawablePtr pDraw,
 	int *width, int *height, unsigned int *attachments, int count,
 	int *out_count);
+
+extern _X_EXPORT Bool DRI2SwapBuffers(DrawablePtr pDraw);
 
 #endif
