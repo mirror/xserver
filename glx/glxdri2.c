@@ -173,10 +173,10 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
     __GLXDRIdrawable *priv = (__GLXDRIdrawable *) drawable;
     __GLXDRIscreen *screen = priv->screen;
 
+    (*screen->flush->flushInvalidate)(priv->driDrawable);
+
     if (!DRI2SwapBuffers(drawable->pDraw))
 	return FALSE;
-
-    (*screen->flush->flushInvalidate)(priv->driDrawable);
 
     return TRUE;
 }
@@ -585,6 +585,14 @@ initializeExtensions(__GLXDRIscreen *screen)
 	    LogMessage(X_INFO, "AIGLX: GLX_EXT_texture_from_pixmap backed by buffer objects\n");
 	}
 #endif
+
+#ifdef __DRI2_FLUSH
+	if (strcmp(extensions[i]->name, __DRI2_FLUSH) == 0 &&
+	    extensions[i]->version >= __DRI2_FLUSH_VERSION) {
+		screen->flush = (__DRI2flushExtension *) extensions[i];
+	}
+#endif
+
 	/* Ignore unknown extensions */
     }
 }
@@ -646,10 +654,6 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
         if (strcmp(extensions[i]->name, __DRI_DRI2) == 0 &&
 	    extensions[i]->version >= __DRI_DRI2_VERSION) {
 		screen->dri2 = (const __DRIdri2Extension *) extensions[i];
-	}
-	if (strcmp(extensions[i]->name, __DRI2_FLUSH) == 0 &&
-	    extensions[i]->version >= __DRI2_FLUSH_VERSION) {
-		screen->flush = (__DRI2flushExtension *) extensions[i];
 	}
     }
 
