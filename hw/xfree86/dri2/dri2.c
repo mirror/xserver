@@ -394,7 +394,7 @@ DRI2SwapBuffers(DrawablePtr pDraw)
 	return BadValue;
 
     if (DRI2FlipCheck(pDraw) &&
-	(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer))
+	(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer, pPriv))
     {
 	pPriv->swapPending = TRUE;
 	return Success;
@@ -430,15 +430,18 @@ DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable)
 }
 
 void
-DRI2SwapComplete(DrawablePtr pDrawable)
+DRI2SwapComplete(void *data)
 {
-    DRI2DrawablePtr pPriv = DRI2GetDrawable(pDrawable);
+    DRI2DrawablePtr pPriv = data;
 
     if (pPriv->blockedClient)
 	AttendClient(pPriv->blockedClient);
 
     pPriv->swapPending = FALSE;
     pPriv->blockedClient = NULL;
+
+    if (pPriv->refCount == 0)
+	xfree(pPriv);
 }
 
 void
@@ -466,7 +469,11 @@ DRI2DestroyDrawable(DrawablePtr pDraw)
 	xfree(pPriv->buffers);
     }
 
-    xfree(pPriv);
+    /* If the window is destroyed while we have a swap pending, don't
+     * actually free the priv yet.  We'll need it in the DRI2SwapComplete()
+     * callback and we'll free it there once we're done. */
+    if (!pPriv->swapPending)
+	xfree(pPriv);
 
     if (pDraw->type == DRAWABLE_WINDOW)
     {
