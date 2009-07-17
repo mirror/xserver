@@ -175,7 +175,7 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
 
     (*screen->flush->flushInvalidate)(priv->driDrawable);
 
-    if (!DRI2SwapBuffers(drawable->pDraw))
+    if (DRI2SwapBuffers(drawable->pDraw) != Success)
 	return FALSE;
 
     return TRUE;

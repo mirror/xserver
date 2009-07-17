@@ -259,6 +259,9 @@ ProcDRI2GetBuffers(ClientPtr client)
 		       &pDrawable, &status))
 	return status;
 
+    if (DRI2WaitSwap(client, pDrawable))
+	return client->noClientException;
+
     attachments = (unsigned int *) &stuff[1];
     buffers = DRI2GetBuffers(pDrawable, &width, &height,
 			     attachments, stuff->count, &count);
@@ -282,6 +285,9 @@ ProcDRI2GetBuffersWithFormat(ClientPtr client)
     if (!validDrawable(client, stuff->drawable, DixReadAccess | DixWriteAccess,
 		       &pDrawable, &status))
 	return status;
+
+    if (DRI2WaitSwap(client, pDrawable))
+	return client->noClientException;
 
     attachments = (unsigned int *) &stuff[1];
     buffers = DRI2GetBuffersWithFormat(pDrawable, &width, &height,
@@ -341,10 +347,7 @@ ProcDRI2SwapBuffers(ClientPtr client)
     if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
 	return status;
 
-    if (!DRI2SwapBuffers(pDrawable))
-	return BadAlloc;
-
-    return client->noClientException;
+    return DRI2SwapBuffers(pDrawable);
 }
 
 static int

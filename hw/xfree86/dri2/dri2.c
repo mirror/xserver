@@ -38,6 +38,7 @@
 #include "xf86Module.h"
 #include "scrnintstr.h"
 #include "windowstr.h"
+#include "dixstruct.h"
 #include "dri2.h"
 #include "xf86VGAarbiter.h"
 
@@ -56,7 +57,8 @@ typedef struct _DRI2Drawable {
     int			 height;
     DRI2BufferPtr	*buffers;
     int			 bufferCount;
-    unsigned int	 pendingSequence;
+    unsigned int	 swapPending;
+    ClientPtr		 blockedClient;
 } DRI2DrawableRec, *DRI2DrawablePtr;
 
 typedef struct _DRI2Screen {
@@ -120,6 +122,8 @@ DRI2CreateDrawable(DrawablePtr pDraw)
     pPriv->height = pDraw->height;
     pPriv->buffers = NULL;
     pPriv->bufferCount = 0;
+    pPriv->swapPending = FALSE;
+    pPriv->blockedClient = NULL;
 
     if (pDraw->type == DRAWABLE_WINDOW)
     {
@@ -339,17 +343,43 @@ DRI2CopyRegion(DrawablePtr pDraw, RegionPtr pRegion,
     return Success;
 }
 
-Bool
+static Bool
+DRI2FlipCheck(DrawablePtr pDraw)
+{
+    ScreenPtr pScreen = pDraw->pScreen;
+    WindowPtr pWin;
+    PixmapPtr pWinPixmap;
+
+    if (pDraw->type == DRAWABLE_PIXMAP)
+	return TRUE;
+
+    pWin = (WindowPtr) pDraw;
+    pWinPixmap = pScreen->GetWindowPixmap(pWin);
+    if (pDraw->width != pWinPixmap->drawable.width)
+	return FALSE;
+    if (pDraw->height != pWinPixmap->drawable.height)
+	return FALSE;
+    if (pDraw->depth != pWinPixmap->drawable.depth)
+	return FALSE;
+    if (!REGION_EQUAL(pScreen, &pWin->clipList, &pWin->winSize))
+	return FALSE;
+
+    return TRUE;
+}
+
+int
 DRI2SwapBuffers(DrawablePtr pDraw)
 {
     DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
     DRI2DrawablePtr pPriv;
     DRI2BufferPtr   pDestBuffer, pSrcBuffer;
     int		    i;
+    BoxRec	    box;
+    RegionRec	    region;
 
     pPriv = DRI2GetDrawable(pDraw);
     if (pPriv == NULL)
-	return FALSE;
+	return BadDrawable;
 
     pDestBuffer = NULL;
     pSrcBuffer = NULL;
@@ -361,22 +391,54 @@ DRI2SwapBuffers(DrawablePtr pDraw)
 	    pSrcBuffer = pPriv->buffers[i];
     }
     if (pSrcBuffer == NULL || pDestBuffer == NULL)
-	return FALSE;
+	return BadValue;
 
-    if (!(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer)) {
-	BoxRec box;
-	RegionRec region;
-
-	box.x1 = 0;
-	box.y1 = 0;
-	box.x2 = pDraw->width;
-	box.y2 = pDraw->height;
-	REGION_INIT(drawable->pDraw->pScreen, &region, &box, 0);
-	if (DRI2CopyRegion(pDraw, &region, DRI2BufferFrontLeft, DRI2BufferBackLeft) != Success)
-	    return FALSE;
+    if (DRI2FlipCheck(pDraw) &&
+	(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer))
+    {
+	pPriv->swapPending = TRUE;
+	return Success;
     }
 
-    return TRUE;
+    box.x1 = 0;
+    box.y1 = 0;
+    box.x2 = pDraw->width;
+    box.y2 = pDraw->height;
+    REGION_INIT(drawable->pDraw->pScreen, &region, &box, 0);
+    
+    return DRI2CopyRegion(pDraw, &region,
+			  DRI2BufferFrontLeft, DRI2BufferBackLeft);
+}
+
+Bool
+DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable)
+{
+    DRI2DrawablePtr pPriv = DRI2GetDrawable(pDrawable);
+
+    /* If we're currently waiting for a swap on this drawable, reset
+     * the request and suspend the client.  We only support one
+     * blocked client per drawable. */
+    if (pPriv->swapPending && pPriv->blockedClient == NULL) {
+	ResetCurrentRequest(client);
+	client->sequence--;
+	IgnoreClient(client);
+	pPriv->blockedClient = client;
+	return TRUE;
+    }
+
+    return FALSE;
+}
+
+void
+DRI2SwapComplete(DrawablePtr pDrawable)
+{
+    DRI2DrawablePtr pPriv = DRI2GetDrawable(pDrawable);
+
+    if (pPriv->blockedClient)
+	AttendClient(pPriv->blockedClient);
+
+    pPriv->swapPending = FALSE;
+    pPriv->blockedClient = NULL;
 }
 
 void

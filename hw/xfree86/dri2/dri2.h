@@ -140,6 +140,8 @@ extern _X_EXPORT DRI2BufferPtr *DRI2GetBuffersWithFormat(DrawablePtr pDraw,
 	int *width, int *height, unsigned int *attachments, int count,
 	int *out_count);
 
-extern _X_EXPORT Bool DRI2SwapBuffers(DrawablePtr pDraw);
+extern _X_EXPORT int DRI2SwapBuffers(DrawablePtr pDraw);
+extern _X_EXPORT Bool DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable);
+extern _X_EXPORT void DRI2SwapComplete(DrawablePtr pDrawable);
 
 #endif
