@@ -347,21 +347,20 @@ static Bool
 DRI2FlipCheck(DrawablePtr pDraw)
 {
     ScreenPtr pScreen = pDraw->pScreen;
-    WindowPtr pWin;
-    PixmapPtr pWinPixmap;
+    WindowPtr pWin, pRoot;
+    PixmapPtr pWinPixmap, pRootPixmap;
 
     if (pDraw->type == DRAWABLE_PIXMAP)
 	return TRUE;
 
+    pRoot = WindowTable[pScreen->myNum];
+    pRootPixmap = pScreen->GetWindowPixmap(pRoot);
+
     pWin = (WindowPtr) pDraw;
     pWinPixmap = pScreen->GetWindowPixmap(pWin);
-    if (pDraw->width != pWinPixmap->drawable.width)
+    if (pRootPixmap != pWinPixmap)
 	return FALSE;
-    if (pDraw->height != pWinPixmap->drawable.height)
-	return FALSE;
-    if (pDraw->depth != pWinPixmap->drawable.depth)
-	return FALSE;
-    if (!REGION_EQUAL(pScreen, &pWin->clipList, &pWin->winSize))
+    if (!REGION_EQUAL(pScreen, &pWin->clipList, &pRoot->winSize))
 	return FALSE;
 
     return TRUE;
