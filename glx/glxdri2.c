@@ -245,6 +245,18 @@ __glXDRIcontextForceCurrent(__GLXcontext *baseContext)
 					read->driDrawable);
 }
 
+static Bool
+__glXDRIcontextWait(__GLXcontext *baseContext,
+		    __GLXclientState *cl, int *error)
+{
+    if (DRI2WaitSwap(cl->client, baseContext->drawPriv->pDraw)) {
+	*error = cl->client->noClientException;
+	return TRUE;
+    }
+
+    return FALSE;
+}
+
 #ifdef __DRI_TEX_BUFFER
 
 static int
@@ -350,6 +362,7 @@ __glXDRIscreenCreateContext(__GLXscreen *baseScreen,
     context->base.copy              = __glXDRIcontextCopy;
     context->base.forceCurrent      = __glXDRIcontextForceCurrent;
     context->base.textureFromPixmap = &__glXDRItextureFromPixmap;
+    context->base.wait              = __glXDRIcontextWait;
 
     context->driContext =
 	(*screen->dri2->createNewContext)(screen->driScreen,
