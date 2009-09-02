@@ -57,15 +57,28 @@ typedef struct _DRI2Drawable {
     int			 height;
     DRI2BufferPtr	*buffers;
     int			 bufferCount;
-    unsigned int	 swapPending;
+    unsigned int	 swapsPending;
+    unsigned int	 flipsPending;
     ClientPtr		 blockedClient;
 } DRI2DrawableRec, *DRI2DrawablePtr;
+
+typedef struct _DRI2Screen *DRI2ScreenPtr;
+typedef struct _DRI2SwapData *DRI2SwapDataPtr;
+
+typedef struct _DRI2SwapData {
+    DrawablePtr		 pDraw;
+    ScreenPtr		 pScreen;
+    int			 frame;
+    DRI2SwapDataPtr	 next;
+} DRI2SwapDataRec;
 
 typedef struct _DRI2Screen {
     const char			*driverName;
     const char			*deviceName;
     int				 fd;
     unsigned int		 lastSequence;
+    drmEventContext		 event_context;
+    DRI2SwapDataPtr		 swaps;	    /* Pending swap list */
 
     DRI2CreateBufferProcPtr	 CreateBuffer;
     DRI2DestroyBufferProcPtr	 DestroyBuffer;
@@ -73,7 +86,7 @@ typedef struct _DRI2Screen {
     DRI2SwapBuffersProcPtr	 SwapBuffers;
 
     HandleExposuresProcPtr       HandleExposures;
-} DRI2ScreenRec, *DRI2ScreenPtr;
+} DRI2ScreenRec;
 
 static DRI2ScreenPtr
 DRI2GetScreen(ScreenPtr pScreen)
@@ -86,6 +99,9 @@ DRI2GetDrawable(DrawablePtr pDraw)
 {
     WindowPtr		  pWin;
     PixmapPtr		  pPixmap;
+
+    if (!pDraw)
+	return NULL;
 
     if (pDraw->type == DRAWABLE_WINDOW)
     {
@@ -122,7 +138,8 @@ DRI2CreateDrawable(DrawablePtr pDraw)
     pPriv->height = pDraw->height;
     pPriv->buffers = NULL;
     pPriv->bufferCount = 0;
-    pPriv->swapPending = FALSE;
+    pPriv->swapsPending = 0;
+    pPriv->flipsPending = 0;
     pPriv->blockedClient = NULL;
 
     if (pDraw->type == DRAWABLE_WINDOW)
@@ -366,19 +383,64 @@ DRI2FlipCheck(DrawablePtr pDraw)
     return TRUE;
 }
 
-int
-DRI2SwapBuffers(DrawablePtr pDraw)
+static Bool DRI2AddSwap(DrawablePtr pDraw, int frame)
 {
     DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
     DRI2DrawablePtr pPriv;
-    DRI2BufferPtr   pDestBuffer, pSrcBuffer;
-    int		    i;
-    BoxRec	    box;
-    RegionRec	    region;
+    DRI2SwapDataPtr new;
 
     pPriv = DRI2GetDrawable(pDraw);
     if (pPriv == NULL)
-	return BadDrawable;
+	return FALSE;
+
+    new = xcalloc(1, sizeof(DRI2SwapDataRec));
+    if (!new)
+	return FALSE;
+
+    new->pScreen = pDraw->pScreen;
+    new->pDraw = pDraw;
+    new->frame = frame;
+    new->next = ds->swaps;
+    ds->swaps = new;
+
+    return TRUE;
+}
+
+static void DRI2RemoveSwap(DRI2SwapDataPtr swap)
+{
+    ScreenPtr	    pScreen = swap->pScreen;
+    DRI2ScreenPtr   ds = DRI2GetScreen(pScreen);
+    DRI2SwapDataPtr cur = ds->swaps;
+
+    while (cur) {
+	if (cur == swap) {
+	    cur->next = swap->next;
+	    xfree(swap);
+	}
+	cur = cur->next;
+    }
+}
+
+static void
+DRI2SwapSubmit(DRI2SwapDataPtr swap)
+{
+    DrawablePtr	    pDraw = swap->pDraw;
+    ScreenPtr	    pScreen = swap->pScreen;
+    DRI2ScreenPtr   ds = DRI2GetScreen(pScreen);
+    DRI2DrawablePtr pPriv;
+    DRI2BufferPtr   pDestBuffer, pSrcBuffer;
+    BoxRec	    box;
+    RegionRec	    region;
+    int             ret, i;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return;
+
+    if (pPriv->refCount == 0) {
+	xfree(pPriv);
+	return;
+    }
 
     pDestBuffer = NULL;
     pSrcBuffer = NULL;
@@ -390,23 +452,97 @@ DRI2SwapBuffers(DrawablePtr pDraw)
 	    pSrcBuffer = pPriv->buffers[i];
     }
     if (pSrcBuffer == NULL || pDestBuffer == NULL)
-	return BadValue;
+	return;
 
-    if (DRI2FlipCheck(pDraw) &&
-	(*ds->SwapBuffers)(pDraw, pDestBuffer, pSrcBuffer, pPriv))
-    {
-	pPriv->swapPending = TRUE;
-	return Success;
+    /* Ask the driver for a flip */
+    if (pPriv->flipsPending) {
+	pPriv->flipsPending--;
+	ret = (*ds->SwapBuffers)(pScreen, pDestBuffer, pSrcBuffer, pPriv);
+	if (ret == TRUE)
+	    return;
+
+	pPriv->swapsPending++;
+	/* Schedule a copy for the next frame here? */
     }
 
+    /* Swaps need a copy when we get the vblank event */
     box.x1 = 0;
     box.y1 = 0;
-    box.x2 = pDraw->width;
-    box.y2 = pDraw->height;
-    REGION_INIT(drawable->pDraw->pScreen, &region, &box, 0);
-    
-    return DRI2CopyRegion(pDraw, &region,
-			  DRI2BufferFrontLeft, DRI2BufferBackLeft);
+    box.x2 = pPriv->width;
+    box.y2 = pPriv->height;
+    REGION_INIT(pScreen, &region, &box, 0);
+
+    DRI2CopyRegion(pDraw, &region,
+		   DRI2BufferFrontLeft, DRI2BufferBackLeft);
+    pPriv->swapsPending--;
+
+    DRI2SwapComplete(pPriv);
+}
+
+static void drm_vblank_handler(int fd, unsigned int frame, unsigned int tv_sec,
+			       unsigned int tv_usec, void *user_data)
+{
+    DRI2ScreenPtr ds = user_data;
+    DRI2SwapDataPtr cur = ds->swaps;
+
+    while (cur) {
+	if (cur->frame == frame) {
+	    DRI2SwapSubmit(cur);
+	    DRI2RemoveSwap(cur);
+	}
+	cur = cur->next;
+    }
+}
+
+static void
+drm_wakeup_handler(pointer data, int err, pointer p)
+{
+    DRI2ScreenPtr ds = data;
+    fd_set *read_mask = p;
+
+    if (err >= 0 && FD_ISSET(ds->fd, read_mask))
+	drmHandleEvent(ds->fd, &ds->event_context);
+}
+
+int
+DRI2SwapBuffers(DrawablePtr pDraw, int interval)
+{
+    DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
+    DRI2DrawablePtr pPriv;
+    drmVBlank       vbl;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return BadDrawable;
+
+    vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT;
+
+    if (DRI2FlipCheck(pDraw)) {
+	/*
+	 * Flips schedule for the next vblank, so we need to schedule them at
+	 * frame - 1 to honor the swap interval.
+	 */
+	pPriv->flipsPending++;
+	if (interval > 1) {
+	    vbl.request.sequence = interval - 1;
+	    /* fixme: prevent cliprect changes between now and the flip */
+	} else {
+	    DRI2SwapComplete(pPriv);
+	    return Success;
+	}
+    } else {
+	pPriv->swapsPending++;
+	vbl.request.sequence = interval;
+    }
+
+    /* fixme: get correct crtc for this drawable */
+    drmWaitVBlank(ds->fd, &vbl);
+
+    /* Request an event for the requested frame */
+    if (!DRI2AddSwap(pDraw, vbl.reply.sequence))
+	return BadValue;
+
+    return Success;
 }
 
 Bool
@@ -417,7 +553,8 @@ DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable)
     /* If we're currently waiting for a swap on this drawable, reset
      * the request and suspend the client.  We only support one
      * blocked client per drawable. */
-    if (pPriv->swapPending && pPriv->blockedClient == NULL) {
+    if ((pPriv->swapsPending || pPriv->flipsPending) &&
+	pPriv->blockedClient == NULL) {
 	ResetCurrentRequest(client);
 	client->sequence--;
 	IgnoreClient(client);
@@ -428,19 +565,15 @@ DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable)
     return FALSE;
 }
 
-void
-DRI2SwapComplete(void *data)
+/* Wake up clients waiting for flip/swap completion */
+void DRI2SwapComplete(void *data)
 {
     DRI2DrawablePtr pPriv = data;
 
     if (pPriv->blockedClient)
 	AttendClient(pPriv->blockedClient);
 
-    pPriv->swapPending = FALSE;
     pPriv->blockedClient = NULL;
-
-    if (pPriv->refCount == 0)
-	xfree(pPriv);
 }
 
 void
@@ -471,7 +604,7 @@ DRI2DestroyDrawable(DrawablePtr pDraw)
     /* If the window is destroyed while we have a swap pending, don't
      * actually free the priv yet.  We'll need it in the DRI2SwapComplete()
      * callback and we'll free it there once we're done. */
-    if (!pPriv->swapPending)
+    if (!pPriv->swapsPending && !pPriv->flipsPending)
 	xfree(pPriv);
 
     if (pDraw->type == DRAWABLE_WINDOW)
@@ -544,6 +677,13 @@ DRI2ScreenInit(ScreenPtr pScreen, DRI2InfoPtr info)
 
     if (info->version >= 4)
 	ds->SwapBuffers = info->SwapBuffers;
+
+    ds->event_context.version = DRM_EVENT_CONTEXT_VERSION;
+    ds->event_context.vblank_handler = drm_vblank_handler;
+
+    AddGeneralSocket(ds->fd);
+    RegisterBlockAndWakeupHandlers((BlockHandlerProcPtr)NoopDDA,
+				   drm_wakeup_handler, ds);
 
     dixSetPrivate(&pScreen->devPrivates, dri2ScreenPrivateKey, ds);
 

@@ -347,7 +347,7 @@ ProcDRI2SwapBuffers(ClientPtr client)
     if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
 	return status;
 
-    return DRI2SwapBuffers(pDrawable);
+    return DRI2SwapBuffers(pDrawable, 0); /* get swap interval... */
 }
 
 static int

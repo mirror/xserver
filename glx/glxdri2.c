@@ -167,15 +167,25 @@ __glXDRIdrawableWaitGL(__GLXdrawable *drawable)
 		   DRI2BufferFrontLeft, DRI2BufferFakeFrontLeft);
 }
 
+/*
+ * Copy or flip back to front, honoring the swap interval if possible.
+ *
+ * If the kernel supports it, we request an event for the frame when the
+ * swap should happen, then perform the copy when we receive it.
+ */
 static GLboolean
 __glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
 {
     __GLXDRIdrawable *priv = (__GLXDRIdrawable *) drawable;
     __GLXDRIscreen *screen = priv->screen;
+    int interval = 1;
+
+    if (screen->swapControl)
+	interval = screen->swapControl->getSwapInterval(priv->driDrawable);
 
     (*screen->flush->flushInvalidate)(priv->driDrawable);
 
-    if (DRI2SwapBuffers(drawable->pDraw) != Success)
+    if (DRI2SwapBuffers(drawable->pDraw, interval) != Success)
 	return FALSE;
 
     return TRUE;
@@ -184,6 +194,13 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
 static int
 __glXDRIdrawableSwapInterval(__GLXdrawable *drawable, int interval)
 {
+    __GLXDRIdrawable *draw = (__GLXDRIdrawable *) drawable;
+    __GLXDRIscreen *screen =
+	(__GLXDRIscreen *) glxGetScreen(drawable->pDraw->pScreen);
+
+    if (screen->swapControl)
+	screen->swapControl->setSwapInterval(draw->driDrawable, interval);
+
     return 0;
 }
 
