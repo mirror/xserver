@@ -174,18 +174,15 @@ __glXDRIdrawableWaitGL(__GLXdrawable *drawable)
  * swap should happen, then perform the copy when we receive it.
  */
 static GLboolean
-__glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
+__glXDRIdrawableSwapBuffers(ClientPtr client, __GLXdrawable *drawable)
 {
     __GLXDRIdrawable *priv = (__GLXDRIdrawable *) drawable;
     __GLXDRIscreen *screen = priv->screen;
-    int interval = 1;
-
-    if (screen->swapControl)
-	interval = screen->swapControl->getSwapInterval(priv->driDrawable);
+    CARD64 unused;
 
     (*screen->flush->flushInvalidate)(priv->driDrawable);
 
-    if (DRI2SwapBuffers(drawable->pDraw, interval) != Success)
+    if (DRI2SwapBuffers(client, drawable->pDraw, 0, 0, 0, &unused) != Success)
 	return FALSE;
 
     return TRUE;
@@ -194,12 +191,10 @@ __glXDRIdrawableSwapBuffers(__GLXdrawable *drawable)
 static int
 __glXDRIdrawableSwapInterval(__GLXdrawable *drawable, int interval)
 {
-    __GLXDRIdrawable *draw = (__GLXDRIdrawable *) drawable;
-    __GLXDRIscreen *screen =
-	(__GLXDRIscreen *) glxGetScreen(drawable->pDraw->pScreen);
+    if (interval <= 0) /* || interval > BIGNUM? */
+	return GLX_BAD_VALUE;
 
-    if (screen->swapControl)
-	screen->swapControl->setSwapInterval(draw->driDrawable, interval);
+    DRI2SwapInterval(drawable->pDraw, interval);
 
     return 0;
 }

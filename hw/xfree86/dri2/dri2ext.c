@@ -259,9 +259,6 @@ ProcDRI2GetBuffers(ClientPtr client)
 		       &pDrawable, &status))
 	return status;
 
-    if (DRI2WaitSwap(client, pDrawable))
-	return client->noClientException;
-
     attachments = (unsigned int *) &stuff[1];
     buffers = DRI2GetBuffers(pDrawable, &width, &height,
 			     attachments, stuff->count, &count);
@@ -285,9 +282,6 @@ ProcDRI2GetBuffersWithFormat(ClientPtr client)
     if (!validDrawable(client, stuff->drawable, DixReadAccess | DixWriteAccess,
 		       &pDrawable, &status))
 	return status;
-
-    if (DRI2WaitSwap(client, pDrawable))
-	return client->noClientException;
 
     attachments = (unsigned int *) &stuff[1];
     buffers = DRI2GetBuffersWithFormat(pDrawable, &width, &height,
@@ -335,11 +329,26 @@ ProcDRI2CopyRegion(ClientPtr client)
     return client->noClientException;
 }
 
+static void
+load_swap_reply(xDRI2SwapBuffersReply *rep, CARD64 sbc)
+{
+    rep->swap_hi = sbc >> 32;
+    rep->swap_lo = sbc & 0xffffffff;
+}
+
+static CARD64
+vals_to_card64(CARD32 lo, CARD32 hi)
+{
+    return (CARD64)hi << 32 | lo;
+}
+
 static int
 ProcDRI2SwapBuffers(ClientPtr client)
 {
     REQUEST(xDRI2SwapBuffersReq);
+    xDRI2SwapBuffersReply rep;
     DrawablePtr pDrawable;
+    CARD64 target_msc, divisor, remainder, swap_target;
     int status;
 
     REQUEST_SIZE_MATCH(xDRI2SwapBuffersReq);
@@ -347,7 +356,132 @@ ProcDRI2SwapBuffers(ClientPtr client)
     if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
 	return status;
 
-    return DRI2SwapBuffers(pDrawable, 0); /* get swap interval... */
+    target_msc = vals_to_card64(stuff->target_msc_lo, stuff->target_msc_hi);
+    divisor = vals_to_card64(stuff->divisor_lo, stuff->divisor_hi);
+    remainder = vals_to_card64(stuff->remainder_lo, stuff->remainder_hi);
+
+    status = DRI2SwapBuffers(client, pDrawable, target_msc, divisor, remainder,
+			     &swap_target);
+    if (status != Success)
+	return BadDrawable;
+
+    rep.type = X_Reply;
+    rep.length = 0;
+    rep.sequenceNumber = client->sequence;
+    load_swap_reply(&rep, swap_target);
+
+    WriteToClient(client, sizeof(xDRI2SwapBuffersReply), &rep);
+
+    return client->noClientException;
+}
+
+static void
+load_msc_reply(xDRI2MSCReply *rep, CARD64 ust, CARD64 msc, CARD64 sbc)
+{
+    rep->ust_hi = ust >> 32;
+    rep->ust_lo = ust & 0xffffffff;
+    rep->msc_hi = msc >> 32;
+    rep->msc_lo = msc & 0xffffffff;
+    rep->sbc_hi = sbc >> 32;
+    rep->sbc_lo = sbc & 0xffffffff;
+}
+
+static int
+ProcDRI2GetMSC(ClientPtr client)
+{
+    REQUEST(xDRI2GetMSCReq);
+    xDRI2MSCReply rep;
+    DrawablePtr pDrawable;
+    CARD64 ust, msc, sbc;
+    int status;
+
+    REQUEST_SIZE_MATCH(xDRI2GetMSCReq);
+
+    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+	return status;
+
+    status = DRI2GetMSC(pDrawable, &ust, &msc, &sbc);
+    if (status != Success)
+	return status;
+
+    rep.type = X_Reply;
+    rep.length = 0;
+    rep.sequenceNumber = client->sequence;
+    load_msc_reply(&rep, ust, msc, sbc);
+
+    WriteToClient(client, sizeof(xDRI2MSCReply), &rep);
+
+    return client->noClientException;
+}
+
+static int
+ProcDRI2WaitMSC(ClientPtr client)
+{
+    REQUEST(xDRI2WaitMSCReq);
+    DrawablePtr pDrawable;
+    CARD64 target, divisor, remainder;
+    int status;
+
+    /* FIXME: in restart case, client may be gone at this point */
+
+    REQUEST_SIZE_MATCH(xDRI2WaitMSCReq);
+
+    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+	return status;
+
+    target = vals_to_card64(stuff->target_msc_lo, stuff->target_msc_hi);
+    divisor = vals_to_card64(stuff->divisor_lo, stuff->divisor_hi);
+    remainder = vals_to_card64(stuff->remainder_lo, stuff->remainder_hi);
+
+    status = DRI2WaitMSC(client, pDrawable, target, divisor, remainder);
+    if (status != Success)
+	return status;
+
+    return client->noClientException;
+}
+
+int
+ProcDRI2WaitMSCReply(ClientPtr client, CARD64 ust, CARD64 msc, CARD64 sbc)
+{
+    xDRI2MSCReply rep;
+
+    rep.type = X_Reply;
+    rep.length = 0;
+    rep.sequenceNumber = client->sequence;
+    load_msc_reply(&rep, ust, msc, sbc);
+
+    WriteToClient(client, sizeof(xDRI2MSCReply), &rep);
+
+    return client->noClientException;
+}
+
+static int
+ProcDRI2WaitSBC(ClientPtr client)
+{
+    REQUEST(xDRI2WaitSBCReq);
+    xDRI2MSCReply rep;
+    DrawablePtr pDrawable;
+    CARD64 target, ust, msc, sbc;
+    int status;
+
+    REQUEST_SIZE_MATCH(xDRI2WaitSBCReq);
+
+    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+	return status;
+
+    target = vals_to_card64(stuff->target_sbc_lo, stuff->target_sbc_hi);
+    status = DRI2WaitSBC(pDrawable, target, &ust, &msc, &sbc);
+    if (status != Success)
+	return status;
+
+    rep.type = X_Reply;
+    rep.length = 0;
+    rep.sequenceNumber = client->sequence;
+    load_msc_reply(&rep, ust, msc, sbc);
+
+    WriteToClient(client, sizeof(xDRI2MSCReply), &rep);
+
+    return client->noClientException;
 }
 
 static int
@@ -380,6 +514,12 @@ ProcDRI2Dispatch (ClientPtr client)
 	return ProcDRI2GetBuffersWithFormat(client);
     case X_DRI2SwapBuffers:
 	return ProcDRI2SwapBuffers(client);
+    case X_DRI2GetMSC:
+	return ProcDRI2GetMSC(client);
+    case X_DRI2WaitMSC:
+	return ProcDRI2WaitMSC(client);
+    case X_DRI2WaitSBC:
+	return ProcDRI2WaitSBC(client);
     default:
 	return BadRequest;
     }

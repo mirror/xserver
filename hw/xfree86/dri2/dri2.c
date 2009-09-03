@@ -34,6 +34,7 @@
 #include <xorg-config.h>
 #endif
 
+#include <errno.h>
 #include <xf86drm.h>
 #include "xf86Module.h"
 #include "scrnintstr.h"
@@ -60,17 +61,75 @@ typedef struct _DRI2Drawable {
     unsigned int	 swapsPending;
     unsigned int	 flipsPending;
     ClientPtr		 blockedClient;
+    int			 swap_interval;
+    CARD64		 swap_count;
+    CARD64		 last_swap_target; /* most recently queued swap target */
 } DRI2DrawableRec, *DRI2DrawablePtr;
 
 typedef struct _DRI2Screen *DRI2ScreenPtr;
-typedef struct _DRI2SwapData *DRI2SwapDataPtr;
+typedef struct _DRI2FrameEvent *DRI2FrameEventPtr;
 
-typedef struct _DRI2SwapData {
+#define container_of(ptr,type,mem) ((type *)((char *)(ptr) - offsetof(type, \
+								      mem)))
+
+struct list {
+    struct list *prev, *next;
+};
+
+static inline void list_init(struct list *l)
+{
+    l->prev = l;
+    l->next = l;
+}
+
+static inline void __list_add(struct list *l, struct list *prev,
+			      struct list *next)
+{
+    prev->next = l;
+    l->prev = prev;
+    l->next = next;
+    next->prev = l;
+}
+
+static inline void list_add(struct list *l, struct list *head)
+{
+    __list_add(l, head, head->next);
+}
+
+static inline void list_add_tail(struct list *l, struct list *head)
+{
+    __list_add(l, head->prev, head);
+}
+
+static inline void list_del(struct list *l)
+{
+    l->prev->next = l->next;
+    l->next->prev = l->prev;
+    list_init(l);
+}
+
+static inline Bool list_is_empty(struct list *l)
+{
+    return l->next == l;
+}
+
+#define list_foreach_safe(cur, tmp, head)			\
+    for (cur = (head)->next, tmp = cur->next; cur != (head);	\
+	 cur = tmp, tmp = cur->next)
+
+enum DRI2FrameEventType {
+    DRI2_SWAP,
+    DRI2_WAITMSC,
+};
+
+typedef struct _DRI2FrameEvent {
     DrawablePtr		 pDraw;
     ScreenPtr		 pScreen;
+    ClientPtr		 client;
+    enum DRI2FrameEventType type;
     int			 frame;
-    DRI2SwapDataPtr	 next;
-} DRI2SwapDataRec;
+    struct list		 link;
+} DRI2FrameEventRec;
 
 typedef struct _DRI2Screen {
     const char			*driverName;
@@ -78,12 +137,15 @@ typedef struct _DRI2Screen {
     int				 fd;
     unsigned int		 lastSequence;
     drmEventContext		 event_context;
-    DRI2SwapDataPtr		 swaps;	    /* Pending swap list */
+    struct list			 swaps;
 
     DRI2CreateBufferProcPtr	 CreateBuffer;
     DRI2DestroyBufferProcPtr	 DestroyBuffer;
     DRI2CopyRegionProcPtr	 CopyRegion;
+    DRI2SetupSwapProcPtr	 SetupSwap;
     DRI2SwapBuffersProcPtr	 SwapBuffers;
+    DRI2GetMSCProcPtr		 GetMSC;
+    DRI2SetupWaitMSCProcPtr	 SetupWaitMSC;
 
     HandleExposuresProcPtr       HandleExposures;
 } DRI2ScreenRec;
@@ -141,6 +203,9 @@ DRI2CreateDrawable(DrawablePtr pDraw)
     pPriv->swapsPending = 0;
     pPriv->flipsPending = 0;
     pPriv->blockedClient = NULL;
+    pPriv->swap_count = 0;
+    pPriv->swap_interval = 1;
+    pPriv->last_swap_target = 0;
 
     if (pDraw->type == DRAWABLE_WINDOW)
     {
@@ -383,46 +448,66 @@ DRI2FlipCheck(DrawablePtr pDraw)
     return TRUE;
 }
 
-static Bool DRI2AddSwap(DrawablePtr pDraw, int frame)
+static Bool DRI2AddFrameEvent(DrawablePtr pDraw, ClientPtr client,
+			      enum DRI2FrameEventType type, int frame)
 {
     DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
     DRI2DrawablePtr pPriv;
-    DRI2SwapDataPtr new;
+    DRI2FrameEventPtr new;
 
     pPriv = DRI2GetDrawable(pDraw);
     if (pPriv == NULL)
 	return FALSE;
 
-    new = xcalloc(1, sizeof(DRI2SwapDataRec));
+    new = xcalloc(1, sizeof(DRI2FrameEventRec));
     if (!new)
 	return FALSE;
 
     new->pScreen = pDraw->pScreen;
     new->pDraw = pDraw;
+    new->client = client;
     new->frame = frame;
-    new->next = ds->swaps;
-    ds->swaps = new;
+    new->type = type;
+
+    list_add_tail(&new->link, &ds->swaps);
 
     return TRUE;
 }
 
-static void DRI2RemoveSwap(DRI2SwapDataPtr swap)
+static void DRI2RemoveFrameEvent(DRI2FrameEventPtr event)
 {
-    ScreenPtr	    pScreen = swap->pScreen;
-    DRI2ScreenPtr   ds = DRI2GetScreen(pScreen);
-    DRI2SwapDataPtr cur = ds->swaps;
-
-    while (cur) {
-	if (cur == swap) {
-	    cur->next = swap->next;
-	    xfree(swap);
-	}
-	cur = cur->next;
-    }
+    list_del(&event->link);
+    xfree(event);
 }
 
 static void
-DRI2SwapSubmit(DRI2SwapDataPtr swap)
+DRI2WaitMSCComplete(DRI2FrameEventPtr swap, unsigned int sequence,
+		    unsigned int tv_sec, unsigned int tv_usec)
+{
+    DrawablePtr	    pDraw = swap->pDraw;
+    DRI2DrawablePtr pPriv;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return;
+
+    ProcDRI2WaitMSCReply(swap->client, ((CARD64)tv_sec * 1000000) + tv_usec,
+			 sequence, pPriv->swap_count);
+
+    if (pPriv->blockedClient)
+	AttendClient(pPriv->blockedClient);
+
+    pPriv->blockedClient = NULL;
+}
+
+/* Wake up clients waiting for flip/swap completion */
+static void DRI2SwapComplete(DRI2DrawablePtr pPriv)
+{
+    pPriv->swap_count++;
+}
+
+static void
+DRI2SwapSubmit(DRI2FrameEventPtr swap)
 {
     DrawablePtr	    pDraw = swap->pDraw;
     ScreenPtr	    pScreen = swap->pScreen;
@@ -472,8 +557,7 @@ DRI2SwapSubmit(DRI2SwapDataPtr swap)
     box.y2 = pPriv->height;
     REGION_INIT(pScreen, &region, &box, 0);
 
-    DRI2CopyRegion(pDraw, &region,
-		   DRI2BufferFrontLeft, DRI2BufferBackLeft);
+    DRI2CopyRegion(pDraw, &region, DRI2BufferFrontLeft, DRI2BufferBackLeft);
     pPriv->swapsPending--;
 
     DRI2SwapComplete(pPriv);
@@ -483,14 +567,39 @@ static void drm_vblank_handler(int fd, unsigned int frame, unsigned int tv_sec,
 			       unsigned int tv_usec, void *user_data)
 {
     DRI2ScreenPtr ds = user_data;
-    DRI2SwapDataPtr cur = ds->swaps;
+    DRI2DrawablePtr pPriv;
+    struct list *cur, *tmp;
 
-    while (cur) {
-	if (cur->frame == frame) {
-	    DRI2SwapSubmit(cur);
-	    DRI2RemoveSwap(cur);
+    if (list_is_empty(&ds->swaps)) {
+	ErrorF("tried to dequeue non-existent swap\n");
+	return;
+    }
+
+    list_foreach_safe(cur, tmp, &ds->swaps) {
+	DRI2FrameEventPtr swap = container_of(cur, DRI2FrameEventRec, link);
+
+	if (swap->frame != frame)
+	    continue;
+
+	pPriv = DRI2GetDrawable(swap->pDraw);
+	if (pPriv == NULL) {
+	    DRI2RemoveFrameEvent(swap);
+	    ErrorF("no dri2priv??\n");
+	    continue; /* FIXME: check priv refcounting */
 	}
-	cur = cur->next;
+
+	switch (swap->type) {
+	case DRI2_SWAP:
+	    DRI2SwapSubmit(swap);
+	    break;
+	case DRI2_WAITMSC:
+	    DRI2WaitMSCComplete(swap, frame, tv_sec, tv_usec);
+	    break;
+	default:
+	    /* Unknown type */
+	    break;
+	}
+	DRI2RemoveFrameEvent(swap);
     }
 }
 
@@ -505,17 +614,24 @@ drm_wakeup_handler(pointer data, int err, pointer p)
 }
 
 int
-DRI2SwapBuffers(DrawablePtr pDraw, int interval)
+DRI2SwapBuffers(ClientPtr client, DrawablePtr pDraw, CARD64 target_msc,
+		CARD64 divisor, CARD64 remainder, CARD64 *swap_target)
 {
     DRI2ScreenPtr   ds = DRI2GetScreen(pDraw->pScreen);
     DRI2DrawablePtr pPriv;
-    drmVBlank       vbl;
+    CARD64	    event_frame;
+    int             ret;
 
     pPriv = DRI2GetDrawable(pDraw);
     if (pPriv == NULL)
 	return BadDrawable;
 
-    vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT;
+    /*
+     * Swap target for this swap is last swap target + swap interval since
+     * we have to account for the current swap count, interval, and the
+     * number of pending swaps.
+     */
+    *swap_target = pPriv->last_swap_target + pPriv->swap_interval;
 
     if (DRI2FlipCheck(pDraw)) {
 	/*
@@ -523,24 +639,27 @@ DRI2SwapBuffers(DrawablePtr pDraw, int interval)
 	 * frame - 1 to honor the swap interval.
 	 */
 	pPriv->flipsPending++;
-	if (interval > 1) {
-	    vbl.request.sequence = interval - 1;
+	if (pPriv->swap_interval > 1) {
+	    *swap_target = *swap_target - 1;
 	    /* fixme: prevent cliprect changes between now and the flip */
 	} else {
+	    /* FIXME: perform immediate page flip */
 	    DRI2SwapComplete(pPriv);
-	    return Success;
+	    return 0;
 	}
     } else {
 	pPriv->swapsPending++;
-	vbl.request.sequence = interval;
     }
 
-    /* fixme: get correct crtc for this drawable */
-    drmWaitVBlank(ds->fd, &vbl);
+    ret = (*ds->SetupSwap)(pDraw, *swap_target, divisor, remainder, ds,
+			   &event_frame);
+    if (!ret)
+	return BadDrawable;
 
-    /* Request an event for the requested frame */
-    if (!DRI2AddSwap(pDraw, vbl.reply.sequence))
+    if (!DRI2AddFrameEvent(pDraw, client, DRI2_SWAP, event_frame))
 	return BadValue;
+
+    pPriv->last_swap_target = *swap_target;
 
     return Success;
 }
@@ -565,15 +684,88 @@ DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable)
     return FALSE;
 }
 
-/* Wake up clients waiting for flip/swap completion */
-void DRI2SwapComplete(void *data)
+void
+DRI2SwapInterval(DrawablePtr pDrawable, int interval)
 {
-    DRI2DrawablePtr pPriv = data;
+    DRI2DrawablePtr pPriv = DRI2GetDrawable(pDrawable);
 
-    if (pPriv->blockedClient)
-	AttendClient(pPriv->blockedClient);
+    /* fixme: check against arbitrary max? */
 
-    pPriv->blockedClient = NULL;
+    pPriv->swap_interval = interval;
+}
+
+
+
+int
+DRI2GetMSC(DrawablePtr pDraw, CARD64 *ust, CARD64 *msc, CARD64 *sbc)
+{
+    DRI2ScreenPtr ds = DRI2GetScreen(pDraw->pScreen);
+    DRI2DrawablePtr pPriv;
+    Bool ret;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return BadDrawable;
+
+    if (!ds->GetMSC)
+	FatalError("advertised MSC support w/o driver hook\n");
+
+    ret = (*ds->GetMSC)(pDraw, ust, msc);
+    if (!ret)
+	return BadDrawable;
+
+    *sbc = pPriv->swap_count;
+
+    return Success;
+}
+
+int
+DRI2WaitMSC(ClientPtr client, DrawablePtr pDraw, CARD64 target_msc,
+	    CARD64 divisor, CARD64 remainder)
+{
+    DRI2ScreenPtr ds = DRI2GetScreen(pDraw->pScreen);
+    DRI2DrawablePtr pPriv;
+    CARD64 event_frame;
+    Bool ret;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return BadDrawable;
+
+    ret = (*ds->SetupWaitMSC)(pDraw, target_msc, divisor, remainder, ds,
+			      &event_frame);
+    if (!ret) {
+	ErrorF("setupmsc failed: %d\n", ret);
+	return BadDrawable;
+    }
+
+    ret = DRI2AddFrameEvent(pDraw, client, DRI2_WAITMSC, event_frame);
+    if (!ret)
+	return BadDrawable;
+
+    /* DDX returned > 0, block the client until its wait completes */
+
+    if (pPriv->blockedClient == NULL) {
+	IgnoreClient(client);
+	pPriv->blockedClient = client;
+    }
+
+    return Success;
+}
+
+int
+DRI2WaitSBC(DrawablePtr pDraw, CARD64 target_sbc, CARD64 *ust, CARD64 *msc,
+	    CARD64 *sbc)
+{
+    DRI2DrawablePtr pPriv;
+
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+	return BadDrawable;
+
+    /* fixme: put client to sleep until swap count hits target */
+
+    return Success;
 }
 
 void
@@ -675,11 +867,17 @@ DRI2ScreenInit(ScreenPtr pScreen, DRI2InfoPtr info)
     ds->DestroyBuffer  = info->DestroyBuffer;
     ds->CopyRegion     = info->CopyRegion;
 
-    if (info->version >= 4)
+    if (info->version >= 4) {
+	ds->SetupSwap = info->SetupSwap;
 	ds->SwapBuffers = info->SwapBuffers;
+	ds->SetupWaitMSC = info->SetupWaitMSC;
+	ds->GetMSC = info->GetMSC;
+    }
 
     ds->event_context.version = DRM_EVENT_CONTEXT_VERSION;
     ds->event_context.vblank_handler = drm_vblank_handler;
+
+    list_init(&ds->swaps);
 
     AddGeneralSocket(ds->fd);
     RegisterBlockAndWakeupHandlers((BlockHandlerProcPtr)NoopDDA,

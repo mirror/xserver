@@ -58,6 +58,12 @@ typedef void		(*DRI2CopyRegionProcPtr)(DrawablePtr pDraw,
 						 RegionPtr pRegion,
 						 DRI2BufferPtr pDestBuffer,
 						 DRI2BufferPtr pSrcBuffer);
+typedef int		(*DRI2SetupSwapProcPtr)(DrawablePtr pDraw,
+						CARD64 target_msc,
+						CARD64 divisor,
+						CARD64 remainder,
+						void *data,
+						CARD64 *event_frame);
 typedef Bool		(*DRI2SwapBuffersProcPtr)(ScreenPtr pScreen,
 						  DRI2BufferPtr pFrontBuffer,
 						  DRI2BufferPtr pBackBuffer,
@@ -71,6 +77,14 @@ typedef DRI2BufferPtr	(*DRI2CreateBufferProcPtr)(DrawablePtr pDraw,
 						   unsigned int format);
 typedef void		(*DRI2DestroyBufferProcPtr)(DrawablePtr pDraw,
 						    DRI2BufferPtr buffer);
+typedef int		(*DRI2GetMSCProcPtr)(DrawablePtr pDraw, CARD64 *ust,
+					     CARD64 *msc);
+typedef int		(*DRI2SetupWaitMSCProcPtr)(DrawablePtr pDraw,
+						   CARD64 target_msc,
+						   CARD64 divisor,
+						   CARD64 remainder,
+						   void *data,
+						   CARD64 *event_frame);
 
 /**
  * Version of the DRI2InfoRec structure defined in this header
@@ -86,8 +100,10 @@ typedef struct {
     DRI2CreateBufferProcPtr	CreateBuffer;
     DRI2DestroyBufferProcPtr	DestroyBuffer;
     DRI2CopyRegionProcPtr	CopyRegion;
+    DRI2SetupSwapProcPtr	SetupSwap;
     DRI2SwapBuffersProcPtr	SwapBuffers;
-
+    DRI2GetMSCProcPtr		GetMSC;
+    DRI2SetupWaitMSCProcPtr	SetupWaitMSC;
 }  DRI2InfoRec, *DRI2InfoPtr;
 
 extern _X_EXPORT Bool DRI2ScreenInit(ScreenPtr	pScreen,
@@ -141,8 +157,23 @@ extern _X_EXPORT DRI2BufferPtr *DRI2GetBuffersWithFormat(DrawablePtr pDraw,
 	int *width, int *height, unsigned int *attachments, int count,
 	int *out_count);
 
-extern _X_EXPORT int DRI2SwapBuffers(DrawablePtr pDrawable, int interval);
+extern _X_EXPORT void DRI2SwapInterval(DrawablePtr pDrawable, int interval);
+extern _X_EXPORT int DRI2SwapBuffers(ClientPtr client, DrawablePtr pDrawable,
+				     CARD64 target_msc, CARD64 divisor,
+				     CARD64 remainder, CARD64 *swap_target);
 extern _X_EXPORT Bool DRI2WaitSwap(ClientPtr client, DrawablePtr pDrawable);
-extern _X_EXPORT void DRI2SwapComplete(void *data);
+
+extern _X_EXPORT int DRI2GetMSC(DrawablePtr pDrawable, CARD64 *ust,
+				CARD64 *msc, CARD64 *sbc);
+extern _X_EXPORT int DRI2WaitMSC(ClientPtr client, DrawablePtr pDrawable,
+				 CARD64 target_msc, CARD64 divisor,
+				 CARD64 remainder);
+extern _X_EXPORT int ProcDRI2WaitMSCReply(ClientPtr client, CARD64 ust,
+					  CARD64 msc, CARD64 sbc);
+extern _X_EXPORT int DRI2WaitSBC(DrawablePtr pDraw, CARD64 target_sbc,
+				 CARD64 *ust, CARD64 *msc, CARD64 *sbc);
+#define DRI2_WAITMSC_ERROR -1
+#define DRI2_WAITMSC_DONE 0
+#define DRI2_WAITMSC_BLOCK 1
 
 #endif
