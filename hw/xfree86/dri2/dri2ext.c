@@ -353,7 +353,8 @@ ProcDRI2SwapBuffers(ClientPtr client)
 
     REQUEST_SIZE_MATCH(xDRI2SwapBuffersReq);
 
-    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+    if (!validDrawable(client, stuff->drawable,
+		       DixReadAccess | DixWriteAccess, &pDrawable, &status))
 	return status;
 
     target_msc = vals_to_card64(stuff->target_msc_lo, stuff->target_msc_hi);
@@ -397,7 +398,8 @@ ProcDRI2GetMSC(ClientPtr client)
 
     REQUEST_SIZE_MATCH(xDRI2GetMSCReq);
 
-    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+    if (!validDrawable(client, stuff->drawable, DixReadAccess, &pDrawable,
+		       &status))
 	return status;
 
     status = DRI2GetMSC(pDrawable, &ust, &msc, &sbc);
@@ -426,7 +428,8 @@ ProcDRI2WaitMSC(ClientPtr client)
 
     REQUEST_SIZE_MATCH(xDRI2WaitMSCReq);
 
-    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+    if (!validDrawable(client, stuff->drawable, DixReadAccess, &pDrawable,
+		       &status))
 	return status;
 
     target = vals_to_card64(stuff->target_msc_lo, stuff->target_msc_hi);
@@ -466,7 +469,8 @@ ProcDRI2WaitSBC(ClientPtr client)
 
     REQUEST_SIZE_MATCH(xDRI2WaitSBCReq);
 
-    if (!validDrawable(client, stuff->drawable, &pDrawable, &status))
+    if (!validDrawable(client, stuff->drawable, DixReadAccess, &pDrawable,
+		       &status))
 	return status;
 
     target = vals_to_card64(stuff->target_sbc_lo, stuff->target_sbc_hi);
