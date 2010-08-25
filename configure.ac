@@ -25,6 +25,11 @@ dnl          an unwitting cast of miscellaneous others
 dnl
 dnl Process this file with autoconf to create configure.
 
+echo "This branch is no longer under development."
+echo "Please commit directly to the server-1.7-branch instead."
+echo "See: http://www.x.org/wiki/Server17Branch"
+exit 1
+
 AC_PREREQ(2.57)
 AC_INIT([xorg-server], 1.7.7, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
 RELEASE_DATE="2010-05-04"
