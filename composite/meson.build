@@ -15,5 +15,3 @@ libxserver_composite = static_library('libxserver_composite',
 	include_directories: inc,
 	dependencies: common_dep,
 )
-
-install_data(hdrs_composite, install_dir: xorgsdkdir)

@@ -24,5 +24,3 @@ libxserver_render = static_library('libxserver_render',
     include_directories: inc,
     dependencies: common_dep,
 )
-
-install_data(hdrs_render, install_dir: xorgsdkdir)

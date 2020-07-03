@@ -16,5 +16,3 @@ if build_dri3
         dependencies: [ common_dep, libdrm_dep ],
         )
 endif
-
-install_data(hdrs_dri3, install_dir: xorgsdkdir)

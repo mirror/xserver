@@ -25,5 +25,3 @@ libxserver_present = static_library('libxserver_present',
         dependency('presentproto', version: '>= 1.2')
     ],
 )
-
-install_data(hdrs_present, install_dir: xorgsdkdir)
