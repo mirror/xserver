@@ -98,18 +98,6 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Have Quartz */
-#undef XQUARTZ
-
-/* Support application updating through sparkle. */
-#undef XQUARTZ_SPARKLE
-
-/* Prefix to use for bundle identifiers */
-#undef BUNDLE_ID_PREFIX
-
-/* Build a standalone xpbproxy */
-#undef STANDALONE_XPBPROXY
-
 /* Define to 1 if you have the `bsd' library (-lbsd). */
 #undef HAVE_LIBBSD
 
