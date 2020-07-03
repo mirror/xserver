@@ -34,7 +34,3 @@ libxserver_miext_shadow = static_library('libxserver_miext_shadow',
     include_directories: inc,
     dependencies: common_dep,
 )
-
-if build_xorg
-    install_data(hdrs_miext_shadow, install_dir: xorgsdkdir)
-endif

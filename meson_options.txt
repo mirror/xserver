@@ -1,11 +1,9 @@
-option('xorg', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable Xorg X Server')
 option('xephyr', type: 'boolean', value: false,
        description: 'Enable Xephyr nested X server')
 option('xwayland', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable Xwayland X server')
 option('glamor', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable glamor (default yes for Xorg/Xwayland builds)')
+       description: 'Enable glamor (default yes for Xwayland builds)')
 option('xwayland_eglstream', type: 'combo', choices: ['true', 'false', 'auto'],
        value: 'auto', description: 'Enable EGLStream support for glamor on Xwayland')
 option('xvfb', type: 'boolean', value: true,
@@ -15,9 +13,6 @@ option('xvfb', type: 'boolean', value: true,
 option('builder_addr', type: 'string', description: 'Builder address', value: 'xorg@lists.freedesktop.org')
 option('builder_string', type: 'string', description: 'Additional builder string')
 
-option('log_dir', type: 'string')
-option('module_dir', type: 'string', value: 'xorg/modules',
-       description: 'X.Org modules directory (absolute or relative to the directory specified by the libdir option)')
 option('default_font_path', type: 'string')
 option('fontrootdir', type: 'string',
         description: 'Root directory for legacy fonts. Default: from font-utils.pc or $datadir/fonts/X11')
@@ -38,8 +33,6 @@ option('xkb_default_layout', type: 'string', value: 'us')
 option('xkb_default_variant', type: 'string')
 option('xkb_default_options', type: 'string')
 
-option('fallback_input_driver', type: 'string', value: 'auto')
-
 option('vendor_name', type: 'string', value: 'The X.Org Foundation')
 option('vendor_name_short', type: 'string', value: 'X.Org')
 option('vendor_web', type: 'string', value: 'http://wiki.x.org')
@@ -54,21 +47,10 @@ option('listen_unix', type: 'boolean', value: true,
 option('listen_local', type: 'boolean', value: true,
        description: 'Listen on local by default')
 
-option('int10', type: 'combo', choices: ['stub', 'x86emu', 'vm86', 'auto', 'false'],
-       value: 'auto',
-       description: 'Xorg int10 backend (default: usually x86emu)')
-option('suid_wrapper', type: 'boolean', value: false,
-       description: 'SUID wrapper for legacy driver support')
-option('pciaccess', type: 'boolean', value: true,
-       description: 'Xorg pciaccess support')
-option('udev', type: 'boolean', value: true)
-option('udev_kms', type: 'boolean', value: true)
 option('hal', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable HAL integration')
 option('systemd_logind', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable systemd-logind integration')
-option('vgahw', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Xorg VGA access module')
 option('dpms', type: 'boolean', value: true,
        description: 'Xorg DPMS extension')
 option('xf86bigfont', type: 'boolean', value: false,
@@ -87,25 +69,11 @@ option('xcsecurity', type: 'boolean', value: false,
        description: 'Security extension')
 option('xv', type: 'boolean', value: true,
        description: 'Xv extension')
-option('xvmc', type: 'boolean', value: true,
-       description: 'XvMC extension')
-option('dga', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'DGA extension')
-option('linux_apm', type: 'boolean', value: true,
-       description: 'APM support on Linux')
-option('linux_acpi', type: 'boolean', value: true,
-       description: 'ACPI support on Linux')
 option('mitshm', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'SHM extension')
-option('agp', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'AGP support')
 option('sha1', type: 'combo', choices: ['libc', 'CommonCrypto', 'CryptoAPI', 'libmd', 'libsha1', 'libnettle', 'libgcrypt', 'libcrypto', 'auto'], value: 'auto',
        description: 'SHA1 implementation')
-option('xf86-input-inputtest', type: 'boolean', value: true,
-       description: 'Test input driver support on Xorg')
 
-option('dri1', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto', description: 'Build DRI1 extension (default: auto)')
-option('dri2', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto', description: 'Build DRI2 extension (default: auto)')
 option('dri3', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto', description: 'Build DRI3 extension (default: auto)')
 option('drm', type: 'boolean', value: true,
         description: 'Build Xorg with libdrm support')

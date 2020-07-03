@@ -9,7 +9,6 @@ int misc_test(void);
 int signal_logging_test(void);
 int string_test(void);
 int touch_test(void);
-int xfree86_test(void);
 int xkb_test(void);
 int xtest_test(void);
 

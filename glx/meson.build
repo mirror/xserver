@@ -51,7 +51,7 @@ if build_glx
 endif
 
 srcs_glxdri2 = []
-if build_dri2 or build_dri3
+if build_dri3
     srcs_glxdri2 = files('glxdri2.c')
 endif
 
@@ -78,8 +78,4 @@ if build_glx
             dependency('gl', version: '>= 1.2'),
         ],
     )
-
-    if build_xorg
-        install_data(hdrs_vnd, install_dir : xorgsdkdir)
-    endif
 endif

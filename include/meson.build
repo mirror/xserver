@@ -119,10 +119,7 @@ conf_data.set('GBM_BO_FD_FOR_PLANE',
 conf_data.set_quoted('SERVER_MISC_CONFIG_PATH', serverconfigdir)
 conf_data.set_quoted('PROJECTROOT', get_option('prefix'))
 conf_data.set_quoted('SYSCONFDIR', join_paths(get_option('prefix'), get_option('sysconfdir')))
-conf_data.set_quoted('SUID_WRAPPER_DIR', join_paths(get_option('prefix'), get_option('libexecdir')))
 conf_data.set_quoted('COMPILEDDEFAULTFONTPATH', default_font_path)
-
-conf_data.set('XORG_VERSION_CURRENT', release)
 
 conf_data.set('HASXDMAUTH', has_xdm_auth ? '1' : false)
 conf_data.set('SECURE_RPC', get_option('secure-rpc') ? '1' : false)
@@ -130,10 +127,9 @@ conf_data.set('SECURE_RPC', get_option('secure-rpc') ? '1' : false)
 conf_data.set('HAVE_DLFCN_H', cc.has_header('dlfcn.h') ? '1' : false)
 conf_data.set('HAVE_EXECINFO_H', cc.has_header('execinfo.h') ? '1' : false)
 conf_data.set('HAVE_FNMATCH_H', cc.has_header('fnmatch.h') ? '1' : false)
-conf_data.set('HAVE_LINUX_AGPGART_H', cc.has_header('linux/agpgart.h') ? '1' : false)
+conf_data.set('HAVE_STDLIB_H', cc.has_header('stdlib.h') ? '1' : false)
+conf_data.set('HAVE_STRING_H', cc.has_header('string.h') ? '1' : false)
 conf_data.set('HAVE_STRINGS_H', cc.has_header('strings.h') ? '1' : false)
-conf_data.set('HAVE_SYS_AGPGART_H', cc.has_header('sys/agpgart.h') ? '1' : false)
-conf_data.set('HAVE_SYS_UN_H', cc.has_header('sys/un.h') ? '1' : false)
 conf_data.set('HAVE_SYS_UTSNAME_H', cc.has_header('sys/utsname.h') ? '1' : false)
 conf_data.set('HAVE_SYS_SYSMACROS_H', cc.has_header('sys/sysmacros.h') ? '1' : false)
 
@@ -203,9 +199,7 @@ conf_data.set('BIGREQS', '1')
 conf_data.set('COMPOSITE', '1')
 conf_data.set('DAMAGE', '1')
 conf_data.set('DBE', '1')
-conf_data.set('DGA', build_dga ? '1' : false)
 conf_data.set('DPMSExtension', build_dpms ? '1' : false)
-conf_data.set('DRI2', build_dri2 ? '1' : false)
 conf_data.set('DRI3', build_dri3 ? '1' : false)
 if build_glx
     conf_data.set_quoted('DRI_DRIVER_PATH', dri_dep.get_pkgconfig_variable('dridriverdir'))
@@ -224,10 +218,8 @@ conf_data.set('XCMISC', '1')
 conf_data.set('XCSECURITY', build_xsecurity ? '1' : false)
 conf_data.set('XDMCP', xdmcp_dep.found() ? '1' : false)
 conf_data.set('XF86BIGFONT', build_xf86bigfont ? '1' : false)
-conf_data.set('XF86DRI', build_dri1 ? '1' : false)
 conf_data.set('XF86VIDMODE', 1)
 conf_data.set('XFIXES', '1')
-conf_data.set('XFreeXDGA', build_dga ? '1' : false)
 conf_data.set('XINERAMA', build_xinerama ? '1' : false)
 conf_data.set('XINPUT', '1')
 conf_data.set('XRECORD', '1')
@@ -236,13 +228,9 @@ conf_data.set('XSYNC', '1')
 conf_data.set('XTEST', '1')
 conf_data.set('XV', build_xv ? '1' : false)
 conf_data.set('XvExtension', build_xv ? '1' : false)
-conf_data.set('XvMCExtension', build_xvmc ? '1' : false)
 
 conf_data.set('HAVE_SHA1_IN_' + sha1.to_upper(), '1', description: 'Use @0@ SHA1 functions'.format(sha1))
 conf_data.set('HAVE_LIBUNWIND', get_option('libunwind'))
-
-conf_data.set('HAVE_APM', (build_apm or build_acpi) ? '1' : false)
-conf_data.set('HAVE_ACPI', build_acpi ? '1' : false)
 
 enable_debugging = get_option('buildtype') == 'debug'
 conf_data.set('DEBUG', enable_debugging ? '1' : false)
@@ -252,14 +240,6 @@ conf_data.set_quoted('XVENDORNAMESHORT', get_option('vendor_name_short'))
 conf_data.set_quoted('__VENDORDWEBSUPPORT__', get_option('vendor_web'))
 conf_data.set_quoted('BUILDERADDR', get_option('builder_addr'))
 conf_data.set_quoted('BUILDERSTRING', get_option('builder_string'))
-
-#
-# for xorg-server.h only
-#
-defines_svr4 = '''#if !defined(SVR4) && !defined(__svr4__) && !defined(__SVR4)
-#error "I am not SVR4"
-#endif
-'''
 
 # BSD specifics
 supports_pccons = false
@@ -298,28 +278,17 @@ if host_machine.system() == 'darwin'
   csrg_based = true
 endif
 
-conf_data.set('SVR4', cc.compiles(defines_svr4) ? '1' : false)
 conf_data.set_quoted('XKB_DFLT_RULES', get_option('xkb_default_rules'))
-conf_data.set('XORGSERVER', build_xorg ? '1' : false)
-conf_data.set_quoted('XCONFIGFILE', 'xorg.conf')
 conf_data.set_quoted('__XSERVERNAME__', 'Xorg')
-conf_data.set('WITH_VGAHW', build_vgahw ? '1' : false)
 conf_data.set('CSRG_BASED', csrg_based ? '1' : false)
 conf_data.set('PCCONS_SUPPORT', supports_pccons ? '1' : false)
 conf_data.set('PCVT_SUPPORT', supports_pcvt ? '1' : false)
 conf_data.set('SYSCONS_SUPPORT', supports_syscons ? '1' : false)
 conf_data.set('WSCONS_SUPPORT', supports_wscons ? '1' : false)
-conf_data.set('XSERVER_LIBPCIACCESS', get_option('pciaccess') ? '1' : false)
 conf_data.set('XSERVER_PLATFORM_BUS', build_udev_kms ? '1' : false)
 
 configure_file(output : 'dix-config.h',
                configuration : conf_data)
-
-configure_file(output : 'xorg-server.h',
-               input : 'xorg-server.h.meson.in',
-               configuration : conf_data,
-               install: build_xorg,
-               install_dir: xorgsdkdir)
 
 version_data = configuration_data()
 version_data.set('VENDOR_RELEASE', '@0@'.format(release))
@@ -344,51 +313,6 @@ xkb_data.set_quoted('XKM_OUTPUT_DIR', xkb_output_dir + '/')
 configure_file(output : 'xkb-config.h',
                configuration : xkb_data)
 
-xorg_data = configuration_data()
-
-xorg_data.set_quoted('XORG_BIN_DIRECTORY', get_option('bindir'))
-xorg_data.set('XORG_VERSION_CURRENT', release)
-xorg_data.set_quoted('XF86CONFIGFILE', 'xorg.conf')
-xorg_data.set_quoted('XCONFIGFILE', 'xorg.conf')
-xorg_data.set_quoted('XCONFIGDIR', 'xorg.conf.d')
-xorg_data.set_quoted('DEFAULT_XDG_DATA_HOME', '.local/share')
-xorg_data.set_quoted('DEFAULT_XDG_DATA_HOME_LOGDIR', 'xorg')
-xorg_data.set_quoted('DEFAULT_LOGDIR', log_dir)
-xorg_data.set_quoted('DEFAULT_LOGPREFIX', 'Xorg.')
-xorg_data.set_quoted('DEFAULT_MODULE_PATH', join_paths(get_option('prefix'), module_dir))
-xorg_data.set_quoted('DEFAULT_LIBRARY_PATH', join_paths(get_option('prefix'), get_option('libdir')))
-xorg_data.set_quoted('__XSERVERNAME__', 'Xorg')
-xorg_data.set('XSERVER_LIBPCIACCESS', get_option('pciaccess') ? '1' : false)
-xorg_data.set_quoted('PCI_TXT_IDS_PATH', '')
-xorg_data.set('XSERVER_PLATFORM_BUS', build_udev_kms ? '1' : false)
-xorg_data.set('WSCONS_SUPPORT',
-              host_machine.system() == 'netbsd' or host_machine.system() == 'openbsd' ? '1' : false)
-xorg_data.set('HAVE_STROPTS_H', cc.has_header('stropts.h') ? '1' : false)
-xorg_data.set('HAVE_SYS_KD_H', cc.has_header('sys/kd.h') ? '1' : false)
-xorg_data.set('HAVE_SYS_VT_H', cc.has_header('sys/vt.h') ? '1' : false)
-xorg_data.set('HAVE_MODESETTING_DRIVER', build_modesetting ? '1' : false)
-
-if host_machine.system() == 'freebsd' or host_machine.system() == 'dragonfly'
-    if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
-        xorg_data.set('USE_DEV_IO', '1')
-    endif
-elif host_machine.system() == 'netbsd'
-    if host_machine.cpu_family() == 'x86' or host_machine.cpu_family() == 'x86_64'
-        xorg_data.set('USE_I386_IOPL', '1')
-    endif
-elif host_machine.system() == 'openbsd'
-    if host_machine.cpu_family() == 'x86'
-        xorg_data.set('USE_I386_IOPL', '1')
-    endif
-    if host_machine.cpu_family() == 'x86_64'
-        xorg_data.set('USE_AMD64_IOPL', '1')
-    endif
-endif
-
-configure_file(output : 'xorg-config.h',
-               input : 'xorg-config.h.meson.in',
-               configuration : xorg_data)
-
 xwayland_data = configuration_data()
 xwayland_data.set('XWL_HAS_GLAMOR', build_glamor and (gbm_dep.found() or build_eglstream) ? '1' : false)
 xwayland_data.set('XWL_HAS_EGLSTREAM', build_eglstream ? '1' : false)
@@ -408,76 +332,4 @@ if with_dtrace
     )
 
     dtrace_hdr += dtrace_header.process(dtrace_tmpl)
-endif
-
-if build_xorg
-    install_data(
-        [
-            'XIstubs.h',
-            'Xprintf.h',
-            'callback.h',
-            'client.h',
-            'closestr.h',
-            'closure.h',
-            'colormap.h',
-            'colormapst.h',
-            'hotplug.h',
-            'cursor.h',
-            'cursorstr.h',
-            'dix.h',
-            'dixaccess.h',
-            'dixevents.h',
-            'dixfont.h',
-            'dixfontstr.h',
-            'dixgrabs.h',
-            'dixstruct.h',
-            'events.h',
-            'exevents.h',
-            'extension.h',
-            'extinit.h',
-            'extnsionst.h',
-            'fourcc.h',
-            'gc.h',
-            'gcstruct.h',
-            'globals.h',
-            'glx_extinit.h',
-            'glxvndabi.h',
-            'input.h',
-            'inputstr.h',
-            'list.h',
-            'misc.h',
-            'miscstruct.h',
-            'opaque.h',
-            'nonsdk_extinit.h',
-            'optionstr.h',
-            'os.h',
-            'pixmap.h',
-            'pixmapstr.h',
-            'privates.h',
-            'property.h',
-            'propertyst.h',
-            'ptrveloc.h',
-            'region.h',
-            'regionstr.h',
-            'registry.h',
-            'resource.h',
-            'rgb.h',
-            'screenint.h',
-            'scrnintstr.h',
-            'selection.h',
-            'servermd.h',
-            'validate.h',
-            'displaymode.h',
-            'window.h',
-            'windowstr.h',
-            'xkbfile.h',
-            'xkbsrv.h',
-            'xkbstr.h',
-            'xkbrules.h',
-            'Xprintf.h',
-            'xserver_poll.h',
-            'xserver-properties.h',
-        ],
-        install_dir: xorgsdkdir,
-    )
 endif

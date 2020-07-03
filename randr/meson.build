@@ -30,7 +30,3 @@ libxserver_randr = static_library('libxserver_randr',
     include_directories: inc,
     dependencies: common_dep,
 )
-
-if build_xorg
-    install_data(hdrs_randr, install_dir: xorgsdkdir)
-endif
