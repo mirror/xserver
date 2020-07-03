@@ -53,7 +53,3 @@ glamor_egl_stubs = static_library('glamor_egl_stubs',
     include_directories: inc,
     dependencies: common_dep,
 )
-
-if build_xorg
-    install_data('glamor.h', install_dir: xorgsdkdir)
-endif
