@@ -92,7 +92,6 @@ dri3proto_dep = dependency('dri3proto', version: '>= 1.2', fallback: ['xorgproto
 xineramaproto_dep = dependency('xineramaproto', fallback: ['xorgproto', 'ext_xorgproto'])
 xf86bigfontproto_dep = dependency('xf86bigfontproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'], required: get_option('xf86bigfont'))
 xf86vidmodeproto_dep = dependency('xf86vidmodeproto', version: '>= 2.2.99.1', fallback: ['xorgproto', 'ext_xorgproto'])
-applewmproto_dep = dependency('applewmproto', version: '>= 1.4', fallback: ['xorgproto', 'ext_xorgproto'], required: false)
 xshmfence_dep = dependency('xshmfence', version: '>= 1.1', required: false)
 xwaylandproto_dep = dependency('xwaylandproto', version: '>= 1.0', fallback: ['xorgproto', 'ext_xorgproto'], required: false)
 
@@ -264,20 +263,6 @@ if get_option('xwin') == 'auto'
     endif
 else
     build_xwin = get_option('xwin') == 'true'
-endif
-
-build_xquartz = false
-if get_option('xquartz') == 'auto'
-    if host_machine.system() == 'darwin'
-            build_xquartz = true
-    endif
-else
-    build_xquartz = get_option('xquartz') == 'true'
-endif
-
-build_rootless = false
-if build_xquartz
-    build_rootless = true
 endif
 
 if get_option('ipv6') == 'auto'
@@ -523,9 +508,6 @@ else
 endif
 
 build_dpms = get_option('dpms')
-if build_xquartz
-    build_dpms = false
-endif
 
 build_xf86bigfont = get_option('xf86bigfont')
 build_screensaver = get_option('screensaver')
@@ -617,7 +599,6 @@ common_dep = [
     xf86bigfontproto_dep,
     xf86dgaproto_dep,
     xf86vidmodeproto_dep,
-    applewmproto_dep,
 
     pixman_dep,
     libbsd_dep,
@@ -773,11 +754,8 @@ subdir('dbe')
 subdir('miext/damage')
 subdir('miext/shadow')
 subdir('miext/sync')
-if build_rootless
-    subdir('miext/rootless')
-endif
 subdir('present')
-if build_xwin or build_xquartz
+if build_xwin
     subdir('pseudoramiX')
 endif
 subdir('randr')

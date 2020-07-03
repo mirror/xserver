@@ -255,12 +255,6 @@ conf_data.set_quoted('__VENDORDWEBSUPPORT__', get_option('vendor_web'))
 conf_data.set_quoted('BUILDERADDR', get_option('builder_addr'))
 conf_data.set_quoted('BUILDERSTRING', get_option('builder_string'))
 
-if build_rootless
-    conf_data.set('ROOTLESS', build_rootless ? '1' : false)
-    conf_data.set('ROOTLESS_WORKAROUND', 1)
-    conf_data.set('ROOTLESS_SAFEALPHA', 1)
-endif
-
 #
 # for xorg-server.h only
 #
