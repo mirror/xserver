@@ -234,27 +234,6 @@ if (host_machine.system() != 'darwin' and
     endforeach
 endif
 
-build_xnest = false
-if (host_machine.system() != 'windows')
-    if get_option('xnest') != 'false'
-        xnest_required = get_option('xnest') == 'true'
-
-        xnest_dep = [
-            dependency('xext', version: xext_req, required: xnest_required),
-            dependency('x11', required: xnest_required),
-            dependency('xau', required: xnest_required),
-        ]
-
-        build_xnest = true
-        # check for all the deps being found, to handle 'auto' mode.
-        foreach d: xnest_dep
-            if not d.found()
-                build_xnest = false
-            endif
-        endforeach
-    endif
-endif
-
 build_xwin = false
 if get_option('xwin') == 'auto'
     if (host_machine.system() == 'cygwin' or
