@@ -10,8 +10,6 @@ option('xwayland_eglstream', type: 'combo', choices: ['true', 'false', 'auto'],
        value: 'auto', description: 'Enable EGLStream support for glamor on Xwayland')
 option('xvfb', type: 'boolean', value: true,
        description: 'Enable Xvfb X server')
-option('xwin', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable XWin X server')
 
 
 option('builder_addr', type: 'string', description: 'Builder address', value: 'xorg@lists.freedesktop.org')
