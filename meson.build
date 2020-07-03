@@ -234,16 +234,6 @@ if (host_machine.system() != 'darwin' and
     endforeach
 endif
 
-build_xwin = false
-if get_option('xwin') == 'auto'
-    if (host_machine.system() == 'cygwin' or
-        host_machine.system() == 'windows')
-            build_xwin = true
-    endif
-else
-    build_xwin = get_option('xwin') == 'true'
-endif
-
 if get_option('ipv6') == 'auto'
     build_ipv6 = cc.has_function('getaddrinfo')
 else
@@ -734,9 +724,6 @@ subdir('miext/damage')
 subdir('miext/shadow')
 subdir('miext/sync')
 subdir('present')
-if build_xwin
-    subdir('pseudoramiX')
-endif
 subdir('randr')
 subdir('record')
 subdir('render')

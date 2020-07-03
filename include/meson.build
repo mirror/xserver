@@ -244,8 +244,6 @@ conf_data.set('HAVE_LIBUNWIND', get_option('libunwind'))
 conf_data.set('HAVE_APM', (build_apm or build_acpi) ? '1' : false)
 conf_data.set('HAVE_ACPI', build_acpi ? '1' : false)
 
-conf_data.set('DDXOSVERRORF', build_xwin ? '1' : false)
-conf_data.set('DDXBEFORERESET', build_xwin ? '1' : false)
 enable_debugging = get_option('buildtype') == 'debug'
 conf_data.set('DEBUG', enable_debugging ? '1' : false)
 
@@ -390,23 +388,6 @@ endif
 configure_file(output : 'xorg-config.h',
                input : 'xorg-config.h.meson.in',
                configuration : xorg_data)
-
-xwin_data = configuration_data()
-xwin_data.set_quoted('DEFAULT_LOGDIR', log_dir)
-xwin_data.set('HAS_WINSOCK', host_machine.system() == 'windows' ? '1' : false,
-              description: 'Use Windows sockets')
-xwin_data.set('HAS_DEVWINDOWS', host_machine.system() == 'cygwin' ? '1' : false,
-              description: 'Has /dev/windows for signaling new win32 messages')
-xwin_data.set('RELOCATE_PROJECTROOT', host_machine.system() == 'windows' ? '1' : false,
-              description: 'Make paths relative to the xserver installation location')
-# XXX: these three are all the same as DEBUG so we should just change to that
-xwin_data.set10('CYGDEBUG', enable_debugging)
-xwin_data.set10('CYGWINDOWING_DEBUG',enable_debugging)
-xwin_data.set10('CYGMULTIWINDOW_DEBUG', enable_debugging)
-
-configure_file(output : 'xwin-config.h',
-               input : 'xwin-config.h.meson.in',
-               configuration : xwin_data)
 
 xwayland_data = configuration_data()
 xwayland_data.set('XWL_HAS_GLAMOR', build_glamor and (gbm_dep.found() or build_eglstream) ? '1' : false)

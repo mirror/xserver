@@ -13,7 +13,3 @@ endif
 if build_xwayland
     subdir('xwayland')
 endif
-
-if build_xwin
-    subdir('xwin')
-endif
