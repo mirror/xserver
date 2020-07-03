@@ -380,20 +380,6 @@ configure_file(output : 'xorg-config.h',
                input : 'xorg-config.h.meson.in',
                configuration : xorg_data)
 
-xwin_data = configuration_data()
-xwin_data.set_quoted('DEFAULT_LOGDIR', log_dir)
-xwin_data.set('HAS_WINSOCK', host_machine.system() == 'windows', description: 'Use Windows sockets')
-xwin_data.set('HAS_DEVWINDOWS', host_machine.system() == 'cygwin', description: 'Has /dev/windows for signaling new win32 messages')
-xwin_data.set('RELOCATE_PROJECTROOT', host_machine.system() == 'windows', description: 'Make paths relative to the xserver installation location')
-# XXX: these three are all the same as DEBUG so we should just change to that
-xwin_data.set10('CYGDEBUG', enable_debugging)
-xwin_data.set10('CYGWINDOWING_DEBUG',enable_debugging)
-xwin_data.set10('CYGMULTIWINDOW_DEBUG', enable_debugging)
-
-configure_file(output : 'xwin-config.h',
-               input : 'xwin-config.h.meson.in',
-               configuration : xwin_data)
-
 xwayland_data = configuration_data()
 xwayland_data.set('XWL_HAS_GLAMOR', build_glamor and (gbm_dep.found() or build_eglstream))
 xwayland_data.set('XWL_HAS_EGLSTREAM', build_eglstream)
