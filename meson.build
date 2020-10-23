@@ -97,15 +97,6 @@ xkbcomp_dep = dependency('xkbcomp', required: false)
 xkbfile_dep = dependency('xkbfile')
 xfont2_dep = dependency('xfont2', version: '>= 2.0')
 
-dbus_required = get_option('systemd_logind') == 'true'
-dbus_dep = dependency('dbus-1', version: '>= 1.0', required: dbus_required)
-
-# libsystemd-daemon was moved into libsystemd in version 209
-libsystemd_daemon_dep = dependency('libsystemd', version: '>= 209', required: false)
-if not libsystemd_daemon_dep.found()
-    libsystemd_daemon_dep = dependency('libsystemd-daemon', required: false)
-endif
-
 build_hashtable = false
 
 # Resolve default values of some options
@@ -157,22 +148,7 @@ else
     default_font_path = dfp
 endif
 
-hal_option = get_option('hal')
 glamor_option = get_option('glamor')
-
-build_udev = get_option('udev')
-build_udev_kms = get_option('udev_kms')
-if ['windows',  'darwin', 'cygwin'].contains(host_machine.system())
-    build_udev = false
-    build_udev_kms = false
-    hal_option = 'false'
-endif
-
-if get_option('systemd_logind') == 'auto'
-    build_systemd_logind = build_udev_kms and dbus_dep.found()
-else
-    build_systemd_logind = get_option('systemd_logind') == 'true'
-endif
 
 with_dtrace = get_option('dtrace')
 if with_dtrace
@@ -216,32 +192,6 @@ if get_option('ipv6') == 'auto'
     build_ipv6 = cc.has_function('getaddrinfo')
 else
     build_ipv6 = get_option('ipv6') == 'true'
-endif
-
-hal_dep = []
-if hal_option == 'auto'
-    if not build_udev
-        hal_dep = dependency('hal', required: false)
-        build_hal = hal_dep.found()
-    else
-        build_hal = false
-    endif
-else
-    build_hal = hal_option == 'true'
-    if build_hal
-        hal_dep = dependency('hal')
-    endif
-endif
-
-if build_udev and build_hal
-    error('Hotplugging through both libudev and hal not allowed')
-endif
-
-build_dbus = build_hal or build_systemd_logind
-
-udev_dep = dependency('', required:false)
-if build_udev or build_udev_kms
-    udev_dep = dependency('libudev', version: '>= 143')
 endif
 
 if glamor_option == 'auto'
@@ -440,7 +390,6 @@ common_dep = [
     xcmiscproto_dep,
     bigreqsproto_dep,
     xtrans_dep,
-    libsystemd_daemon_dep,
 
     videoproto_dep,
     compositeproto_dep,
@@ -587,7 +536,6 @@ endif
 subdir('include')
 
 # X server core
-subdir('config')
 subdir('dix')
 subdir('dri3')
 subdir('glx')
