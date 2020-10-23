@@ -68,36 +68,6 @@ if get_option('xvfb')
                 )
         endforeach
     endif
-
-    if get_option('xephyr') and build_glamor
-        test('XTS',
-            find_program('scripts/xephyr-glamor-piglit.sh'),
-            env: piglit_env,
-            timeout: 1200,
-            suite: 'xephr-glamor',
-        )
-
-        if rendercheck.found()
-            foreach rctest: rendercheck_tests
-                test(rctest[0],
-                     simple_xinit,
-                     args: [simple_xinit.full_path(),
-                            rendercheck.path(),
-                            rctest[1].split(' '),
-                            '----',
-                            xephyr_server.full_path(),
-                            '-glamor',
-                            '-glamor-skip-present',
-                            '-schedMax', '2000',
-                            '--',
-                            xvfb_args,
-                           ],
-                     suite: 'xephr-glamor',
-                     timeout: 300,
-                    )
-            endforeach
-        endif
-    endif
 endif
 
 if build_xwayland

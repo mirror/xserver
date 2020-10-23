@@ -1,7 +1,3 @@
-if get_option('xephyr')
-    subdir('kdrive')
-endif
-
 if get_option('xvfb')
     subdir('vfb')
 endif
