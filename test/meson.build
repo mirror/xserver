@@ -91,60 +91,6 @@ if get_option('xvfb')
                 )
         endforeach
     endif
-
-    if get_option('xephyr') and build_glamor
-        test('XTS',
-            find_program('scripts/xephyr-glamor-piglit.sh'),
-            env: piglit_env,
-            timeout: 1200,
-            suite: 'xephyr-glamor',
-        )
-        test('XTS',
-            find_program('scripts/xephyr-glamor-gles2-piglit.sh'),
-            env: piglit_env,
-            timeout: 1200,
-            suite: 'xephyr-glamor-gles2',
-        )
-
-        if rendercheck.found()
-            foreach rctest: rendercheck_tests
-                test(rctest[0],
-                     simple_xinit,
-                     args: [simple_xinit.full_path(),
-                            rendercheck.path(),
-                            rctest[1].split(' '),
-                            '----',
-                            xephyr_server.full_path(),
-                            '-glamor',
-                            '-glamor-skip-present',
-                            '-schedMax', '2000',
-                            '--',
-                            xvfb_args,
-                           ],
-                     suite: 'xephyr-glamor',
-                     timeout: 300,
-                    )
-            endforeach
-            foreach rctest: rendercheck_tests_gles2
-                test(rctest[0],
-                     simple_xinit,
-                     args: [simple_xinit.full_path(),
-                            rendercheck.path(),
-                            rctest[1].split(' '),
-                            '----',
-                            xephyr_server.full_path(),
-                            '-glamor_gles2',
-                            '-glamor-skip-present',
-                            '-schedMax', '2000',
-                            '--',
-                            xvfb_args,
-                           ],
-                     suite: 'xephyr-glamor-gles2',
-                     timeout: 300,
-                    )
-            endforeach
-        endif
-    endif
 endif
 
 if build_xwayland
@@ -163,4 +109,3 @@ endif
 subdir('bigreq')
 subdir('damage')
 subdir('sync')
-subdir('bugs')

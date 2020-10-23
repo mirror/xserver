@@ -1,5 +1,3 @@
-option('xephyr', type: 'boolean', value: false,
-       description: 'Enable Xephyr nested X server')
 option('xwayland', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable Xwayland X server')
 option('glamor', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',

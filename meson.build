@@ -636,9 +636,6 @@ subdir('Xi')
 if build_glamor
     subdir('glamor')
 endif
-if get_option('xephyr')
-    subdir('exa')
-endif
 subdir('doc')
 
 # Common static libraries of all X servers

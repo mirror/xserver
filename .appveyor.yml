@@ -73,7 +73,7 @@ cache:
 - '%CYGWIN_ROOT%\home\%USERNAME%\.ccache'
 build_script:
 - SET PATH=%CYGWIN_ROOT%/bin
-- '%CYGWIN_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER; meson setup --prefix=/usr -Dxv=false -Dxf86bigfont=true -Dxephyr=true -Dxvfb=true -Dglamor=false build"'
+- '%CYGWIN_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER; meson setup --prefix=/usr -Dxv=false -Dxf86bigfont=true -Dxvfb=true -Dglamor=false build"'
 - '%CYGWIN_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER; meson configure build"'
 - '%CYGWIN_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER; ninja -C build"'
 - '%CYGWIN_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER; ccache -s"'
