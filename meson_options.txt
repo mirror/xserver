@@ -1,7 +1,5 @@
-option('xwayland', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable Xwayland X server')
-option('glamor', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable glamor (default yes for Xwayland builds)')
+option('glamor', type: 'boolean', value: true,
+       description: 'Enable glamor (default yes)')
 option('xwayland_eglstream', type: 'combo', choices: ['true', 'false', 'auto'],
        value: 'auto', description: 'Enable EGLStream support for glamor on Xwayland')
 option('xvfb', type: 'boolean', value: true,

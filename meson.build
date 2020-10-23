@@ -162,56 +162,35 @@ else
     default_font_path = dfp
 endif
 
-glamor_option = get_option('glamor')
+build_glamor = get_option('glamor')
 
 with_dtrace = get_option('dtrace')
 if with_dtrace
     dtrace = find_program('dtrace', required: true)
 endif
 
-libxcvt_dep = dependency('libxcvt', fallback: ['libxcvt', 'libxcvt_dep'], required: build_xorg)
-build_xwayland = false
-if (host_machine.system() != 'darwin' and
-    host_machine.system() != 'windows' and
-    get_option('xwayland') != 'false')
-    xwayland_required = get_option('xwayland') == 'true'
-    build_glamor = glamor_option == 'true' or glamor_option == 'auto'
+build_xwayland = true
 
-    xwayland_path = get_option('xwayland-path')
-    if (xwayland_path == '')
-        xwayland_path = join_paths(get_option('prefix'), get_option('bindir'))
-    endif
+xwayland_path = get_option('xwayland-path')
+if (xwayland_path == '')
+    xwayland_path = join_paths(get_option('prefix'), get_option('bindir'))
+endif
 
-    xwayland_dep = [
-        dependency('wayland-client', version: wayland_req, required: xwayland_required),
-        dependency('wayland-protocols', version: wayland_protocols_req, required: xwayland_required),
-        dependency('libxcvt', fallback: ['libxcvt', 'libxcvt_dep'], required: xwayland_required),
-    ]
+xwayland_dep = [
+    dependency('wayland-client', version: wayland_req, required: true),
+    dependency('wayland-protocols', version: wayland_protocols_req, required: true),
+    dependency('libxcvt', fallback: ['libxcvt', 'libxcvt_dep'], required: true),
+]
 
-    if build_glamor
-        xwayland_dep += dependency('libdrm', version: libdrm_req, required: xwayland_required)
-        xwayland_dep += dependency('epoxy', required: xwayland_required)
-    endif
-
-    build_xwayland = true
-    # check for all the deps being found, to handle 'auto' mode.
-    foreach d: xwayland_dep
-        if not d.found()
-            build_xwayland = false
-        endif
-    endforeach
+if build_glamor
+    xwayland_dep += dependency('libdrm', version: libdrm_req, required: true)
+    xwayland_dep += dependency('epoxy', required: true)
 endif
 
 if get_option('ipv6') == 'auto'
     build_ipv6 = cc.has_function('getaddrinfo')
 else
     build_ipv6 = get_option('ipv6') == 'true'
-endif
-
-if glamor_option == 'auto'
-    build_glamor = build_xwayland
-else
-    build_glamor = glamor_option == 'true'
 endif
 
 gbm_dep = dependency('', required: false)
@@ -221,23 +200,19 @@ if build_glamor
     epoxy_dep = dependency('epoxy', required: false)
 endif
 
-if build_xwayland
-    libdecor_dep = dependency('libdecor-0', required: false)
-    libdecor_option = get_option('libdecor')
-    if libdecor_option == 'auto'
-        have_libdecor = libdecor_dep.found()
-    else
-        have_libdecor = libdecor_option == 'true'
-        if have_libdecor and not libdecor_dep.found()
-            error('libdecor support requested but not found')
-        endif
-    endif
+libdecor_dep = dependency('libdecor-0', required: false)
+libdecor_option = get_option('libdecor')
+if libdecor_option == 'auto'
+    have_libdecor = libdecor_dep.found()
 else
-    have_libdecor = false
+    have_libdecor = libdecor_option == 'true'
+    if have_libdecor and not libdecor_dep.found()
+        error('libdecor support requested but not found')
+    endif
 endif
 
 eglstream_option = get_option('xwayland_eglstream')
-if build_xwayland and build_glamor
+if build_glamor
     eglstream_dep = dependency('wayland-eglstream-protocols', required:false)
     if eglstream_option == 'auto'
         build_eglstream = eglstream_dep.found()
