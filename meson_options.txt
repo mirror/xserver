@@ -45,10 +45,6 @@ option('listen_unix', type: 'boolean', value: true,
 option('listen_local', type: 'boolean', value: true,
        description: 'Listen on local by default')
 
-option('hal', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable HAL integration')
-option('systemd_logind', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
-       description: 'Enable systemd-logind integration')
 option('dpms', type: 'boolean', value: true,
        description: 'Xorg DPMS extension')
 option('xf86bigfont', type: 'boolean', value: false,

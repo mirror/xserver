@@ -92,14 +92,6 @@ endif
 conf_data.set('HAVE_LIBBSD', libbsd_dep.found() ? '1' : false)
 # Note: this symbol is used by libXtrans.
 conf_data.set('HAVE_SYSTEMD_DAEMON', libsystemd_daemon_dep.found() ? '1' : false)
-conf_data.set('CONFIG_UDEV', build_udev ? '1' : false)
-conf_data.set('CONFIG_UDEV_KMS', build_udev_kms ? '1' : false)
-conf_data.set('HAVE_DBUS', build_dbus ? '1' : false)
-conf_data.set('CONFIG_HAL', build_hal ? '1' : false)
-conf_data.set('SYSTEMD_LOGIND', build_systemd_logind ? '1' : false)
-conf_data.set('NEED_DBUS', build_systemd_logind or build_hal ? '1' : false)
-conf_data.set('CONFIG_WSCONS', host_machine.system() == 'openbsd' ? '1' : false)
-
 conf_data.set('HAVE_XSHMFENCE', xshmfence_dep.found() ? '1' : false)
 conf_data.set('WITH_LIBDRM', libdrm_required ? '1' : false)
 conf_data.set('GLAMOR_HAS_EGL_QUERY_DMABUF',
@@ -281,11 +273,6 @@ endif
 conf_data.set_quoted('XKB_DFLT_RULES', get_option('xkb_default_rules'))
 conf_data.set_quoted('__XSERVERNAME__', 'Xorg')
 conf_data.set('CSRG_BASED', csrg_based ? '1' : false)
-conf_data.set('PCCONS_SUPPORT', supports_pccons ? '1' : false)
-conf_data.set('PCVT_SUPPORT', supports_pcvt ? '1' : false)
-conf_data.set('SYSCONS_SUPPORT', supports_syscons ? '1' : false)
-conf_data.set('WSCONS_SUPPORT', supports_wscons ? '1' : false)
-conf_data.set('XSERVER_PLATFORM_BUS', build_udev_kms ? '1' : false)
 
 configure_file(output : 'dix-config.h',
                configuration : conf_data)

@@ -99,7 +99,6 @@ Equipment Corporation.
 #include <X11/fonts/libxfont2.h>
 #include "opaque.h"
 #include "servermd.h"
-#include "hotplug.h"
 #include "dixfont.h"
 #include "extnsionst.h"
 #include "privates.h"
