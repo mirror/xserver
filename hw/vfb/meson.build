@@ -19,11 +19,5 @@ xvfb_server = executable(
         libxserver_glx,
         libglxvnd,
     ],
-    install: true,
+    install: false,
 )
-
-install_man(configure_file(
-    input: 'man/Xvfb.man',
-    output: 'Xvfb.1',
-    configuration: manpage_config,
-))
