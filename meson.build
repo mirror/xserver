@@ -146,7 +146,7 @@ else
     default_font_path = dfp
 endif
 
-glamor_option = get_option('glamor')
+build_glamor = get_option('glamor')
 
 with_dtrace = get_option('dtrace')
 if with_dtrace
@@ -154,7 +154,6 @@ if with_dtrace
 endif
 
 build_xwayland = true
-build_glamor = glamor_option != 'false'
 
 xwayland_path = get_option('xwayland-path')
 if (xwayland_path == '')
