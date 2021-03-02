@@ -8,7 +8,7 @@ else
     subpatch = 0
 endif
 
-release = major * 10000000 + minor * 100000 + patch * 1000 + subpatch
+release = 1 * 10000000 + major * 100000 + minor * 1000 + patch
 
 dri_dep = dependency('dri', required: build_glx)
 
