@@ -1144,7 +1144,7 @@ xwl_eglstream_get_device(struct xwl_screen *xwl_screen)
     free(devices);
 out:
     if (!device)
-        ErrorF("glamor: No eglstream capable devices found\n");
+        LogMessageVerb(X_INFO, 3, "glamor: No eglstream capable devices found\n");
     return device;
 }
 
