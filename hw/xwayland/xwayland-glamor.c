@@ -412,7 +412,8 @@ xwl_glamor_select_gbm_backend(struct xwl_screen *xwl_screen)
         return TRUE;
     }
     else
-        ErrorF("Missing Wayland requirements for glamor GBM backend\n");
+        LogMessageVerb(X_INFO, 3,
+                       "Missing Wayland requirements for glamor GBM backend\n");
 #endif
 
     return FALSE;
@@ -428,7 +429,8 @@ xwl_glamor_select_eglstream_backend(struct xwl_screen *xwl_screen)
         return TRUE;
     }
     else
-        ErrorF("Missing Wayland requirements for glamor EGLStream backend\n");
+        LogMessageVerb(X_INFO, 3,
+                       "Missing Wayland requirements for glamor EGLStream backend\n");
 #endif
 
     return FALSE;
