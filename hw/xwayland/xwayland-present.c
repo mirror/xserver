@@ -83,6 +83,7 @@ xwl_present_free_timer(struct xwl_present_window *xwl_present_window)
 {
     TimerFree(xwl_present_window->frame_timer);
     xwl_present_window->frame_timer = NULL;
+    xwl_present_window->timer_armed = 0;
 }
 
 static CARD32
@@ -101,12 +102,28 @@ static void
 xwl_present_reset_timer(struct xwl_present_window *xwl_present_window)
 {
     if (xwl_present_has_pending_events(xwl_present_window)) {
+        CARD32 now = GetTimeInMillis();
         CARD32 timeout;
 
         if (!xorg_list_is_empty(&xwl_present_window->frame_callback_list))
             timeout = TIMER_LEN_FLIP;
         else
             timeout = TIMER_LEN_COPY;
+
+        /* Make sure the timer callback runs if at least a second has passed
+         * since we first armed the timer. This can happen e.g. if the Wayland
+         * compositor doesn't send a pending frame event, e.g. because the
+         * Wayland surface isn't visible anywhere.
+         */
+        if (xwl_present_window->timer_armed) {
+            if ((int)(now - xwl_present_window->timer_armed) > 1000) {
+                xwl_present_timer_callback(xwl_present_window->frame_timer, now,
+                                           xwl_present_window);
+                return;
+            }
+        } else {
+            xwl_present_window->timer_armed = now;
+        }
 
         xwl_present_window->frame_timer = TimerSet(xwl_present_window->frame_timer,
                                                    0, timeout,
@@ -199,6 +216,8 @@ xwl_present_msc_bump(struct xwl_present_window *xwl_present_window)
     struct xwl_present_event    *event, *tmp;
 
     xwl_present_window->ust = GetTimeInMicros();
+
+    xwl_present_window->timer_armed = 0;
 
     event = xwl_present_window->sync_flip;
     xwl_present_window->sync_flip = NULL;
