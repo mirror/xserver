@@ -64,6 +64,7 @@ struct xwl_present_event {
     struct xorg_list list;
 };
 
+void xwl_present_reset_timer(struct xwl_present_window *xwl_present_window);
 void xwl_present_frame_callback(struct xwl_present_window *xwl_present_window);
 Bool xwl_present_init(ScreenPtr screen);
 void xwl_present_cleanup(WindowPtr window);
