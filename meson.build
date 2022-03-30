@@ -3,7 +3,7 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '22.1.0',
+        version: '22.1.1',
         meson_version: '>= 0.47.0',
 )
 release_date = '2021-07-05'
