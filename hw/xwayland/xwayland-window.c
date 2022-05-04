@@ -50,6 +50,7 @@
 
 static DevPrivateKeyRec xwl_window_private_key;
 static DevPrivateKeyRec xwl_damage_private_key;
+static const char *xwl_surface_tag = "xwl-surface";
 
 static void
 xwl_window_set_allow_commits(struct xwl_window *xwl_window, Bool allow,
@@ -112,6 +113,18 @@ xwl_window_from_window(WindowPtr window)
     }
 
     return NULL;
+}
+
+static void
+xwl_window_set_xwayland_tag(struct xwl_window *xwl_window)
+{
+    wl_proxy_set_tag((struct wl_proxy *)xwl_window->surface, &xwl_surface_tag);
+}
+
+Bool
+is_surface_from_xwl_window(struct wl_surface *surface)
+{
+    return wl_proxy_get_tag((struct wl_proxy *) surface) == &xwl_surface_tag;
 }
 
 void
@@ -482,6 +495,7 @@ ensure_surface_for_window(WindowPtr window)
     send_surface_id_event(xwl_window);
 
     wl_surface_set_user_data(xwl_window->surface, xwl_window);
+    xwl_window_set_xwayland_tag(xwl_window);
 
     compRedirectWindow(serverClient, window, CompositeRedirectManual);
 
