@@ -68,6 +68,9 @@ struct xwl_screen {
     ResizeWindowProcPtr ResizeWindow;
     MoveWindowProcPtr MoveWindow;
 
+    int (*GrabServer) (ClientPtr client);
+    int (*UngrabServer) (ClientPtr client);
+
     struct xorg_list output_list;
     struct xorg_list seat_list;
     struct xorg_list damage_window_list;
