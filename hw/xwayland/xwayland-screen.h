@@ -94,6 +94,7 @@ struct xwl_screen {
     struct xorg_list drm_lease_devices;
     struct xorg_list queued_drm_lease_devices;
     struct xorg_list drm_leases;
+    struct xorg_list pending_wl_surface_destroy;
     uint32_t serial;
 
 #define XWL_FORMAT_ARGB8888 (1 << 0)
