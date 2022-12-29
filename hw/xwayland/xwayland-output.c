@@ -223,6 +223,10 @@ xwl_output_get_emulated_mode_for_client(struct xwl_output *xwl_output,
     if (!xwl_output)
         return NULL;
 
+    /* We don't do XRandr emulation when a fake lease display */
+    if (!xwl_output->output)
+        return NULL;
+
     for (i = 0; i < XWL_CLIENT_MAX_EMULATED_MODES; i++) {
         if (xwl_client->emulated_modes[i].server_output_id ==
             xwl_output->server_output_id)
