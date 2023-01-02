@@ -1284,7 +1284,7 @@ RootlessResizeWindow(WindowPtr pWin, int x, int y,
             newW = w + 2 * newBW;
             newH = h + 2 * newBW;
 
-            resize_after = StartFrameResize(pWin, TRUE,
+            resize_after = StartFrameResize(pWin, FALSE,
                                             oldX, oldY, oldW, oldH, oldBW,
                                             newX, newY, newW, newH, newBW);
         }
@@ -1296,7 +1296,7 @@ RootlessResizeWindow(WindowPtr pWin, int x, int y,
         NORMAL_ROOT(pWin);
 
         if (winRec) {
-            FinishFrameResize(pWin, TRUE, oldX, oldY, oldW, oldH, oldBW,
+            FinishFrameResize(pWin, FALSE, oldX, oldY, oldW, oldH, oldBW,
                               newX, newY, newW, newH, newBW, resize_after);
         }
     }
