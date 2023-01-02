@@ -35,7 +35,7 @@
 #define _ROOTLESSCONFIG_H
 
 #ifdef __APPLE__
-#define ROOTLESS_RESIZE_GRAVITY TRUE
+// #define ROOTLESS_RESIZE_GRAVITY TRUE
 #endif
 
 /*# define ROOTLESSDEBUG*/
