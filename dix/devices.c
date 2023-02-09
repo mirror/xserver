@@ -2627,6 +2627,7 @@ AttachDevice(ClientPtr client, DeviceIntPtr dev, DeviceIntPtr master)
         screen = miPointerGetScreen(dev);
         screen->DeviceCursorCleanup(dev, screen);
         free(dev->spriteInfo->sprite);
+        dev->spriteInfo->sprite = NULL;
     }
 
     dev->master = master;
