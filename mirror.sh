@@ -5,12 +5,14 @@
 source git_login.sh
 # source git_mirror.sh
 
+args=$@
+
 function git_mirror() {
-	bash git_mirror.sh $@
+	bash git_mirror.sh $@ $args
 }
 
 # test
-# git_mirror astyle svn https://svn.code.sf.net/p/astyle/code/trunk --dry-run; exit
+# git_mirror astyle svn https://svn.code.sf.net/p/astyle/code/trunk; exit
 
 # repos
 git_mirror astyle svn https://svn.code.sf.net/p/astyle/code/trunk
